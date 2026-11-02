@@ -100,7 +100,7 @@ Alternative third: Chainlink CRE ($1.5k) verifying off-chain actions (GitHub/Dis
 
 **7. Hackathon-window scope.** Live: campaign created in Arc Studio on Arc testnet (5042002); earner verifies with World ID on a phone, deploys on Whitechain Sepolia, USDC released on Arc in seconds; dashboard queries Arkiv live; a repeat attempt is blocked by nullifier; expired campaign refunds. Mocked: off-chain actions (GitHub/Discord), fraud scoring beyond uniqueness, fiat invoicing.
 
-**8. Prior art (43 quest/CPA + 11 sybil-rewards hits).** **CPA** (Superhack 2023): protocol sets a max bid per onboarded user; no personhood, escrow refund or audit ledger. **Refer** (Superhack, 3 prizes): Worldcoin-gated referral campaigns; referral not conversion, no per-action escrow. **Distro** (NY 26 finalist): brands fund USDC pools, World-ID clippers paid per view; ours pays per *on-chain conversion* with refund-by-default and a public ledger. Also Swagly, Adquire, ZoneGo, HAT, Accrue. Web: Galxe, Layer3, Intract, QuestN — none refund fraud or expose a public attribution ledger.
+**8. Prior art (43 quest/CPA + 11 sybil-rewards hits).** **CPA** (Superhack 2023): protocol sets a max bid per onboarded user; no personhood, escrow refund or audit ledger. **Refer** (Superhack, 3 prizes): Worldcoin-gated referral campaigns; referral not conversion, no per-action escrow. **Distro** (NY 26 finalist): brands fund USDC pools, World-ID clippers paid per view; ours pays per *on-chain conversion* with refund-by-default and a public ledger. Also Swagly, Adquire, ZoneGo. Web: Galxe, Layer3, Intract, QuestN — none refund fraud or expose a public attribution ledger.
 
 **9. Biggest risk & mitigation.** Medium originality; Orb scarcity in India could throttle earners. Mitigation: accept Document (NFC passport) and Device credentials at tiered prices ("Orb-level humans at a premium"); demo on sponsors' own testnets so the buyer sees their logo.
 
@@ -112,4 +112,4 @@ Alternative third: Chainlink CRE ($1.5k) verifying off-chain actions (GitHub/Dis
 
 ## Operator's ranking
 
-Speed to $10k/week: **CallSheet (fee per fill) > Asli (Devcon-week deals, lumpy) > Nilami (hit-driven)**; by finalist odds, swap the last two. The Telegram-signals operator is the shared distribution channel for all three. Even if the ⚠ figures are off by 3×, CallSheet clears the bar at 1% of one Axiom-peak day.
+Speed to $10k/week: **CallSheet > Asli > Nilami**; by finalist odds, swap the last two. The Telegram-signals operator is the shared distribution channel. Even if the ⚠ figures are 3× too high, CallSheet clears the bar at 1% of one Axiom-peak day.

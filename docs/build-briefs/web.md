@@ -1,0 +1,150 @@
+# Build brief — `web` (wave 3)
+
+**You are building:** `apps/web` (`@ethglobal/web`, Next 16 App Router, Tailwind v4, PWA) and the product components in `packages/ui/components` — the surface a traveller, a gift recipient, a sponsor and a judge see. One question on the first screen, a coupon as the brand, the eight-state onchain action for every payment, honest install hand-offs, a sponsor table, and a print route for the paper scratch cards. Everything runs against `services/api` in `MODE=local`; Playwright proves it.
+
+**Named inputs (read in this order):**
+1. **`research/design-references.md`** — the **screen-by-screen spec** for this product (§1 a–g, §2 sponsor dashboard, §3 the physical coupon, §4 icons, §5 motion, §6 strings and accessibility, §7 the 15 regressions, §8 references). Where this brief and that file disagree on a screen, that file wins; where it is silent, `research/design-foundations.md` applies.
+2. `research/design-foundations.md` §1 (ban list, enforced by CI grep), §2, §3 pairing C "Bazaar", §4 colour, §5(b), §6 motion and onchain states, §7 copy.
+3. `research/committee/DECISION.md` §8 (design brief) and §6.5 (`apps/web` acceptance row).
+4. `packages/ui/README.md` — the **eight-state onchain action machine** (`onchainActionStates`, `onchainActionTransitions`, `canTransition`) you must implement as a component.
+5. `docs/INTERFACES.md` §1.6 (API bodies), §1.8 (`fetchWithPayment`, `PaymentSigner`, `sessionNonce`, headers), §1.12 (typed data you sign), §1.13 (PIN format), §2 (`@ethglobal/crypto` session keys), §4 (`@ethglobal/eip3009` typed data), §7 (HTTP contract), §11 (`NEXT_PUBLIC_*`), §12 (you never import adapters or octroi).
+6. `docs/THREAT-MODEL.md` §5.8 (T-58…T-64), T-31, T-32, T-47, T-61.
+7. The scaffold: `apps/web/**`, `packages/ui/**` (tokens, fonts, tailwind bridge, `index.ts`), root `eslint.config.js` (web zone), `.jscpd.json`.
+
+**Toolchain:** Next 16.4.4 (`output: 'standalone'`, `transpilePackages: ['@ethglobal/ui']`, `cacheComponents`), React 19.3, Tailwind v4 via `@tailwindcss/turbopack`, viem 2 (EIP-1193 + typed data; **no wagmi/RainbowKit**, D-12), `@worldcoin/idkit` (pin the current major), `@ethglobal/protocol`, `@ethglobal/crypto`, `@ethglobal/eip3009`, `@ethglobal/contracts/abi/*`, Playwright 1.63 (installed), vitest for units.
+
+---
+
+## 1. Files
+
+```
+apps/web/app/layout.tsx                      // <html lang="en" data-type="bazaar">; theme follows system; TESTNET strip on money screens via a layout slot
+apps/web/app/manifest.ts                     // PWA manifest (name "Recharge", display standalone, theme/background from tokens' sRGB, icons 192/512 maskable)
+apps/web/app/page.tsx                        // "/"  landing / claim (design-references §1a)
+apps/web/app/verify/page.tsx                 // "/verify" World ID sheet (§1b)
+apps/web/app/plan/[key]/page.tsx             // "/plan/[key]" the bundle (§1c)
+apps/web/app/install/page.tsx                // "/install" eSIM hand-off (§1d)
+apps/web/app/pay/page.tsx                    // "/pay" the 402 moment (§1e human)
+apps/web/app/agent/page.tsx                  // "/agent" one sheet, two controls (§1e agent)
+apps/web/app/gift/page.tsx                   // "/gift" boarding pass + claim + reclaim (§1f)
+apps/web/app/receipts/page.tsx               // "/receipts" three-line receipts (§1g)
+apps/web/app/sponsor/page.tsx  app/sponsor/[id]/page.tsx   // "/sponsor" create/fund; "/sponsor/[id]" the table (§2)
+apps/web/app/card/[serial]/page.tsx          // "/card/[serial]" preview → scratch → redeem (§3 digital twin)
+apps/web/app/print/cards/page.tsx            // "/print/cards?campaign=&count=&token=" print sheet (T-64)
+apps/web/app/offline/page.tsx                // SW fallback
+apps/web/public/sw.js  public/icons/*        // service worker: app shell only; never caches /claim, /esim/*, /card/*, /me/*, /gift/* responses (T-61)
+apps/web/lib/api.ts                          // typed client over httpJson + protocol schemas; X-Request-Id; error → RechargeError
+apps/web/lib/pay402.ts                       // fetchWithPayment + PaymentSigner implementations: EvmWalletSigner (EIP-1193), DemoWalletSigner (local only), HederaWalletSigner (interface + "coming in-window" state)
+apps/web/lib/session-key.ts                  // generateSessionKeypair in memory; openLpa; zeroize after use (T-60)
+apps/web/lib/wallet.ts                       // EIP-1193 discovery (EIP-6963), chain → CAIP-2 network, signTypedData
+apps/web/lib/onchain-action.ts               // reducer over the 8 states; stuck flag; persisted pending hashes (IndexedDB)
+apps/web/lib/lpa-links.ts                    // iOS universal link builder + Android instructions; regex-validated input only (T-62)
+apps/web/lib/store.ts                        // IndexedDB: entitlementKeys[], opened LPAs by key, pending tx hashes, agent policy draft; never the session secret
+apps/web/lib/device.ts                       // UA-based pre-flight: iOS ≥ 17.4?, Android?, eSIM-capable list; standalone (Home Screen) detection
+apps/web/lib/format.ts                       // thin wrappers over @ethglobal/protocol/units with the viewer's tz (no second formatter)
+apps/web/i18n/strings.ts  i18n/en.json  i18n/hi.json  i18n/mr.json   // typed keys; the table in design-references §6 verbatim
+apps/web/components/{ClaimPaths,TierLedger,IssuingRows,InstallSteps,ConnectionCheck,PaySheet,AgentSheet,GiftForm,ClaimGift,ReclaimGift,ReceiptList,SponsorTable,CampaignForm,ScratchRedeem,TestnetStrip,AddToHomeScreen,NotificationAsk,DemoWalletPanel}.tsx
+apps/web/e2e/{claim,topup,install,plan,agent,gift,sponsor,card,print,a11y,visual}.spec.ts   apps/web/playwright.config.ts
+apps/web/test/{onchain-action,lpa-links,i18n,format,device}.test.ts
+apps/web/next.config.ts                      // + headers(): CSP, frame-ancestors, Referrer-Policy, Permissions-Policy (T-58/59/61)
+packages/ui/components/{Button,Sheet,Field,Hash,Meter,Coupon,ScratchCard,MbMeter,BoardingPass,UsageAsOf,OnchainAction,Countdown,Pill,Table,Skeleton}.tsx
+packages/ui/components/index.ts              // exports; peerDependency react
+packages/ui/print.css                        // @page 91.6mm × 59.98mm, crop marks, print-color-adjust exact, .coupon[data-variant="print"]
+packages/ui/components/*.test.tsx            // state machine rendering, Coupon variants, print class names
+scripts/check-design-bans.sh                 // (ops-demo owns the script; you make it pass)
+```
+
+## 2. Routes and the one dominant element of each (from design-references §1–3; copy strings are in `i18n/en.json`)
+
+| Route | Dominant element | Must | Must not |
+|---|---|---|---|
+| `/` | the live, unscratched `Coupon` with **300 MB** and "1,214 of 2,000 sponsor bundles left · <sponsor>" from `GET /plans` (omit the count if the API is degraded; never fake) | two paths side by side: "Prove I'm human → 300 MB" and "I'll pay · $0.40 per 100 MB"; quiet rows "Enter a coupon PIN", "Open my plan"; pre-flight line from `device.ts`; exhausted/paused state swaps the button to "Pay $1.20 for 300 MB" | three-card grid, "Trusted by", phone mockup, Connect Wallet as the only CTA |
+| `/verify` | one sentence: "World checks you're one human. We receive a code that can't be traced to you." | `POST /challenge` first (session keypair generated **here**, kept in memory), then IDKit (`app_id`, action, `signal = challenge.signal`, `verification_level` orb/document); `TierLedger` from `/plans.campaign.bundleMb` (never hard-coded); states waiting/checking/failed/nullifier-seen/fail-closed; local mode shows a labelled "Simulated World ID" button that posts `fixtureProof` | shield-check icon, "Verified human" pill, green |
+| `/plan/[key]` | **300 MB** at `text-64` Anek `wdth 110 / wght 700`, 2× everything else | `IssuingRows` (Verified · Sponsor paid `0x1a2b…9f3e` ↗ · Plan written to Arkiv `ent:7f3a…`) each turning primary as its fact arrives; `MbMeter`; `UsageAsOf` from `usageAsOf` (not `ledgerReadAt`); expiry **from the entity's `expiresAt`** via `Countdown`; "Why it expires by itself" disclosure with the Arkiv key; three-line receipt; button "Install eSIM · 2 min"; `AddToHomeScreen` then `NotificationAsk` (§5 below); "simulated usage" label when `usageSource === 'simulated'`; "ledger degraded" banner when `degraded` | a spinner; the odometer on every visit; relative-only time; `expiresAt` computed client-side |
+| `/install` | the OS's own words as a status pill: "No Service" → "Searching…" → "LTE · Jio" | §4 below | a QR as the same-phone path; any promise of one-tap Android install |
+| `/pay` | the `OnchainAction` sheet itself ("Add 100 MB · $0.40") | §3 below; segmented control of `accepts[]` by **network name** ("Base · 12.40 USDC", "Hedera · 3.10 USDC"); "Valid with your plan until …"; "Network fee $0.00 — paid by the facilitator"; "This approval expires in 5:00" (`validBefore`); `TestnetStrip` | "Payment Required" heading, coin icon, faucet link, loader without a hash |
+| `/agent` | the policy as a sentence | stepper "≤ $10 / day" ($1 · $5 · $10 · $25), "Pause"; persists by signing EIP-712 `AgentPolicy` and `PUT /agent/policy`; rows from `/me/:key/receipts` (`agent-topup`) with the UAID; states cap-reached / fund-the-agent / paused | chat UI, robot, first-person monologue |
+| `/gift` | "Who gets it?" resolving live → `rahul.eth → 0x1a2b…9f3e` | sizes 300 MB · 1 GB · 3 GB at `priceUsd6` (one price); the copy **before** paying: "If unclaimed by Sun 15 Nov, you can reclaim the USDC (minus network fee) here until Mon 15 Dec" (D-7); result = `BoardingPass` with PIN 4×4 and a QR of `/card/<serial>`; "Save card" (1080×1920 PNG) · "Print"; `ClaimGift` (sign `GiftClaim` or enter PIN); `ReclaimGift` (sign `GiftReclaim` after `claimBy`) | gift box, ribbon, confetti, blockies |
+| `/receipts` | the per-day ledger of three-line receipts | from `/me/:key/receipts`; header "+100 MB · Sat 7 Nov 03:12 · Hedera · Final"; You / Sponsor / Network fee; disclosure: hash, HCS sequence, Arkiv key; "Download CSV" | cards |
+| `/sponsor`, `/sponsor/[id]` | **"1,214 claims"** at `text-32` beside "$607.00 of $1,000.00 · 2,000 cap · 120/h" | `CampaignForm` → `OnchainAction` ×2 (`approve`, `createCampaign`) from the sponsor's wallet → `POST /sponsor` (sign `SponsorLogin`) → show the audit key **once** with a copy affordance; the table (claims · HMAC'd key · tier · MB · cost · tx ↗ · status); budget bar; claims-per-hour line (`--series-1`, no fill, dashed cap); credential-level **table**; expiring quotas table; `Pause` is slide-to-confirm; `Refund` after expiry; "Export claims CSV (HMAC'd keys)" | KPI tile wall, donut, sparkline cards |
+| `/card/[serial]` | the coupon | `GET /card/:serial` preview (state, MB, sponsor); `ScratchCard` canvas reveals the PIN **the user types or already has** — the page never knows the PIN until typed (or deep-linked by the stub's own QR for the gift flow) ; "Redeem" → `POST /challenge` (path `/card/redeem`) → `POST /card/redeem { pin, challenge, sessionPubKey }` → `/plan/[key]`; Verhoeff check locally before the call (`isValidPin`) | redeeming on load |
+| `/print/cards` | the print sheet | requires `?token=` equal to `PRINT_TOKEN` (server component checks; 404 otherwise, `noindex`); fetches `fixtures/demo/cards.json`-shaped data from the API's seeded cards (`/card/:serial` has no PIN — the print route receives PINs from `scripts/print-cards.ts` via a one-time server-side file, never from a public route); renders N `Coupon data-variant="print"` with crop marks | shipping in the public nav |
+
+## 3. The eight-state onchain action (one component, used for every transaction)
+
+`lib/onchain-action.ts` exports `reducer(state, event)` over `OnchainActionState` from `@ethglobal/ui` and guards every transition with `canTransition(from, to)` (an illegal transition throws in dev, is logged in prod and ignored). Events: `start → signing`, `signed(hash) → submitted`, `rejected → idle` (inputs intact, neutral tone), `preBroadcastError → failed`, `seen → pending`, `confirmed(n) → confirmed`, `finalized → finalized`, `reorg → pending`, `replaced(newHash) → replaced` (a new row starts at `submitted`), `revert(reason) → failed`, `retry → idle`. The **stuck flag** is derived: `elapsed > 2 × expectedMs` while `submitted|pending` → one sentence with speed-up/cancel in the same row, never a modal. Pending hashes persist in IndexedDB so a reload reconciles. `OnchainAction` (ui) renders: Review (amount, recipient, network, itemised fee, ETA, worst case; pre-flight checks run here), Confirm in wallet ("Approve in MetaMask…" + cancel), Sending (hash immediately with copy + explorer link, elapsed time, determinate ring), Confirmed ("settling" tag; available vs pending), Final ("Paid · Final"), Failed (decoded reason in plain words + the honest fee note), Replaced. Invariants from `packages/ui/README.md`: never a bare spinner after `signing`; hashes shown the moment they exist; third-party state waits for `confirmed`.
+
+x402 mapping (`lib/pay402.ts`): `idle` = the 402 received and rendered as Review (accepts chosen, amount shown) → `signing` while `signTypedData` is open → on `PAYMENT-RESPONSE` with `success` the row jumps `submitted → confirmed` with the settlement hash (the API only answers 200 after settlement) → `finalized` when the chain's rule is met (Anvil: next block via `NEXT_PUBLIC_ANVIL_RPC_URL`; Base Sepolia: `safe` block poll; Hedera: immediate, "consensus") → `failed` on 402 `invalid_payment` (decoded reason from `error`/`details`). Explorer links: `NEXT_PUBLIC_EXPLORER_EVM/tx/<hash>`, HashScan for Hedera. `EvmWalletSigner.sign()` builds `Authorization3009` (`nonce` = `sessionNonce(sessionPubKey, keccak256)` on `/esim/provision` and `/gift`; random on top-ups), reads the token domain via `readDomain` (cached), and calls `wallet.signTypedData(typedDataTransferWithAuthorization(domain, auth))`. `DemoWalletSigner` (local only, `NEXT_PUBLIC_MODE=local`, visible banner "demo wallet · Anvil #5") signs with `privateKeyToAccount(anvilKeys[5])` — compiled out of the live build (`process.env.NEXT_PUBLIC_MODE === 'local'` branch + a build test, T-63). `HederaWalletSigner` is an interface with a labelled "Hedera wallet · coming in-window" state; the human Hedera payment in the demo is in-window work.
+
+## 4. Install hand-off (`/install`) — honest by platform (D-11; coordinator finding 1)
+
+- **iOS 17.4+ (UA gate):** button "Install eSIM" opens `https://esimsetup.apple.com/esim_qrcode_provisioning?carddata=<LPA>` built by `lpa-links.ts` **only** from an LPA in memory/IndexedDB that matches `LPA_PATTERN` (no URL parameter is ever accepted, T-62), `rel="noreferrer"`. Steps in the order the system asks (narrate, never fight the sheet): "Settings opens: tap Continue" · "Label the line *Recharge 300 MB*" · "Default line: keep your own" · "Cellular data: choose *Recharge*, allow switching" · "Settings → Cellular → Recharge → **Data Roaming on**". Under the button, always: **"Didn't open? Tap again — iOS sometimes fails on the first try."** (Apple forum 769597). Step labels are `[screenshot Wed]` and may be corrected by the human team.
+- **Android:** a web page **cannot** start an eSIM download (`ACTION_START_EUICC_ACTIVATION` is carrier-app only; `ACTION_MANAGE_EMBEDDED_SUBSCRIPTIONS` only opens Settings). So: primary action **"Copy activation code"** (the whole `LPA:1$…`, Chivo Mono, split on `$`, copy affordance); numbered steps "Settings → Network & internet → SIMs → Add SIM → *Set up manually* → paste the code" `[screenshot Wed]`; a secondary link "Open eSIM settings" using `intent:#Intent;action=android.telephony.euicc.action.MANAGE_EMBEDDED_SUBSCRIPTIONS;end`, visibly labelled **"unverified on your device — test Wed"**, and the UI must not claim or imply one-tap install anywhere (copy review greps for "one tap" / "instantly" on Android strings).
+- **Second device:** the QR appears only behind an explicit tap "For another phone", with the warning "Anyone who scans this can install your eSIM", auto-hidden after 60 s (T-61).
+- **After install:** `ConnectionCheck` fetches a 1 KB probe from the API (`GET /healthz`) and reports "Online over mobile data" / "Online over Wi-Fi only — turn Wi-Fi off to test" / "Offline · Data Roaming on?" using `navigator.connection` where available (`[verify]`), plus "LTE usually shows 1–3 min after install" with Wednesday's measured median once known (`NEXT_PUBLIC_ATTACH_MEDIAN_S`, else the range).
+- Status pill fed by `/me/:key` `status` (webhook `installed`/`active`) and the probe; troubleshooter rows after 3 min.
+
+## 5. PWA, Home Screen and notifications (coordinator finding 3)
+
+- `manifest.ts`: `display: 'standalone'`, `start_url: '/plan'` → resolves to the stored key, `theme_color`/`background_color` = sRGB of `--bg-canvas` light (`#fbfaf7`) and dark (`#0f0d0b` via `media` in the manifest where supported), maskable icons. `public/sw.js`: precache the app shell (`/`, `/offline`, CSS/JS), `network-first` for API calls with **no caching** of `/claim`, `/esim/*`, `/card/*`, `/me/*`, `/gift/*`, `/agent/*`, `/sponsor/*` (the API also sends `no-store`); `/plan/[key]` falls back to the last IndexedDB snapshot with "as of 14:02".
+- **Add to Home Screen placement:** on `/plan/[key]` **after the bundle is issued** and the odometer has run, below the install button: `AddToHomeScreen` — iOS (Safari, not standalone): a sheet "Add Recharge to your Home Screen to get the lock-screen line when data lands or runs low: Share → Add to Home Screen" with the two system icons; Android/Chrome: capture `beforeinstallprompt` on `/`, defer it, and show the prompt button here. Never on launch; dismissible; remembered in `localStorage` (per-viewer convenience).
+- **Notification permission:** asked **only** on `/plan/[key]` after issue (or after the first top-up), **only** when `display-mode: standalone` (iOS 16.4+ requires Home Screen for Web Push), with the stated reason: "To tell you when data lands or runs low — nothing else." The push text is the `Coupon` notification variant: "300 MB · from <sponsor>" / "because you're human. Install takes 2 minutes." and "+100 MB · paid by your agent · $0.40 · 03:12". Never request on launch; never "Welcome to Recharge!" (design-references §7 #10). `NotificationAsk` is a no-op when not standalone and explains why ("Add to Home Screen first").
+- Lighthouse PWA: installable, offline fallback, manifest valid, 360 px no horizontal scroll.
+
+## 6. Print (`/print/cards`, `packages/ui/print.css`) — design-references §3
+
+ISO ID-1 85.60 × 53.98 mm + 3 mm bleed → `@page { size: 91.6mm 59.98mm; margin: 0 }`, crop marks, `print-color-adjust: exact`, `font-display: block`, `--ink-spot` for the teal spot colour, `.coupon[data-variant="print"]` hides the canvas and prints the PIN layer (4×4 Chivo Mono 11 pt, slashed zero) and the visible QR (22 × 22 mm, ECC M, `https://<host>/card/<serial>`); back: the three-line receipt and the ENS write-in line. The same `Coupon` markup serves `screen` (canvas latex over a scanned-foil WebP ≤ 60 KB), `notification` (two lines) and `print`. A separate page in the PDF carries the 100 % K keyline for the scratch panel. `scripts/print-cards.ts` (ops-demo) drives this route with Playwright and `PRINT_TOKEN`.
+
+## 7. i18n
+
+`i18n/strings.ts` exports `t(key, params?)` with typed keys and the current `lang`; `en.json`, `hi.json`, `mr.json` carry the table in design-references §6 verbatim plus every UI string; Hindi/Marathi strings render inside `<span lang="hi">` (fonts.css applies leading 1.6); numerals stay Latin, `en-IN` grouping via `@ethglobal/protocol/units`; a unit test fails on any key missing in `hi.json`/`mr.json` and on any string containing an emoji or `!`. Error copy per `ErrorCode` lives here (no "Something went wrong").
+
+## 8. Security and design rules you must pass
+
+- `next.config.ts` `headers()`: `Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' <NEXT_PUBLIC_API_URL> <NEXT_PUBLIC_ANVIL_RPC_URL> https://*.worldcoin.org https://fonts.googleapis.com https://fonts.gstatic.com <explorers>; img-src 'self' data: blob:; font-src 'self' https://fonts.gstatic.com; frame-ancestors 'none'; base-uri 'none'`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`. IDKit's QR/deeplink needs may widen `connect-src`/`frame-src` — add the exact hosts, nothing wildcarded beyond `*.worldcoin.org`.
+- No `dangerouslySetInnerHTML` (eslint `react/no-danger: error` in the web zone); every string from the API is rendered as text.
+- Session secret in memory only; zeroised after `openLpa`; the opened LPA and `entitlementKey`s live in IndexedDB; a test inspects storage after a purchase for key material (T-60).
+- `DemoWalletPanel` and `anvilKeys` imports are behind `NEXT_PUBLIC_MODE === 'local'`; `test/no-anvil-key-in-bundle.test.ts` greps `.next/static` after a production build for `ac0974bec39a17e36ba4a6b4d238ff944bacb478` (Anvil #0) and `anvilKeys[5]` (T-63).
+- Design bans (CI `scripts/check-design-bans.sh`, which you must pass): no `backdrop-filter`/`blur(`, no `linear-gradient`/`radial-gradient` on UI surfaces (the scanned latex image is allowed), no font family named `Inter|Geist|Poppins|DM Sans|Space Grotesk`, no `hover:scale`, no emoji code points in `apps/web` or `packages/ui`, no OKLCH hue in 260–300 in any stylesheet, no `rounded-2xl` everywhere (one radius token per component family), no `shadow-xl`, no `Beta` pill, no `Supercharge|Seamless|Effortless|Unlock|Empower`.
+- One accent (`--accent`, oxide teal) on ≤ 5 % of pixels; semantic hues reserved (positive = data added, negative = payment failed, warning = usage ≥ 80 %); `data-type="bazaar"` default; Anek Devanagari `wdth 110/wght 700` for the hero number, Chivo Mono for PINs/ICCIDs/hashes/amounts; Baloo 2 only for "rub here" on the printed latex; icons Phosphor Regular or Lucide `stroke-width 1.5` at 16/20 px (allowed set in design-references §4); motion only `transform`/`opacity` with the token durations; `prefers-reduced-motion` honoured.
+- Numbers: `Intl.NumberFormat('en-IN')`; MB integers below 1 GB, one decimal GB above, never both on one screen; money two decimals with the unit that moves ("$0.40 USDC"); hashes `0x1a2b…9f3e` with copy + explorer; PINs 4×4; ICCIDs in fives; times 24-hour with "IST" when the viewer's zone differs.
+- Accessibility: 48 px targets; 2 px accent focus ring with 2 px offset; `MbMeter` is `role="meter"` with a text twin; `Countdown` is `<time datetime>` with `aria-live="off"`; the status pill `role="status"`; the scratch canvas has a button twin "Reveal PIN"; both themes; 14 px floor for Devanagari.
+
+## 9. Dependencies on other workstreams
+
+| Needs | From | Until it lands |
+|---|---|---|
+| `services/api` in `MODE=local` (all routes of INTERFACES §7) | api (wave 2 — lands before wave 3 starts) | `apps/web/e2e/mock-api.ts`: a Hono app serving `fixtures/demo/*.json` through the protocol schemas (no business logic; answers 402 then 200 with a `MockPaymentRail`); **deleted before DoD** — e2e must run against the real API |
+| `@ethglobal/protocol`, `@ethglobal/crypto`, `@ethglobal/eip3009`, `@ethglobal/contracts/abi/*` + `deploy/addresses.anvil.json` | waves 1 | — |
+| `scripts/e2e-local.sh`, `demo-seed.ts`, `print-cards.ts`, `check-design-bans.sh` | ops-demo (parallel wave 3) | run `pnpm dev:chain`, the API and `next dev` by hand; keep your Playwright config able to start against an already-running stack (`PLAYWRIGHT_BASE_URL`) |
+| `/plans` carrying `remainingClaims`, `simulated` flags; `/me` carrying `degraded`, `usageSource` | api | — |
+
+## 10. Acceptance tests (Playwright in `MODE=local`; vitest for units; names binding)
+
+Playwright (`apps/web/e2e`, 390 × 844 and 1280 × 800, light and dark, Chromium):
+- `claim.spec`: `landing renders both paths and the live coupon count`; `simulated World ID → /plan shows 300 MB, IssuingRows turn primary in order, odometer runs once, Arkiv key visible`; `second simulated proof with the same nullifier → "This World ID claimed its bundle…" state`.
+- `topup.spec`: `Add 100 MB → Review shows $0.40, accepts by network name, approval expiry → demo wallet signs → Sending shows a hash within 1 s → Confirmed +100 MB → meter extends once → Final`; `wrong-amount payment (forced via test hook) → Failed with decoded reason and the fee note`.
+- `install.spec`: `iOS UA → universal link href matches esimsetup.apple.com with the opened LPA; "Didn't open? Tap again" present; no QR visible`; `Android UA → Copy activation code primary; Settings steps; intent link labelled unverified; no "one tap" string`; `second device QR only after the tap and hidden after 60 s (clock mocked)`; `/install accepts no URL parameter (navigating with ?lpa= renders nothing)`.
+- `plan.spec`: `usage as of HH:MM equals usageAsOf, not ledgerReadAt`; `expiry text derives from expiresAt`; `simulated usage label when usageSource = simulated`; `degraded banner when /me says degraded`; `AddToHomeScreen appears after issue, never on /`; `NotificationAsk absent when not standalone and present (with the reason) when display-mode is standalone (emulated)`.
+- `agent.spec`: `policy sheet persists via signed PUT; sentence updates; receipts rows show the UAID`.
+- `gift.spec`: `name resolves live; reclaim copy visible before paying; pay → BoardingPass with 16-digit PIN 4×4 and QR to /card/<serial>; claim by signature → /plan; claim by PIN → /plan; reclaim after claimBy (clock mocked via API seed) → refund receipt row`.
+- `sponsor.spec`: `create → approve → createCampaign (two OnchainAction rows, hashes shown) → register → audit key shown once with copy → table lists HMAC'd keys only (no 0x nullifier-looking values beyond keys) → pause via slide-to-confirm`.
+- `card.spec`: `GET /card/[serial] never changes state (reload twice); scratch to ≥ 45 % enables Redeem; typo PIN rejected locally (Verhoeff); valid → /plan`.
+- `print.spec`: `/print/cards without token → 404; with token → N coupons, PINs in Chivo Mono, PDF renders without clipping (page count = N + 1 keyline)`.
+- `a11y.spec`: `axe has no serious violations on every route`; `no horizontal scroll at 360 px`; `Hindi strings carry lang="hi"`; `focus ring visible on every control`.
+- `visual.spec`: screenshots of every route in light and dark committed as baselines; `check-design-bans.sh` passes.
+Vitest: `onchain-action.test.ts` (every legal transition; every illegal one rejected; stuck flag at 2×; replaced starts a new row), `lpa-links.test.ts` (regex gate; URL encoding of `$`; Android intent string), `i18n.test.ts` (no missing keys; no emoji/`!`), `format.test.ts` (MB/GB rule; en-IN), `device.test.ts` (iOS 17.3 vs 17.4; standalone detection), `packages/ui/components/*.test.tsx` (Coupon variants render the same data; `OnchainAction` renders the required fields per state; `print.css` class contract).
+
+## 11. Definition of done
+
+- `pnpm --filter @ethglobal/web build typecheck lint test` and `pnpm --filter @ethglobal/ui test` green; Playwright suite green against the real local stack (`scripts/e2e-local.sh --web`); visual baselines committed; Lighthouse PWA installable; `check-design-bans.sh` clean.
+- Every route in §2 exists with its dominant element and states; the fifteen regressions in design-references §7 are each covered by a test or the ban script.
+- The Android screen contains no promise of one-tap install; the iOS screen contains the "tap again" line; `/gift` states the reclaim rule before payment; `/plan` asks for Home Screen then notifications with the stated reason, never on launch.
+- `packages/ui/README.md` gains a components table; `apps/web/README.md` documents routes, env, the demo wallet, how to run e2e, and the `[screenshot Wed]` strings the human team must confirm.
+- No import of `@ethglobal/adapters` or `@ethglobal/octroi` anywhere under `apps/web` (lint zone).
+
+## 12. The three most likely bugs — avoid them
+
+1. **Breaking the eight-state machine for convenience.** A payment that "just works" tempts a `success` boolean; the row must pass `idle → signing → submitted → confirmed → finalized` with a hash shown the instant it exists and `rejected → idle` keeping inputs. Use the reducer; never set state directly; the unit test enumerates every transition.
+2. **Leaking the LPA or the session secret.** The universal link puts the LPA in a URL — build it only from validated memory/IndexedDB, open with `noreferrer`, never log it, never put it in `router.push` params or in a prefetchable `<Link>`; zeroise the X25519 secret right after `openLpa`; the SW must never cache `/claim`, `/esim/*`, `/card/*`, `/me/*`, `/gift/*`.
+3. **Overpromising the platform.** Android cannot install from the web; iOS first taps fail; iOS Web Push needs the Home Screen. Ship the copy that says so (and only then), and keep every step string marked `[screenshot Wed]` until a human confirms it on a real device.

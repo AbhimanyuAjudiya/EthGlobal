@@ -3,12 +3,22 @@ packages:
   - services/*
   - packages/*
 
-# Shared dev-dependency versions; packages reference them with "catalog:".
+# Shared dependency versions; packages reference them with "catalog:".
 catalog:
+  "@noble/ciphers": 2.4.0
+  "@noble/curves": 2.4.0
+  "@noble/hashes": 2.4.0
+  "@playwright/test": 1.63.0
   "@types/node": 22.20.5
+  fast-check: 4.10.2
   tsx: 4.23.15
   typescript: 5.9.3
+  viem: 2.57.14
   vitest: 5.1.0
+  zod: 4.6.7
+
+# Supply chain (THREAT-MODEL T-65): never resolve a version published less than 3 days ago (minutes).
+minimumReleaseAge: 4320
 
 # Install scripts: esbuild's postinstall only verifies its binary; sharp/unrs-resolver are skipped as
 # create-next-app does by default.

@@ -40,7 +40,7 @@ tag v0-prekickoff — Thu 5 Nov 20:59 IST (human action)
 
 **Entry condition for R<n>:** the wave's PR is merged to `main`, CI is green (`pnpm lint typecheck test`, `forge build/test`, `pnpm build`), the attack-surface note is posted. **Exit:** clearance per §1. A later wave may start while an earlier wave's Med findings are being fixed; it may **not** start while a Critical or High is open in the layer it builds on (an API built on a replayable `consumeChallenge` is wasted work).
 
-Red-team agents start **the moment the wave lands** from the pre-written scripts in `attacks/`; they do not re-derive the model. Each script says what to do when a name differs from the one it expected (test the property; file a `naming` note, not a finding).
+Red-team agents start **the moment the wave lands** from the pre-written scripts in `attacks/`; they do not re-derive the model. Names in the scripts follow `docs/INTERFACES.md` v1 (package `@ethglobal/protocol`, `keys.*`/`ANN.*`, `sessionNonce`, `auditKey`/`campaignClaimKey`/`onchainClaimKey`, `Reseller.verifyWebhook(rawBody, headers, now)`, `GET /card/:serial` + `POST /card/redeem`, `POST /gift/reclaim`, `Treasury`). If code and INTERFACES.md disagree, the code is wrong until the architect changes the file (INTERFACES §0) — that is a finding against the builder, not a rename. Each script also says what to do when a name differs from the one it expected (test the property; record the rename in the wave report).
 
 ## 4. Per-wave attack matrix
 
@@ -48,29 +48,38 @@ Red-team agents start **the moment the wave lands** from the pre-written scripts
 
 | Attack script | Threats | Executable form (where the tests land) | Command |
 |---|---|---|---|
-| `attacks/wave1-contracts.md` A1–A18 | T-01…T-12 (`DataDrop`), T-13…T-17 (`MockUSDC3009`, eip3009 calldata) | Foundry: `packages/contracts/test/attack/DataDropAttack.t.sol`, `packages/contracts/test/attack/MockUSDC3009Attack.t.sol`, `packages/contracts/test/invariant/DataDropInvariants.t.sol`; gas: `forge snapshot` | `cd packages/contracts && forge test --match-path 'test/attack/*' -vvv && FOUNDRY_INVARIANT_RUNS=256 FOUNDRY_INVARIANT_DEPTH=64 forge test --match-path 'test/invariant/*' && forge snapshot --check` |
+| `attacks/wave1-contracts.md` A1–A18 | T-01…T-12 (`DataDrop`), T-13…T-17 (`MockUSDC3009`, eip3009 calldata) | Foundry: `packages/contracts/test/attack/DataDropAttack.t.sol`, `packages/contracts/test/attack/MockUSDC3009Attack.t.sol` (red team); the builder's `test/invariant/DataDropInvariant.t.sol` + handler gain the red team's extra actions/invariants; mocks reused from `test/mocks/{ReentrantToken,HtsPrecompileMock}.sol`; gas: `forge snapshot --check` | `cd packages/contracts && forge test --match-path 'test/attack/*' -vvv && FOUNDRY_INVARIANT_RUNS=256 FOUNDRY_INVARIANT_DEPTH=64 forge test --match-path 'test/invariant/*' && forge snapshot --check` |
+| `attacks/wave1-octroi.md` P1–P6 (`@ethglobal/protocol`, lands first in wave 1) | T-08, T-26, T-39, T-48, T-49, T-70 (schemas, codec, units, PIN, canonical JSON) | vitest: `packages/protocol/test/attack/*.attack.test.ts` | `pnpm --filter @ethglobal/protocol test -- --run` |
 | `attacks/wave1-octroi.md` O1–O13 (octroi), C1–C6 (crypto), E1–E6 (eip3009) | T-18…T-30, T-31…T-34, T-13/T-14/T-17 | vitest: `packages/octroi/test/attack/*.attack.test.ts`, `packages/crypto/test/attack/*.attack.test.ts`, `packages/eip3009/test/attack/*.attack.test.ts` (fast-check for the property tests) | `pnpm --filter @ethglobal/octroi --filter @ethglobal/crypto --filter @ethglobal/eip3009 test -- --reporter=verbose` |
 | `attacks/wave1-adapters.md` L1–L12 | T-35…T-44, T-36 (mock key space), T-19/T-24 (mock personhood gaps) | vitest: `packages/adapters/test/attack/*.attack.test.ts` (mocks), `packages/adapters/test/live/*.contract.test.ts` (fixtures: request shape, error mapping, malicious responses) | `pnpm --filter @ethglobal/adapters test` |
 | Static | T-08, T-11, T-65, T-66, secrets | slither, semgrep, forbidden-pattern scan over `fixtures/` and `packages/`, `deps-check.sh` | `security/redteam/run-wave.sh 1` |
 
 ### Wave 2 (scripts `attacks/wave2-api.md`, `attacks/wave2-agent.md` are written by the red team during R1 so they are ready when wave 2 lands)
 
-| Attack | Threats | Executable form | Notes |
+Routes and codes are INTERFACES §7 (`replay → 409`, `paused → 423`, `cap → 429`, `budget → 409`, `invalid-proof → 401`, `invalid-payment → 402`, `expired → 410`, `no-campaign → 404`, `ledger-unavailable → 503`, `invalid-request → 400`). Tests use `app.request()` on `createApp(deps)` with the `@ethglobal/adapters/testing` helpers, plus a real Anvil (`scripts/dev-chain.sh`) for the chain paths.
+
+| Attack | Threats | Executable form | Expected |
 |---|---|---|---|
-| Nullifier replay over HTTP (`/challenge` → `/claim` twice; concurrent pair) | T-18, T-46 | `services/api/test/attack/claim-replay.attack.test.ts` via `app.request()` on a real Anvil (`scripts/dev-chain.sh`) | exactly one `Claimed`, one `reseller.order` |
-| Challenge replay / expiry / audience; ledger outage ⇒ fail-closed | T-20, T-21 | `challenge.attack.test.ts` with `InMemoryLedger` wrapped to throw | `deny` with reason `unavailable` |
-| Webhook replay / spoof / skew / ms timestamp / re-serialised body | T-34, T-40 | `webhook.attack.test.ts` | `401`/`409`/`400`, never `500`; `mbUsed` monotonic |
-| LPA second fetch; LPA in logs/ledger/HCS | T-31, T-50 | `lpa-secrecy.attack.test.ts` + `tools/scan.sh` over captured pino output and `scripts/dump-ledger.ts` | zero hits |
-| Hourly-cap race (20 concurrent claims, cap 5) | T-46, T-24 | `cap-race.attack.test.ts` with a `MockPersonhood` spy | 15 denials **before** `verify`; 5 `Claimed` |
-| Paused / expired / exhausted campaign claim | T-24, T-25 | `campaign-state.attack.test.ts` | `verify` never called; nullifier not burned |
-| Payment tampering: `accepts[]` substitution, amount/step mismatch, pubkey swap, serve-before-settle | T-26…T-28, T-32 | `payment.attack.test.ts` | `deny: invalid-payment` on each |
-| Agent cap bypass; tampered 402; retry double-pay; expiry loop | T-30, T-56, T-57 | `services/agent/test/attack/*.attack.test.ts` with a fake API returning hostile 402 bodies | zero signatures produced |
-| Prompt-injection canary | T-55, T-70 | `services/agent/test/attack/injection.attack.test.ts` | purchases identical to control; `MockInference` prompt never contains the planted string |
-| Rate limits / write amplification | T-45 | `tools/flood.ts` (plain `fetch` loop, 1 000 req / 10 s) | ≤ N ledger writes; 429s |
-| Env guards: Anvil keys in `MODE=live`; mainnet `accepts[]` without flags | T-52 | `services/api/test/attack/env.attack.test.ts` | boot refused |
-| Key-rotation drill, local | T-01, §6.7 of the model | `scripts/e2e-local.sh --drill` | pause → `setAttestor` → restart → claim with old key reverts `NotAttestor` |
-| GET side effects (`/card/:pin`, prefetch) | T-47 | `card.attack.test.ts` with a link-preview UA | card unredeemed |
-| Log redaction | T-50, T-68 | capture pino to a buffer; scan | zero hits |
+| Nullifier replay over HTTP (`/challenge` → `/claim` twice; concurrent pair; permissive `MockPersonhood`) | T-18, T-46 | `services/api/test/attack/claim-replay.attack.test.ts` | 201 then `409 replay`; exactly one `Claimed`, one `reseller.order` |
+| Challenge replay / expiry / wrong path / tampered `sessionPubKey`; ledger outage ⇒ fail-closed | T-20, T-21, T-32 | `challenge.attack.test.ts` (ledger wrapped to throw) | `409` / `410` / `401`; outage ⇒ `503 ledger_unavailable`, `verify` not called |
+| Webhook replay / spoof / skew / ms timestamp / re-serialised body / unknown ICCID / `usedMb` rollback | T-34, T-40 | `webhook.attack.test.ts` against `POST /webhooks/reseller/mock` with `MockReseller.signedWebhook` | 204 / 401 / 409 / 400, never 500; `mbUsed` never decreases |
+| LPA second fetch; LPA / nullifier / PIN in logs, ledger, HCS | T-31, T-37, T-44, T-50 | `lpa-secrecy.attack.test.ts` + `scripts/redteam/dump-ledger.ts` (ARCHITECTURE §5.1) + `tools/scan.sh` | `/me/:key` never carries `sealedLpa`; zero scan hits |
+| Hourly-cap race (20 concurrent `/claim`, cap 5) | T-46, T-24 | `cap-race.attack.test.ts` with a `MockPersonhood` spy | 5 × 201, 15 × `429 hourly_cap` **before** `verify`; 5 `Claimed`; 5 orders |
+| Paused / expired / exhausted / unknown campaign claim | T-24, T-25 | `campaign-state.attack.test.ts` | 423 / 410 / 409 / 404 with `verify` never called; `reseller.order` throwing once ⇒ 202 `pending-profile`, retry via `/me/:key` succeeds, one `Claimed` |
+| Payment tampering: `accepts[]` substitution, step/amount mismatch, over-payment, `sessionNonce` mismatch, serve-before-settle, nonce reuse | T-26…T-28, T-32 | `payment.attack.test.ts` with `X402_FACILITATOR=self` on Anvil | `402 invalid_payment` each; one `Transfer` per success |
+| Settlement front-run (third party submits the authorization first) | T-15 | `frontrun.attack.test.ts` (Anvil) | 200 `serve-paid` with the found tx |
+| Gift: unresolvable name before 402, homoglyph, claim by a non-resolved signer, PIN brute force, redeem via GET, double claim | T-43, T-47, T-48, T-53 | `gift.attack.test.ts`, `card.attack.test.ts` (link-preview UA on `GET /card/:serial`) | 404 before any 402; 401; 429 after 10/min; GET leaves `state:'open'`; second claim 409 |
+| **Gift reclaim / treasury**: reclaim after a delivered gift whose `gift-claim` receipt write failed; two concurrent reclaims; ledger outage; `MockTreasury.failNext`; day-31 reclaim; Hedera payer | T-71 | `reclaim.attack.test.ts` | `deny: claimed`; one refund; 503 (no refund); pending receipt, no second transfer; refund on day 31 |
+| Sponsor bearer replay (61 min), stranger registering a campaign, `auditKey` on second read, `name` with Devanagari + control chars | T-70, T-72 | `sponsor.attack.test.ts` | 401 / 403 / absent / 400 |
+| Agent policy: replay of an older signed policy; owner squat; `policyHash` mismatch | T-73 | `agent-policy.attack.test.ts` | 409 / 403 / 400; policy unchanged |
+| Idempotency-Key collision across clients; cached `sealedLpa` after 300 s | T-74 | `idempotency.attack.test.ts` | distinct responses; not served |
+| Public facilitator: foreign `payTo`/asset/network; unfunded `from`s | T-75, T-16 | `facilitator.attack.test.ts` (count `eth_sendRawTransaction` on a stubbed transport) | 400/403; zero sends |
+| Rate limits / write amplification / `X-Forwarded-For` spoof without `TRUST_PROXY` / 64 KiB bodies / 16 KiB payment header | T-45 | `tools/flood.ts` (plain `fetch`, 1 000 req / 10 s) + `limits.attack.test.ts` | 0 entities from `/challenge`; 429s; 413 |
+| Env guards: Anvil keys in live; `X402_NETWORKS` with `eip155:8453` without both flags; `LOG_LEVEL=debug` in live; short `OCTROI_SECRET` | T-29, T-52 | `env.attack.test.ts` (`parseEnv`) | each refuses to boot |
+| Agent: cap bypass; tampered 402 (amount, `payTo`, network); retry double-pay; expiry loop; `X-Agent-Uaid` forgery by a human payer | T-30, T-56, T-57, T-77 | `services/agent/test/attack/*.attack.test.ts` with a fake API returning hostile 402 bodies | zero signatures for tampered bodies; one purchase per threshold crossing; `agent.skip{reason}` |
+| Prompt-injection canary | T-55, T-70 | `services/agent/test/attack/injection.attack.test.ts` | purchases identical to the control run; `MockInference` prompt never contains the planted string; `phraseNotification` input is `NotificationFacts` only |
+| Key-rotation drill, local | T-01, §6.7 of the model | `scripts/e2e-local.sh --drill` (uses `scripts/redteam/pause-all.ts`) | pause → `setAttestor` → restart → old key `NotAttestor`; < 5 min on the clock |
+| Log redaction | T-50, T-68, T-72 | capture pino to a buffer during the e2e; `tools/scan.sh` | zero hits incl. `authorization` header |
 
 ### Wave 3 (script `attacks/wave3-web.md`, written during R2)
 
@@ -96,9 +105,9 @@ slither + semgrep + `pnpm lint typecheck dupcheck` + `deps-check.sh` + an indepe
 | Tool | Version | Invocation | Gate |
 |---|---|---|---|
 | Foundry | 1.5.1, solc 0.8.30 offline | see §4; `[fuzz] runs = 512`, `[invariant] runs = 64 depth = 32` in `foundry.toml`; red-team runs raise them via env | all attack tests green; `forge snapshot --check` within 5 % |
-| slither | 0.11.6 | `cd packages/contracts && slither . --foundry-compile-all --config-file ../../security/redteam/tools/slither.config.json` | no high/medium (`fail_on: medium`); each suppression justified inline (`// slither-disable-next-line <detector> -- reason`) |
-| semgrep | 1.183.0 (`pip install semgrep` if absent — PyPI is reachable) | `semgrep --config security/redteam/tools/semgrep/recharge.yml --error --metrics=off apps packages services scripts` | zero findings; `// nosemgrep: <rule-id> -- reason` only with a reason |
-| forbidden patterns | grep | `security/redteam/tools/scan.sh <paths…>` using `tools/forbidden-patterns.txt` | zero hits on logs, ledger dumps, HCS messages, fixtures, `docs/`, `scripts/` |
+| slither | 0.11.6 | `cd packages/contracts && slither . --foundry-compile-all --config-file ../../security/redteam/tools/slither.config.json` (verified on the scaffold today: 0 results) | no high/medium (`fail_on: medium`); each suppression justified inline (`// slither-disable-next-line <detector> -- reason`) |
+| semgrep | 1.183.0 (`pip install semgrep` if absent — PyPI is reachable; `--validate` needs semgrep.dev and is blocked here — a normal run parses the rules) | `semgrep --config security/redteam/tools/semgrep/recharge.yml --error --metrics=off apps packages services scripts` (rule ids are prefixed `recharge-`; ARCHITECTURE §8 rule 3's `usdc-18-decimals` is `recharge-usdc-18-decimals`) | zero findings; `// nosemgrep: <rule-id> -- reason` only with a reason (the known one: x402 settlement inside `GET /esim/*`, and `/me/:key?refresh=1` patching usage) |
+| forbidden patterns | grep -P | `security/redteam/tools/scan.sh <paths…>` using `tools/forbidden-patterns.txt` (verified clean on `docs/` and `scripts/` today) | zero hits on logs, ledger dumps (`scripts/redteam/dump-ledger.ts` → `/tmp/recharge-redteam/ledger-dump.json`, ARCHITECTURE §5.1), HCS messages, fixtures, `docs/`, `scripts/` |
 | dependency check | pnpm 10 | `security/redteam/tools/deps-check.sh` | frozen lockfile installs; `pnpm audit --prod --audit-level=high` clean; `onlyBuiltDependencies` unchanged; no unpinned `npx`; no Anvil key outside the allow-list; `.env` untracked |
 | vitest | 5.1 (catalog) | `pnpm test` (attack suites use the `.attack.test.ts` suffix and run with the normal suite) | green |
 | Playwright | 1.63 + Chromium 1243 (`/opt/pw-browsers`) | `pnpm --filter @ethglobal/web e2e:abuse` (wave 3 adds the script) | green |
@@ -171,7 +180,8 @@ The finding id in the title (`fix(contracts): RT-W1-003 reject duplicate campaig
 | When | Who | Check | Record |
 |---|---|---|---|
 | Wed 4 Nov 14:00 pre-deploy | Integrations | `associateHts` then one `Claimed` on HashScan with `paid == 500000` (6-dec); Kaolin block time and write/read latency; one real reseller webhook captured with its exact headers → `fixtures/reseller/webhook-*.json`; facilitator `hedera` scheme payload captured → `fixtures/facilitator/` | `docs/DISCLOSURE.md`, `docs/ARKIV_FEEDBACK.md`, fixtures committed |
-| Wed evening | Integrations | World developer portal: action `recharge-welcome` set to **unlimited** verifications (T-24) | README World section |
+| Wed evening | Integrations | World developer portal: action `recharge-welcome` set to **unlimited** verifications (T-24); `fixtures/world/*` re-recorded; `fixtures/eip3009/domains.json` filled from `readDomain` on Base Sepolia USDC (T-14) | README World section; fixtures |
+| Thu 21:00 keys | Integrations | On-site keys for attestor, relayer, Arkiv, treasury; **treasury wallet separate from payout** and funded ≤ `TREASURY_MAX_USD6_PER_DAY` (T-71); `env.ts` refuses Anvil keys | `docs/DISCLOSURE.md` |
 | Fri 6 Nov (after the 06:00 gate) | Security owner | Attestor compromise drill (`THREAT-MODEL.md` §6.7), timed; sponsor pause/unpause; rotate; `healthz.attestor` | `findings/DRILL-attestor-rotation.md` with the measured time |
 | Sat 7 Nov rehearsal | Product/PWA | QR-behind-tap and screenshot warning on three devices; `/install` opens the universal link with no referrer; live build has no demo wallet | rehearsal notes |
 | Sun 8 Nov 06:00 README freeze | Producer | README "Security" section matches the final report; accepted risks listed; drain bound and drill time stated | README |

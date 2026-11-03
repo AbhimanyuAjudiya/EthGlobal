@@ -1,361 +1,361 @@
 # Wave 1 attack script — `packages/contracts` (`DataDrop.sol`, `MockUSDC3009.sol`, `Deploy.s.sol`)
 
-**Run the moment wave 1 lands.** Targets: `packages/contracts/src/DataDrop.sol` (interface `IDataDrop` from `DECISION.md` §6.3), `packages/contracts/src/MockUSDC3009.sol`, `packages/contracts/script/Deploy.s.sol`. Threats: `docs/THREAT-MODEL.md` T-01…T-17. Findings go to `security/redteam/findings/RT-W1-0xx-*.md`; attack tests land in `packages/contracts/test/attack/DataDropAttack.t.sol`, `test/attack/MockUSDC3009Attack.t.sol`, `test/invariant/DataDropInvariants.t.sol`. Every test **asserts the attack fails**. Fuzz runs: `FOUNDRY_FUZZ_RUNS=4096` for the red-team run (CI keeps 512).
+**Run the moment wave 1 lands.** Interface: `docs/INTERFACES.md` §6.1–6.3 (copied verbatim into `docs/build-briefs/contracts.md` §3). Threats: `docs/THREAT-MODEL.md` T-01…T-17. The builder's own acceptance tests are named in the brief §6 (`test_RevertWhen_*`, `testFuzz_*`, `invariant_*`); **this script attacks what those tests do not**: adversarial sequences, boundary arithmetic, the drain bound as a number, the drill, and the deploy script. Red-team tests land in `packages/contracts/test/attack/DataDropAttack.t.sol` and `test/attack/MockUSDC3009Attack.t.sol`; extra handler actions and invariants go into the builder's `test/invariant/DataDropInvariant.t.sol` (+ `handlers/DataDropHandler.sol`). Reuse `test/mocks/ReentrantToken.sol` and `test/mocks/HtsPrecompileMock.sol`. Every test **asserts the attack fails**. Red-team run: `FOUNDRY_FUZZ_RUNS=4096 FOUNDRY_INVARIANT_RUNS=256 FOUNDRY_INVARIANT_DEPTH=64` (CI keeps `foundry.toml`).
 
-**If names differ** (`IDataDrop.AlreadyClaimed` is `DuplicateClaim`, `pause` is `setPaused`, …): read `src/DataDrop.sol`, use the real selector, note the rename in the wave report. If a **function in this script does not exist** (e.g. no `associateHts`, no `pausedSince`), that is a finding against `DECISION.md` §6.3, not a rename.
+**If code and INTERFACES §6 disagree** (a missing error, a different `Campaign` field order, a `pause` that lets the attestor unpause), the code is wrong (INTERFACES §0) — that is a finding, not a rename.
 
 ```sh
-cd packages/contracts && forge build && forge test --match-path 'test/attack/*' -vvv
+cd packages/contracts && pnpm deps && forge build && forge test --match-path 'test/attack/*' -vvv
 ```
 
 ## 0. Shared fixture (`test/attack/DataDropAttack.t.sol` — `setUp`)
+
+Roles follow `@ethglobal/adapters/testing` `anvilRoles` so the TypeScript side and the contracts agree: deployer/owner #0, payout #1, attestor #2, sponsor #3, agent #4, human #5, relayer #6, stranger #7 (mnemonic `test test … junk`).
 
 ```solidity
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
 import {Test} from "forge-std/Test.sol";
-import {DataDrop, IDataDrop} from "../../src/DataDrop.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {DataDrop} from "../../src/DataDrop.sol";
+import {IDataDrop} from "../../src/interfaces/IDataDrop.sol";
 import {MockUSDC3009} from "../../src/MockUSDC3009.sol";
+import {HtsPrecompileMock} from "../mocks/HtsPrecompileMock.sol";
+import {ReentrantToken} from "../mocks/ReentrantToken.sol";
 
 contract DataDropAttackTest is Test {
     MockUSDC3009 internal usdc;
     DataDrop internal drop;
 
-    address internal owner    = makeAddr("owner");      // cold key in production
-    address internal attestor = makeAddr("attestor");   // the API's hot key — the thing we assume compromised in A1
-    address internal payout   = makeAddr("payout");
-    address internal sponsor  = makeAddr("sponsor");
-    address internal stranger = makeAddr("stranger");
-    address internal thief    = makeAddr("thief");      // holds a copy of the attestor key in A1/A18 (pranked as attestor)
+    address internal owner    = vm.addr(0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80); // Anvil #0 (test-only key)
+    address internal payout   = 0x70997970C51812dc3A010C7d01b50e0d17dc79C8;   // #1
+    address internal attestor = 0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC;   // #2 — the hot key we assume stolen in A1/A18
+    address internal sponsor  = 0x90F79bf6EB2c4f870365E785982E1f101E93b906;   // #3
+    address internal human    = 0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc;   // #5
+    address internal stranger = 0x14dC79964da2C08b23698B3D3cc7Ca32193d9955;   // #7
 
     bytes32 internal constant ID = keccak256("demo-welcome");
-    uint128 internal constant BUDGET = 500_000_000;          // $500.00 — 6 decimals (T-08)
-    uint96  internal constant PRICE  = 500_000;              // $0.50
-    uint32  internal constant CAP    = 5;                    // claims per hour, small on purpose
+    uint128 internal constant BUDGET = 500_000_000;     // $500.00, 6 decimals (T-08)
+    uint96  internal constant PRICE  = 500_000;         // $0.50
+    uint32  internal constant CAP    = 5;               // claimsPerHour — small on purpose
     uint64  internal expiresAt;
 
     function setUp() public {
-        vm.warp(1_762_200_000);                               // Mon 3 Nov 2026 ~21:20 UTC; keeps hourBucket arithmetic readable
-        usdc = new MockUSDC3009();                            // 6 decimals, EIP-712 ("USD Coin","2")
-        drop = new DataDrop(usdc, payout, attestor, owner);   // token mode
+        vm.warp(1_762_200_000);                                   // keeps hour buckets readable
+        usdc = new MockUSDC3009();
+        drop = new DataDrop(IERC20(address(usdc)), payout, attestor, owner);   // token mode; expect ModeSet(false)
         expiresAt = uint64(block.timestamp + 7 days);
-        usdc.mint(sponsor, 10 * BUDGET);
+        usdc.mint(sponsor, 10 * uint256(BUDGET));
         vm.startPrank(sponsor);
         usdc.approve(address(drop), type(uint256).max);
         drop.createCampaign(ID, BUDGET, PRICE, CAP, expiresAt);
         vm.stopPrank();
     }
 
-    /// claimKey as the API computes it: keccak256(campaignId ‖ HMAC(secret, nullifierHash)). The HMAC is opaque here.
-    function key(bytes32 id, uint256 human) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(id, keccak256(abi.encodePacked("hmac", human))));
+    /// onchainClaimKey as octroi computes it: keccak256(abi.encodePacked(id, campaignClaimKey)); the HMAC is opaque here.
+    function key(bytes32 id, uint256 humanIx) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(id, keccak256(abi.encodePacked("cck", humanIx))));
     }
 }
 ```
 
-Expected after `setUp`: `usdc.balanceOf(address(drop)) == BUDGET`, `drop.campaigns(ID).spent == 0`, `CampaignCreated` emitted. If `createCampaign` did **not** pull the budget (balance 0) in token mode → **Critical finding** (claims will pay from nothing or revert forever).
+After `setUp`: `usdc.balanceOf(address(drop)) == BUDGET`, `drop.campaigns(ID).spent == 0`, `drop.ledgerOnly() == false`, `drop.attestor() == attestor`. Budget not pulled in token mode ⇒ **Critical**.
 
-## A1 — Compromised attestor drains the campaign (T-01)
-
-Goal: with the attestor key, take more than `CAP × PRICE` from the campaign in one hour.
+## A1 — Compromised attestor drains the campaign (T-01); the bound as a number
 
 ```solidity
 function test_Attack_AttestorDrainStopsAtHourlyCap() public {
-    vm.startPrank(attestor);                                  // the thief holds this key
+    vm.startPrank(attestor);
     for (uint256 i = 0; i < CAP; i++) drop.claim(ID, key(ID, i));
-    assertEq(usdc.balanceOf(payout), uint256(CAP) * PRICE);   // $2.50 — the bound from THREAT-MODEL §6.4
+    assertEq(usdc.balanceOf(payout), uint256(CAP) * PRICE);            // $2.50 — THREAT-MODEL §6.4
+    assertEq(drop.claimsInHour(ID, drop.currentHourBucket()), CAP);
     vm.expectRevert(IDataDrop.HourlyCap.selector);
-    drop.claim(ID, key(ID, 999));                             // N+1 in the same bucket
+    drop.claim(ID, key(ID, 999));
     vm.stopPrank();
-    assertEq(drop.campaigns(ID).spent, uint128(CAP) * PRICE);
+}
+function test_Attack_RotationDoesNotResetTheHourCap() public {         // the cap is per campaign-hour, not per attestor
+    vm.startPrank(attestor); for (uint256 i = 0; i < CAP; i++) drop.claim(ID, key(ID, i)); vm.stopPrank();
+    address a2 = makeAddr("attestor-2");
+    vm.prank(owner); drop.setAttestor(a2);
+    vm.prank(a2); vm.expectRevert(IDataDrop.HourlyCap.selector); drop.claim(ID, key(ID, 50));
+}
+function test_Attack_ThreeCampaignsDrainBound() public {               // Σ over campaigns
+    bytes32 id2 = keccak256("c2"); bytes32 id3 = keccak256("c3");
+    vm.startPrank(sponsor); drop.createCampaign(id2, BUDGET, PRICE, 2, expiresAt); drop.createCampaign(id3, 3 * uint128(PRICE), PRICE, 100, expiresAt); vm.stopPrank();
+    vm.startPrank(attestor);
+    for (uint256 i = 0; i < 50; i++) { try drop.claim(ID, key(ID, i)) {} catch {} try drop.claim(id2, key(id2, i)) {} catch {} try drop.claim(id3, key(id3, i)) {} catch {} }
+    vm.stopPrank();
+    // bound = min(remaining, cap × price) per campaign: 5×0.5 + 2×0.5 + min(3×0.5, 100×0.5) = $5.00
+    assertEq(usdc.balanceOf(payout), (5 + 2 + 3) * uint256(PRICE));
 }
 ```
 
-Also try: (a) `claim` with a **fresh id** that has no campaign → must revert (any error; `CampaignExpired`/`CampaignPaused` on a zero struct is acceptable, a successful transfer is Critical); (b) `claim` after the sponsor paused → `CampaignPaused`; (c) the thief calls `pause(ID, false)` as attestor → `NotSponsor` (attestor may pause, never unpause). Expected: all revert. Record the measured bound in the wave report: `CAP × PRICE` per campaign-hour.
+Also: `claim` on an id with no campaign ⇒ `InvalidCampaign` (a transfer would be Critical); attestor `pause(ID, false)` ⇒ `NotSponsor`; attestor `pause(unknownId, true)` ⇒ `NotSponsor`/`InvalidCampaign`, never a silent success. Write the measured bound into the wave report in dollars for the campaign `scripts/demo-seed.ts` ships.
 
-## A2 — Hour-bucket edge burst (T-02)
+## A2 — Hour-bucket edge (T-02) and the expiry boundary
 
 ```solidity
 function test_Attack_BucketEdgeAllowsExactlyTwoCaps() public {
-    uint256 edge = (block.timestamp / 3600 + 1) * 3600;       // next hour boundary
+    uint256 edge = (block.timestamp / 3600 + 1) * 3600;
     vm.warp(edge - 1);
     vm.startPrank(attestor);
     for (uint256 i = 0; i < CAP; i++) drop.claim(ID, key(ID, i));
-    vm.warp(edge);                                            // one second later, new bucket
+    vm.warp(edge);
+    assertEq(drop.currentHourBucket(), uint64(edge / 3600));
     for (uint256 i = 0; i < CAP; i++) drop.claim(ID, key(ID, 100 + i));
     vm.expectRevert(IDataDrop.HourlyCap.selector);
     drop.claim(ID, key(ID, 200));
     vm.stopPrank();
-    // 2 × CAP within two seconds is the documented bound; anything above it is a finding.
-    assertEq(usdc.balanceOf(payout), 2 * uint256(CAP) * PRICE);
+    assertEq(usdc.balanceOf(payout), 2 * uint256(CAP) * PRICE);        // the documented 2× bound; more is a finding
+}
+function test_Attack_ClaimAtExpiresAtReverts() public {
+    vm.warp(expiresAt - 1); vm.prank(attestor); drop.claim(ID, key(ID, 1));          // last valid second
+    vm.warp(expiresAt);     vm.prank(attestor); vm.expectRevert(IDataDrop.CampaignExpired.selector); drop.claim(ID, key(ID, 2));
 }
 ```
 
-Check the `Claimed` event's `hourBucket` field equals `block.timestamp / 3600` for both halves (`vm.expectEmit`). If `hourBucket` is derived from anything else (block number, a stored counter) → Med finding (the API's limiter and the sponsor dashboard assume wall-clock hours).
+`vm.expectEmit` the `Claimed(id, claimKey, PRICE, hourBucket)` event on both sides of the edge; `hourBucket` must equal `block.timestamp / 3600` (anything else breaks the API's limiter and the dashboard — Med).
 
-## A3 — `claimKey` replay (T-03)
+## A3 — `claimKey` replay and check order (T-03)
 
 ```solidity
 function test_Attack_ReplaySameClaimKeyReverts() public {
     bytes32 k = key(ID, 1);
-    vm.prank(attestor); drop.claim(ID, k);
-    assertTrue(drop.claimed(ID, k));
-    vm.prank(attestor);
-    vm.expectRevert(IDataDrop.AlreadyClaimed.selector);
-    drop.claim(ID, k);
-}
-
-function test_SameHumanDifferentCampaignIsAllowed() public {   // by design: one claim per (campaign, human)
-    bytes32 ID2 = keccak256("second-sponsor");
-    vm.prank(sponsor); drop.createCampaign(ID2, BUDGET, PRICE, CAP, expiresAt);
     vm.startPrank(attestor);
-    drop.claim(ID, key(ID, 1));
-    drop.claim(ID2, key(ID2, 1));                             // different claimKey because id is in the preimage
+    drop.claim(ID, k); assertTrue(drop.claimed(ID, k));
+    vm.expectRevert(IDataDrop.AlreadyClaimed.selector); drop.claim(ID, k);
     vm.stopPrank();
+}
+function test_Attack_ReplayIsReportedBeforeCapOrBudget() public {       // brief §4: claimed check precedes the cap check
+    vm.startPrank(attestor);
+    for (uint256 i = 0; i < CAP; i++) drop.claim(ID, key(ID, i));
+    vm.expectRevert(IDataDrop.AlreadyClaimed.selector); drop.claim(ID, key(ID, 0));   // not HourlyCap
+    vm.stopPrank();
+}
+function test_SameHumanDifferentCampaignIsAllowed() public {             // by design
+    bytes32 id2 = keccak256("second-sponsor");
+    vm.prank(sponsor); drop.createCampaign(id2, BUDGET, PRICE, CAP, expiresAt);
+    vm.startPrank(attestor); drop.claim(ID, key(ID, 1)); drop.claim(id2, key(id2, 1)); vm.stopPrank();
 }
 ```
 
-Also assert that replay is checked **before** the cap and budget (a replay must say `AlreadyClaimed`, not consume a cap slot): claim `CAP` keys, then replay one → expect `AlreadyClaimed`, not `HourlyCap`. If the order is wrong it is a Low finding (misleading error, wasted gas) unless the replay also increments `spent` (Critical).
+If a replay increments `spent` or a bucket counter before reverting (impossible with a revert, but check a non-reverting early `return`) ⇒ Critical.
 
-## A4 — Campaign id hijack (T-04)
+## A4 — Campaign id hijack (T-04) and id reuse after refund
 
 ```solidity
 function test_Attack_CreateCampaignWithExistingIdReverts() public {
-    usdc.mint(stranger, 1_000_000);
-    vm.startPrank(stranger);
-    usdc.approve(address(drop), type(uint256).max);
-    vm.expectRevert(IDataDrop.CampaignExists.selector);       // new error — if absent, see below
-    drop.createCampaign(ID, 1_000_000, 1, 1, expiresAt);
+    usdc.mint(stranger, BUDGET);
+    vm.startPrank(stranger); usdc.approve(address(drop), type(uint256).max);
+    vm.expectRevert(IDataDrop.CampaignExists.selector);
+    drop.createCampaign(ID, BUDGET, PRICE, CAP, expiresAt);              // same budget so only the id check can revert
     vm.stopPrank();
-    IDataDrop.Campaign memory c = drop.campaigns(ID);
-    assertEq(c.sponsor, sponsor);
-    assertEq(c.budget, BUDGET);
+    assertEq(drop.campaigns(ID).sponsor, sponsor);
+}
+function test_Attack_IdNotReusableAfterRefund() public {
+    vm.warp(expiresAt + 1); vm.prank(sponsor); drop.refund(ID);
+    vm.prank(sponsor); vm.expectRevert(IDataDrop.CampaignExists.selector);
+    drop.createCampaign(ID, BUDGET, PRICE, CAP, uint64(block.timestamp + 1 days));   // would resurrect claimed[] semantics
 }
 ```
 
-If there is **no** `CampaignExists` error and the call succeeds: **High finding** (stranger becomes sponsor: can `pause`, and `refund` the original sponsor's remaining budget to themselves if `refund` pays `msg.sender` or `campaigns[id].sponsor`). If the call reverts for an unrelated reason (e.g. the stranger's `1_000_000 < BUDGET`) re-run with a budget equal to the original — the id check must be the thing that reverts.
-
 ## A5 — Authorisation matrix (T-05)
 
-| caller → function | `claim` | `pause(id,true)` | `pause(id,false)` | `refund` | `setAttestor` | `associateHts` |
+| caller → | `claim` | `pause(id,true)` | `pause(id,false)` | `refund` | `setAttestor` | `associateHts` |
 |---|---|---|---|---|---|---|
-| attestor | ok | ok | **`NotSponsor`** | `NotSponsor` | `Ownable…` revert | revert |
-| sponsor | `NotAttestor` | ok | ok | ok (when refundable) | revert | revert |
-| stranger | `NotAttestor` | `NotSponsor` | `NotSponsor` | `NotSponsor` | revert | revert |
+| attestor | ok | ok | **`NotSponsor`** | `NotSponsor` | `OwnableUnauthorizedAccount` | `OwnableUnauthorizedAccount` |
+| sponsor | `NotAttestor` | ok | ok | ok when refundable | `OwnableUnauthorizedAccount` | `OwnableUnauthorizedAccount` |
+| stranger | `NotAttestor` | `NotSponsor` | `NotSponsor` | `NotSponsor` | `OwnableUnauthorizedAccount` | `OwnableUnauthorizedAccount` |
 | owner | `NotAttestor` | `NotSponsor` | `NotSponsor` | `NotSponsor` | ok | ok (chainid gate, A9) |
 
-Write it as `test_Attack_<Caller>_<Function>` with `vm.prank`. Sponsor of campaign `ID` must also get `NotSponsor` on **another** sponsor's campaign (create `ID2` from `stranger`). Any cell that deviates is a finding; the attestor-can-unpause cell is High (a thief who paused to cover tracks — or the sponsor's protective pause — could be undone by the stolen key).
+`vm.prank` each cell (`test_Attack_<Caller>_<Function>`); the sponsor of `ID` gets `NotSponsor` on a campaign created by `stranger`. Extra: `setAttestor(address(0))` — if accepted, every claim reverts `NotAttestor` until the owner fixes it (owner-mistake DoS; Low; recommend a zero check). `Ownable2Step`: `transferOwnership(stranger)` does nothing until `acceptOwnership` — assert `owner()` unchanged after the first step.
 
 ## A6 — Refund rules (T-06)
 
 ```solidity
-function test_Attack_RefundBeforeExpiryWithoutPauseReverts() public {
-    vm.prank(sponsor); vm.expectRevert(IDataDrop.NotRefundable.selector); drop.refund(ID);
-}
+function test_Attack_RefundBeforeExpiryWithoutPauseReverts() public { vm.prank(sponsor); vm.expectRevert(IDataDrop.NotRefundable.selector); drop.refund(ID); }
 function test_Attack_PauseToggleDoesNotShortenThe24h() public {
     vm.startPrank(sponsor);
     drop.pause(ID, true);  vm.warp(block.timestamp + 23 hours);
-    drop.pause(ID, false); drop.pause(ID, true);                 // toggle: pausedSince must reset to now
-    vm.warp(block.timestamp + 2 hours);                          // 25 h since first pause, 2 h since the last
-    vm.expectRevert(IDataDrop.NotRefundable.selector);
-    drop.refund(ID);
-    vm.warp(block.timestamp + 22 hours + 1);                     // now ≥ 24 h since the last pause
+    drop.pause(ID, false); drop.pause(ID, true);                          // pausedSince resets
+    assertEq(drop.campaigns(ID).pausedSince, uint64(block.timestamp));
+    vm.warp(block.timestamp + 2 hours);                                   // 25 h since first pause, 2 h since last
+    vm.expectRevert(IDataDrop.NotRefundable.selector); drop.refund(ID);
+    vm.warp(block.timestamp + 22 hours);                                  // exactly 24 h since the last pause ⇒ eligible (≥)
     drop.refund(ID);
     vm.stopPrank();
-    assertEq(usdc.balanceOf(sponsor), 10 * uint256(BUDGET));     // full budget back (no claims happened)
+    assertEq(usdc.balanceOf(sponsor), 10 * uint256(BUDGET));
 }
-function test_Attack_DoubleRefundReverts() public {
-    vm.warp(expiresAt + 1);
-    vm.startPrank(sponsor); drop.refund(ID);
-    vm.expectRevert(IDataDrop.NotRefundable.selector); drop.refund(ID); vm.stopPrank();
+function test_Attack_NoOpPauseDoesNotResetTheClock() public {            // pause(true) while already paused
+    vm.startPrank(sponsor); drop.pause(ID, true); uint64 t0 = drop.campaigns(ID).pausedSince;
+    vm.warp(block.timestamp + 1 hours); drop.pause(ID, true);
+    assertEq(drop.campaigns(ID).pausedSince, t0); vm.stopPrank();
 }
-function test_Attack_ClaimAfterRefundReverts() public {
+function test_Attack_RefundAmountAfterPartialClaims() public {
+    vm.startPrank(attestor); for (uint256 i = 0; i < 3; i++) drop.claim(ID, key(ID, i)); vm.stopPrank();
     vm.warp(expiresAt + 1); vm.prank(sponsor); drop.refund(ID);
-    vm.prank(attestor);
-    vm.expectRevert();                                           // CampaignExpired or BudgetExhausted — never a transfer
-    drop.claim(ID, key(ID, 1));
-    assertEq(usdc.balanceOf(payout), 0);
+    assertEq(usdc.balanceOf(sponsor), 10 * uint256(BUDGET) - 3 * uint256(PRICE));
+    IDataDrop.Campaign memory c = drop.campaigns(ID); assertEq(c.budget, c.spent);
+    vm.prank(sponsor); vm.expectRevert(IDataDrop.NotRefundable.selector); drop.refund(ID);
+    vm.prank(attestor); vm.expectRevert(); drop.claim(ID, key(ID, 9));   // CampaignExpired or BudgetExhausted — never a transfer
 }
 ```
 
-Refund amount after `n` claims must be `BUDGET − n × PRICE` exactly. Refund of an **expired but never paused** campaign must work (the normal path).
+Non-divisible budgets: `budget = 3 × PRICE + 1` ⇒ 3 claims, 4th `BudgetExhausted`, refund returns 1 base unit (fuzz it in A7).
 
 ## A7 — Budget accounting: fuzz + invariants (T-07)
 
-Unit guards (each `vm.expectRevert`): `createCampaign(id, budget=0, …)`, `pricePerClaim=0`, `pricePerClaim > budget`, `claimsPerHour=0`, `expiresAt ≤ block.timestamp`. Then:
+Unit guards (`InvalidCampaign`): `budget < price`, `price == 0`, `claimsPerHour == 0`, `expiresAt == block.timestamp`, `expiresAt < block.timestamp`. Then:
 
 ```solidity
-function testFuzz_SpentNeverExceedsBudget(uint96 price, uint8 n) public {
-    price = uint96(bound(price, 1, BUDGET));
-    bytes32 id = keccak256(abi.encode(price, n));
-    vm.prank(sponsor); drop.createCampaign(id, BUDGET, price, type(uint32).max, expiresAt);
+function testFuzz_SpentNeverExceedsBudgetAndRemainderRefunds(uint96 price, uint128 budget, uint8 n) public {
+    price = uint96(bound(price, 1, 1_000_000)); budget = uint128(bound(budget, price, 50 * uint128(price)));
+    bytes32 id = keccak256(abi.encode(price, budget, n));
+    usdc.mint(sponsor, budget);
+    vm.prank(sponsor); drop.createCampaign(id, budget, price, type(uint32).max, expiresAt);
+    uint256 ok;
     vm.startPrank(attestor);
-    for (uint256 i = 0; i < n; i++) {
-        if (uint256(drop.campaigns(id).spent) + price > BUDGET) {
-            vm.expectRevert(IDataDrop.BudgetExhausted.selector);
-            drop.claim(id, key(id, i)); break;
-        }
-        drop.claim(id, key(id, i));
-    }
+    for (uint256 i = 0; i < n; i++) { try drop.claim(id, key(id, i)) { ok++; } catch (bytes memory r) { assertEq(bytes4(r), IDataDrop.BudgetExhausted.selector); break; } }
     vm.stopPrank();
-    assertLe(drop.campaigns(id).spent, BUDGET);
-    assertEq(usdc.balanceOf(payout) + usdc.balanceOf(address(drop)), 10 * uint256(BUDGET) - usdc.balanceOf(sponsor));
+    assertEq(drop.campaigns(id).spent, ok * price); assertLe(drop.campaigns(id).spent, budget);
+    vm.warp(expiresAt + 1); vm.prank(sponsor); if (budget > ok * price) drop.refund(id);
+    assertEq(usdc.balanceOf(address(drop)), BUDGET);                        // only the setUp campaign's money remains
 }
 ```
 
-`test/invariant/DataDropInvariants.t.sol` — handler with actors {attestor, sponsor, stranger}, actions `claim(randKey)`, `pause(bool)`, `refund`, `warp(0..2h)`, `createCampaign(randId)`; invariants: `invariant_SpentLeBudget`, `invariant_TokenConservation` (`balance(drop) == Σ_active (budget − spent)`), `invariant_HourlyCap` (handler counts claims per `(id, bucket)` and asserts `≤ claimsPerHour`), `invariant_ClaimedIsMonotone` (a key once `claimed` never flips). Run with `FOUNDRY_INVARIANT_RUNS=256 FOUNDRY_INVARIANT_DEPTH=64`.
+Handler additions for `test/invariant/DataDropInvariant.t.sol`: actions `claimFresh`, `claimRepeat` (a key already used), `pauseAs(attestor|sponsor|stranger, bool)`, `refund`, `warp(0..2 h)`, `createCampaign(randId)`, `setAttestor` (owner), `claimAsOldAttestor`. Invariants beyond the builder's five: `invariant_PayoutEqualsSumSpent` (`balanceOf(payout) == Σ spent`), `invariant_RefundedPlusHeldPlusPaidEqualsFunded`, `invariant_OldAttestorNeverSucceedsAfterRotation`, `invariant_ClaimsInHourNeverExceedsCapForAnyBucket` (handler records every bucket touched).
 
 ## A8 — Decimals (T-08)
 
 ```solidity
-function test_Decimals_UsdcIsSixAndPriceIsBaseUnits() public view {
-    assertEq(usdc.decimals(), 6);
-    assertEq(PRICE, 0.5e6);                                      // $0.50
-    assertEq(uint256(PRICE) * 1e12, 0.5e18);                     // the wrong number, for the record
-}
-function test_Attack_EighteenDecimalPriceIsRejectedByBudget() public {
-    uint96 wrong = uint96(0.5e18);                               // what a parseEther() bug would produce
-    vm.prank(sponsor);
-    vm.expectRevert();                                           // pricePerClaim > budget
+function test_Decimals_SixAndPriceInBaseUnits() public view { assertEq(usdc.decimals(), 6); assertEq(PRICE, 0.5e6); }
+function test_Attack_EighteenDecimalPriceCannotBeFunded() public {
+    uint96 wrong = uint96(0.5e18);                                            // a parseEther() bug
+    vm.prank(sponsor); vm.expectRevert();                                     // InvalidCampaign (price > budget) or the transfer — never success
     drop.createCampaign(keccak256("18dec"), BUDGET, wrong, CAP, expiresAt);
 }
 ```
 
-Then grep: `grep -rn -E '1e18|parseEther|10 \*\* 18' packages/contracts/src services packages/octroi packages/eip3009 2>/dev/null` — any hit on a USDC path is a High finding (semgrep `recharge-usdc-18-decimals` covers TS; this grep covers Solidity). Check `Deploy.s.sol` converts the `pricePerClaim` env/JSON value with `vm.parseUint` of a **base-unit** string, not a dollar float.
+Then: `grep -rn -E '1e18|1 ether|parseEther|10 \*\* 18' packages/contracts/src packages/contracts/script` ⇒ zero hits (tests may mention `1e18` only to assert it is wrong). `Deploy.s.sol` must parse `pricePerClaim` as a **base-unit integer** (`vm.envUint`), never a dollar float; the TS side is covered by semgrep `recharge-usdc-18-decimals`.
 
 ## A9 — HTS association and `LEDGER_ONLY` (T-09)
 
 ```solidity
 address constant HTS = 0x0000000000000000000000000000000000000167;
-contract MockHts { bytes public last; fallback(bytes calldata d) external returns (bytes memory) { last = d; return abi.encode(int64(22)); } }
-
-function test_Attack_AssociateHtsOffHederaReverts() public {
-    vm.prank(owner); vm.expectRevert(); drop.associateHts(address(usdc));          // chainid 31337
-}
-function test_AssociateHtsOnHederaCallsPrecompile() public {
-    vm.chainId(296); vm.etch(HTS, type(MockHts).runtimeCode);
+function test_Attack_AssociateHtsOffHederaReverts() public { vm.prank(owner); vm.expectRevert(IDataDrop.NotHedera.selector); drop.associateHts(address(usdc)); }
+function test_AssociateHtsOnHederaCallsPrecompileWithThisAndToken() public {
+    vm.chainId(296); vm.etch(HTS, type(HtsPrecompileMock).runtimeCode);
     vm.prank(owner); drop.associateHts(address(usdc));
-    assertEq(bytes4(MockHts(HTS).last()), bytes4(keccak256("associateToken(address,address)")));   // 0x49146bde
+    (address acct, address tok) = HtsPrecompileMock(HTS).last();            // whatever accessor the builder's mock exposes
+    assertEq(acct, address(drop)); assertEq(tok, address(usdc));
+    vm.prank(owner); vm.expectRevert(); drop.associateHts(address(0xBEEF));   // token mode: only usdc may be associated
     vm.prank(stranger); vm.expectRevert(); drop.associateHts(address(usdc));
 }
-function test_LedgerOnlyMovesNoTokens() public {
-    DataDrop lo = new DataDrop(IERC20(address(0)), payout, attestor, owner);
-    vm.prank(sponsor); lo.createCampaign(ID, BUDGET, PRICE, CAP, expiresAt);        // no transferFrom
-    vm.prank(attestor); lo.claim(ID, key(ID, 1));
-    assertEq(usdc.balanceOf(payout), 0);
-    assertEq(lo.campaigns(ID).spent, PRICE);                                          // state still tracked
+function test_Attack_HtsFailureCodeReverts() public {                       // mock returns 167 (TOKEN_ALREADY_ASSOCIATED) or any rc != 22
+    vm.chainId(296); vm.etch(HTS, type(HtsPrecompileMock).runtimeCode); HtsPrecompileMock(HTS).setResponse(int64(167));
+    vm.prank(owner); vm.expectRevert(); drop.associateHts(address(usdc));
 }
-function test_Attack_TokenModeWithFailingTransferFromReverts() public {
-    RevertingToken bad = new RevertingToken();                                        // transferFrom returns false / reverts
-    DataDrop d = new DataDrop(IERC20(address(bad)), payout, attestor, owner);
-    vm.prank(sponsor); vm.expectRevert(); d.createCampaign(ID, BUDGET, PRICE, CAP, expiresAt);
+function test_LedgerOnlyMovesNoTokensAndSaysSo() public {
+    vm.expectEmit(false, false, false, true); emit IDataDrop.ModeSet(true);
+    DataDrop lo = new DataDrop(IERC20(address(0)), payout, attestor, owner);
+    assertTrue(lo.ledgerOnly()); assertEq(lo.usdc(), address(0));
+    vm.prank(sponsor); lo.createCampaign(ID, BUDGET, PRICE, CAP, expiresAt);   // no transferFrom
+    vm.prank(attestor); lo.claim(ID, key(ID, 1));
+    assertEq(usdc.balanceOf(payout), 0); assertEq(lo.campaigns(ID).spent, PRICE);
+}
+function test_Attack_TokenModeFailingTransferFromReverts() public {           // HTS facade returning false / no allowance
+    vm.prank(stranger); vm.expectRevert(); drop.createCampaign(keccak256("x"), BUDGET, PRICE, CAP, expiresAt);   // no approval, no balance
+    assertEq(drop.campaigns(keccak256("x")).sponsor, address(0));
 }
 ```
 
-Expected: a `ModeSet(bool ledgerOnly)` (or equivalent) event in the constructor; `Deploy.s.sol` refuses token mode on 296 without an `associateHts` step and refuses `LEDGER_ONLY` on a chain whose `deploy/chains.json` entry has a `usdc` address unless `LEDGER_ONLY=true` is explicit. A token-mode `createCampaign` whose `transferFrom` silently returns `false` and still records the budget is **Critical** (claims pay from a balance that was never received, or — on Hedera — the sponsor's money never moves while the demo claims it did).
+A token-mode `createCampaign` that records a budget without receiving it is **Critical** ("sponsor money never moved" — the DA's attack, now true). `Deploy.s.sol` must `require(dataDrop.ledgerOnly() == (usdc == address(0)))` and call `associateHts` on 295/296 in the same broadcast (brief §4).
 
 ## A10 — Payout and owner powers (T-10)
 
-Parse `out/DataDrop.sol/DataDrop.json` (or `forge inspect DataDrop abi`): the only functions that move tokens are `createCampaign`, `claim`, `refund`. There is no `setPayout`, `withdraw`, `sweep`, `rescue`. `payout` and `usdc` are `immutable` (`forge inspect DataDrop storage-layout` shows neither in storage). Owner functions are exactly `setAttestor`, `associateHts`, `transferOwnership`/`renounceOwnership`. Any extra token-moving function → High finding unless it is sponsor-scoped and tested.
+`forge inspect DataDrop abi --json` → the only state-changing functions are `createCampaign, claim, pause, refund, setAttestor, associateHts, transferOwnership, acceptOwnership, renounceOwnership` (the builder's `test_NoTokenMovesOutsideThreeFunctions` does this — read it; if it hard-codes the list, make sure a `sweep` would fail it). `forge inspect DataDrop storage-layout`: `usdc` and `payout` absent (immutable). `renounceOwnership` leaves `setAttestor` dead forever — Low, but say so in the README's key table.
 
 ## A11 — Reentrancy / CEI / slither (T-11)
 
-Reentrant token: `MockUSDC3009` has no hooks, so deploy a `ReentrantToken` whose `transfer` calls back `drop.claim(ID, key)` as the attestor (pranked) — the callback must revert (`AlreadyClaimed`, or the reentrancy guard) and the outer `spent` must equal one `PRICE`. Then:
+`ReentrantToken.transfer` re-enters `claim(ID, otherKey)` as the attestor (the token can `vm.prank`-less re-enter only if the attestor *is* the token — so give the reentrant campaign a `DataDrop` whose attestor is the token contract): expect `ReentrancyGuardReentrantCall`; `spent == PRICE`; the inner key not claimed. Re-enter `refund` from `transfer` during `refund` ⇒ revert, balance conserved. Then:
 
 ```sh
 cd packages/contracts && slither . --foundry-compile-all --config-file ../../security/redteam/tools/slither.config.json
+forge snapshot --check --tolerance 5      # claim ≤ 100 000 gas (brief §6)
 ```
-
-Expected: zero high/medium. Each `// slither-disable-next-line` carries a reason. Also `forge snapshot` and commit `.gas-snapshot`; a claim should be well under 100k gas in token mode.
 
 ## A12 — ABI drift (T-12)
 
-Export the ABI the API will use (`pnpm abi:export` or whatever the builder named it) and diff against `forge inspect DataDrop abi`. The `Claimed(bytes32 indexed id, bytes32 indexed claimKey, uint96 paid, uint64 hourBucket)` signature must match the API's decoder and the sponsor dashboard's query. No script → Med finding (the dashboard will silently show zero claims when a field is renamed).
+`pnpm abi:check` passes; `abi/DataDrop.json` has `Claimed(bytes32 indexed, bytes32 indexed, uint96, uint64)` and every error in INTERFACES `DATADROP_ERRORS`; the `@ethglobal/contracts/abi/*` export resolves from a TS package (`node -e "require.resolve('@ethglobal/contracts/abi/DataDrop.json')"`).
 
 ## A13 — `MockUSDC3009` authorization matrix (T-13)
 
-Use `vm.sign` with Anvil account #0's key (`0xac09…ff80` — test-only, allowed in `test/`) and the token's `DOMAIN_SEPARATOR()`:
+Sign with `vm.sign(ANVIL_KEY_5, digest)` (the vectors script uses #5 too) and `usdc.DOMAIN_SEPARATOR()`:
 
-```solidity
-bytes32 constant TRANSFER_TYPEHASH = keccak256("TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)");
-function digest(address from, address to, uint256 v, uint256 va, uint256 vb, bytes32 n) view returns (bytes32) {
-    return keccak256(abi.encodePacked("\x19\x01", usdc.DOMAIN_SEPARATOR(), keccak256(abi.encode(TRANSFER_TYPEHASH, from, to, v, va, vb, n))));
-}
-```
-
-| Case | Call | Expected |
-|---|---|---|
-| valid | `transferWithAuthorization(from,to,v,va,vb,n, sig)` by anyone | transfer; `authorizationState(from,n) == true`; `AuthorizationUsed` |
-| replay | same again | revert (`"EIP3009: authorization is used"` or custom) |
-| expired | `vb = block.timestamp` | revert |
-| not yet valid | `va = block.timestamp + 1` | revert |
-| wrong signer | signed by key #1, `from` = account #0 | revert |
-| wrong `value` in call vs signed | revert |
-| `receiveWithAuthorization` by `msg.sender != to` | revert `"caller must be the payee"` |
+| Case | Expected |
+|---|---|
+| valid `transferWithAuthorization` (both overloads), anyone as `msg.sender` | transfer; `authorizationState(from, nonce) == true`; `AuthorizationUsed` |
+| replay | revert |
+| `validBefore == block.timestamp` / `validAfter == block.timestamp` | revert (strict `<`/`>`) |
+| wrong signer (`from` = #5, signed by #6) | revert |
+| `value` in the call ≠ signed value | revert |
+| `receiveWithAuthorization` by `msg.sender != to` | revert |
 | `receiveWithAuthorization` by `to` | ok |
-| `cancelAuthorization` then transfer | revert |
-| nonce shared between transfer/receive variants | second reverts (same `authorizationState`) |
-| domain | `DOMAIN_SEPARATOR()` equals `keccak256(abi.encode(EIP712DOMAIN_TYPEHASH, keccak256("USD Coin"), keccak256("2"), block.chainid, address(usdc)))` |
+| `cancelAuthorization` (signed by authorizer, submitted by anyone) then transfer | revert; `AuthorizationCanceled` |
+| same nonce across transfer/receive variants | second reverts |
+| `to == address(0)` | ERC-20 revert |
+| EIP-2098 64-byte signature | **revert** (`ECDSAInvalidSignatureLength`) — the mock accepts 65 bytes only; the TS side must expand compact forms before calling (E3) |
+| high-`s` (`s' = n − s`, `v' = v ^ 1`) | revert `ECDSAInvalidSignatureS` (T-17) |
+| `mint` by anyone | works (test token) — `Deploy.s.sol` must never deploy it off Anvil (A19) |
 
 ## A14 — Cross-chain / cross-contract replay (T-14)
 
-Sign a valid authorization under `chainId = 31337`; `vm.chainId(84532)`; call `transferWithAuthorization` → must revert (domain separator must **not** be cached at construction — if the token caches it, this test passes on Anvil but a fork would accept replays; record which). Deploy a second `MockUSDC3009`; the same signature must fail there (`verifyingContract`).
+Sign under chainId 31337; `vm.chainId(84532)`; `usdc.DOMAIN_SEPARATOR()` now differs (OZ `EIP712` recomputes when `block.chainid != _cachedChainId`) and the old signature reverts. A second `MockUSDC3009` rejects the first one's signatures (`verifyingContract`). Record the separator values for `fixtures/eip3009/domains.json`.
 
 ## A15 — Settlement front-run → paid-but-denied (T-15)
 
-On Anvil (`scripts/dev-chain.sh`), with `MockUSDC3009` and the wave-1 `SelfRunFacilitator`:
+In Foundry: `stranger` submits the human's signed `transferWithAuthorization` first; assert `authorizationState(human, nonce) == true`, `balanceOf(payout) += value`, and that a second submission reverts — these are the on-chain facts `SelfRunFacilitator.settle` must read to answer `success: true` with the stranger's tx. The TS half is `wave1-adapters.md` L10; the HTTP half is wave 2 `frontrun.attack.test.ts`.
 
-1. User signs `transferWithAuthorization(from=user, to=payTo, value=400000, nonce=N)`.
-2. **Thief** (any funded account) submits that calldata first (`cast send $USDC "transferWithAuthorization(...)"`); it succeeds — funds went to `payTo`.
-3. The API calls `settle()` → the relayer's tx reverts "authorization used".
-4. **Expected:** `SettleResult.success == true` with the thief's tx hash (the facilitator checks `authorizationState(from, N)` and the `Transfer(from, payTo, 400000)` log). If `success == false` the user paid and got nothing → **Med finding** with the remediation in THREAT-MODEL T-15 (or `receiveWithAuthorization` where the token supports it; `MockUSDC3009` does).
+## A16 / A17 — Relayer griefing, malleability
 
-In Foundry alone: call `transferWithAuthorization` from `stranger`, then assert `authorizationState(from, N) == true` and `balanceOf(payTo) == 400000` — the on-chain facts the facilitator must read.
-
-## A16 / A17 — Relayer griefing and signature malleability
-
-TypeScript-level (`packages/eip3009`); see `wave1-octroi.md` E4–E6. In Foundry: a flipped-`s` signature (`s' = n − s`, `v' = v ^ 1`) **must be rejected** by `MockUSDC3009` if it uses OpenZeppelin `ECDSA` (it rejects high-`s`); if the token hand-rolls `ecrecover`, both signatures are valid for the same nonce — the nonce still prevents double-spend, so Low, but record it.
+TypeScript (`wave1-octroi.md` E4–E6). Foundry side done in A13.
 
 ## A18 — Rotation drill, local rehearsal (T-01, THREAT-MODEL §6.7)
 
 ```solidity
 function test_Drill_PauseRotateUnpause() public {
     address newAttestor = makeAddr("attestor-2");
-    // 1. anomaly: the thief (holding the attestor key) has claimed CAP−1 times
-    vm.startPrank(attestor); for (uint256 i = 0; i < CAP - 1; i++) drop.claim(ID, key(ID, i)); vm.stopPrank();
-    // 2. pause with the (compromised) attestor key — allowed, and useful
-    vm.prank(attestor); drop.pause(ID, true);
+    vm.startPrank(attestor); for (uint256 i = 0; i < CAP - 1; i++) drop.claim(ID, key(ID, i)); vm.stopPrank();   // anomaly
+    vm.prank(attestor); drop.pause(ID, true);                                                     // stolen key can pause — good
     vm.prank(attestor); vm.expectRevert(IDataDrop.CampaignPaused.selector); drop.claim(ID, key(ID, 50));
-    // 3. rotate
-    vm.prank(owner); drop.setAttestor(newAttestor);
-    vm.prank(attestor); vm.expectRevert(IDataDrop.NotAttestor.selector); drop.claim(ID, key(ID, 51));   // old key dead
-    vm.prank(attestor); vm.expectRevert(IDataDrop.NotSponsor.selector); drop.pause(ID, false);           // old key cannot unpause
-    // 4. sponsor unpauses; new attestor serves
-    vm.prank(sponsor); drop.pause(ID, false);
+    vm.prank(owner); drop.setAttestor(newAttestor);                                               // rotate (cold key)
+    vm.prank(attestor); vm.expectRevert(IDataDrop.NotAttestor.selector); drop.claim(ID, key(ID, 51));
+    vm.prank(attestor); vm.expectRevert(IDataDrop.NotSponsor.selector);  drop.pause(ID, false);
+    vm.prank(sponsor); drop.pause(ID, false);                                                     // only the sponsor unpauses
     vm.prank(newAttestor); drop.claim(ID, key(ID, 52));
 }
 ```
 
-Also with `cast` against Anvil after `pnpm dev:chain` (addresses from `deploy/addresses.anvil.json`):
+Against Anvil after `pnpm dev:chain` (addresses in `deploy/addresses.anvil.json`; Anvil keys only):
 
 ```sh
-cast send $DROP "pause(bytes32,bool)" $ID true  --private-key $ATTESTOR_KEY
-cast send $DROP "setAttestor(address)" $NEW     --private-key $OWNER_KEY
-cast call $DROP "campaigns(bytes32)" $ID         # paused == true
-cast send $DROP "claim(bytes32,bytes32)" $ID $KEY --private-key $ATTESTOR_KEY   # expect NotAttestor()
+cast send $DATADROP "pause(bytes32,bool)" $ID true   --private-key $ANVIL_KEY_2       # attestor
+cast send $DATADROP "setAttestor(address)" $NEW      --private-key $ANVIL_KEY_0       # owner
+cast call $DATADROP "attestor()(address)"
+cast send $DATADROP "claim(bytes32,bytes32)" $ID $KEY --private-key $ANVIL_KEY_2      # expect NotAttestor()
+cast send $DATADROP "pause(bytes32,bool)" $ID false  --private-key $ANVIL_KEY_3       # sponsor
 ```
 
-Time the four `cast` steps; the Friday live drill must come in under 5 minutes including the API restart.
+Time it; Friday's live drill repeats it on Hedera testnet with `ATTESTOR_PRIVATE_KEY` rotated in the VPS env and `GET /healthz` showing the new attestor (THREAT-MODEL §7 item 1).
 
-## Deploy script checks (`script/Deploy.s.sol`)
+## A19 — Deploy script (`script/Deploy.s.sol`, `test/Deploy.t.sol`)
 
-- `CHAIN` mismatch still aborts (scaffold test exists).
-- Anvil: deploys `MockUSDC3009` **and** `DataDrop` in token mode; writes `deploy/addresses.anvil.json` with `usdc`, `dataDrop`, `payout`, `attestor`, `owner`, `mode`.
-- Live chains: reads `usdc` from `deploy/chains.json`; 296 → `associateHts` after deploy; never deploys `MockUSDC3009`.
-- Keys: the script takes `--private-key`; it must not read `DEPLOYER_PRIVATE_KEY` defaults other than Anvil's in `dev-chain.sh`. A hard-coded key anywhere in `script/` is a High finding.
-- `broadcast/**/31337/` is git-ignored (scaffold) — live broadcasts **are** committed (they are the disclosure evidence) and must contain no key material (they do not by construction; verify).
+- `CHAIN` mismatch aborts (scaffold test).
+- 31337: deploys `MockUSDC3009`, mints to #0–#7, deploys `DataDrop(mock, PAYOUT_ADDRESS=#1, ATTESTOR_ADDRESS=#2, OWNER_ADDRESS=#0)`; writes `deploy/addresses.anvil.json` in the INTERFACES §6.3 shape; the file is git-ignored.
+- `vm.chainId(84532)` / `296` dry run: **no** `MockUSDC3009` deployment; `usdc` from `chains.json` (`usdc`/`usdcHts` present on **every** chain entry, alphabetical struct); `LEDGER_ONLY=true` ⇒ `address(0)` and `ledgerOnly()`; 296 ⇒ `associateHts` in the same broadcast; `require(ledgerOnly() == (usdc == 0))`.
+- No private key literal in `script/` (`grep -rn 0xac0974 script/` ⇒ none; the only default lives in `scripts/dev-chain.sh`); live `broadcast/` files are committed as disclosure evidence and contain no key material.
 
 ## Reporting
 
-For each A-item: attack test path, result (`failed as expected` / `FINDING RT-W1-0xx`), gas and fuzz seeds where relevant. Open the wave report with the measured drain bound (`CAP × PRICE` per hour, `2×` at the edge) in dollars for the demo campaign parameters the builder shipped in `scripts/demo-seed.ts`.
+Per A-item: test path, result (`failed as expected` / `FINDING RT-W1-0xx`), fuzz seed when a counter-example was found. Open the report with the drain bound in dollars for the shipped demo campaign and the A4/A5/A9 verdicts — those are the rows that become Criticals if wrong.

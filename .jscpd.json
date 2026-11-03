@@ -1,0 +1,17 @@
+{
+  "threshold": 1,
+  "minLines": 5,
+  "minTokens": 50,
+  "ignore": [
+    "**/node_modules/**",
+    "**/out/**",
+    "**/lib/**",
+    "**/.next/**",
+    "**/dist/**",
+    "**/cache/**",
+    "**/broadcast/**",
+    "**/pnpm-lock.yaml"
+  ],
+  "reporters": ["console"],
+  "blame": false
+}

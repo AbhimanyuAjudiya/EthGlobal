@@ -32,3 +32,8 @@ marketing/videos/renders/*.mov
 .DS_Store
 *.log
 tmp/
+# tooling caches
+.eslintcache
+report/
+next-env.d.ts
+packages/contracts/lib/

@@ -1,0 +1,17 @@
+# generated / vendored
+node_modules/
+pnpm-lock.yaml
+.next/
+dist/
+out/
+cache/
+broadcast/
+packages/contracts/lib/
+packages/contracts/foundry.lock
+next-env.d.ts
+apps/web/AGENTS.md
+# Solidity is formatted by `forge fmt`
+*.sol
+# pre-existing research and docs are kept byte-for-byte
+research/
+docs/

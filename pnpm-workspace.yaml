@@ -1,0 +1,16 @@
+packages:
+  - apps/*
+  - services/*
+  - packages/*
+
+# Shared dev-dependency versions; packages reference them with "catalog:".
+catalog:
+  '@types/node': 22.20.5
+  tsx: 4.23.15
+  typescript: 5.9.3
+  vitest: 5.1.0
+
+# Packages whose install scripts we deliberately skip (carried over from create-next-app's defaults).
+ignoredBuiltDependencies:
+  - sharp
+  - unrs-resolver

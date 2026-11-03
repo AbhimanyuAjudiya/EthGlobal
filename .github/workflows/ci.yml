@@ -1,0 +1,53 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MODE: local
+  # foundry.toml pins offline=true for the sandbox; a fresh runner must be allowed to fetch solc 0.8.30.
+  FOUNDRY_OFFLINE: "false"
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.5.1
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install forge libraries
+        run: pnpm --filter @ethglobal/contracts run deps
+
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+
+      - name: forge build
+        run: forge build --root packages/contracts
+      - name: forge test
+        run: pnpm test:contracts
+      - name: forge fmt --check
+        run: forge fmt --check --root packages/contracts
+
+      - run: pnpm dupcheck
+
+      - name: Build web and api
+        run: pnpm build

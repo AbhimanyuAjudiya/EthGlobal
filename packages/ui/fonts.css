@@ -1,0 +1,79 @@
+/*
+ * Type pairings — research/design-foundations.md §3 and Appendix A.
+ * Select one on <html data-type="ledger|terminal|bazaar">; "ledger" is the default.
+ * Google Fonts serves only the faces a page actually renders, so declaring all three costs one CSS request each.
+ * Upgrade path: self-host via @fontsource with unicode-range + size-adjust for the Devanagari companions.
+ */
+@import url('https://fonts.googleapis.com/css2?family=Eczar:wght@400..800&family=Schibsted+Grotesk:wght@400..900&family=Mukta:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wdth,wght@85..100,100..700&family=IBM+Plex+Sans+Devanagari:wght@400;500;600;700&family=Archivo:wdth,wght@62..125,100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Anek+Devanagari:wdth,wght@75..125,100..800&family=Chivo+Mono:wght@100..900&display=swap');
+
+/* A. "Ledger" — editorial-financial: Eczar display, Schibsted Grotesk text, Mukta for Devanagari, Plex Mono. */
+:root,
+[data-type='ledger'] {
+  --font-display: 'Eczar', Georgia, 'Noto Serif Devanagari', serif;
+  --font-text: 'Schibsted Grotesk', 'Mukta', system-ui, 'Noto Sans Devanagari', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  --font-width-table: 100%;
+  --font-width-form: 100%;
+}
+
+/* B. "Terminal" — data-dense desktop: one family (IBM Plex), Archivo for the single hero number; the width
+   axis is the density control (85 % in tables, 100 % in forms). */
+[data-type='terminal'] {
+  --font-display: 'Archivo', 'IBM Plex Sans', system-ui, sans-serif;
+  --font-text:
+    'IBM Plex Sans', 'IBM Plex Sans Devanagari', system-ui, 'Noto Sans Devanagari', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  --font-width-table: 85%;
+  --font-width-form: 100%;
+}
+
+/* C. "Bazaar" — mobile-first consumer: Anek Devanagari does display and text in both scripts
+   (wdth 110 / wght 700 for amounts and headlines, wdth 100 / wght 400–500 for body); Chivo Mono. */
+[data-type='bazaar'] {
+  --font-display: 'Anek Devanagari', system-ui, 'Noto Sans Devanagari', sans-serif;
+  --font-text: 'Anek Devanagari', system-ui, 'Noto Sans Devanagari', sans-serif;
+  --font-mono: 'Chivo Mono', 'IBM Plex Mono', ui-monospace, monospace;
+  --font-width-table: 100%;
+  --font-width-form: 100%;
+}
+
+/* Rules for all three (§3). */
+html {
+  font-family: var(--font-text);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-hash],
+[data-address],
+.amount-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+
+/* Marathi letterforms (ल, श) come from the MAR language system when lang="mr" is set. */
+:lang(hi),
+:lang(mr) {
+  line-height: var(--leading-devanagari, 1.6);
+  letter-spacing: 0;
+  text-transform: none;
+  font-style: normal;
+}
+
+/* Numeric utilities. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+.tnum-zero {
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+.pnum {
+  font-variant-numeric: proportional-nums;
+}
+.density-table {
+  font-stretch: var(--font-width-table);
+}
+.density-form {
+  font-stretch: var(--font-width-form);
+}

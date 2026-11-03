@@ -5,12 +5,20 @@ packages:
 
 # Shared dev-dependency versions; packages reference them with "catalog:".
 catalog:
-  '@types/node': 22.20.5
+  "@types/node": 22.20.5
   tsx: 4.23.15
   typescript: 5.9.3
   vitest: 5.1.0
 
-# Packages whose install scripts we deliberately skip (carried over from create-next-app's defaults).
+# Install scripts: esbuild's postinstall only verifies its binary; sharp/unrs-resolver are skipped as
+# create-next-app does by default.
+onlyBuiltDependencies:
+  - esbuild
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
+
+# eslint-plugin-react 7.37 declares eslint ^9.7 but runs on ESLint 10 (eslint-config-next ships the same pair).
+peerDependencyRules:
+  allowedVersions:
+    "eslint-plugin-react>eslint": "10"

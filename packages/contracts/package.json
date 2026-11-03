@@ -1,0 +1,14 @@
+{
+  "name": "@ethglobal/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Foundry project: Solidity contracts, deploy scripts and chain registry.",
+  "scripts": {
+    "deps": "test -d lib/forge-std -a -d lib/openzeppelin-contracts || forge install foundry-rs/forge-std@v1.17.0 OpenZeppelin/openzeppelin-contracts@v5.7.0 --no-git",
+    "build": "forge build",
+    "test": "forge test",
+    "fmt": "forge fmt",
+    "fmt:check": "forge fmt --check",
+    "clean": "forge clean"
+  }
+}

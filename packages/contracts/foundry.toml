@@ -2,5 +2,43 @@
 src = "src"
 out = "out"
 libs = ["lib"]
+test = "test"
+script = "script"
+solc = "0.8.30"
+# The build sandbox cannot reach binaries.soliditylang.org; solc 0.8.30 is pre-seeded in ~/.svm.
+# CI sets FOUNDRY_OFFLINE=false so a fresh runner may download the same compiler.
+offline = true
+optimizer = true
+optimizer_runs = 200
+evm_version = "cancun"
+fs_permissions = [{ access = "read", path = "./deploy" }]
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+]
 
-# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+[fuzz]
+runs = 512
+
+[invariant]
+runs = 64
+depth = 32
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+quote_style = "double"
+number_underscore = "thousands"
+
+# `forge script … --rpc-url <alias>`; each alias reads its URL from .env (see deploy/chains.json).
+[rpc_endpoints]
+anvil = "${ANVIL_RPC_URL}"
+unichain_sepolia = "${UNICHAIN_SEPOLIA_RPC_URL}"
+arc_testnet = "${ARC_TESTNET_RPC_URL}"
+zg_galileo = "${ZG_GALILEO_RPC_URL}"
+hedera_testnet = "${HEDERA_TESTNET_RPC_URL}"
+worldchain_sepolia = "${WORLDCHAIN_SEPOLIA_RPC_URL}"
+whitechain_sepolia = "${WHITECHAIN_SEPOLIA_RPC_URL}"
+base_sepolia = "${BASE_SEPOLIA_RPC_URL}"

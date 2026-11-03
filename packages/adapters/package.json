@@ -1,0 +1,27 @@
+{
+  "name": "@ethglobal/adapters",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Sponsor-SDK adapter interfaces (Ledger, Personhood, PaymentRail, Inference, NameResolver) with deterministic local mocks.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

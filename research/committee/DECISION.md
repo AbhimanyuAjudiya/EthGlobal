@@ -240,3 +240,307 @@ Assumptions: wholesale $0.70–1.14 per GB/7 d (regional, verified by #4; **Indi
 
 **Pivot rule (post-event, recorded now so nobody relitigates it later):** if E3 fails and retail is below 100 plans/week, the team re-opens the revenue question with the committee's ranked alternatives: (i) **Lifafa with the dedicated-wallet fix and the live-printed envelope**, only if ≥ 1 signed LOI from a Hyperliquid-perps group of ≥ 3k members exists by then (the Operator's own test); (ii) **action-conditioned devrel campaigns** sold to chains as a standing rail (the Devil's Advocate's Asli-as-data-drops, §4 of his file — already in Recharge's v1 roadmap as `Campaign.actionCheck`); (iii) continue Recharge as a retail eSIM business and stop claiming the bar.
 
+---
+
+## 6. Scope — `v0` pre-build (orchestrator, now) vs in-window human deliverables
+
+### 6.1 The split
+
+| Layer | Who, when | Content | Rule |
+|---|---|---|---|
+| **`v0` core** | Orchestrator with parallel builder agents and a red team, **Tue 3 Nov → Thu 5 Nov 12:00 IST**, entirely in `MODE=local` (Anvil 31337 + in-memory/fixture adapters; no network) | Everything in §6.2–6.3: quota engine, x402 gateway, reseller adapter, contracts with tests, PWA, agent loop, design system, hygiene templates, threat model, demo seed. Live adapters are **real code written against the documented APIs and unit-tested on recorded fixtures**; they are never called from the sandbox (`docs/ENVIRONMENT-CONSTRAINTS.md`). | Tagged `v0-prekickoff` at Thu 20:59 IST; disclosed in `docs/DISCLOSURE.md`. |
+| **Human pre-kickoff** | The 5-person team, Wed 4 – Thu 5 Nov daytime (≈ 16 ph) | Accounts, faucets, keys (on-site, never pasted into an AI context), the **minimal pre-deploy** of one real round-trip per sponsor (§7), the attach test, the memo, the sponsor meetings, the hardware hedge, scratch-card print, the free pre-arrival campaign. | Non-code work plus one hello-world per rail; recorded with tx hashes. |
+| **In-window** | The team, Thu 21:00 → Sun 09:00 (≈ 58 ph of ~125 available) | Every sponsor integration's substantive feature work, deploys, live provisioning, the agent on Hedera, gifts, the sponsor dashboard, the design pass, the video, README/CHANGELOG, rehearsals. | ≥ 70% of each sponsor integration's final code and 100% of the product mechanism tied to it, with dated human commits. |
+
+### 6.2 Module list and interfaces (extends the scaffold already in the repo)
+
+The scaffold's `@ethglobal/adapters` already defines `Ledger` (Arkiv-shaped: `put/get/query`, `expiresIn`), `Personhood` (IDKit success result, cloud verifier), `PaymentRail` (x402 v2 `PAYMENT-REQUIRED` / `PAYMENT-SIGNATURE` / `PAYMENT-RESPONSE`, EIP-3009 authorization payload), `Inference`, `NameResolver`, with deterministic mocks and `createAdapters('local' | 'live')`. `v0` adds the packages below; `createAdapters('live')` stops throwing.
+
+```
+packages/adapters   (+) Reseller, ConsensusLog interfaces; Ledger.update(); mocks: MockReseller, MockConsensusLog
+                    (+) live/: ArkivLedger (@arkiv-network/sdk, Kaolin 60138453025; annotations → attributes),
+                        WorldCloudPersonhood (POST developer.worldcoin.org/api/v2/verify/{app_id}),
+                        RemoteFacilitator (x402.org or hedera-dev facilitator: /verify, /settle; schemes exact-evm + hedera),
+                        SelfRunFacilitator (packages/eip3009 + viem relayer; the Hedera-track fallback),
+                        EsimAccessReseller, MegaEsimReseller (documented REST + HMAC webhooks),
+                        HcsLog (@hashgraph/sdk topic submit/read; HCS-14 UAID helper),
+                        EnsResolver (viem getEnsAddress/getEnsText; mainnet read, Sepolia fallback)
+packages/eip3009    (new) EIP-712 digests, signer recovery, calldata encoders, Relayer — shared by x402 exact scheme and (if switched) Dhwani's offline relay
+packages/octroi     (new) pure logic: Campaign, Entitlement, quotaKey, sizeBundle, challenge/consumeChallenge, decide(), TopUpPolicy/shouldTopUp
+packages/crypto     (new) sealLpa/openLpa (X25519 + HKDF + XChaCha20-Poly1305 via @noble), hmacKey, verifyWebhookSignature
+packages/contracts  (+) src/DataDrop.sol, src/MockUSDC3009.sol, test/DataDrop.t.sol, test/MockUSDC3009.t.sol, script/Deploy.s.sol (+ addresses.<chain>.json)
+services/api        (+) routes: /plans, /challenge, /claim, /esim/provision, /esim/topup, /gift, /gift/claim, /card/:pin, /webhooks/reseller, /me/:key, /sponsor/:id ; middleware octroi() and x402()
+services/agent      (new) the top-up agent: ledger read → shouldTopUp → fetch → 402 → sign → retry → HCS receipt
+apps/web            (+) PWA: / , /verify, /plan/[key], /pay, /install, /gift, /agent, /sponsor, /card/[pin], /print/cards ; data-type="bazaar"
+packages/ui         (+) components: ScratchCard, Coupon, MbMeter, BoardingPass, UsageAsOf, OnchainAction (state machine exists); print.css
+scripts/            (+) demo-seed.ts (campaign + 3 entitlements + 1 gift), e2e-local.sh (full loop on Anvil), print-cards.ts (Playwright → PDF)
+fixtures/           recorded responses: reseller catalogue/order/usage/webhook, World verifier, both facilitators, Arkiv, HCS mirror
+docs/               DISCLOSURE.md, THREAT-MODEL.md, DEMO-SCRIPT.md, arkiv.schema.json, ARKIV_FEEDBACK.md, SWARM.md, CHANGELOG.md
+```
+
+**Adapter additions (`packages/adapters/src/types.ts`):**
+
+```ts
+export interface EsimPlan { id: string; country: 'IN'; dataMb: number; validityDays: number; wholesaleUsd: number }
+export interface EsimProfile { iccid: string; lpa: string /* LPA:1$<smdp>$<matchingId> */; planId: string;
+  status: 'ready' | 'installed' | 'active' | 'expired' }
+export interface EsimUsage { iccid: string; usedMb: number; totalMb: number; asOf: number /* ms */ }
+export interface Reseller {
+  plans(country: 'IN'): Promise<EsimPlan[]>;
+  order(planId: string): Promise<EsimProfile>;                 // one profile per order
+  topUp(iccid: string, mb: number): Promise<{ orderId: string }>;
+  usage(iccid: string): Promise<EsimUsage>;
+  verifyWebhook(rawBody: string, signature: string, timestamp: number): boolean;
+}
+export interface ConsensusLog {                                  // modelled on HCS
+  submit(topic: string, message: string): Promise<{ sequence: number; consensusAt: number; txId: string }>;
+  read(topic: string, fromSequence?: number): Promise<Array<{ sequence: number; message: string; consensusAt: number }>>;
+}
+export interface Ledger { /* existing put/get/query, plus: */
+  update(key: string, patch: { payload?: string; annotations?: Annotations }, expiresIn?: number): Promise<LedgerPutResult>; }
+// Adapters bundle gains `reseller: Reseller` and `consensus: ConsensusLog`.
+```
+
+**Quota engine (`packages/octroi`):**
+
+```ts
+export type Tier = 'orb' | 'document' | 'device' | 'none';
+export interface Campaign {
+  id: Hex; sponsor: Address; name: string;
+  bundleMb: { orb: number; document: number; device: 0 };       // device tier gets no gift: it pays the human price
+  pricePerClaimUsd6: bigint; maxClaims: number; claimsPerHour: number;
+  validityDays: number; wholesaleUsdPerGb: number; idResaleUsd: number /* 0.50 */;
+  paused: boolean; expiresAt: number;
+  actionCheck?: (claimKey: Hex) => Promise<boolean>;             // v1: action-conditioned campaigns
+}
+export interface Entitlement {
+  key: string;      // 'ent:'+HMAC(secret,nullifierHash) | 'paid:'+payer+nonce | 'gift:'+namehash
+  campaignId?: Hex; tier: Tier; mbTotal: number; mbUsed: number; usageAsOf: number;
+  iccid?: string; expiresAt: number;
+}
+export function quotaKey(secret: Uint8Array, nullifierHash: Hex): Hex;                       // HMAC-SHA256
+export function sizeBundle(c: Campaign, tier: Tier): number;
+//   = min(c.bundleMb[tier], floor(0.8 * c.idResaleUsd / (c.wholesaleUsdPerGb / 1024)), 300)  — farming is EV-negative by construction
+export interface Challenge { nonce: Hex; audience: string; path: string; exp: number; signal: Hex /* keccak(nonce‖audience) */ }
+export function challenge(audience: string, path: string, now: number): Challenge;            // exp = now + 120 s
+export function consumeChallenge(ledger: Ledger, cache: Set<string>, c: Challenge, now: number):
+  Promise<'ok' | 'replayed' | 'expired' | 'unavailable'>;                                     // 'unavailable' is treated as deny (fail-closed)
+export type Decision =
+  | { kind: 'serve-free'; entitlement: Entitlement; claimKey: Hex }
+  | { kind: 'serve-paid'; entitlement: Entitlement; settlement: SettleResult }
+  | { kind: 'payment-required'; body: PaymentRequired }
+  | { kind: 'deny'; reason: 'replay' | 'paused' | 'cap' | 'budget' | 'invalid-proof' | 'invalid-payment' | 'expired' };
+export interface OctroiDeps { ledger: Ledger; personhood: Personhood; payments: PaymentRail; secret: Uint8Array;
+  now: () => number; priceUsd6PerStep: bigint; stepMb: number; payTo: Address;
+  accepts: Array<{ network: string; asset: string }> }           // demo: eip155:84532 USDC, hedera:testnet USDC; local: eip155:31337 MockUSDC
+export function decide(req: { proof?: PersonhoodProof; payment?: PaymentPayload; challenge?: Challenge; mb: number;
+  resource: PaymentResource; campaign?: Campaign; sessionPubKey?: Hex }, deps: OctroiDeps): Promise<Decision>;
+export interface TopUpPolicy { maxUsdPerDay: number; thresholdMb: number; stepMb: number; paused: boolean; topUpOnExpiry: boolean }
+export function shouldTopUp(e: Entitlement, p: TopUpPolicy, spentTodayUsd: number, now: number):
+  { buy: false; reason: 'ok' | 'paused' | 'cap' } | { buy: true; mb: number; reason: 'threshold' | 'expiry' };
+```
+
+**EIP-3009 (`packages/eip3009`)** — shared by the x402 exact scheme (facilitator submits `transferWithAuthorization`) and, if the switch fires, by Dhwani's offline relay (`receiveWithAuthorization` into the splitter):
+
+```ts
+export interface Authorization3009 { from: Address; to: Address; value: bigint; validAfter: bigint; validBefore: bigint; nonce: Hex }
+export function domain(token: Address, chainId: number, name?: string, version?: string): TypedDataDomain; // Circle USDC: "USD Coin", "2"
+export function digestTransferWithAuthorization(d: TypedDataDomain, a: Authorization3009): Hex;
+export function digestReceiveWithAuthorization(d: TypedDataDomain, a: Authorization3009): Hex;
+export function recoverSigner(digest: Hex, signature: Hex): Address;
+export function encodeTransferWithAuthorization(a: Authorization3009, signature: Hex): Hex;   // calldata
+export function encodeReceiveWithAuthorization(a: Authorization3009, signature: Hex): Hex;
+export interface Relayer { submit(token: Address, data: Hex): Promise<{ hash: Hex; status: 'success' | 'reverted' }> }
+```
+
+**Sealed delivery (`packages/crypto`):** `sealLpa(lpa, recipientPubKey, aad)` / `openLpa(sealed, secretKey, aad)` with `aad = paymentNonce ‖ entitlementKey`; `hmacKey`; `verifyWebhookSignature(secret, rawBody, signature, timestamp, now, windowSec = 300)`.
+
+**API contract (`services/api`)** — all gated routes run `octroi()`; the proof path and the pay path are the same handler with a different `Decision`:
+
+| Route | In | Out | Side effects (local mock / live) |
+|---|---|---|---|
+| `GET /plans` | — | plans, prices, `accepts[]` | none |
+| `POST /challenge` | audience, path | `{nonce, exp, signal}` | nonce entity `expiresIn: 120` |
+| `POST /claim` | IDKit proof, campaignId, challenge, sessionPubKey | `{entitlementKey, sealedLpa, expiresAt, claimTx}` | `personhood.verify` → `sizeBundle` → `DataDrop.claim(id, claimKey)` by the attestor key → `reseller.order` → entitlement entity (`expiresIn = validityDays`) → HCS receipt |
+| `GET /esim/provision?mb=` | payment or 402 | sealed LPA | settle → order → entity → HCS |
+| `GET /esim/topup?key=&mb=100` | payment or 402 | new `mbTotal`, `expiresAt` | settle → `reseller.topUp` → `ledger.update` → HCS |
+| `POST /gift` | payment or 402, ENS name | PIN (16 digits) + boarding-pass card | `names.resolve` → escrow entity `gift:<namehash>` (`expiresIn` = claim window) |
+| `POST /gift/claim` | name + signature by the resolved address, or PIN | entitlement | escrow → entitlement; HCS |
+| `GET /card/:pin` | PIN | entitlement | scratch-card redeem (same path as gift PIN) |
+| `POST /webhooks/reseller` | HMAC-signed usage/status | 204 | `verifyWebhookSignature` → `ledger.update(usage)`; 5-minute replay window |
+| `GET /me/:key` | — | entitlement, `usageAsOf` | **Arkiv read** (60-s cache) |
+| `GET /sponsor/:id` | — | claims, spend, HMAC'd claim list | **Arkiv query** + chain events |
+
+**Agent (`services/agent`):** every 60 s (5 s local): `ledger.get(entitlementKey)` (**Arkiv read**) → `shouldTopUp` → `GET /esim/topup` → on 402 build the EIP-3009 authorization for the matching `accepts[]` entry and sign (local: an Anvil key against `MockUSDC3009`; live: the Hedera Agent Kit wallet for the Hedera scheme, a Base Sepolia key for the EVM scheme) → retry with `PAYMENT-SIGNATURE` → `consensus.submit(topic, receipt)` carrying the HCS-14 UAID. The LLM, if any, only phrases notifications; it never sizes or approves a purchase (Security's prompt-injection rule).
+
+**PWA x402 client (`apps/web/lib/pay402.ts`):** on 402, decode `PAYMENT-REQUIRED`, pick the `accepts[]` entry for the connected wallet's chain, generate the session keypair, build the authorization (`nonce = random32`, `validBefore = now + 300`, `to = payTo`), sign `TransferWithAuthorization` typed data, attach `extra.sessionPubKey`, retry; on success, `openLpa` and hand the LPA string to `/install` (Apple universal link `https://esimsetup.apple.com/esim_qrcode_provisioning?carddata=<LPA>` on iOS 17.4+, the `LPA:` intent on Android, QR for a second device).
+
+### 6.3 Contracts
+
+```solidity
+// packages/contracts/src/DataDrop.sol — sponsor pools; one claim per (campaign, claimKey); hourly cap; pause; refund
+pragma solidity ^0.8.30;
+interface IDataDrop {
+    struct Campaign { address sponsor; uint128 budget; uint128 spent; uint96 pricePerClaim; uint32 claimsPerHour; uint64 expiresAt; bool paused; }
+    event CampaignCreated(bytes32 indexed id, address indexed sponsor, uint128 budget, uint96 pricePerClaim, uint32 claimsPerHour, uint64 expiresAt);
+    event Claimed(bytes32 indexed id, bytes32 indexed claimKey, uint96 paid, uint64 hourBucket);
+    event Paused(bytes32 indexed id, bool paused, address by);
+    event Refunded(bytes32 indexed id, uint128 amount);
+    event AttestorSet(address attestor);
+    error AlreadyClaimed(); error CampaignPaused(); error CampaignExpired(); error HourlyCap(); error BudgetExhausted();
+    error NotAttestor(); error NotSponsor(); error NotRefundable();
+    function createCampaign(bytes32 id, uint128 budget, uint96 pricePerClaim, uint32 claimsPerHour, uint64 expiresAt) external; // pulls USDC from sponsor (token mode)
+    function claim(bytes32 id, bytes32 claimKey) external;        // onlyAttestor; claimKey = keccak256(id ‖ HMAC(nullifier)); pays pricePerClaim to payout
+    function pause(bytes32 id, bool paused) external;             // sponsor may pause/unpause; attestor may pause, never unpause
+    function refund(bytes32 id) external;                         // sponsor; after expiresAt, or paused ≥ 24 h
+    function setAttestor(address attestor) external;              // owner
+    function claimed(bytes32 id, bytes32 claimKey) external view returns (bool);
+    function campaigns(bytes32 id) external view returns (Campaign memory);
+}
+// constructor(IERC20 usdc, address payout, address attestor, address owner)
+//   usdc == address(0)  ⇒ LEDGER_ONLY mode: createCampaign/claim record state and emit events, move no tokens (sponsor funds move natively on HTS).
+//   On Hedera (chainid 296/295) an owner-only associateHts(address token) calls the HTS precompile so the contract can hold HTS USDC; tested at the Wed pre-deploy.
+```
+
+`MockUSDC3009.sol`: 6-decimal ERC-20 implementing EIP-3009 `transferWithAuthorization` / `receiveWithAuthorization` with EIP-712 domain `("USD Coin", "2")`, so local x402 settlement and the shared `eip3009` package are exercised against Circle's exact digest layout. `Deploy.s.sol` deploys both on Anvil, `DataDrop` only on live chains (USDC address from `deploy/chains.json` extended with `usdc` per chain; Hedera testnet USDC is HTS `0.0.429274`), and writes `deploy/addresses.<slug>.json`.
+
+### 6.4 Local mode vs live adapters
+
+| Dependency | `MODE=local` (CI, red team, orchestrator) | `MODE=live` (humans, on-site) | Status of the live adapter in `v0` |
+|---|---|---|---|
+| Chain / USDC | Anvil 31337 + `MockUSDC3009` | Base Sepolia USDC (EIP-3009), Hedera testnet USDC (HTS) | real (viem); untested against RPC until Wed |
+| Sponsor pool | `DataDrop` on Anvil, token mode | `DataDrop` on Hedera testnet (token or LEDGER_ONLY) | real; deploy script human-run |
+| x402 facilitator | `MockPaymentRail` (scaffold) + `SelfRunFacilitator` on Anvil | `RemoteFacilitator` (x402.org / hedera-dev) with `SelfRunFacilitator` fallback | real; Hedera scheme payload shape from fixtures recorded Wed |
+| World ID | `MockPersonhood` + fixture proofs | `WorldCloudPersonhood` (cloud verifier) | real |
+| Arkiv | `InMemoryLedger` with expiry clock (+ `update`) | `ArkivLedger` on Kaolin | real; latency measured Wed |
+| Reseller | `MockReseller`: deterministic `LPA:1$local.test$<id>`, usage advances on a clock, webhook simulator | `EsimAccessReseller` / `MegaEsimReseller`; inventory file as fallback source | real against docs; India catalogue unknown until today |
+| HCS / HCS-14 | `MockConsensusLog` (append-only, sequence numbers) | `HcsLog` via `@hashgraph/sdk`; UAID registered once | real |
+| ENS | `MockNameResolver` fixtures (`alice.eth`, `bob.eth`) | `EnsResolver` (mainnet read) | real |
+| Agent wallet | Anvil key | Hedera Agent Kit wallet (+ Base Sepolia key for the EVM scheme) | real; first contact Thu night |
+| Wallet in PWA | dev panel "demo wallet" (Anvil account) | injected wallet on Base Sepolia; Hedera wallet (HashPack) for the human Hedera payment | real |
+
+### 6.5 Acceptance tests per module (all run in CI under `MODE=local`; the right-hand column is the human live check)
+
+| Module | Must pass before `v0-prekickoff` | Live check (who, when) |
+|---|---|---|
+| `packages/octroi` | `sizeBundle`: 300 MB cap; shrinks with wholesale (at $2.50/GB → ≤ 160 MB); device → 0. `quotaKey` deterministic, never reveals the nullifier. `challenge/consumeChallenge`: second use → `replayed`; after 121 s → `expired`; ledger throwing → `unavailable` ⇒ deny. `decide`: valid Orb proof + budget → `serve-free`; same nullifier twice → `deny: replay`; paused → `deny`; hourly cap at N+1; no proof, no payment → `payment-required` with both `accepts[]`; valid payment → `serve-paid`; wrong amount → `deny: invalid-payment`. `shouldTopUp`: threshold, expiry, cap, paused; never exceeds `maxUsdPerDay`. Property test: no sequence of requests grants more MB than budget allows. | — |
+| `packages/eip3009` | Digests match Circle's reference vectors (recorded in fixtures); `recoverSigner` round-trips a viem signature; `receiveWithAuthorization` calldata executes on `MockUSDC3009` only when `msg.sender == to`. | Base Sepolia USDC `transferWithAuthorization` relayed once (Integrations, Wed). |
+| `packages/crypto` | `openLpa(sealLpa(x))` = x; wrong key fails; wrong AAD fails; webhook signature rejects skew > 300 s and replays. | — |
+| `packages/contracts` | `DataDrop.t.sol`: create pulls budget; claim once; `AlreadyClaimed` on repeat; hourly cap across a bucket boundary (`vm.warp`); paused blocks; attestor-only; `BudgetExhausted` leaves the remainder refundable; refund only after expiry or 24 h pause; LEDGER_ONLY moves no tokens; fuzz `pricePerClaim ≤ budget`; 6-decimal arithmetic; gas snapshot. `MockUSDC3009.t.sol`: valid auth transfers; replayed nonce reverts; expired reverts; wrong signer reverts. Slither clean (no high/medium). | Deploy to Hedera testnet; `associateHts`; one `Claimed` event on HashScan (Integrations, Wed 14:00). |
+| `services/api` | Supertest flow on Anvil: `/challenge` → `/claim` (fixture Orb proof) → entitlement entity exists with `expiresAt` = now + validity → `/me/:key` reads it back (and from cache within 60 s) → `/esim/topup` returns 402 with `PAYMENT-REQUIRED` → signed payment → 200, `mbTotal` increased, HCS receipt sequence +1 → `/webhooks/reseller` with valid HMAC updates `mbUsed`; invalid HMAC → 401; replay → 409 → `/gift` → PIN → `/gift/claim` by signature → entitlement; `/sponsor/:id` lists HMAC'd claims only. `e2e-local.sh` runs the whole loop headless in < 60 s. | Same flow against live rails in the Thu 21:00–02:00 handshake sprint (all leads). |
+| `services/agent` | With a simulated usage clock: buys exactly one step at 20% remaining; buys on expiry when `topUpOnExpiry`; never exceeds the daily cap; pause stops it; every purchase produces an HCS receipt with the UAID; a malicious notification string in the entitlement payload changes nothing (injection test). | Agent Kit wallet pays on Hedera testnet once; HashScan link (Provisioning/Agent lead, Fri AM). |
+| `apps/web` | Playwright: both first-screen paths render; `/pay` completes the 402 round-trip with the demo wallet; `/install` renders the universal link and the Android intent with the opened LPA; `/plan/[key]` shows the MB meter and "usage as of HH:MM"; `/agent` sheet persists the policy; `/sponsor` creates/funds/pauses a campaign; `/card/[pin]` redeems; dark and light screenshots; no horizontal scroll at 360 px; Hindi strings render with `lang="hi"`. Lighthouse PWA installable. | Three real devices, Sat 09:00 rehearsal. |
+| `packages/ui` | Token test (exists); print sheet renders 100 cards to PDF with PINs in Chivo Mono and no clipping. | Printer proof Wed evening; print run Thu 09:00. |
+| Live adapters | Each parses its recorded fixtures and maps errors to `AdapterError`; contract tests assert request shapes (paths, headers, bodies) against the documented API. | Wed pre-deploy: one round-trip each (Arkiv entity write+read; x402 settle on Hedera; cloud verification). |
+| Red team (`docs/THREAT-MODEL.md`) | Attack scripts for: nullifier replay, challenge replay, webhook replay/spoof, LPA interception (second fetch), agent cap bypass, hourly-cap race, paused-campaign claim, prompt injection via payload strings, decimals confusion (6 vs 18), key-rotation (`setAttestor`). All fail. | Sponsor-pool key compromise drill: attestor rotation + pause in < 5 min (Security owner, Fri). |
+
+### 6.6 Hour budget, critical path, honest mocks, degradation
+
+**In-window budget (≈ 58 ph of ~125 available; cap 85):** Integrations/live wiring (Hedera x402 human + agent settlement, `DataDrop` production campaigns, HCS, World cloud verify, Arkiv Kaolin) 14 · Provisioning (live orders, universal link on three devices, inventory fallback) 8 · Agent (Agent Kit wallet, HCS-14, policy loop live, webhooks) 8 · Product features (tiering by credential, gift/ENS live, scratch-card redeem, sponsor dashboard reads) 10 · Design pass (PWA screens, coupon, dark/light, Hindi copy, print QA) 8 · Producer (README per sponsor, DISCLOSURE, CHANGELOG, video ≤ 3 min, X post, pitch rehearsal, judge logistics, submission form) 10. Pre-kickoff human: ≈ 16 ph (accounts, keys, pre-deploy round-trips, attach test, cards, meetings).
+
+**Critical path (software, ≈ 20 wall-clock hours):** Thu 21:00 flip the VPS to the in-window branch and `MODE=live` (0.5 h) → production `DataDrop` campaign deployed and funded on Hedera testnet, pre-rehearsed Wednesday (1.5 h) → IDKit claim → entitlement on Kaolin → live reseller order → sealed LPA → install on a team phone (3 h) → **Fri 06:00 gate** → agent live with Agent Kit + HCS-14 (4 h) → gift/ENS live (2 h) → sponsor dashboard reads (2 h) → Sat 09:00 three-device rehearsal (2 h) → design pass in parallel → Sat 18:00 partner selection locked → video (3 h) → Sun 06:00 README freeze → 08:00 submit.
+
+**Honestly mocked in the demo (labelled on screen and in the README):** usage telemetry when the reseller usage API lags ("simulated usage"); fulfilment from pre-bought inventory if a live order fails ("inventory profile"); HCS-14 registration minimal; AgentKit discount mode absent unless beta lands ("IDKit humans only"); the demo sponsor is "Recharge (demo sponsor)" unless a real sponsor funds a testnet campaign on Thursday; the Hedera human payment is made by a judge or a non-team attendee with a Hedera testnet wallet, else by a team wallet operated by the judge's tap, said aloud.
+
+**Degradation (product keeps working; prize may be lost):** remote facilitator down → self-run; Hedera unreachable → Base-only settlement, ENS swap; Arkiv down → Postgres mirror + "ledger degraded" banner, ENS swap; World cloud verifier down or judge cannot verify in India → foreign judges with Orb IDs, team phones, labelled simulator; reseller down → inventory; live install stalls → pre-installed phone after 90 s; Agent Kit wallet fails → EVM-scheme agent on Base Sepolia, labelled.
+
+### 6.7 Human team checklist by day (five roles: Integrations · Provisioning/Agent · Product/PWA · Design/Producer · Sponsor/Sales = Founder). Note: 4 Nov 2026 is a Wednesday; the brief's "Tue 4" is read as "the day after today".
+
+**Tue 3 Nov (today, after ratification)** — Founder: commission the legal memo (due Wed 18:00); write the sponsor one-pager; message ≥ 5 devrels for Thursday slots; name the five roles and the ALSA-capable teammate. Integrations: open MegaeSIM + eSIM Access; buy 30 India profiles (plus 5 retail Airalo/Saily India profiles as the deepest fallback); record India wholesale (E0); create Hedera testnet ECDSA accounts ×3 with HBAR and testnet USDC association; claim Kaolin ETH and Base Sepolia ETH; register the World developer-portal app and action `recharge-welcome`; apply for AgentKit beta. Provisioning: confirm an iPhone (iOS 17.4+) and an Android 13+ with eSIM are in the team; buy the Dhwani hardware hedge. Design: brief the Hindi/Marathi copy reviewer; order card stock. All: read `docs/THREAT-MODEL.md` when the orchestrator posts it.
+
+**Wed 4 Nov** — 10:00 attach test ×3 per device with the pre-bought profiles (latency logged). 12:00 sandbox order → LPA → install (if the API is live). 14:00 **minimal pre-deploy** with the orchestrator's live adapters: one Arkiv entity written and read on Kaolin; one x402 402→pay→200 settled on Hedera testnet via the remote facilitator (fixtures recorded); one IDKit cloud verification; `DataDrop` deployed on Hedera testnet with a hello campaign and one claim — tx hashes into `DISCLOSURE.md`. 16:00 the team-funded free pre-arrival campaign goes live (Telegram post; poster PDF; zero price). **18:00 GATE** — attach test + memo → stay on Recharge or switch to Dhwani (§1). 19:00 copy review; scratch-card artwork to the printer for a proof. Evening: Founder confirms Thursday meetings; Integrations rehearses the Thursday-night handshake on the pre-deployed rails.
+
+**Thu 5 Nov** — 09:00 print 200 scratch cards (Dhanteras closes printers Friday). 10:00–17:00 sponsor meetings (≥ 5): the drop and the free testnet pilot (E1 at 18:00). 12:00 (only if switched) Dhwani hardware gate. 14:00 dry run of the full loop on the VPS in `MODE=live` against the pre-deployed rails — no product features, just the pipes. 18:00 E1 verdict → README revenue section wording decided. 20:59 tag `v0-prekickoff`; snapshot `DISCLOSURE.md`. **21:00 kickoff** — check-in questions to ETHGlobal staff and to Hedera/World/Arkiv devrel (§7.4); keys for the in-window attestor/relayer generated on-site; handshake sprint 21:00–02:00: each rail one in-window round-trip (production campaign, claim, provision, Arkiv entity, Hedera settlement by a human).
+
+**Fri 6 Nov (Dhanteras)** — **06:00 swap gate** per sponsor (§4). 06:00–14:00 credential tiering, Arkiv entitlements and the three reads, agent live on Hedera. 14:00–20:00 gift/ENS, sponsor dashboard, webhooks; Security owner runs the key-compromise drill. 20:00 first full live loop on three devices. Design pass starts; Producer drafts the per-sponsor README sections; film B-roll (airport/hall "No Service → LTE", scratch, agent notification) — nothing is sold to anyone.
+
+**Sat 7 Nov** — 09:00 scope freeze (AgentKit discount mode, Reloadly diaspora top-ups only if ahead); 09:00–13:00 three-device rehearsal with cutover rules; 13:00–18:00 design pass complete (dark/light, Hindi), scratch-card redeem flow, print QA; **18:00 partner selection locked** in the dashboard; 18:00–23:00 video ≤ 3:00 (the three hooks, §8.6), X post, README/CHANGELOG/DISCLOSURE, `arkiv.schema.json`, `ARKIV_FEEDBACK.md` (with Wed's latency numbers), `SWARM.md`; 23:00 pitch dry run ×2 (4 min + the Q&A card).
+
+**Sun 8 Nov (Diwali)** — 06:00 README freeze; 06:30 final rehearsal on venue Wi-Fi and on cellular; 07:30 submission form (three partners, video, repo, live URL, Continuity disclosure); **08:00 submit** (one hour of buffer before 09:00); then judging prep: pre-installed phone charged, three scratch cards per judge, HashScan and Arkiv explorer tabs pinned, the teammate who plays the sponsor named as such.
+
+---
+
+## 7. Entry strategy
+
+### 7.1 Recommendation
+**Continuity, declared in writing, with the minimal pre-deploy.** Code exists publicly before kickoff by the founder's order; a from-scratch declaration would be false and diff-able (#1, #2, #3, #4, Round 2), and "re-implementing beside a public reference" is the violation the AI policy names with a worse story (#3 `round2-sponsor-stacker.md` §6: ≈ 0.65 × EV plus CT exposure). Continuity's cost — a WOW/Originality discount — is already in the re-score's 7%.
+
+### 7.2 The pre-deploy, with constraints (resolves `round3-devils-advocate.md` §0 and the Chair's counter-proposal)
+On Wed 4 Nov the humans deploy, with on-site keys, exactly one real round-trip per partner: one Arkiv entity written and read on Kaolin; one x402 payment settled on Hedera testnet plus `DataDrop` with a hello campaign and one claim on Hedera EVM; one IDKit cloud verification for action `recharge-welcome`. Constraints: (1) nothing beyond one round-trip per partner; (2) ≥ 70% of each integration's final code and 100% of the product mechanism tied to it (tiering, expiring entitlements and their three reads, the agent, HCS receipts, gifts, the dashboard) ship in-window; (3) `DISCLOSURE.md` lists every pre-kickoff tx hash and entity key and the repo is tagged `v0-prekickoff` at 20:59; (4) each partner's eligibility question is asked at kickoff and the answer is written into the README. Effect: the continuity lanes ("move an existing Hedera project forward", Arkiv "existing projects", World [Cont]) become literally true; the first-contact tax moves out of the window; finalist perception is unchanged.
+
+### 7.3 README disclosure text (verbatim, kept current through Sunday)
+> **Continuity disclosure.** Recharge is entered in the Continuity track. **Before kickoff** (3–5 Nov 2026; tag `v0-prekickoff`, 5 Nov 20:59 IST): a local-first monorepo scaffold (tooling, design tokens, adapter interfaces with mocks); the x402 gateway and the Octroi quota engine running against Anvil and mocks; the reseller adapter; the PWA shell; `DataDrop.sol` with Foundry tests; and three hello-world integrations deployed by the team on 4 Nov — one Arkiv entity on Kaolin (key `…`), one x402 payment settled on Hedera testnet (tx `…`) with `DataDrop` at `0x…` (one claim, tx `…`), one IDKit verification (action `recharge-welcome`, log hash `…`). A team-funded free welcome-bundle campaign ran from 4 Nov (`N` claims by kickoff). Pre-bought eSIM inventory, reseller accounts and faucet claims are listed below. **During the window** (dated commits in `CHANGELOG.md`): credential-tiered sponsor pools on Hedera EVM, expiring Arkiv entitlements and the three reads that depend on them, the Hedera Agent Kit top-up agent with an HCS-14 identity and HCS receipts, gifts to ENS names, the scratch-card run, the design pass, live provisioning on three devices. **AI use:** an AI orchestrator wrote most of the pre-kickoff code under human direction and review, with a red-team pass; in-window commits are authored by the named team members with AI assistance for tests, fixtures and documentation. Keys were generated on-site and never entered an AI context.
+
+### 7.4 Questions to ask at kickoff (answers recorded in the README by Fri 06:00)
+- **ETHGlobal staff:** "Our repository was created on 3 Nov with documented pre-existing work and a dated tag; is it an eligible Continuity base?" If no → §7.5.
+- **Hedera devrel:** "We have had an x402 endpoint settling on Hedera testnet and a pool contract on Hedera EVM since 4 Nov. Are Continuity entries eligible for the x402 track, or only for the Continuity prize? Would you fund a 100-claim testnet campaign from your account this weekend?"
+- **World devrel:** "Is [Cont] Best IDKit Use Case the right submission for us, and may we also be considered for Best Use of IDKit? Can we get AgentKit beta access before Saturday?"
+- **Arkiv devrel:** "Continuity ($4k) or from-scratch ($3k/$1k) — which lane do you want a project with one pre-kickoff entity in? Does a 60-second cached read on the hot path count as reading from Arkiv when every window boundary and the agent query live? Swarm gateway access for the bonus?"
+- **ENS (if a swap becomes likely):** "Which Mumbai track fits gifting-by-name and sponsor subnames?"
+
+### 7.5 If the Continuity base is rejected
+Archive the pre-build private, keep only design documents, the threat model and test vectors, and enter from-scratch with human-authored product code; the orchestrator's role becomes tests, fixtures and docs (Ops R1 pre-build policy). All three candidates lose EV equally; the decision does not change.
+
+---
+
+## 8. Design brief
+
+### 8.1 The one image
+A judge's iPhone on the big screen goes from **"No Service" to "LTE"** four seconds after a payment lands on HashScan, and the lock screen reads **"300 MB · from <sponsor> · because you're human."** The physical twin: the judge rubs a paper scratch card and reads the same line and a 16-digit PIN.
+
+### 8.2 The signature (what no model would pick)
+**The 2000s Indian paper recharge coupon.** Every plan and every gift is a coupon: a foil scratch panel, a 16-digit PIN in Chivo Mono, Devanagari numerals in Anek Devanagari, "usage as of 14:02" printed on every balance, three-line receipts (you / sponsor / network fee). We print real cards and hand them to judges; the redeem screen is the coupon turned digital. Gifts are boarding-pass cards addressed to an ENS name. The agent's permission is one sheet: "≤ $10/day · pause". No gradients, no glass, no Inter, no emoji, no confetti, no raw `0x…` without a copy affordance (`design-foundations.md` §1 ban list is enforced by a CI grep on `backdrop-filter`, hue 260–300 accents and the banned families).
+
+### 8.3 Type (from `design-foundations.md` §3, pairing C "Bazaar")
+**Anek Devanagari** (Ek Type, Mumbai; variable `wdth 75–125, wght 100–800`; Latin + Devanagari; `tnum`, `zero`, ₹; `HIN`/`MAR` locl) for display *and* text: `wdth 110 / wght 700` for the MB number and headlines, `wdth 100 / wght 400–500` for body. **Chivo Mono** for PINs, ICCIDs, hashes and amounts in receipts. **Baloo 2** only for the printed "rub here" on the scratch panel. `lang="hi"` on Hindi strings; numerals stay Latin, formatted `en-IN`; Devanagari line-height ≥ 1.6, 14 px floor. The scaffold already ships this pairing as `data-type="bazaar"` in `packages/ui/fonts.css`; `v0` makes it the default on `<html>`.
+
+### 8.4 Colour (from `design-foundations.md` §4)
+Warm paper neutrals (OKLCH hue 70–80) in both modes; **one accent: oxide teal 195** — `--accent` `oklch(0.52 0.085 195)` ≈ `#117878` light, `oklch(0.78 0.11 195)` ≈ `#4fcdcd` dark, with dark text on the light accent as Hyperliquid does. Semantic hues stay reserved: positive 150 (data added), negative 25 (payment failed), warning 75–85 (usage ≥ 80%). **The proposers' "FreeCharge orange" is rejected as a UI accent**: orange (hue ≈ 55–70) sits inside the 40° exclusion band around the warning hue and near negative, which breaks the accent-window rule and would make every "low data" warning look like a button. The printed card is warm paper stock, oxide-teal ink and silver scratch latex, so the physical and digital objects are one brand. Both proposers' dissent on orange is recorded in §10.
+
+### 8.5 Five best-in-class references for this exact category (crypto-paid connectivity with verified-human onboarding and agent top-up), one thing to borrow from each
+1. **Saily** (the cleanest eSIM install flow in 2026 roundups): the compatibility check before anything else and a single hero number per screen. Borrow: the install sheet sequence and the one-number plan card.
+2. **Airalo, October 2025 redesign:** device compatibility verified *before* money is requested; a connection check *after* install. Borrow: the pre-flight check in Review and the post-install troubleshooter ("Data Roaming on?").
+3. **Apple's iOS eSIM activation sheet** (Settings → Cellular → Add eSIM; the `esimsetup.apple.com` universal link on iOS 17.4+): the system UI our flow hands off to. Borrow: never fight the system — tell the user exactly what the sheet will ask, in the order it asks.
+4. **Revolut eSIM:** the plan as a card in a wallet with a drained meter and a precise timestamp. Borrow: "usage as of HH:MM" and the meter that never animates on data ticks.
+5. **The Indian prepaid recharge idiom — Paytm/FreeCharge recharge flow (2010–2016) and the paper coupon (`*123*PIN#`):** the cultural object the whole product wears. Borrow: the PIN redeem flow and the coupon as the brand.
+Supporting references: **Stripe Dashboard** (the test/live rail and Radar) for the sponsor console; **Family** for the agent permission sheet (progressive disclosure; an animation that stops abruptly is a bug); **Silent.link** as the caution — the crypto incumbent's screen does five things, ours does one.
+
+### 8.6 The three strongest hook moments for short social videos (1080 × 1920, ≤ 20 s each)
+1. **"No Service → LTE."** Arrivals hall at BOM, a phone showing *No Service*; thumb taps "I'm human"; the World check; four seconds later *LTE* and the lock-screen line. Caption: "Landed in Mumbai with no data. Proved I'm one human. A sponsor paid."
+2. **"Scratch."** Macro, ASMR: a coin scrapes silver latex off a paper card → "300 MB · you are human" and a 16-digit PIN in Chivo Mono → cut to the phone redeeming → the meter fills. Caption: "The 2004 recharge coupon, except the PIN is a World ID."
+3. **"Your agent paid while you slept."** 03:12, the meter at 18%; a HashScan transaction lands — $0.40 USDC from an agent carrying an HCS-14 id; "+100 MB · paid by your agent." Alternate cut: a push at 3 a.m. — "vitalik.eth sent you 1 GB." Caption: "An AI agent bought me 100 MB on Hedera for 40 cents because my plan hit 20%."
+
+### 8.7 Screens (one dominant element each)
+`/` two paths, one question ("Landing without data?"); `/verify` the World sheet; `/plan/[key]` the MB number at 2× everything else, "usage as of", one teal button carrying the amount ("Add 100 MB · $0.40"); `/pay` the Review → Confirm in wallet → Sending (hash immediately) → Final sequence from `design-foundations.md` §6, never a bare spinner; `/install` the hand-off checklist; `/gift` a boarding pass addressed to a name; `/agent` one sheet, two controls; `/sponsor` a table that is the product (claims, spend, pause), no KPI-card row; `/card/[pin]` the coupon.
+
+---
+
+## 9. Go / No-go risks (top five; owner · trigger · fallback)
+
+| # | Risk | Owner | Trigger (date, IST) | Fallback |
+|---|---|---|---|---|
+| 1 | **No India profile attaches** (reseller, catalogue or network) — the hero moment cannot exist. | Integrations lead | Wed 4 Nov 18:00: 3 attempts per device, 10-minute rule, all sources. | **Switch to Dhwani v2** (hardware already bought); if Dhwani's gate also fails Thu 12:00, Dhwani Plan C. Stage-day variant: install stalls > 90 s → pre-installed phone. |
+| 2 | **Legal perimeter** — the free bundle to non-residents in India cannot be structured; or counsel forbids online sales to non-residents. | Founder | Wed 4 Nov 18:00: memo delivered. | Free bundle forbidden → switch to Dhwani. Only sales forbidden → already deleted; testnet paid lane; mainnet sales outside India only. |
+| 3 | **Sponsor-pool oracle** — our attestor key releases sponsor money; compromise drains live campaigns (Security's top remaining attack; Asli's Q-SEC-2 reborn). | Security owner (Integrations) | Any anomalous claim rate; drill Fri 6 Nov. | Hourly caps per campaign in the contract, sponsor pause key, attestor rotation (`setAttestor`), published HMAC'd claim list, keys on-site; blast radius = one campaign's remaining budget for one hour. |
+| 4 | **Hedera eligibility and the "paid ourselves" read** — x402 track may exclude Continuity; our own agent may be the only Hedera payer. | Sponsor lead | Thu 5 Nov 21:30 (devrel answer); Fri 06:00 gate. | Human Hedera payment in the demo; sponsor pool on Hedera EVM; the pre-deploy makes it an existing Hedera project; floor ~$1.5k Continuity; if ineligible for every lane → swap the slot to ENS at Sat 18:00. |
+| 5 | **Continuity base rejected by ETHGlobal staff** (a 3-Nov repo is not an "existing project"). | Design/Producer (check-in) | Thu 5 Nov 21:00 check-in. | Archive the pre-build private; enter from-scratch with human-authored product code; same decision, lower EV for every candidate. |
+
+Watch list (not no-go): World verification impossible for Indian judges (foreign judges hold Orb IDs; team phones; labelled simulator); Kaolin faucet/latency (claim today; Postgres mirror); AgentKit beta absent (IDKit only, Agent Pass not claimed); Dhanteras printers (print Thu 09:00); **E1 fails Thursday** — not a build risk but a disclosure duty: the README's revenue section is downgraded before submission; venue Wi-Fi (the demo is the phone's own cellular data; tx hashes pre-staged).
+
+---
+
+## 10. Dissent (stated fairly, unresolved)
+
+- **The Devil's Advocate (#10a)** holds that Dhwani v2 survives attack best: a physical object a judge's phone makes talk, revenue disclosed honestly, no custody, no sale on Indian soil, and the two best-fitting continuity lanes; and that Recharge's legal fix and revenue line contradicted each other while its badge problem remains untested. The committee has adopted his deletions and his gates, but he would build Dhwani unless the Pi fails Wednesday. His sharpest sentence cuts both ways and is recorded: "a 12% finalist shot is being allowed to stand in for a business" — the committee's answer is that a 10% revenue shot with a Thursday test is still a thin business, and we say so in §5.
+- **Mumbai Native (#4) and Sponsor Stacker (#3)** voted Dhwani first (`round2-mumbai-native.md` §3, `round2-sponsor-stacker.md` §5), each with conditions (an honest answer to the merchant's rupee question; ENS as the 3-hour fallback). Both built the hybrid the committee chose; neither ranked it above Dhwani as a finalist play.
+- **The Veteran Judge (#7)** voted Dhwani in Round 1 ("nothing else clears 6% on my finalist estimate; the rest are sponsor plays"). The re-score lifted Recharge × Octroi to 7% on the strength of the fixes; the Judge's original view that the finalist slate rewards objects on tables stands.
+- **The VC (#6)** calls Recharge "a Devcon-week cash experiment, not a company", rates Asli higher on P(first dollar in 30 days) (40%/25% at ≥ $1/≥ $2k, against Recharge's 60%/15%), and would have spent 3–5 Nov on sales rather than scaffolds. The committee's E1–E5 schedule is the concession to this view; the deletion of Devcon-week sales lowers the 60% figure, which the committee accepts.
+- **The Operator (#2)** maintains that Lifafa is the only idea on the table built on a fee instrument the research proves (Hyperliquid builder codes), that caller rev-share is a real supply-side wedge, and that the committee is choosing a 10% revenue shot over a 20% one. The committee's reply is the Devil's Advocate's §3 (the public fill leaks the sealed call; the paywall and the fee decouple at T; the worst Continuity fit) and the re-score's custody correction; Lifafa remains the recorded post-event alternative with its own LOI test (§5.4).
+- **The Power User (#8)** warns that the Octroi engine's "face scan for a free tier" bounce survives for anyone who refuses World ID, and that x402 + World + ENS is the modal 2026 stack; the committee's mitigation (the paid lane at the human price, the consumer good as the only surface) reduces but does not remove the objection.
+- **The Security Red-Teamer (#5)** notes that the sponsor-pool release remains a self-attestation by our key — structural, bounded by caps and rotation, not removed; and that the Hedera decimals and HTS-association quirks are untested until a human touches the chain on Wednesday.
+- **Design:** both proposers wanted FreeCharge orange; the committee chose oxide teal for the reasons in §8.4. **Hedera "No Solidity":** the Sponsor Stacker's zero-Solidity design would have kept the $2k pool in play; the committee traded it for a contract the orchestrator can test on Anvil today.
+- **Within the chosen idea, one unresolved disagreement** remains between its two authors — the Mumbai Native's raw on-chain nullifier and Orb-only free tier versus the Sponsor Stacker's HMAC keys and credential tiers. The committee adopted the Sponsor Stacker's security design and the Mumbai Native's product scope; the Mumbai Native's objection that Orb-only is simpler to explain on stage is noted and overruled in favour of unlinkability.
+
+---
+
+*Ratification: the Chair. On ratification the orchestrator starts `v0` (§6.2–6.5) immediately; the human checklist (§6.7) starts today; the first gate is Wed 4 Nov 18:00 IST.*

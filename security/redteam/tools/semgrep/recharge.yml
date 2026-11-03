@@ -1,0 +1,123 @@
+# Recharge red-team rules. Run:  semgrep --config security/redteam/tools/semgrep/recharge.yml --error --metrics=off apps packages services scripts
+# Each rule names the threat it enforces (docs/THREAT-MODEL.md). Suppress only with  // nosemgrep: <rule-id> -- <reason>
+rules:
+  - id: recharge-usdc-18-decimals
+    message: "T-08: USDC is 6 decimals everywhere in Recharge. parseEther / 1e18 / 10**18 on a value path is a 10^12 pricing error. Use the usdc6() helper."
+    severity: ERROR
+    languages: [typescript, javascript]
+    paths:
+      include: [packages/octroi, packages/eip3009, packages/crypto, packages/adapters/src, services, apps/web/lib, scripts]
+      exclude: ["**/*.test.ts", "**/gas*"]
+    pattern-either:
+      - pattern: "parseEther(...)"
+      - pattern: "formatEther(...)"
+      - pattern: "parseUnits($X, 18)"
+      - pattern: "10n ** 18n"
+      - pattern: "10 ** 18"
+      - pattern: "1e18"
+      - pattern: "1_000_000_000_000_000_000n"
+
+  - id: recharge-no-dangerous-html
+    message: "T-58: dangerouslySetInnerHTML is banned; names, gift messages and 402 error strings are attacker-controlled. Render as text."
+    severity: ERROR
+    languages: [typescript, javascript]
+    paths:
+      include: [apps/web, packages/ui]
+    pattern: dangerouslySetInnerHTML
+
+  - id: recharge-no-eval
+    message: "T-58: eval / new Function are banned (CSP forbids them and they turn any string into code)."
+    severity: ERROR
+    languages: [typescript, javascript]
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
+
+  - id: recharge-math-random-for-secrets
+    message: "T-33/T-48/N3: Math.random is not a CSPRNG. Use crypto.getRandomValues / randomBytes for nonces, PINs, keys and AEAD nonces."
+    severity: ERROR
+    languages: [typescript, javascript]
+    paths:
+      include: [packages/crypto, packages/octroi, packages/eip3009, services, apps/web/lib]
+      exclude: ["**/*.test.ts", "**/*.spec.ts"]
+    pattern: Math.random()
+
+  - id: recharge-webhook-must-read-raw-body
+    message: "T-34: the webhook HMAC covers the raw body. Read it with c.req.text() and verify before parsing; c.req.json() re-serialises and breaks (or bypasses) the MAC."
+    severity: ERROR
+    languages: [typescript]
+    paths:
+      include: ["services/api/src/routes/webhooks*.ts", "services/api/src/**/webhook*.ts"]
+    pattern: $C.req.json()
+
+  - id: recharge-no-console-log-in-services
+    message: "T-50: use the pino logger with redaction; console.log bypasses redaction and can print an LPA, a proof or a PAYMENT-SIGNATURE."
+    severity: WARNING
+    languages: [typescript, javascript]
+    paths:
+      include: [services, packages/octroi, packages/crypto, packages/adapters/src]
+      exclude: ["**/*.test.ts", "scripts/**"]
+    pattern-either:
+      - pattern: console.log(...)
+      - pattern: console.debug(...)
+      - pattern: console.info(...)
+
+  - id: recharge-agent-decision-path-imports-inference
+    message: "T-55: the agent's decision path (policy, loop, signer) must not import the Inference adapter or the notifier. The LLM phrases notifications only; it never sizes or approves a purchase."
+    severity: ERROR
+    languages: [typescript]
+    paths:
+      include: ["services/agent/src/**"]
+      exclude: ["services/agent/src/notify/**", "services/agent/src/**/*notif*", "services/agent/src/**/*.test.ts"]
+    pattern-either:
+      - pattern: import { ..., Inference, ... } from "$M"
+      - pattern: import { ..., MockInference, ... } from "$M"
+      - patterns:
+          - pattern-either:
+              - pattern: import { ..., $N, ... } from "$M"
+              - pattern: import $N from "$M"
+              - pattern: import * as $N from "$M"
+          - metavariable-regex:
+              metavariable: $M
+              regex: (.*notify.*|.*inference.*|.*llm.*|.*openai.*|.*anthropic.*)
+
+  - id: recharge-mutation-inside-get-handler
+    message: "T-47: a GET handler writes to the ledger. Redemption and claims must be POST; GET must be read-only (link-preview bots and prefetchers issue GETs). x402 settlement on GET /esim/* is the one allowed case: add // nosemgrep with that reason."
+    severity: ERROR
+    languages: [typescript]
+    paths:
+      include: ["services/api/src/**"]
+    patterns:
+      - pattern-inside: |
+          $APP.get($PATH, ...)
+      - pattern-either:
+          - pattern: $L.update(...)
+          - pattern: $L.put(...)
+          - pattern: $R.order(...)
+          - pattern: $R.topUp(...)
+
+  - id: recharge-anvil-key-literal-outside-dev-tooling
+    message: "T-52/T-63: Anvil account #0's private key appears outside dev tooling. It must never be a default in services, the agent, or the web bundle."
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include: [apps, packages, services]
+      exclude: ["**/*.test.ts", "**/*.spec.ts", "**/fixtures/**", "**/test/**"]
+    pattern: ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+
+  - id: recharge-next-public-secret
+    message: "T-29/T-52: a NEXT_PUBLIC_* variable named like a secret ships to every browser. Secrets, HMAC keys and private keys never get the NEXT_PUBLIC_ prefix."
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include: [apps, packages, services, .env.example]
+    pattern-regex: NEXT_PUBLIC_[A-Z0-9_]*(SECRET|PRIVATE|HMAC|MNEMONIC|TOKEN)[A-Z0-9_]*
+
+  - id: recharge-lpa-literal-in-source
+    message: "T-31: an activation code literal in source or docs. Only the MockReseller's LPA:1$local.test$ form is allowed, and only in mocks, tests and fixtures."
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include: [apps, packages, services, scripts, docs]
+      exclude: ["**/mocks/**", "**/test/**", "**/fixtures/**", "**/*.test.ts", "docs/THREAT-MODEL.md", "security/**"]
+    pattern-regex: LPA:1\$(?!local\.test\$)

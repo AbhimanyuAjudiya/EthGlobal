@@ -1,0 +1,10 @@
+{
+  "filter_paths": "lib/|test/|script/",
+  "exclude_informational": true,
+  "exclude_optimization": true,
+  "exclude_low": false,
+  "fail_on": "medium",
+  "detectors_to_exclude": "solc-version,pragma,naming-convention,too-many-digits",
+  "show_ignored_findings": false,
+  "exclude_dependencies": true
+}

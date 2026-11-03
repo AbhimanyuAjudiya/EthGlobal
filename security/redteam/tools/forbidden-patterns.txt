@@ -1,0 +1,27 @@
+# Forbidden patterns for Recharge logs, ledger dumps, HCS messages, fixtures and docs (docs/THREAT-MODEL.md T-31, T-37, T-44, T-50, T-68).
+# PCRE regexes (grep -P), one per line; lines starting with # are comments. Used by scan.sh via `grep -P -f`.
+# The only tolerated LPA form is the MockReseller's LPA:1$local.test$<id>, and only in fixtures/mocks/tests — scan.sh excludes those paths.
+LPA:1\$(?!local\.test\$)
+"lpa"[[:space:]]*:[[:space:]]*"
+sealedLpa"[[:space:]]*:[[:space:]]*"[A-Za-z0-9+/=]{40,}
+# raw World nullifier / proof material
+nullifier_hash"?[[:space:]]*[:=][[:space:]]*"?0x[0-9a-fA-F]{64}
+"proof"[[:space:]]*:[[:space:]]*"0x[0-9a-fA-F]{128,}
+merkle_root"?[[:space:]]*[:=][[:space:]]*"?0x[0-9a-fA-F]{64}
+# bearer payment headers / signed authorizations in logs
+PAYMENT-SIGNATURE[[:space:]]*[:=][[:space:]]*[A-Za-z0-9+/=]{40,}
+payment-signature"[[:space:]]*:[[:space:]]*"[A-Za-z0-9+/=]{40,}
+# ICCIDs (19–20 digits starting 89) in clear
+\b89[0-9]{17,18}\b
+# 16-digit PINs in clear (format 1234-5678-9012-3456 or 16 digits) outside the print pipeline
+\b[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{4}\b
+"pin"[[:space:]]*:[[:space:]]*"[0-9]{16}"
+# private keys / mnemonics
+PRIVATE_KEY[[:space:]]*=[[:space:]]*0x[0-9a-fA-F]{64}
+ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
+5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a
+test test test test test test test test test test test junk
+# webhook / HMAC secrets
+WEBHOOK_SECRET\s*=\s*(?![A-Z0-9_]+=)[A-Za-z0-9+/=_-]{16,}
+HMAC_SECRET\s*=\s*(?![A-Z0-9_]+=)[A-Za-z0-9+/=_-]{16,}

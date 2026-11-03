@@ -24,6 +24,7 @@ export { encodeReceiveWithAuthorization, encodeTransferWithAuthorization } from 
 export {
   fromPaymentAuthorization,
   toPaymentAuthorization,
+  type PaymentAuthorizationOut,
   type PaymentAuthorizationWire,
 } from './wire.js';
 export { createViemRelayer, type Relayer } from './relayer.js';

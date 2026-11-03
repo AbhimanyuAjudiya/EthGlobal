@@ -28,7 +28,7 @@ export function domain(
 export function domainFromRequirements(req: {
   network: string;
   asset: string;
-  extra?: Record<string, unknown>;
+  extra?: Record<string, unknown> | undefined;
 }): TypedDataDomain {
   const match = EIP155.exec(req.network);
   if (!match?.[1]) throw bad(`not an eip155 network: ${req.network}`);

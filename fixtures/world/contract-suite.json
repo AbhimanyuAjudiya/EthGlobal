@@ -1,0 +1,214 @@
+{
+  "name": "world contract-suite",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "note": "[verify Wed] authored from developer-docs@b07e972 openapi/developer-portal.json (POST /api/v4/verify/{rp_id}); request body = the IDKit result unchanged. Re-record with a real IDKit 4 proof for WORLD_RP_ID.",
+  "exchanges": [
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://developer.world.org/api/v4/verify/rp_recharge0test",
+        "body": {
+          "protocol_version": "4.0",
+          "nonce": "0xab6dafb7f49f593f744aac1a502a3ee4c92d45a3c997571a80240eae1a1152b4",
+          "action": "recharge-welcome",
+          "environment": "production",
+          "responses": [
+            {
+              "identifier": "proof_of_human",
+              "issuer_schema_id": 1,
+              "nullifier": "24719696349160158189318008541625322002697398858537279117140214115567064742516",
+              "expires_at_min": 1793793600,
+              "proof": [
+                "0x65275111cfdaef06e7d47b74beaeb0cb67540db91b6af7ca25a4f5f2df5b72b7",
+                "0xc91fb4b92ce21ec1bc4ba10a3bda836a437995a4188388b1f852c3ea557dec6b",
+                "0xa8e8dee713f0e75ed8d153453b1ade7fc86a996239d95faea4ae2780f20c0360",
+                "0x5a1873a035d693cbf81518476ab97fe8a7f33c4ca6729efef2b8a8811916bb18",
+                "0x1c81fe028637f82cda63ed754ba970f2472b07195966c6fc962ff4bb47c809b9"
+              ],
+              "signal_hash": "0x000690fc1a416f8a4e5263634526d4a9761da5743f3d05de6ac7e24dfd049bb8"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "action": "recharge-welcome",
+          "nullifier": "24719696349160158189318008541625322002697398858537279117140214115567064742516",
+          "created_at": "2026-11-03T12:00:01.000Z",
+          "environment": "production",
+          "results": [
+            {
+              "identifier": "proof_of_human",
+              "success": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://developer.world.org/api/v4/verify/rp_recharge0test",
+        "body": {
+          "protocol_version": "4.0",
+          "nonce": "0xab6dafb7f49f593f744aac1a502a3ee4c92d45a3c997571a80240eae1a1152b4",
+          "action": "recharge-welcome",
+          "environment": "production",
+          "responses": [
+            {
+              "identifier": "proof_of_human",
+              "issuer_schema_id": 1,
+              "nullifier": "24719696349160158189318008541625322002697398858537279117140214115567064742516",
+              "expires_at_min": 1793793600,
+              "proof": [
+                "0x65275111cfdaef06e7d47b74beaeb0cb67540db91b6af7ca25a4f5f2df5b72b7",
+                "0xc91fb4b92ce21ec1bc4ba10a3bda836a437995a4188388b1f852c3ea557dec6b",
+                "0xa8e8dee713f0e75ed8d153453b1ade7fc86a996239d95faea4ae2780f20c0360",
+                "0x5a1873a035d693cbf81518476ab97fe8a7f33c4ca6729efef2b8a8811916bb18",
+                "0x1c81fe028637f82cda63ed754ba970f2472b07195966c6fc962ff4bb47c809b9"
+              ],
+              "signal_hash": "0x000690fc1a416f8a4e5263634526d4a9761da5743f3d05de6ac7e24dfd049bb8"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "success": false,
+          "code": "nullifier_replayed",
+          "detail": "nullifier_replayed (authored from the docs)"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://developer.world.org/api/v4/verify/rp_recharge0test",
+        "body": {
+          "protocol_version": "4.0",
+          "nonce": "0x2dac808b3d122d9dd83b98827dbacbbdd1270648e1f9afdc82dbcccf8b279b51",
+          "action": "recharge-welcome",
+          "environment": "production",
+          "responses": [
+            {
+              "identifier": "passport",
+              "issuer_schema_id": 9303,
+              "nullifier": "9084762083649038013009502732289795141125731549108213372658122310242249488417",
+              "expires_at_min": 1793793600,
+              "proof": [
+                "0x6574c91bab0531365025aae2296217bdab7d00dc8f76dd730b50e3f25e65326b",
+                "0x4cb5ff1f8de19478ae45e242ad92a2c328e4eaefa3471e29bb1c77754cf1cec4",
+                "0x6a5f962ac2e9cd116357745a68a7c386a40ddbcc134b8ab827c41523a61d5a6d",
+                "0x1175bc66165e636223c8b2779d77ae9e098f58c17f53012ef95017b45c87e62a",
+                "0x3e59f556f8e7bf04c7dae6c0865d8b68865d17184191a0097de143f35f17a778"
+              ],
+              "signal_hash": "0x000690fc1a416f8a4e5263634526d4a9761da5743f3d05de6ac7e24dfd049bb8"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "action": "recharge-welcome",
+          "nullifier": "9084762083649038013009502732289795141125731549108213372658122310242249488417",
+          "created_at": "2026-11-03T12:00:01.000Z",
+          "environment": "production",
+          "results": [
+            {
+              "identifier": "passport",
+              "success": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://developer.world.org/api/v4/verify/rp_recharge0test",
+        "body": {
+          "protocol_version": "3.0",
+          "nonce": "0x0b749c6ebef17bc1e8659d2e4f02b38acbd783a689dd48042b0a0f69ad585b7f",
+          "action": "recharge-welcome",
+          "environment": "production",
+          "responses": [
+            {
+              "identifier": "device",
+              "merkle_root": "0x3d1bf0fe3c36e5715082c9e1c1848062bb0404f5d43438dbee8a355f14f34c69",
+              "nullifier": "0xd52df5e9f0a7828b41d93d4218a138af860eec04fffc2dbb2980ecf56dcba673",
+              "proof": "0xca17b584073ee689e2172d22c0edd1a00c275228526e874b6b07aceb21e94541",
+              "signal_hash": "0x000690fc1a416f8a4e5263634526d4a9761da5743f3d05de6ac7e24dfd049bb8",
+              "max_age": 7200
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "action": "recharge-welcome",
+          "nullifier": "0xd52df5e9f0a7828b41d93d4218a138af860eec04fffc2dbb2980ecf56dcba673",
+          "created_at": "2026-11-03T12:00:01.000Z",
+          "environment": "production",
+          "results": [
+            {
+              "identifier": "device",
+              "success": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://developer.world.org/api/v4/verify/rp_recharge0test",
+        "body": {
+          "protocol_version": "4.0",
+          "nonce": "0x79f516ba54e753168468e0393b65476940bbc1320f25cb0e36a636e519963229",
+          "action": "recharge-welcome",
+          "environment": "staging",
+          "responses": [
+            {
+              "identifier": "proof_of_human",
+              "issuer_schema_id": 1,
+              "nullifier": "87461119451303648781856197689520531777456334565489334990595875941378722748545",
+              "expires_at_min": 1793793600,
+              "proof": [
+                "0x36583b1d32dc518adf1daabdd2b2e5d9e3a648f4f2618689ce4673cccf7ba782",
+                "0x52531fd6ddc7b955f3aaffa8418124304c83c7e5d859355f55ab464e4b1f64cf",
+                "0xa6c67333659efe5ad23802ca6852b8e7aaa38e22a3ec72810e00bfcefd47823c",
+                "0xee1112b6f2d179a131d9fb0e0a04ea6277222c2c1d66d93418483108338a8827",
+                "0x51fb47adfaea79623f432099f7865352ad87d8ea259df2b90d810441dfdd9dec"
+              ],
+              "signal_hash": "0x000690fc1a416f8a4e5263634526d4a9761da5743f3d05de6ac7e24dfd049bb8"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "action": "recharge-welcome",
+          "nullifier": "87461119451303648781856197689520531777456334565489334990595875941378722748545",
+          "created_at": "2026-11-03T12:00:01.000Z",
+          "environment": "staging",
+          "results": [
+            {
+              "identifier": "proof_of_human",
+              "success": true
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

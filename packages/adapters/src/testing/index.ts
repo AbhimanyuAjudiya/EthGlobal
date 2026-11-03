@@ -15,3 +15,5 @@ export {
 } from './fixture-fetch.js';
 export { fixtureProof, paymentPayload, requirementInput, TEST_USDC } from './builders.js';
 export * from './contracts/index.js';
+export { FakeArkiv, arkivFixtureClient, type ArkivCall } from './arkiv.js';
+export { FakeUsdc3009, type FakeTransfer, type FakeUsdcOptions } from './evm.js';

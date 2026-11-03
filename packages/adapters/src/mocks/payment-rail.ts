@@ -1,7 +1,7 @@
 import { isEvmExact, type EvmExactPayload } from '@ethglobal/protocol/schemas';
 
-import { AdapterError } from '../errors.js';
 import { isHex, sha256Hex } from '../hash.js';
+import { buildPaymentRequired } from '../payment-requirements.js';
 
 import type {
   PaymentPayload,
@@ -18,7 +18,6 @@ export interface MockPaymentRailOptions {
   now?: () => number;
 }
 
-const DEFAULT_TIMEOUT_SECONDS = 300;
 const INTEGER = /^\d+$/;
 
 /**
@@ -35,23 +34,7 @@ export class MockPaymentRail implements PaymentRail {
   }
 
   createPaymentRequirement(input: PaymentRequirementInput): PaymentRequired {
-    if (!INTEGER.test(input.amount)) {
-      throw new AdapterError(
-        'payments',
-        'invalid_amount',
-        'amount must be an integer string in base units',
-      );
-    }
-    const requirements: PaymentRequirements = {
-      scheme: 'exact',
-      network: input.network,
-      asset: input.asset,
-      amount: input.amount,
-      payTo: input.payTo,
-      maxTimeoutSeconds: input.maxTimeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS,
-      ...(input.extra ? { extra: input.extra } : {}),
-    };
-    return { x402Version: 2, resource: input.resource, accepts: [requirements] };
+    return buildPaymentRequired(input);
   }
 
   async verify(payload: PaymentPayload, requirements: PaymentRequirements): Promise<VerifyResult> {

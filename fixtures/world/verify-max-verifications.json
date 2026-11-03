@@ -1,0 +1,44 @@
+{
+  "name": "world verify-max-verifications",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "note": "[verify Wed] authored from developer-docs@b07e972 openapi/developer-portal.json (POST /api/v4/verify/{rp_id}); request body = the IDKit result unchanged. Re-record with a real IDKit 4 proof for WORLD_RP_ID.",
+  "exchanges": [
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://developer.world.org/api/v4/verify/rp_recharge0test",
+        "body": {
+          "protocol_version": "4.0",
+          "nonce": "0xfe342c0620e05a1207773e3a595aa2dddcd773a08c894d0ee5c132c713b76ecf",
+          "action": "recharge-welcome",
+          "environment": "production",
+          "responses": [
+            {
+              "identifier": "proof_of_human",
+              "issuer_schema_id": 1,
+              "nullifier": "4555168415427416916213271771558868978591761724811117758437681443588638129285",
+              "expires_at_min": 1793793600,
+              "proof": [
+                "0x773c55dfa8a5b571dc627182c754c2ee7f265485c8c022c362f2e1e394efbb11",
+                "0xe7ca4e6fcce718358cdbe154753732130721e1f3562988d0476367fb4a933c73",
+                "0xc5c670245914e7d2804c9a7228f192eec77b13699e106302ba9ea50bcdecd9d1",
+                "0x8b5528da8d8851d5756a2906e520d6f6b19ef955a67f6c6df98256c1bbf2ec4b",
+                "0xe2e8a622b173ecef3b9d006eb91ee8f06e1a29d4b50d6721e1de1a2c8c6aca60"
+              ],
+              "signal_hash": "0x000690fc1a416f8a4e5263634526d4a9761da5743f3d05de6ac7e24dfd049bb8"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 400,
+        "body": {
+          "success": false,
+          "code": "max_verifications_reached",
+          "detail": "max_verifications_reached (authored from the docs)"
+        }
+      }
+    }
+  ]
+}

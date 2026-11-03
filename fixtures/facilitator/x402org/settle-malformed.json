@@ -1,0 +1,93 @@
+{
+  "name": "x402.org settle-malformed",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "note": "[verify Wed] authored from the x402 v2 spec @ 0e6e8c5 §5–7 and @x402/core 2.29.0 types; re-record against https://x402.org/facilitator (curl /supported first).",
+  "exchanges": [
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://x402.org/facilitator/supported"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "kinds": [
+            {
+              "x402Version": 2,
+              "scheme": "exact",
+              "network": "eip155:84532"
+            },
+            {
+              "x402Version": 2,
+              "scheme": "exact",
+              "network": "hedera:testnet",
+              "extra": {
+                "feePayer": "0.0.9185802"
+              }
+            }
+          ],
+          "extensions": [],
+          "signers": {
+            "eip155:*": [
+              "0x976EA74026E726554dB657fA54763abd0C3a0aa9"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://x402.org/facilitator/settle",
+        "body": {
+          "x402Version": 2,
+          "paymentPayload": {
+            "x402Version": 2,
+            "accepted": {
+              "scheme": "exact",
+              "network": "eip155:84532",
+              "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+              "amount": "1000000",
+              "payTo": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+              "maxTimeoutSeconds": 300,
+              "extra": {
+                "name": "USDC",
+                "version": "2"
+              }
+            },
+            "payload": {
+              "signature": "0xfeb0d0e858bf8509814f0b8f0a919161716badfb4d603e22d75635b8c5a47c664cacab723b019b8e6d4a88f893b81f85161ce6b5b07a137cf9bd422550c539721b",
+              "authorization": {
+                "from": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
+                "to": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+                "value": "1000000",
+                "validAfter": "1793707140",
+                "validBefore": "1793707260",
+                "nonce": "0xf3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3f3"
+              }
+            }
+          },
+          "paymentRequirements": {
+            "scheme": "exact",
+            "network": "eip155:84532",
+            "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+            "amount": "1000000",
+            "payTo": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+            "maxTimeoutSeconds": 300,
+            "extra": {
+              "name": "USDC",
+              "version": "2"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "ok": true
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "name": "arkiv createEntity 7 d on rabdi",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "note": "[verify Wed] ArkivClientLike-level exchanges authored from @arkiv-network/sdk@1.0.1 README/src (createEntity returns { entityKey, txHash, expiresAt } with expiresAt the block of the EntityCreated event; getEntity throws NoEntityFoundError \u2192 null). Re-record against rabdi (7794095) with scripts/record-fixture.ts; block numbers and the measured block time will differ.",
+  "calls": [
+    {
+      "method": "blockNumber",
+      "result": {
+        "$bigint": "1000000"
+      }
+    },
+    {
+      "method": "createEntity",
+      "result": {
+        "entityKey": "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "txHash": "0x7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e",
+        "expiresAt": {
+          "$bigint": "1302400"
+        }
+      }
+    }
+  ]
+}

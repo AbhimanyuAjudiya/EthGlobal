@@ -1,0 +1,15 @@
+{
+  "name": "IDKit 4 rp_context signature vector",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "note": "msg = 0x01 ‖ nonce ‖ created_at u64 BE ‖ expires_at u64 BE ‖ hash_to_field(action); EIP-191 (API-FACTS §4.2). Public test key — never a real WORLD_RP_SIGNING_KEY.",
+  "signingKeyHex": "0x1111111111111111111111111111111111111111111111111111111111111111",
+  "signer": "0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A",
+  "entropy": "0x2222222222222222222222222222222222222222222222222222222222222222",
+  "action": "recharge-welcome",
+  "nonce": "0x00c4bd59e1394781d1c7bf20a2c0b30c2acc9fbdd52dc5e0d76917de4034ebdf",
+  "created_at": 1793707200,
+  "expires_at": 1793707500,
+  "message": "0x0100c4bd59e1394781d1c7bf20a2c0b30c2acc9fbdd52dc5e0d76917de4034ebdf000000006ae9ccc0000000006ae9cdec0095372a28708b9d6ae9d7c727a6667d37dee7b5ba9d180b564b0c632d3049b1",
+  "signature": "0x4511db61e588d77a9517d9016c108a7719d7ef20c824835b13c1421a567785fe141b3a4d3ced373a9fa34185ea83b609493df86190e3c23a435d11027c4f28431b"
+}

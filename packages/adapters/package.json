@@ -29,13 +29,32 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@arkiv-network/sdk": "catalog:",
     "@ethglobal/crypto": "workspace:*",
-    "@ethglobal/protocol": "workspace:*"
+    "@ethglobal/eip3009": "workspace:*",
+    "@ethglobal/protocol": "workspace:*",
+    "@hiero-ledger/sdk": "catalog:",
+    "@worldcoin/idkit-core": "catalog:",
+    "@x402/hedera": "catalog:",
+    "viem": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
+    "@hashgraphonline/standards-sdk": "catalog:",
     "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "@x402/core": "catalog:",
+    "fast-check": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:",
-    "viem": "catalog:",
     "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "vitest": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "vitest": {
+      "optional": true
+    }
   }
 }

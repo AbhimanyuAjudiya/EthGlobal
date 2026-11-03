@@ -1,0 +1,40 @@
+{
+  "name": "x402.org supported-other-fee-payer",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "note": "[verify Wed] authored from the x402 v2 spec @ 0e6e8c5 §5–7 and @x402/core 2.29.0 types; re-record against https://x402.org/facilitator (curl /supported first).",
+  "exchanges": [
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://x402.org/facilitator/supported"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "kinds": [
+            {
+              "x402Version": 2,
+              "scheme": "exact",
+              "network": "eip155:84532"
+            },
+            {
+              "x402Version": 2,
+              "scheme": "exact",
+              "network": "hedera:testnet",
+              "extra": {
+                "feePayer": "0.0.6666666"
+              }
+            }
+          ],
+          "extensions": [],
+          "signers": {
+            "eip155:*": [
+              "0x976EA74026E726554dB657fA54763abd0C3a0aa9"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

@@ -88,7 +88,7 @@ export function describePaymentRail(name: string, make: () => Promise<PaymentRai
       });
     });
 
-    it('settles once per nonce: a 32-byte tx hash, then nonce_already_used', async () => {
+    it('settles once per nonce: a 32-byte tx hash, then nonce_already_used; a re-settle never pays twice', async () => {
       const { rail, requirements, pay } = await setup();
       const payload = await pay();
       const settled = await rail.settle(payload, requirements);
@@ -98,7 +98,9 @@ export function describePaymentRail(name: string, make: () => Promise<PaymentRai
         isValid: false,
         invalidReason: 'nonce_already_used',
       });
-      await expect(rail.settle(payload, requirements)).resolves.toMatchObject({ success: false });
+      // a second settle never moves money twice: it fails, or (idempotent rails) answers the same transaction
+      const again = await rail.settle(payload, requirements);
+      if (again.success) expect(again.transaction).toBe(settled.success && settled.transaction);
     });
 
     it('a signature by someone other than `from` is invalid_signature (when the rail checks signatures)', async (ctx) => {

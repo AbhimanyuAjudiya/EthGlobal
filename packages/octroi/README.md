@@ -5,8 +5,22 @@ The proof-or-pay quota engine inside Recharge. It covers credential tiers, bundl
 The package is pure TypeScript. It does no network I/O and has no clock or randomness of its own. Everything external comes through the injected `Ledger`, `Personhood` and `PaymentRail` ports, `now()`, and `@ethglobal/crypto`. It imports `@ethglobal/protocol`, `@ethglobal/crypto` and the **types** of `@ethglobal/adapters` (root only, never `./live`).
 
 ```ts
-import { decide, challenge, consumeChallenge, sizeBundle, shouldTopUp, decideGiftReclaim } from '@ethglobal/octroi';
-import { EntitlementStore, NonceStore, GiftStore, CampaignStore, ReceiptStore, AgentPolicyStore } from '@ethglobal/octroi/store';
+import {
+  decide,
+  challenge,
+  consumeChallenge,
+  sizeBundle,
+  shouldTopUp,
+  decideGiftReclaim,
+} from '@ethglobal/octroi';
+import {
+  EntitlementStore,
+  NonceStore,
+  GiftStore,
+  CampaignStore,
+  ReceiptStore,
+  AgentPolicyStore,
+} from '@ethglobal/octroi/store';
 ```
 
 Binding spec: `docs/INTERFACES.md` §5 (with §13 A-1, A-3, A-4, A-8, A-9, A-13, A-14, A-17) and `docs/build-briefs/octroi-engine.md`.
@@ -78,32 +92,32 @@ sequenceDiagram
 
 ## `shouldTopUp` (evaluated top to bottom)
 
-| Condition                                                                                      | Verdict                                                  |
-| ---------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| `p.paused`                                                                                     | `{ buy:false, reason:'paused' }`                         |
-| `now ≥ e.expiresAt`                                                                            | `{ buy:false, reason:'expired' }`                        |
-| `p.topUpOnExpiry ∧ e.expiresAt − now ≤ p.expiryLeadS×1000 ∧ lastExpiryBought === e.expiresAt` | `{ buy:false, reason:'already-bought-for-expiry' }`      |
-| `p.topUpOnExpiry ∧ e.expiresAt − now ≤ p.expiryLeadS×1000`                                    | candidate `'expiry'`                                     |
-| else `e.mbTotal − e.mbUsed ≤ p.thresholdMb`                                                    | candidate `'threshold'`                                  |
-| else                                                                                           | `{ buy:false, reason:'ok' }`                             |
-| candidate ∧ `spentTodayUsd6 + stepPriceUsd6 > p.maxUsd6PerDay`                                 | `{ buy:false, reason:'cap' }` (reaching the cap exactly is allowed) |
-| candidate                                                                                      | `{ buy:true, mb: p.stepMb, reason, costUsd6: stepPriceUsd6 }` |
+| Condition                                                                                     | Verdict                                                             |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `p.paused`                                                                                    | `{ buy:false, reason:'paused' }`                                    |
+| `now ≥ e.expiresAt`                                                                           | `{ buy:false, reason:'expired' }`                                   |
+| `p.topUpOnExpiry ∧ e.expiresAt − now ≤ p.expiryLeadS×1000 ∧ lastExpiryBought === e.expiresAt` | `{ buy:false, reason:'already-bought-for-expiry' }`                 |
+| `p.topUpOnExpiry ∧ e.expiresAt − now ≤ p.expiryLeadS×1000`                                    | candidate `'expiry'`                                                |
+| else `e.mbTotal − e.mbUsed ≤ p.thresholdMb`                                                   | candidate `'threshold'`                                             |
+| else                                                                                          | `{ buy:false, reason:'ok' }`                                        |
+| candidate ∧ `spentTodayUsd6 + stepPriceUsd6 > p.maxUsd6PerDay`                                | `{ buy:false, reason:'cap' }` (reaching the cap exactly is allowed) |
+| candidate                                                                                     | `{ buy:true, mb: p.stepMb, reason, costUsd6: stepPriceUsd6 }`       |
 
 "Day" is the UTC `dayBucket`. The agent records `lastExpiryBought = e.expiresAt` after an expiry purchase (T-30).
 
 ## `decideGiftReclaim` (evaluated top to bottom)
 
-| Condition                                                                         | Verdict                                   |
-| --------------------------------------------------------------------------------- | ----------------------------------------- |
-| `!ledgerOk`                                                                       | deny `ledger-unavailable`                 |
-| no receipt of kind `gift`, or that receipt has no `network` / `usd6`             | deny `unknown-gift`                       |
-| `giftReceipt.payer?.toLowerCase() !== payer.toLowerCase()`                        | deny `not-payer`                          |
-| any `gift-claim` receipt, or the escrow is still readable with `state:'claimed'` | deny `claimed`                            |
-| any `gift-reclaim` receipt                                                        | deny `already-reclaimed`                  |
-| `escrow !== null` (still claimable)                                               | deny `too-early`                          |
-| `now < claimBy` where `claimBy = giftReceipt.at + GIFT_CLAIM_WINDOW_S×1000`       | deny `too-early` (escrow dropped early, T-35) |
-| `now ≥ claimBy + GIFT_RECLAIM_WINDOW_S×1000`                                      | deny `window-closed`                      |
-| else                                                                              | `refund { to: payer, network, usd6: usd6 − min(fee, usd6), feeUsd6: min(fee, usd6) }` |
+| Condition                                                                        | Verdict                                                                               |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `!ledgerOk`                                                                      | deny `ledger-unavailable`                                                             |
+| no receipt of kind `gift`, or that receipt has no `network` / `usd6`             | deny `unknown-gift`                                                                   |
+| `giftReceipt.payer?.toLowerCase() !== payer.toLowerCase()`                       | deny `not-payer`                                                                      |
+| any `gift-claim` receipt, or the escrow is still readable with `state:'claimed'` | deny `claimed`                                                                        |
+| any `gift-reclaim` receipt                                                       | deny `already-reclaimed`                                                              |
+| `escrow !== null` (still claimable)                                              | deny `too-early`                                                                      |
+| `now < claimBy` where `claimBy = giftReceipt.at + GIFT_CLAIM_WINDOW_S×1000`      | deny `too-early` (escrow dropped early, T-35)                                         |
+| `now ≥ claimBy + GIFT_RECLAIM_WINDOW_S×1000`                                     | deny `window-closed`                                                                  |
+| else                                                                             | `refund { to: payer, network, usd6: usd6 − min(fee, usd6), feeUsd6: min(fee, usd6) }` |
 
 ## Other rules
 

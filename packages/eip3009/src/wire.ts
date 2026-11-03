@@ -10,11 +10,18 @@ import type { Authorization3009 } from './typed-data.js';
  * protocol). Wire form: `value`, `validAfter`, `validBefore` are digit strings.
  */
 export interface PaymentAuthorizationWire {
-  from: Address;
-  to: Address;
+  from: string;
+  to: string;
   value: string;
   validAfter: string;
   validBefore: string;
+  nonce: string;
+}
+
+/** What toPaymentAuthorization returns: the wire form with checksummed addresses and a lower-case nonce. */
+export interface PaymentAuthorizationOut extends PaymentAuthorizationWire {
+  from: Address;
+  to: Address;
   nonce: Hex;
 }
 
@@ -51,7 +58,7 @@ export function fromPaymentAuthorization(p: PaymentAuthorizationWire): Authoriza
   };
 }
 
-export function toPaymentAuthorization(a: Authorization3009): PaymentAuthorizationWire {
+export function toPaymentAuthorization(a: Authorization3009): PaymentAuthorizationOut {
   for (const [name, v] of [
     ['value', a.value],
     ['validAfter', a.validAfter],

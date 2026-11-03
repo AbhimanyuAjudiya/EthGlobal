@@ -6,12 +6,13 @@
 import { useVideoConfig } from 'remotion';
 
 import { captionFiles, CaptionTrack, type CaptionedComposition } from '../captions';
+import { EndCard } from './EndCard';
 import { Frame } from '../components/Frame';
 import { ShotTrack, type Shot } from '../components/ShotTrack';
 import { type FootageAvailability, type FootageKey } from '../footage/manifest';
 
-import { EndCard } from './EndCard';
-
+// Remotion composition props must be a type alias (an interface does not satisfy Record<string, unknown>).
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 export type ShortBaseProps = {
   footage: FootageAvailability;
   endLine: string;

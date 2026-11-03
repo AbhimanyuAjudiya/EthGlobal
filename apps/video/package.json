@@ -5,7 +5,7 @@
   "description": "Remotion 4 pipeline for the Recharge shorts and the judge video (marketing/videos/SCRIPTS.md §8).",
   "type": "module",
   "scripts": {
-    "studio": "remotion studio src/index.ts --browser-executable \"${REMOTION_BROWSER:-/opt/pw-browsers/chromium-1243/chrome-linux64/chrome}\"",
+    "studio": "bash scripts/footage-index.sh && remotion studio src/index.ts --browser-executable \"${REMOTION_BROWSER:-/opt/pw-browsers/chromium-1243/chrome-linux64/chrome}\"",
     "render": "bash scripts/render.sh",
     "conform": "bash scripts/conform.sh",
     "fontcheck": "bash scripts/font-proof.sh",

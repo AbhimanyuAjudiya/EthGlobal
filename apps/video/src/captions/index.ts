@@ -3,6 +3,7 @@ import short01 from './data/short-01-no-service.json';
 import short02 from './data/short-02-scratch.json';
 import short03 from './data/short-03-agent-paid.json';
 import short04 from './data/short-04-gift-to-name.json';
+
 import type { CaptionFile } from './types';
 
 export const captionFiles = {

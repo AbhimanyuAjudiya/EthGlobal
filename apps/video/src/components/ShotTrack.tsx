@@ -7,13 +7,8 @@
 import { type ReactNode } from 'react';
 import { AbsoluteFill, Audio, interpolate, Sequence, staticFile, useVideoConfig } from 'remotion';
 
-import {
-  footagePath,
-  type FootageAvailability,
-  type FootageKey,
-} from '../footage/manifest';
+import { footagePath, type FootageAvailability, type FootageKey } from '../footage/manifest';
 import { FPS, frames } from '../theme';
-
 import { Footage } from './Footage';
 
 interface ShotBase {

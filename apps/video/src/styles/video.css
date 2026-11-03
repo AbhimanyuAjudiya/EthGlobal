@@ -32,13 +32,9 @@
   font-family: var(--font-mono);
   font-variation-settings: normal;
   font-variant-numeric: tabular-nums slashed-zero;
-  font-feature-settings:
-    'tnum',
-    'zero';
+  font-feature-settings: 'tnum', 'zero';
 }
 
 .num {
-  font-feature-settings:
-    'tnum',
-    'zero';
+  font-feature-settings: 'tnum', 'zero';
 }

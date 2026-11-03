@@ -11,6 +11,8 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 const webFiles = ['apps/web/**/*.{ts,tsx}'];
+// React rules also cover the component library (pure React; no Next plugin there).
+const reactFiles = [...webFiles, 'packages/ui/src/**/*.{ts,tsx}'];
 
 // ── Dependency rules (INTERFACES §12, ARCHITECTURE §4) ──────────────────────────────────────────
 const at = (name) => [`@ethglobal/${name}`, `@ethglobal/${name}/*`];
@@ -185,21 +187,21 @@ export default defineConfig([
   // eslint-plugin-react 7.37 still calls context methods ESLint 10 removed; @eslint/compat shims them.
   ...fixupConfigRules([
     {
-      files: webFiles,
+      files: reactFiles,
       ...react.configs.flat.recommended,
-      settings: { react: { version: 'detect' } },
+      settings: { react: { version: '19.3' } },
       languageOptions: {
         ...react.configs.flat.recommended.languageOptions,
         globals: { ...globals.browser, ...globals.node },
       },
     },
-    { files: webFiles, ...react.configs.flat['jsx-runtime'] },
+    { files: reactFiles, ...react.configs.flat['jsx-runtime'] },
   ]),
-  { files: webFiles, ...reactHooks.configs.flat.recommended },
+  { files: reactFiles, ...reactHooks.configs.flat.recommended },
   { files: webFiles, ...nextPlugin.configs.recommended },
   { files: webFiles, ...nextPlugin.configs['core-web-vitals'] },
   {
-    files: webFiles,
+    files: reactFiles,
     rules: {
       'react/prop-types': 'off',
       // Pages Router only; this app uses the App Router.

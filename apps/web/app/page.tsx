@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import { formatMb, formatUsd6 } from '@ethglobal/protocol/units';
 import {
   accentTokens,
@@ -94,7 +96,11 @@ export default function TokenSheet() {
           <h1 className="font-display text-44 text-ink">Token sheet</h1>
           <p className="max-w-prose text-16 text-ink-secondary">
             Every token from tokens.css and fonts.css, rendered live. Switch the type pairing and
-            theme to inspect them in context.
+            theme to inspect them in context. Components in every state:{' '}
+            <Link className="text-accent underline" href="/ui">
+              /ui component gallery
+            </Link>
+            .
           </p>
         </div>
         <TokenControls />

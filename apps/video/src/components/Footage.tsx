@@ -5,9 +5,8 @@
 import { type ReactNode } from 'react';
 import { AbsoluteFill, OffthreadVideo, staticFile } from 'remotion';
 
-import { footagePath, type FootageAvailability, type FootageKey } from '../footage/manifest';
-
 import { PlaceholderSlate, type SlateInfo } from './PlaceholderSlate';
+import { footagePath, type FootageAvailability, type FootageKey } from '../footage/manifest';
 
 export function Footage({
   clip,

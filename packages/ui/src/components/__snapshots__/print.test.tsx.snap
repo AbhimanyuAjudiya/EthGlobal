@@ -1,0 +1,301 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`print.css > matches the reviewed snapshot 1`] = `
+"/*
+ * Print sheet for the paper scratch coupon — design-references §3, build brief §6.
+ *
+ * ISO/IEC 7810 ID-1: 85.60 × 53.98 mm trim, 3.18 mm corner radius, 2 mm safe area.
+ *   layout a4     → 10 cards per A4 portrait sheet (2 × 5), 4 mm gutters, 2 mm bleed per card (the gutter is
+ *                   two bleeds), crop marks on the sheet perimeter at every trim line. 3 mm bleed × 5 rows
+ *                   would need 299.9 mm and clip the page, so the gang sheet uses 2 mm.
+ *   layout single → one 91.6 × 59.98 mm page per card (3 mm bleed included) for the print shop to impose.
+ * The front prints the PIN layer (Chivo Mono 11 pt, slashed zero) and the visible QR (22 × 22 mm); the
+ * silver latex goes on afterwards. Nothing prints smaller than 7 pt. Colours: ink, paper and --ink-spot.
+ */
+
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+@page coupon-single {
+  size: 91.6mm 59.98mm;
+  margin: 0;
+}
+
+.print-root {
+  --trim-w: 85.6mm;
+  --trim-h: 53.98mm;
+  --gutter: 4mm;
+  --bleed: 2mm;
+  --safe: 2mm;
+  --sheet-w: 210mm;
+  /* A hair under 297 mm so rounding never spills a blank page. */
+  --sheet-h: 296.8mm;
+  --grid-left: calc((var(--sheet-w) - (2 * var(--trim-w) + var(--gutter))) / 2);
+  --grid-top: calc((var(--sheet-h) - (5 * var(--trim-h) + 4 * var(--gutter))) / 2);
+  --mark-len: 2.5mm;
+  /* The top and bottom margins are 5.45 mm: 2 mm bleed + 0.5 mm gap + 2.5 mm mark. */
+  --mark-gap: 0.5mm;
+
+  color-scheme: light;
+  color: var(--text-primary);
+  font-family: var(--font-text);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.print-root[data-layout='single'] {
+  --bleed: 3mm;
+}
+.print-root * {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.print-sheet {
+  position: relative;
+  box-sizing: border-box;
+  width: var(--sheet-w);
+  height: var(--sheet-h);
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: repeat(2, var(--trim-w));
+  grid-template-rows: repeat(5, var(--trim-h));
+  gap: var(--gutter);
+  align-content: start;
+  justify-content: start;
+  padding: var(--grid-top) 0 0 var(--grid-left);
+  background: var(--bg-surface);
+  break-after: page;
+  break-inside: avoid;
+}
+.print-sheet:last-child {
+  break-after: auto;
+}
+.print-sheet[data-layout='single'] {
+  page: coupon-single;
+  width: 91.6mm;
+  height: 59.9mm;
+  grid-template-columns: var(--trim-w);
+  grid-template-rows: var(--trim-h);
+  padding: var(--bleed) 0 0 var(--bleed);
+}
+
+.print-cell {
+  position: relative;
+}
+
+/* ── Crop marks: hairlines outside the bleed, on the sheet perimeter only ── */
+.print-mark {
+  position: absolute;
+  background: var(--text-primary);
+}
+.print-mark--v {
+  width: 0.25pt;
+  height: var(--mark-len);
+  left: calc(
+    var(--grid-left) + var(--col) * (var(--trim-w) + var(--gutter)) + var(--edge) * var(--trim-w)
+  );
+}
+.print-mark--v[data-side='top'] {
+  top: calc(var(--grid-top) - var(--bleed) - var(--mark-gap) - var(--mark-len));
+}
+.print-mark--v[data-side='bottom'] {
+  top: calc(
+    var(--grid-top) + 5 * var(--trim-h) + 4 * var(--gutter) + var(--bleed) + var(--mark-gap)
+  );
+}
+.print-mark--h {
+  height: 0.25pt;
+  width: var(--mark-len);
+  top: calc(
+    var(--grid-top) + var(--row) * (var(--trim-h) + var(--gutter)) + var(--edge) * var(--trim-h)
+  );
+}
+.print-mark--h[data-side='left'] {
+  left: calc(var(--grid-left) - var(--bleed) - var(--mark-gap) - var(--mark-len));
+}
+.print-mark--h[data-side='right'] {
+  left: calc(var(--grid-left) + 2 * var(--trim-w) + var(--gutter) + var(--bleed) + var(--mark-gap));
+}
+
+/* ── The coupon, print variant: one markup, laid out in millimetres ──────── */
+.print-cell .coupon,
+.print-cell .print-back {
+  position: absolute;
+  inset: calc(-1 * var(--bleed));
+  box-sizing: border-box;
+  max-width: none;
+  margin: 0;
+  padding: calc(var(--bleed) + var(--safe));
+  border: 0;
+  border-radius: 0;
+  background: var(--bg-surface);
+}
+
+.coupon[data-variant='print'] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24mm;
+  grid-template-rows: auto auto auto 1fr auto;
+  grid-template-areas:
+    'wordmark amount'
+    'line validity'
+    'line2 qr'
+    'panel qr'
+    'foot qr';
+  gap: 0.6mm 3mm;
+  color: var(--text-primary);
+}
+.coupon[data-variant='print'] .coupon__head,
+.coupon[data-variant='print'] .coupon__headline,
+.coupon[data-variant='print'] .coupon__body {
+  display: contents;
+}
+.coupon[data-variant='print'] .coupon__wordmark {
+  grid-area: wordmark;
+  font-size: 12pt;
+  line-height: 1.1;
+  color: var(--ink-spot);
+}
+.coupon[data-variant='print'] .coupon__amount {
+  grid-area: amount;
+  justify-self: end;
+  font-size: 20pt;
+  line-height: 1;
+  white-space: nowrap;
+}
+.coupon[data-variant='print'] .coupon__value,
+.coupon[data-variant='print'] .coupon__unit {
+  font-size: inherit;
+}
+.coupon[data-variant='print'] .coupon__validity {
+  grid-area: validity;
+  justify-self: end;
+  font-size: 8pt;
+  color: var(--text-primary);
+}
+.coupon[data-variant='print'] .coupon__line {
+  grid-area: line;
+  font-size: 8pt;
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+.coupon[data-variant='print'] .coupon__line--second {
+  grid-area: line2;
+  line-height: 1.6;
+}
+.coupon[data-variant='print'] .coupon__status {
+  display: none;
+}
+/* The scratch panel: 34 × 12 mm; the PIN prints here and the latex covers it. */
+.coupon[data-variant='print'] .coupon__panel {
+  grid-area: panel;
+  align-self: center;
+  box-sizing: border-box;
+  width: 34mm;
+  min-width: 0;
+  height: 12mm;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 1mm;
+}
+/* 11 pt Chivo Mono needs ~44 mm for 4 groups on one line; the 34 mm panel holds two groups per line. */
+.coupon[data-variant='print'] .coupon__pin {
+  width: 11ch;
+  font-size: 11pt;
+  line-height: 1.15;
+  text-align: center;
+  white-space: normal;
+  word-spacing: 0.25em;
+  color: var(--text-primary);
+}
+.coupon[data-variant='print'] .coupon__qr {
+  grid-area: qr;
+  align-self: end;
+  justify-self: end;
+  width: 22mm;
+  height: 22mm;
+}
+.coupon[data-variant='print'] .coupon__foot {
+  grid-area: foot;
+  display: flex;
+  gap: 2mm;
+  font-size: 7pt;
+  color: var(--text-primary);
+}
+.coupon[data-variant='print'] .coupon__serial,
+.coupon[data-variant='print'] .coupon__expires {
+  font-size: 7pt;
+}
+/* Screen-only layers never print: the latex canvas, its button twin, any live region. */
+.coupon[data-variant='print'] canvas,
+.coupon[data-variant='print'] .scratch__latex {
+  display: none;
+}
+
+/* ── Back: three-line receipt and the ENS write-in ───────────────────────── */
+.print-back {
+  display: grid;
+  align-content: space-between;
+  gap: 2mm;
+  font-size: 8pt;
+  color: var(--text-primary);
+}
+.print-back .receipt__heading,
+.print-back .ruled__row {
+  font-size: 8pt;
+}
+.print-back .ruled__row {
+  padding: 1mm 0;
+  border-color: var(--text-primary);
+}
+.print-back__ens {
+  margin: 0;
+  font-size: 8pt;
+  line-height: 1.6;
+}
+.print-back__blank {
+  display: inline-block;
+  width: 28mm;
+  border-bottom: 0.5pt solid var(--text-primary);
+}
+.print-back__serial {
+  margin: 0;
+  font-size: 7pt;
+}
+
+/* ── Keyline: the 100 % K scratch-panel shape, on its own page ──────────── */
+.print-sheet[data-side='keyline'] .coupon > *,
+.print-sheet[data-side='keyline'] .coupon__pin {
+  visibility: hidden;
+}
+.print-sheet[data-side='keyline'] .coupon__panel {
+  visibility: visible;
+  background: var(--text-primary);
+}
+.print-sheet[data-side='keyline'] .coupon {
+  background: transparent;
+}
+
+@media screen {
+  .print-root {
+    display: grid;
+    justify-content: center;
+    gap: 8mm;
+    padding: 8mm 0;
+    background: var(--bg-sunken);
+  }
+}
+@media print {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg-surface);
+  }
+  .print-chrome {
+    display: none;
+  }
+}
+"
+`;

@@ -75,5 +75,7 @@ export function Short04GiftToName(p: Short04Props) {
       mustSee: ['the push text', 'the no payment claim line', 'the resulting plan'],
     },
   ];
-  return <ShortShell composition="Short04GiftToName" shots={shots} endFrom={370} endId="S5" {...p} />;
+  return (
+    <ShortShell composition="Short04GiftToName" shots={shots} endFrom={370} endId="S5" {...p} />
+  );
 }

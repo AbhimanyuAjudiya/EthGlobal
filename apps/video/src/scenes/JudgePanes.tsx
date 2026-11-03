@@ -7,7 +7,6 @@
 import { AbsoluteFill, useCurrentFrame } from 'remotion';
 
 import { v } from '../theme';
-
 import { useEntry } from './Receipt';
 import { Title } from './Title';
 
@@ -148,7 +147,15 @@ export interface PaneLine {
 }
 
 /** TierTable / ThreeReads / ThreeLines: ruled lines on paper, each entering 12 frames after the last. */
-export function LinesPane({ lines, s, size = 22 }: { lines: readonly PaneLine[]; s: number; size?: number }) {
+export function LinesPane({
+  lines,
+  s,
+  size = 22,
+}: {
+  lines: readonly PaneLine[];
+  s: number;
+  size?: number;
+}) {
   return (
     <AbsoluteFill style={{ background: v.canvas, padding: '180px 120px', gap: 0 }}>
       {lines.map((l, i) => (
@@ -158,15 +165,30 @@ export function LinesPane({ lines, s, size = 22 }: { lines: readonly PaneLine[];
   );
 }
 
-function Line({ line, enterAt, s, size }: { line: PaneLine; enterAt: number; s: number; size: number }) {
+function Line({
+  line,
+  enterAt,
+  s,
+  size,
+}: {
+  line: PaneLine;
+  enterAt: number;
+  s: number;
+  size: number;
+}) {
   const entry = useEntry(enterAt);
   return (
-    <div style={{ ...entry, padding: `${12 * s}px 0`, borderBottom: `1px solid ${v.borderSubtle}` }}>
+    <div
+      style={{ ...entry, padding: `${12 * s}px 0`, borderBottom: `1px solid ${v.borderSubtle}` }}
+    >
       <Title size={size * s} weight="body">
         {line.text}
       </Title>
       {line.path ? (
-        <div className="mono" style={{ marginTop: 4 * s, fontSize: 12 * s, color: v.textSecondary }}>
+        <div
+          className="mono"
+          style={{ marginTop: 4 * s, fontSize: 12 * s, color: v.textSecondary }}
+        >
           {line.path}
         </div>
       ) : null}

@@ -2,3 +2,10 @@
 
 | id | severity | status | module | threat | title |
 |---|---|---|---|---|---|
+| [RT-C-01](RT-C-01.md) | Med | open | packages/contracts/src/DataDrop.sol | T-09 | LEDGER_ONLY: any address can declare an unbacked budget; events are indistinguishable from a funded campaign |
+| [RT-C-02](RT-C-02.md) | Med | open | packages/contracts/src/DataDrop.sol | T-04 | Campaign id squatting: a predictable or mempool-visible id can be taken forever on attacker terms |
+| [RT-C-03](RT-C-03.md) | Low | open | packages/contracts/src/DataDrop.sol | T-10 | refund() can only pay msg.sender and there is no rescue path: a blacklisted sponsor's budget is locked forever |
+| [RT-C-04](RT-C-04.md) | Low | open | packages/contracts/script/Deploy.s.sol | T-08 | Deploy.s.sol bakes a live usdc into an immutable without checking code or decimals() == 6 |
+| [RT-C-05](RT-C-05.md) | Low | open | packages/contracts/script/Deploy.s.sol | T-10 | Hedera addresses file records the cold owner while the deployer hot key still owns DataDrop |
+| [RT-C-06](RT-C-06.md) | Low | open | packages/contracts/src/DataDrop.sol | T-01 | renounceOwnership is live; 'Low, accepted' in README without sign-off or THREAT-MODEL §8 row |
+| [RT-C-07](RT-C-07.md) | Low | open | packages/contracts/src/DataDrop.sol | T-07 | claim reverts Panic(0x11) instead of BudgetExhausted when spent + price exceeds uint128 |

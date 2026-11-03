@@ -7,7 +7,6 @@ import { type CSSProperties } from 'react';
 
 import { type PassSeed } from '../seed';
 import { v } from '../theme';
-
 import { Qr } from './Qr';
 import { useEntry } from './Receipt';
 
@@ -49,9 +48,7 @@ export function BoardingPass({ pass, enterAt = 0 }: { pass: PassSeed; enterAt?: 
         color: v.text,
       }}
     >
-      <div
-        style={{ flex: 1, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}
-      >
+      <div style={{ flex: 1, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <Field name="TO">{pass.to}</Field>
           <div style={{ textAlign: 'right' }}>

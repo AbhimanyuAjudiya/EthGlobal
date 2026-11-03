@@ -4,8 +4,9 @@
  * onchainActionStates vocabulary (`finalized` reads "Final"). Enters once — translateY 24 → 0 and opacity
  * over 8 frames, --ease-standard — then is still. CSS px; sits inside UiScreen.
  */
-import { type OnchainActionState } from '@ethglobal/ui';
 import { interpolate, useCurrentFrame } from 'remotion';
+
+import { type OnchainActionState } from '@ethglobal/ui';
 
 import { ease, frames, v } from '../theme';
 

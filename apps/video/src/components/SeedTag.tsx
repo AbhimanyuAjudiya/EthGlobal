@@ -5,7 +5,6 @@
  */
 import { seed } from '../seed';
 import { v } from '../theme';
-
 import { usePaneSize } from './pane';
 
 export function SeedTag() {
@@ -18,7 +17,8 @@ export function SeedTag() {
       style={{
         position: 'absolute',
         left: 64 * unit,
-        bottom: (height > width ? 440 : 48) * unit,
+        // Portrait: just above the lower-caption band (y ≈ 1380), clear of captions and platform chrome.
+        bottom: (height > width ? 560 : 48) * unit,
         fontSize: 24 * unit,
         padding: `${8 * unit}px ${12 * unit}px`,
         color: v.text,

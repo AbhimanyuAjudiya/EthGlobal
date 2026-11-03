@@ -17,7 +17,20 @@
   color-scheme: dark;
 }
 
-:root {
+/*
+ * A sub-tree can pin its own palette with data-color-scheme="light|dark" (the coupon is always light; the
+ * component gallery shows both). The tokens are re-declared there because a light-dark() value is resolved
+ * where the custom property is declared, so setting color-scheme alone on a descendant does not flip it.
+ */
+[data-color-scheme='light'] {
+  color-scheme: light;
+}
+[data-color-scheme='dark'] {
+  color-scheme: dark;
+}
+
+:root,
+[data-color-scheme] {
   /* ── Surfaces (warm ink ramp, hue 70–80) ─────────────────────────────── light / dark */
   --bg-canvas: light-dark(oklch(0.985 0.004 80), oklch(0.16 0.006 70)); /* #fbfaf7 / #0f0d0b */
   --bg-surface: light-dark(oklch(0.995 0.002 80), oklch(0.2 0.007 70)); /* #fdfcfa / #181613 */

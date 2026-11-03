@@ -43,6 +43,13 @@ const faces: readonly FaceSpec[] = [
     url: anekDeva,
     descriptors: { weight: '100 800', stretch: '75% 125%', unicodeRange: DEVANAGARI_RANGE },
   },
+  // Anek's U+00B7 has no right sidebearing, so "TESTNET · test" reads "TESTNET ·test" at UI sizes. Declared last,
+  // this one-codepoint face wins over the Latin face and borrows Chivo Mono's centred separator.
+  {
+    family: FAMILIES.anek,
+    url: chivo500,
+    descriptors: { weight: '100 800', stretch: '75% 125%', unicodeRange: 'U+00B7' },
+  },
   { family: FAMILIES.chivo, url: chivo400, descriptors: { weight: '400' } },
   { family: FAMILIES.chivo, url: chivo500, descriptors: { weight: '500' } },
   { family: FAMILIES.chivo, url: chivo700, descriptors: { weight: '700' } },
@@ -142,6 +149,8 @@ export function loadFonts(): Promise<FontGuardReport> {
 /** Throws unless `family` is the face that paints `text` (used by the FontProbe sabotage check). */
 export function assertFacePaints(family: string, weight: string, text: string): void {
   if (!paintsWithFace(family, weight, text)) {
-    throw new Error(`font guard: "${family}" ${weight} does not paint "${text}"; a fallback face would`);
+    throw new Error(
+      `font guard: "${family}" ${weight} does not paint "${text}"; a fallback face would`,
+    );
   }
 }

@@ -13,6 +13,17 @@
    percent-encoded form. tokens.test.ts guards this. */
 @import url('https://fonts.googleapis.com/css2?family=Anek+Devanagari:wdth%2Cwght@75..125%2C100..800&family=Archivo:wdth%2Cwght@62..125%2C100..900&family=Baloo+2:wght@400..800&family=Chivo+Mono:wght@100..900&family=Eczar:wght@400..800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wdth%2Cwght@85..100%2C100..700&family=IBM+Plex+Sans+Devanagari:wght@400;500;600;700&family=Mukta:wght@400;500;600;700&family=Schibsted+Grotesk:wght@400..900&display=swap');
 
+/* Anek Devanagari draws U+00B7 (the "·" in every spec string: "300 MB · from Hedera") with zero advance
+   width, so the dot collides with the next word. This face lends the middle dot, and only that code point,
+   from a system sans; where none is installed the browser falls through to Anek unchanged. */
+@font-face {
+  font-family: 'Bazaar Middot';
+  src:
+    local('Roboto'), local('Helvetica Neue'), local('Helvetica'), local('Arial'),
+    local('Noto Sans'), local('DejaVu Sans'), local('Liberation Sans');
+  unicode-range: U+00B7;
+}
+
 /* Baloo 2 is used once: "rub here · यहाँ रगड़ें" on the scratch latex (DECISION §8.3). */
 :root {
   --font-scratch: 'Baloo 2', 'Anek Devanagari', system-ui, sans-serif;
@@ -42,8 +53,8 @@
 /* C. "Bazaar" — mobile-first consumer: Anek Devanagari does display and text in both scripts
    (wdth 110 / wght 700 for amounts and headlines, wdth 100 / wght 400–500 for body); Chivo Mono. */
 [data-type='bazaar'] {
-  --font-display: 'Anek Devanagari', system-ui, 'Noto Sans Devanagari', sans-serif;
-  --font-text: 'Anek Devanagari', system-ui, 'Noto Sans Devanagari', sans-serif;
+  --font-display: 'Bazaar Middot', 'Anek Devanagari', system-ui, 'Noto Sans Devanagari', sans-serif;
+  --font-text: 'Bazaar Middot', 'Anek Devanagari', system-ui, 'Noto Sans Devanagari', sans-serif;
   --font-mono: 'Chivo Mono', 'IBM Plex Mono', ui-monospace, monospace;
   --font-width-table: 100%;
   --font-width-form: 100%;

@@ -9,7 +9,6 @@ import { AbsoluteFill, useCurrentFrame } from 'remotion';
 
 import { FOOTAGE, type FootageKey } from '../footage/manifest';
 import { v } from '../theme';
-
 import { usePaneSize } from './pane';
 
 export interface SlateInfo {
@@ -43,7 +42,8 @@ export function PlaceholderSlate({
         color: v.textSecondary,
         border: `${Math.max(2, 6 * unit)}px dashed ${v.borderStrong}`,
         padding: pad,
-        paddingTop: Math.max(pad, height > width ? 260 * unit : pad),
+        // Portrait: start below the hook-caption band (y ≈ 380–520) so captions never sit on slate text.
+        paddingTop: height > width ? 560 * unit : pad,
         display: 'flex',
         flexDirection: 'column',
         gap: 24 * unit,

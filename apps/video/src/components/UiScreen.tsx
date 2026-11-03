@@ -7,7 +7,6 @@ import { type ReactNode } from 'react';
 import { AbsoluteFill } from 'remotion';
 
 import { v } from '../theme';
-
 import { usePaneSize } from './pane';
 
 export const SCREEN = { width: 360, height: 640 } as const;

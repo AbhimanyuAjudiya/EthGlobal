@@ -110,7 +110,11 @@ export function RemotionRoot() {
           component={(p: typeof seed.short01 & { sponsorName: string }) => (
             <Frame>
               <UiScreen>
-                <IssuingSequence entitlement={p.entitlement} claimTx={p.claimTx} sponsorName={p.sponsorName} />
+                <IssuingSequence
+                  entitlement={p.entitlement}
+                  claimTx={p.claimTx}
+                  sponsorName={p.sponsorName}
+                />
               </UiScreen>
             </Frame>
           )}
@@ -166,7 +170,7 @@ export function RemotionRoot() {
             </Frame>
           )}
           {...PORTRAIT}
-          defaultProps={{ state: 'revealed' as 'sealed' | 'revealed', lang: 'en' as 'en' | 'hi' }}
+          defaultProps={{ state: 'revealed', lang: 'en' }}
         />
       </Folder>
       <Folder name="QA">

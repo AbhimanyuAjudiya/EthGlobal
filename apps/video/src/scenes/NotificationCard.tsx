@@ -3,7 +3,6 @@
  * always a REAL capture). Used as the reference inside a placeholder slate and as a still for posts.
  */
 import { v } from '../theme';
-
 import { useEntry } from './Receipt';
 
 export interface NotificationProps {
@@ -11,11 +10,19 @@ export interface NotificationProps {
   title: string;
   body: string;
   time: string;
+  /** Frame the card enters; omit for a static card (stills, slate references). */
   enterAt?: number;
 }
 
-export function NotificationCard({ app = 'Recharge', title, body, time, enterAt = 0 }: NotificationProps) {
-  const entry = useEntry(enterAt);
+export function NotificationCard({
+  app = 'Recharge',
+  title,
+  body,
+  time,
+  enterAt,
+}: NotificationProps) {
+  const animated = useEntry(enterAt ?? 0);
+  const entry = enterAt === undefined ? {} : animated;
   return (
     <div
       style={{

@@ -294,6 +294,26 @@
   }
 }
 
+/* ── Objects: the coupon, the boarding pass and the onchain sheet share one surface ── */
+.coupon,
+.boarding-pass,
+.onchain-action {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-object);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-text);
+}
+.boarding-pass__to,
+.boarding-pass__data,
+.onchain-action__title {
+  font-family: var(--font-display);
+  font-size: var(--text-24);
+  font-stretch: 110%;
+  font-weight: 700;
+  line-height: var(--leading-display);
+}
+
 /* ── Coupon (screen + notification; print lives in print.css) ───────────── */
 .coupon {
   /* The coupon is an object: paper-light in both themes. */
@@ -302,11 +322,6 @@
   gap: 0.75rem;
   max-width: 22rem;
   padding: 1.25rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-object);
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  font-family: var(--font-text);
 }
 .coupon p {
   margin: 0;
@@ -358,6 +373,7 @@
 }
 .coupon__body {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
   gap: 1rem;
@@ -366,7 +382,6 @@
   position: relative;
   display: grid;
   place-items: center;
-  min-width: 13.5rem;
   min-height: 3.5rem;
   padding: 0.75rem 1rem;
   border: 1px dashed var(--border-strong);
@@ -409,6 +424,10 @@
   display: block;
   font-size: var(--text-16);
   font-weight: 600;
+}
+.coupon[data-variant='notification'] .coupon__value,
+.coupon[data-variant='notification'] .coupon__unit {
+  font-size: inherit;
 }
 .coupon[data-variant='notification'] .coupon__amount {
   font-family: inherit;
@@ -488,11 +507,6 @@
   grid-template-columns: minmax(0, 1fr) 0 minmax(7.5rem, 32%);
   max-width: 34rem;
   overflow: hidden;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-object);
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  font-family: var(--font-text);
 }
 .boarding-pass p,
 .boarding-pass dl,
@@ -537,11 +551,6 @@
 }
 .boarding-pass__to,
 .boarding-pass__data {
-  font-family: var(--font-display);
-  font-size: var(--text-24);
-  font-stretch: 110%;
-  font-weight: 700;
-  line-height: var(--leading-display);
   overflow-wrap: anywhere;
 }
 .boarding-pass__window {
@@ -578,6 +587,8 @@
   padding: 1rem;
 }
 .boarding-pass__pin {
+  /* Two groups per line: 4821 9930 / 1127 5064. */
+  inline-size: 11ch;
   font-family: var(--font-mono);
   font-size: var(--text-14);
   font-variant-numeric: tabular-nums slashed-zero;
@@ -603,23 +614,15 @@
   gap: 1rem;
   max-width: 26rem;
   padding: 1.25rem 1.25rem 1.5rem;
-  border: 1px solid var(--border-subtle);
+  /* Receipt-shaped: a torn (dashed) bottom edge and square lower corners. */
   border-bottom: 1px dashed var(--border-strong);
   border-radius: var(--radius-object) var(--radius-object) 0 0;
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  font-family: var(--font-text);
 }
 .onchain-action p {
   margin: 0;
 }
 .onchain-action__title {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--text-24);
-  font-stretch: 110%;
-  font-weight: 700;
-  line-height: var(--leading-display);
   font-variant-numeric: tabular-nums;
 }
 .onchain-action__worst,

@@ -3,6 +3,7 @@
 @import 'tailwindcss';
 @import '@ethglobal/ui/tokens.css';
 @import '@ethglobal/ui/tailwind.css';
+@import '@ethglobal/ui/components.css';
 
 body {
   background: var(--bg-canvas);

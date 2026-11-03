@@ -7,5 +7,7 @@ import { probeFootage } from '../footage/probe';
 export function withFootage<P extends { footage: FootageAvailability }>(
   keys: readonly FootageKey[],
 ): CalculateMetadataFunction<P> {
-  return async ({ props }) => ({ props: { ...props, footage: await probeFootage(keys) } });
+  return async ({ props }) => ({
+    props: { ...props, footage: await probeFootage(keys, globalThis.fetch.bind(globalThis)) },
+  });
 }

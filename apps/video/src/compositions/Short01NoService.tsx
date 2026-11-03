@@ -109,7 +109,12 @@ export function Short01NoService(p: Short01Props) {
       ownAudio: true,
       picture:
         'Phone held up again. Status bar Searching… → LTE (or 5G). Control Center shows the carrier; the notification shade shows the push.',
-      mustSee: ['LTE / 5G', 'the carrier name', 'the push text', 'the clock on both sides of any cut'],
+      mustSee: [
+        'LTE / 5G',
+        'the carrier name',
+        'the push text',
+        'the clock on both sides of any cut',
+      ],
       reference: (
         <div style={{ width: 360, transform: 'scale(2)', transformOrigin: 'top left' }}>
           <NotificationCard {...p.seed.push} />

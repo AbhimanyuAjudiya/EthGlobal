@@ -1,6 +1,6 @@
 'use client';
 
-import { useId } from 'react';
+import { useId, type ReactNode } from 'react';
 
 import { Button } from './Button';
 import { cx } from './format';
@@ -8,7 +8,6 @@ import { Hash } from './Hash';
 import { RuledList, type RuledRow } from './RuledList';
 
 import type { OnchainActionState } from '../../index';
-import type { ReactNode } from 'react';
 
 export interface ReviewRow {
   label: string;
@@ -109,7 +108,13 @@ function Ring({ elapsedMs, expectedMs }: Timing) {
   const circumference = 2 * Math.PI * r;
   const progress = Math.min(1, expectedMs > 0 ? elapsedMs / expectedMs : 1);
   return (
-    <svg className="onchain-action__ring" width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+    <svg
+      className="onchain-action__ring"
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      aria-hidden="true"
+    >
       <circle className="onchain-action__ring-track" cx="10" cy="10" r={r} />
       <circle
         className="onchain-action__ring-fill"
@@ -183,8 +188,8 @@ export function OnchainAction(props: OnchainActionProps) {
       if (stuck) {
         body = (
           <p className="onchain-action__note">
-            Slower than usual: {seconds(props.elapsedMs)}, usually {seconds(props.expectedMs)}. Speed
-            up, or cancel with a replacement.
+            Slower than usual: {seconds(props.elapsedMs)}, usually {seconds(props.expectedMs)}.
+            Speed up, or cancel with a replacement.
           </p>
         );
         actions = (

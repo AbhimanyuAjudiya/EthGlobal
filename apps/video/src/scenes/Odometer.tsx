@@ -26,32 +26,43 @@ export function Odometer({
   });
   const digits = String(Math.round(value)).split('').map(Number);
   const cell = fontSize * lineHeight;
+  const shown = progress * value;
   return (
-    <span
-      className="num"
-      style={{ display: 'inline-flex', height: cell, overflow: 'hidden', lineHeight }}
-      aria-label={String(value)}
-    >
+    <span className="num" style={{ display: 'inline-flex', lineHeight }} aria-label={String(value)}>
       {digits.map((d, i) => {
-        const leading = i < digits.length - 1;
-        const roll = progress * d;
-        // A leading column that has not left 0 yet is not drawn, so the start state reads "0", not "000".
-        const opacity = leading ? interpolate(roll, [0, 0.2], [0, 1], { extrapolateRight: 'clamp' }) : 1;
+        const place = 10 ** (digits.length - 1 - i);
+        // A leading column is drawn once the rolling value reaches its place, so the start reads "0", not "000".
+        const opacity =
+          place === 1
+            ? 1
+            : interpolate(shown, [place * 0.5, place], [0, 1], {
+                extrapolateLeft: 'clamp',
+                extrapolateRight: 'clamp',
+              });
         return (
           <span
             key={i}
             style={{
-              display: 'inline-flex',
-              flexDirection: 'column',
-              transform: `translateY(${-roll * cell}px)`,
+              display: 'inline-block',
+              height: cell,
+              overflow: 'hidden',
+              clipPath: 'inset(0)',
               opacity,
             }}
           >
-            {Array.from({ length: 10 }, (_, n) => (
-              <span key={n} style={{ height: cell }}>
-                {n}
-              </span>
-            ))}
+            <span
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                transform: `translateY(${-progress * d * cell}px)`,
+              }}
+            >
+              {Array.from({ length: 10 }, (_, n) => (
+                <span key={n} style={{ display: 'block', height: cell, lineHeight: `${cell}px` }}>
+                  {n}
+                </span>
+              ))}
+            </span>
           </span>
         );
       })}

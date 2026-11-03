@@ -92,7 +92,13 @@ export function Coupon({
 
   if (variant === 'notification') {
     return (
-      <article className={cx('coupon', className)} data-variant="notification" lang={lang} id={id}>
+      <article
+        className={cx('coupon', className)}
+        data-color-scheme="light"
+        data-variant="notification"
+        lang={lang}
+        id={id}
+      >
         <p className="coupon__headline">
           <Amount mb={mb} />
           {from ? `${SEP}${from}` : null}
@@ -113,6 +119,7 @@ export function Coupon({
   return (
     <article
       className={cx('coupon', className)}
+      data-color-scheme="light"
       data-variant={variant}
       lang={lang}
       aria-label={label}

@@ -11,6 +11,8 @@ import { Frame } from '../components/Frame';
 import { assertFacePaints, fontGuard, loadFonts, type FontGuardReport } from '../fonts/load-fonts';
 import { v } from '../theme';
 
+// Remotion composition props must be a type alias (an interface does not satisfy Record<string, unknown>).
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 export type FontProbeProps = { mode: 'product' | 'fallback' | 'sabotage' };
 
 const SAMPLES = [
@@ -37,7 +39,8 @@ function Report() {
     <div className="mono" style={{ fontSize: 28, color: v.textSecondary, lineHeight: 1.5 }}>
       {report.checks.map((c) => (
         <div key={c.text}>
-          {c.family}: loaded {c.loaded ? 'yes' : 'NO'} · paints {c.differsFromFallback ? 'yes' : 'NO'}
+          {c.family}: loaded {c.loaded ? 'yes' : 'NO'} · paints{' '}
+          {c.differsFromFallback ? 'yes' : 'NO'}
         </div>
       ))}
     </div>

@@ -19,6 +19,12 @@
       "lang": "en"
     },
     { "from": 262, "to": 332, "text": "Expires by itself · Arkiv", "style": "ui", "lang": "en" },
-    { "from": 346, "to": 400, "text": "Or write a name. Gift it.", "style": "footage", "lang": "en" }
+    {
+      "from": 346,
+      "to": 400,
+      "text": "Or write a name. Gift it.",
+      "style": "footage",
+      "lang": "en"
+    }
   ]
 }

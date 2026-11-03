@@ -9,7 +9,7 @@ const MB_PER_GB = 1000;
 const enIN = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
 
 /** The no-break space that sits between a number and its unit. */
-export const NBSP = ' ';
+export const NBSP = '\u00a0';
 
 export interface DataAmount {
   value: string;
@@ -49,14 +49,14 @@ function parts(ms: number, timeZone: string, withDate: boolean): Record<string, 
 /** 24-hour "14:02" in `timeZone` (en-IN); `zone: true` appends the short zone name ("14:02 IST"). */
 export function clock(ms: number, timeZone = DEFAULT_TIME_ZONE, zone = false): string {
   const p = parts(ms, timeZone, false);
-  const time = `${p['hour'] ?? '00'}:${p['minute'] ?? '00'}`;
-  return zone ? `${time} ${p['timeZoneName'] ?? ''}`.trim() : time;
+  const time = `${p.hour ?? '00'}:${p.minute ?? '00'}`;
+  return zone ? `${time} ${p.timeZoneName ?? ''}`.trim() : time;
 }
 
 /** "Sun 15 Nov 09:12 IST". */
 export function dateTime(ms: number, timeZone = DEFAULT_TIME_ZONE): string {
   const p = parts(ms, timeZone, true);
-  return `${p['weekday'] ?? ''} ${p['day'] ?? ''} ${p['month'] ?? ''} ${clock(ms, timeZone, true)}`;
+  return `${p.weekday ?? ''} ${p.day ?? ''} ${p.month ?? ''} ${clock(ms, timeZone, true)}`;
 }
 
 /** "6 d 22 h", "3 h 12 m", and seconds only under an hour: "42 m 10 s". Floored; never negative. */

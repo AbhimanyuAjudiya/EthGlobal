@@ -6,7 +6,6 @@
 import { AbsoluteFill } from 'remotion';
 
 import { safe, v } from '../theme';
-
 import { Title } from './Title';
 
 export interface EndCardProps {

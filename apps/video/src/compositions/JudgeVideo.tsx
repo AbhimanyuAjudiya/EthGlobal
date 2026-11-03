@@ -3,9 +3,9 @@
  * (3:00, the hard ceiling), so that is the composition length; the 2:50 target is met by trimming rows once
  * the narration take exists (calculateMetadata can then follow the take's length).
  *
- * Layout: PhoneInset (a 9:16 capture, 608 × 1080 at x = 120) beside EvidencePane (a laptop capture at y = 90).
- * SCRIPTS.md puts EvidencePane at x = 720 / 1200 wide, which overlaps the phone by 8 px and runs off the
- * frame edge; it sits at x = 752, 1120 × 900 here. Type sizes are CSS px at S = 2 (a 960 px laptop viewport
+ * Layout: EvidencePane is SCRIPTS.md's 1200 × 900 at x = 720, y = 90. PhoneInset keeps x = 120 and 9:16 but is
+ * 540 × 960 at y = 90 instead of 608 × 1080 at y = 0: the full-height inset sat under the chapter rail, which
+ * would cover a screen recording's status bar (SCRIPTS.md §1), and overlapped EvidencePane by 8 px. Type sizes are CSS px at S = 2 (a 960 px laptop viewport
  * at 2×), so the 12 px chapter rail is legible at 1080p.
  */
 import { type ReactNode } from 'react';
@@ -16,11 +16,7 @@ import { Frame } from '../components/Frame';
 import { Pane } from '../components/pane';
 import { SeedTag } from '../components/SeedTag';
 import { UiScreen } from '../components/UiScreen';
-import {
-  footagePath,
-  type FootageAvailability,
-  type FootageKey,
-} from '../footage/manifest';
+import { footagePath, type FootageAvailability, type FootageKey } from '../footage/manifest';
 import { BoardingPass } from '../scenes/BoardingPass';
 import { EndCardLandscape } from '../scenes/EndCard';
 import {
@@ -37,8 +33,8 @@ import { FPS } from '../theme';
 
 export const S = 2;
 export const JUDGE_FRAMES = 5400;
-const PHONE = { x: 120, y: 0, width: 608, height: 1080 } as const;
-const EVIDENCE = { x: 752, y: 90, width: 1120, height: 900 } as const;
+const PHONE = { x: 120, y: 90, width: 540, height: 960 } as const;
+const EVIDENCE = { x: 720, y: 90, width: 1200, height: 900 } as const;
 
 export const JUDGE_FOOTAGE: readonly FootageKey[] = [
   'narration',
@@ -64,6 +60,8 @@ export const JUDGE_FOOTAGE: readonly FootageKey[] = [
   'receiver',
 ];
 
+// Remotion composition props must be a type alias (an interface does not satisfy Record<string, unknown>).
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 export type JudgeProps = {
   footage: FootageAvailability;
   chapters: Chapter[];
@@ -92,7 +90,10 @@ export const judgeDefaults: JudgeProps = {
     "Recharge: prove you're human and a sponsor pays for your first 300 MB of Mumbai data; after that you — or your agent — pay per 100 MB over x402, every bundle is an Arkiv entity that expires by itself, and anyone can gift data to an ENS name.",
   mechanism: [
     { head: 'identity · World', line: 'One human, once: the proof is verified server-side.' },
-    { head: 'money · Hedera', line: 'A sponsor pool on Hedera EVM; per-100 MB payments over x402.' },
+    {
+      head: 'money · Hedera',
+      line: 'A sponsor pool on Hedera EVM; per-100 MB payments over x402.',
+    },
     { head: 'entitlement · Arkiv', line: 'Every bundle is an entity that expires by itself.' },
   ],
   continuity: 'Continuity entry · tag v0-prekickoff · in-window work dated in CHANGELOG.md',
@@ -132,7 +133,17 @@ const t = (f: number) => {
 };
 
 /** A Sequence on the judge timeline with absolute frame numbers from the timestamp plan. */
-function At({ from, to, children, name }: { from: number; to: number; children: ReactNode; name: string }) {
+function At({
+  from,
+  to,
+  children,
+  name,
+}: {
+  from: number;
+  to: number;
+  children: ReactNode;
+  name: string;
+}) {
   return (
     <Sequence from={from} durationInFrames={to - from} name={name} layout="none">
       {children}
@@ -182,11 +193,41 @@ export function JudgeVideo(p: JudgeProps) {
   return (
     <Frame theme={p.theme}>
       {/* 0:00–0:08 the BOM hero, pillar-boxed; right pane empty paper. */}
-      <Capture pane="phone" clip="arrivals" footage={f} from={0} to={120} ownAudio picture="Video 01 S1: No Service in the arrivals hall." />
-      <Capture pane="phone" clip="lte" footage={f} from={120} to={240} ownAudio picture="Video 01 S6: Searching… → LTE." />
+      <Capture
+        pane="phone"
+        clip="arrivals"
+        footage={f}
+        from={0}
+        to={120}
+        ownAudio
+        picture="Video 01 S1: No Service in the arrivals hall."
+      />
+      <Capture
+        pane="phone"
+        clip="lte"
+        footage={f}
+        from={120}
+        to={240}
+        ownAudio
+        picture="Video 01 S6: Searching… → LTE."
+      />
       {/* 0:08–0:20 the push; the printed card in a hand; the one sentence as a block. */}
-      <Capture pane="phone" clip="lte" footage={f} from={240} to={600} picture="The lock-screen push: 300 MB · from <sponsor> · because you're human." />
-      <Capture pane="evidence" clip="front" footage={f} from={240} to={600} picture="The printed card in a hand." />
+      <Capture
+        pane="phone"
+        clip="lte"
+        footage={f}
+        from={240}
+        to={600}
+        picture="The lock-screen push: 300 MB · from <sponsor> · because you're human."
+      />
+      <Capture
+        pane="evidence"
+        clip="front"
+        footage={f}
+        from={240}
+        to={600}
+        picture="The printed card in a hand."
+      />
       <At from={240} to={600} name="PathLabel: one sentence">
         <PathLabel s={S}>{p.oneSentence}</PathLabel>
       </At>
@@ -195,42 +236,147 @@ export function JudgeVideo(p: JudgeProps) {
         <MechanismPanes panes={p.mechanism} strip={p.continuity} s={S} />
       </At>
       {/* 0:30–1:00 World. */}
-      <Capture pane="phone" clip="verifySr" footage={f} from={900} to={1800} picture="/verify → World App (a non-team Orb-verified human) → Checking · 2 s." />
-      <Capture pane="evidence" clip="verifyLog" footage={f} from={900} to={1200} picture="API log: POST developer.worldcoin.org/api/v2/verify/<app_id> action=recharge-welcome nullifier=<hashed> level=orb" />
+      <Capture
+        pane="phone"
+        clip="verifySr"
+        footage={f}
+        from={900}
+        to={1800}
+        picture="/verify → World App (a non-team Orb-verified human) → Checking · 2 s."
+      />
+      <Capture
+        pane="evidence"
+        clip="verifyLog"
+        footage={f}
+        from={900}
+        to={1200}
+        picture="API log: POST developer.worldcoin.org/api/v2/verify/<app_id> action=recharge-welcome nullifier=<hashed> level=orb"
+      />
       <At from={1200} to={1500} name="TierTable">
         <Pane {...EVIDENCE}>
           <LinesPane lines={p.tiers} s={S} />
         </Pane>
       </At>
-      <Capture pane="evidence" clip="claimHashscan" footage={f} from={1500} to={1800} picture="HashScan testnet: DataDrop.claim tx with the Claimed event." />
+      <Capture
+        pane="evidence"
+        clip="claimHashscan"
+        footage={f}
+        from={1500}
+        to={1800}
+        picture="HashScan testnet: DataDrop.claim tx with the Claimed event."
+      />
       <At from={1500} to={1800} name="PathLabel: claimKey">
         <PathLabel s={S} mono>
           {p.claimKey}
         </PathLabel>
       </At>
       {/* 1:00–1:50 Hedera. */}
-      <Capture pane="evidence" clip="curl402" footage={f} from={1800} to={2250} picture='curl -i "https://<host>/esim/topup?key=<key>&mb=100" → HTTP/1.1 402, decoded PAYMENT-REQUIRED accepts[]: Base Sepolia · USDC, Hedera testnet · USDC.' />
-      <Capture pane="phone" clip="paySr" footage={f} from={2250} to={2700} picture="A judge pays on Hedera from /pay: Add 100 MB · $0.40 → Pay → Approve → Sending → Final. Strip visible." />
-      <Capture pane="evidence" clip="payHashscan" footage={f} from={2250} to={2700} picture="HashScan testnet transaction of that payment." />
-      <Capture pane="evidence" clip="datadrop" footage={f} from={2700} to={3000} picture="DataDrop on Hedera EVM, chain 296: contract page, Claimed events, sponsor USDC per claim." />
+      <Capture
+        pane="evidence"
+        clip="curl402"
+        footage={f}
+        from={1800}
+        to={2250}
+        picture='curl -i "https://<host>/esim/topup?key=<key>&mb=100" → HTTP/1.1 402, decoded PAYMENT-REQUIRED accepts[]: Base Sepolia · USDC, Hedera testnet · USDC.'
+      />
+      <Capture
+        pane="phone"
+        clip="paySr"
+        footage={f}
+        from={2250}
+        to={2700}
+        picture="A judge pays on Hedera from /pay: Add 100 MB · $0.40 → Pay → Approve → Sending → Final. Strip visible."
+      />
+      <Capture
+        pane="evidence"
+        clip="payHashscan"
+        footage={f}
+        from={2250}
+        to={2700}
+        picture="HashScan testnet transaction of that payment."
+      />
+      <Capture
+        pane="evidence"
+        clip="datadrop"
+        footage={f}
+        from={2700}
+        to={3000}
+        picture="DataDrop on Hedera EVM, chain 296: contract page, Claimed events, sponsor USDC per claim."
+      />
       <At from={2700} to={3000} name="PathLabel: DataDrop.sol">
         <PathLabel s={S} mono>
           packages/contracts/src/DataDrop.sol
         </PathLabel>
       </At>
-      <Capture pane="phone" clip="agentSr" footage={f} from={3000} to={3300} picture="/agent sheet: ≤ $10 / day · Pause." />
-      <Capture pane="evidence" clip="agentLog" footage={f} from={3000} to={3300} picture="services/agent log: ledger.get → shouldTopUp → 402 → sign → 200 → consensus.submit; HashScan topic with the HCS-14 UAID receipt." />
+      <Capture
+        pane="phone"
+        clip="agentSr"
+        footage={f}
+        from={3000}
+        to={3300}
+        picture="/agent sheet: ≤ $10 / day · Pause."
+      />
+      <Capture
+        pane="evidence"
+        clip="agentLog"
+        footage={f}
+        from={3000}
+        to={3300}
+        picture="services/agent log: ledger.get → shouldTopUp → 402 → sign → 200 → consensus.submit; HashScan topic with the HCS-14 UAID receipt."
+      />
       {/* 1:50–2:25 Arkiv. */}
-      <Capture pane="evidence" clip="arkivExplorer" footage={f} from={3300} to={3450} picture="Arkiv Kaolin explorer: the entitlement entity, expiresAt, attributes." />
+      <Capture
+        pane="evidence"
+        clip="arkivExplorer"
+        footage={f}
+        from={3300}
+        to={3450}
+        picture="Arkiv Kaolin explorer: the entitlement entity, expiresAt, attributes."
+      />
       <At from={3450} to={3750} name="ThreeReads">
         <LinesPane lines={p.threeReads} s={S} size={20} />
       </At>
-      <Capture pane="phone" clip="planSrJudge" footage={f} from={3750} to={3900} picture="/plan: Expires in 6 d 22 h and the entity-key disclosure." />
-      <Capture pane="evidence" clip="nonce" footage={f} from={3900} to={4050} picture="A 120-second challenge-nonce entity queried, then queried again after expiry (gone)." />
-      <Capture pane="evidence" clip="sponsorSc" footage={f} from={4050} to={4200} picture="/sponsor/[id]: 38 plans expire in 24 h, as a query." />
-      <Capture pane="evidence" clip="docsSc" footage={f} from={4200} to={4350} picture="docs/arkiv.schema.json, docs/ARKIV_FEEDBACK.md, docs/SWARM.md." />
+      <Capture
+        pane="phone"
+        clip="planSrJudge"
+        footage={f}
+        from={3750}
+        to={3900}
+        picture="/plan: Expires in 6 d 22 h and the entity-key disclosure."
+      />
+      <Capture
+        pane="evidence"
+        clip="nonce"
+        footage={f}
+        from={3900}
+        to={4050}
+        picture="A 120-second challenge-nonce entity queried, then queried again after expiry (gone)."
+      />
+      <Capture
+        pane="evidence"
+        clip="sponsorSc"
+        footage={f}
+        from={4050}
+        to={4200}
+        picture="/sponsor/[id]: 38 plans expire in 24 h, as a query."
+      />
+      <Capture
+        pane="evidence"
+        clip="docsSc"
+        footage={f}
+        from={4200}
+        to={4350}
+        picture="docs/arkiv.schema.json, docs/ARKIV_FEEDBACK.md, docs/SWARM.md."
+      />
       {/* 2:25–2:40 ENS. */}
-      <Capture pane="phone" clip="giftSr" footage={f} from={4350} to={4560} picture="/gift resolve → pay, strip visible." />
+      <Capture
+        pane="phone"
+        clip="giftSr"
+        footage={f}
+        from={4350}
+        to={4560}
+        picture="/gift resolve → pay, strip visible."
+      />
       <At from={4560} to={4680} name="BoardingPassCard">
         <Pane {...PHONE}>
           <UiScreen>
@@ -241,12 +387,27 @@ export function JudgeVideo(p: JudgeProps) {
           <SeedTag />
         </Pane>
       </At>
-      <Capture pane="phone" clip="receiver" footage={f} from={4680} to={4800} picture="The receiver's push and the no-payment claim." />
+      <Capture
+        pane="phone"
+        clip="receiver"
+        footage={f}
+        from={4680}
+        to={4800}
+        picture="The receiver's push and the no-payment claim."
+      />
       {/* 2:40–2:52 what breaks without each, then the real scratch. */}
       <At from={4800} to={5100} name="ThreeLines">
         <LinesPane lines={p.threeLines} s={S} />
       </At>
-      <Capture pane="phone" clip="macro" footage={f} from={5100} to={5160} ownAudio picture="The scratch card in a hand, coin on latex, two seconds." />
+      <Capture
+        pane="phone"
+        clip="macro"
+        footage={f}
+        from={5100}
+        to={5160}
+        ownAudio
+        picture="The scratch card in a hand, coin on latex, two seconds."
+      />
       {/* 2:52–3:00 end card with the disclosure. */}
       <At from={5160} to={JUDGE_FRAMES} name="EndCard landscape">
         <EndCardLandscape

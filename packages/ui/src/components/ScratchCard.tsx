@@ -1,15 +1,22 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type PointerEvent,
+} from 'react';
 
 import { Button } from './Button';
 import { Coupon, type CouponProps } from './Coupon';
 import { RUB_HERE, RUB_HERE_LANGS } from './strings';
 
-import type { PointerEvent } from 'react';
-
-export interface ScratchCardProps
-  extends Omit<CouponProps, 'pin' | 'pinCover' | 'pinConcealed' | 'variant'> {
+export interface ScratchCardProps extends Omit<
+  CouponProps,
+  'pin' | 'pinCover' | 'pinConcealed' | 'variant'
+> {
   /** The PIN under the latex. It is rendered from the start; the latex only covers it. */
   pin: string;
   /** Controlled reveal (e.g. the PIN arrived by the stub's own QR). */
@@ -24,8 +31,10 @@ export interface ScratchCardProps
 
 const REDUCED = '(prefers-reduced-motion: reduce)';
 
+const noop = () => undefined;
+
 function subscribeReduced(onChange: () => void): () => void {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return () => {};
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return noop;
   const query = window.matchMedia(REDUCED);
   query.addEventListener('change', onChange);
   return () => query.removeEventListener('change', onChange);
@@ -117,7 +126,10 @@ function Latex({ brushRadius, threshold, onCleared, canScratch }: LatexProps) {
 
   useEffect(() => {
     if (!canScratch) return;
-    if (paint()) setReady(true);
+    // First paint on the next frame, once layout has sized the panel; repaint when the faces load.
+    const frame = requestAnimationFrame(() => {
+      if (paint()) setReady(true);
+    });
     const fonts = typeof document !== 'undefined' ? document.fonts : undefined;
     let live = true;
     void fonts?.ready.then(() => {
@@ -125,6 +137,7 @@ function Latex({ brushRadius, threshold, onCleared, canScratch }: LatexProps) {
     });
     return () => {
       live = false;
+      cancelAnimationFrame(frame);
     };
   }, [canScratch, paint]);
 

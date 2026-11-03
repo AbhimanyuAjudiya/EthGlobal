@@ -11,7 +11,6 @@ import { interpolate, useCurrentFrame } from 'remotion';
 import { TestnetStrip } from '../components/TestnetStrip';
 import { type EntitlementSeed } from '../seed';
 import { ease, frames, v } from '../theme';
-
 import { MbMeter, UsageAsOf } from './MbMeter';
 import { Odometer } from './Odometer';
 

@@ -4,11 +4,13 @@
  */
 import { staticFile } from 'remotion';
 
-import { footagePath, type FootageAvailability, type FootageKey } from './manifest';
+import { FOOTAGE, footagePath, type FootageAvailability, type FootageKey } from './manifest';
 
-async function exists(path: string): Promise<boolean> {
+type Fetch = typeof globalThis.fetch;
+
+async function exists(fetchImpl: Fetch, path: string): Promise<boolean> {
   try {
-    const res = await fetch(staticFile(path), { headers: { Range: 'bytes=0-0' } });
+    const res = await fetchImpl(staticFile(path), { headers: { Range: 'bytes=0-0' } });
     await res.body?.cancel();
     // A static server that falls back to index.html must not count as "present".
     return res.ok && !(res.headers.get('content-type') ?? '').includes('text/html');
@@ -17,9 +19,35 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-export async function probeFootage(keys: readonly FootageKey[]): Promise<FootageAvailability> {
+/** footage/index.json, written by scripts/footage-index.sh before every render: one request instead of N. */
+async function readIndex(fetchImpl: Fetch): Promise<Set<string> | null> {
+  try {
+    const res = await fetchImpl(staticFile('footage/index.json'));
+    if (!res.ok) return null;
+    const files: unknown = await res.json();
+    return Array.isArray(files)
+      ? new Set(files.filter((f): f is string => typeof f === 'string'))
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * `fetch` is injected (workspace rule: no bare fetch); calculateMetadata passes the page's own fetch, which can
+ * only reach the bundle's static server.
+ */
+export async function probeFootage(
+  keys: readonly FootageKey[],
+  fetchImpl: Fetch,
+): Promise<FootageAvailability> {
+  const index = await readIndex(fetchImpl);
+  if (index) {
+    return Object.fromEntries(keys.map((k) => [k, index.has(FOOTAGE[k].file)]));
+  }
+  // Studio without an index: ask the static server per file (404s in the console are expected).
   const entries = await Promise.all(
-    keys.map(async (k) => [k, await exists(footagePath(k))] as const),
+    keys.map(async (k) => [k, await exists(fetchImpl, footagePath(k))] as const),
   );
-  return Object.fromEntries(entries) as FootageAvailability;
+  return Object.fromEntries(entries);
 }

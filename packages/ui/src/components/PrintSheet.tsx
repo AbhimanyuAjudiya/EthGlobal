@@ -4,8 +4,10 @@ import { Receipt } from './Receipt';
 
 import type { CSSProperties, ReactNode } from 'react';
 
-export interface PrintCard
-  extends Omit<CouponProps, 'variant' | 'pinCover' | 'pinConcealed' | 'renderQr' | 'status'> {
+export interface PrintCard extends Omit<
+  CouponProps,
+  'variant' | 'pinCover' | 'pinConcealed' | 'renderQr' | 'status'
+> {
   pin: string;
   serial: string;
   /** Back of the card: what the sponsor paid for this bundle ("$0.50"). */
@@ -83,8 +85,8 @@ function Back({ card }: { card: PrintCard }) {
         networkFee={card.networkFee ?? '$0.00'}
       />
       <p className="print-back__ens">
-        To: <span className="print-back__blank" aria-hidden="true" /> .eth — write a name to gift this
-        card, or redeem at /card
+        To: <span className="print-back__blank" aria-hidden="true" /> .eth — write a name to gift
+        this card, or redeem at /card
       </p>
       <p className="print-back__serial" data-hash>
         {card.serial}
@@ -101,7 +103,7 @@ function Back({ card }: { card: PrintCard }) {
 export function PrintSheet({ cards, side = 'front', layout = 'a4', renderQr }: PrintSheetProps) {
   const perSheet = layout === 'a4' ? CARDS_PER_SHEET : 1;
   return (
-    <div className="print-root" data-layout={layout}>
+    <div className="print-root" data-layout={layout} data-color-scheme="light">
       {chunk(cards, perSheet).map((sheet, sheetIndex) => {
         const cells =
           side === 'back' && layout === 'a4'

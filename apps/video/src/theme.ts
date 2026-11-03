@@ -3,8 +3,9 @@
  * Durations and easings come from @ethglobal/ui (mirrors tokens.css); nothing here invents a value.
  * Colours are never restated in TS: components reference the CSS custom properties from tokens.css.
  */
-import { motion } from '@ethglobal/ui';
 import { Easing } from 'remotion';
+
+import { motion } from '@ethglobal/ui';
 
 export const FPS = 30;
 

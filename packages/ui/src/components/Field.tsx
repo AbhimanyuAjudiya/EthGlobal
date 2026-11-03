@@ -1,10 +1,8 @@
 'use client';
 
-import { useId } from 'react';
+import { useId, type InputHTMLAttributes } from 'react';
 
 import { cx } from './format';
-
-import type { InputHTMLAttributes } from 'react';
 
 export interface FieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'id' | 'children'> {
   label: string;

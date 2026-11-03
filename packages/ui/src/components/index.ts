@@ -6,12 +6,7 @@
 export { BoardingPass, type BoardingPassProps, type BoardingPassStatus } from './BoardingPass';
 export { Button, type ButtonProps, type ButtonVariant } from './Button';
 export { Countdown, useNow, type CountdownProps } from './Countdown';
-export {
-  Coupon,
-  type CouponProps,
-  type CouponQrSlot,
-  type CouponVariant,
-} from './Coupon';
+export { Coupon, type CouponProps, type CouponQrSlot, type CouponVariant } from './Coupon';
 export { Field, type FieldProps } from './Field';
 export {
   clock,
@@ -38,10 +33,6 @@ export {
 } from './PrintSheet';
 export { Receipt, type ReceiptProps } from './Receipt';
 export { RuledList, type RuledRow } from './RuledList';
-export {
-  ScratchCard,
-  usePrefersReducedMotion,
-  type ScratchCardProps,
-} from './ScratchCard';
+export { ScratchCard, usePrefersReducedMotion, type ScratchCardProps } from './ScratchCard';
 export { couponStrings, RUB_HERE, type CouponLang } from './strings';
 export { UsageAsOf, type UsageAsOfProps } from './UsageAsOf';

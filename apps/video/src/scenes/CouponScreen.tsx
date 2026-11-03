@@ -6,7 +6,6 @@
  */
 import { type CouponSeed } from '../seed';
 import { v } from '../theme';
-
 import { Qr } from './Qr';
 
 export function CouponScreen({

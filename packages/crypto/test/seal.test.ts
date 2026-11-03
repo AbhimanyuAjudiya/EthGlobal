@@ -49,12 +49,16 @@ describe('sealLpa / openLpa', () => {
     expect(a.ct).not.toBe(b.ct);
   });
 
-  it('uses 10^4 distinct nonces', () => {
-    const { publicKey } = generateSessionKeypair();
+  it('uses 10^4 distinct nonces (shared nonce path) and distinct LPA nonces and ephemeral keys', () => {
+    const key = randomBytes(32);
     const nonces = new Set<string>();
-    for (let i = 0; i < 10_000; i += 1) nonces.add(sealLpa('x', publicKey, aad).nonce);
+    for (let i = 0; i < 10_000; i += 1) nonces.add(sealToServer(key, 'x', aad).nonce);
     expect(nonces.size).toBe(10_000);
-  });
+    const { publicKey } = generateSessionKeypair();
+    const boxes = Array.from({ length: 500 }, () => sealLpa('x', publicKey, aad));
+    expect(new Set(boxes.map((b) => b.nonce)).size).toBe(500);
+    expect(new Set(boxes.map((b) => b.epk)).size).toBe(500);
+  }, 30_000);
 
   it('rejects the wrong secret key', () => {
     const alice = generateSessionKeypair();

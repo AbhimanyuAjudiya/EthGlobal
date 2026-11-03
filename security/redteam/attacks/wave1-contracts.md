@@ -162,12 +162,12 @@ function test_Attack_IdNotReusableAfterRefund() public {
 
 ## A5 — Authorisation matrix (T-05)
 
-| caller → | `claim` | `pause(id,true)` | `pause(id,false)` | `refund` | `setAttestor` | `associateHts` |
-|---|---|---|---|---|---|---|
-| attestor | ok | ok | **`NotSponsor`** | `NotSponsor` | `OwnableUnauthorizedAccount` | `OwnableUnauthorizedAccount` |
-| sponsor | `NotAttestor` | ok | ok | ok when refundable | `OwnableUnauthorizedAccount` | `OwnableUnauthorizedAccount` |
-| stranger | `NotAttestor` | `NotSponsor` | `NotSponsor` | `NotSponsor` | `OwnableUnauthorizedAccount` | `OwnableUnauthorizedAccount` |
-| owner | `NotAttestor` | `NotSponsor` | `NotSponsor` | `NotSponsor` | ok | ok (chainid gate, A9) |
+| caller → | `claim`       | `pause(id,true)` | `pause(id,false)` | `refund`           | `setAttestor`                | `associateHts`               |
+| -------- | ------------- | ---------------- | ----------------- | ------------------ | ---------------------------- | ---------------------------- |
+| attestor | ok            | ok               | **`NotSponsor`**  | `NotSponsor`       | `OwnableUnauthorizedAccount` | `OwnableUnauthorizedAccount` |
+| sponsor  | `NotAttestor` | ok               | ok                | ok when refundable | `OwnableUnauthorizedAccount` | `OwnableUnauthorizedAccount` |
+| stranger | `NotAttestor` | `NotSponsor`     | `NotSponsor`      | `NotSponsor`       | `OwnableUnauthorizedAccount` | `OwnableUnauthorizedAccount` |
+| owner    | `NotAttestor` | `NotSponsor`     | `NotSponsor`      | `NotSponsor`       | ok                           | ok (chainid gate, A9)        |
 
 `vm.prank` each cell (`test_Attack_<Caller>_<Function>`); the sponsor of `ID` gets `NotSponsor` on a campaign created by `stranger`. Extra: `setAttestor(address(0))` — if accepted, every claim reverts `NotAttestor` until the owner fixes it (owner-mistake DoS; Low; recommend a zero check). `Ownable2Step`: `transferOwnership(stranger)` does nothing until `acceptOwnership` — assert `owner()` unchanged after the first step.
 
@@ -278,7 +278,7 @@ A token-mode `createCampaign` that records a budget without receiving it is **Cr
 
 ## A11 — Reentrancy / CEI / slither (T-11)
 
-`ReentrantToken.transfer` re-enters `claim(ID, otherKey)` as the attestor (the token can `vm.prank`-less re-enter only if the attestor *is* the token — so give the reentrant campaign a `DataDrop` whose attestor is the token contract): expect `ReentrancyGuardReentrantCall`; `spent == PRICE`; the inner key not claimed. Re-enter `refund` from `transfer` during `refund` ⇒ revert, balance conserved. Then:
+`ReentrantToken.transfer` re-enters `claim(ID, otherKey)` as the attestor (the token can `vm.prank`-less re-enter only if the attestor _is_ the token — so give the reentrant campaign a `DataDrop` whose attestor is the token contract): expect `ReentrancyGuardReentrantCall`; `spent == PRICE`; the inner key not claimed. Re-enter `refund` from `transfer` during `refund` ⇒ revert, balance conserved. Then:
 
 ```sh
 cd packages/contracts && slither . --config-file ../../security/redteam/tools/slither.config.json
@@ -293,21 +293,21 @@ forge snapshot --check --tolerance 5      # claim ≤ 100 000 gas (brief §6)
 
 Sign with `vm.sign(ANVIL_KEY_5, digest)` (the vectors script uses #5 too) and `usdc.DOMAIN_SEPARATOR()`:
 
-| Case | Expected |
-|---|---|
-| valid `transferWithAuthorization` (both overloads), anyone as `msg.sender` | transfer; `authorizationState(from, nonce) == true`; `AuthorizationUsed` |
-| replay | revert |
-| `validBefore == block.timestamp` / `validAfter == block.timestamp` | revert (strict `<`/`>`) |
-| wrong signer (`from` = #5, signed by #6) | revert |
-| `value` in the call ≠ signed value | revert |
-| `receiveWithAuthorization` by `msg.sender != to` | revert |
-| `receiveWithAuthorization` by `to` | ok |
-| `cancelAuthorization` (signed by authorizer, submitted by anyone) then transfer | revert; `AuthorizationCanceled` |
-| same nonce across transfer/receive variants | second reverts |
-| `to == address(0)` | ERC-20 revert |
-| EIP-2098 64-byte signature | **revert** (`ECDSAInvalidSignatureLength`) — the mock accepts 65 bytes only; the TS side must expand compact forms before calling (E3) |
-| high-`s` (`s' = n − s`, `v' = v ^ 1`) | revert `ECDSAInvalidSignatureS` (T-17) |
-| `mint` by anyone | works (test token) — `Deploy.s.sol` must never deploy it off Anvil (A19) |
+| Case                                                                            | Expected                                                                                                                               |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| valid `transferWithAuthorization` (both overloads), anyone as `msg.sender`      | transfer; `authorizationState(from, nonce) == true`; `AuthorizationUsed`                                                               |
+| replay                                                                          | revert                                                                                                                                 |
+| `validBefore == block.timestamp` / `validAfter == block.timestamp`              | revert (strict `<`/`>`)                                                                                                                |
+| wrong signer (`from` = #5, signed by #6)                                        | revert                                                                                                                                 |
+| `value` in the call ≠ signed value                                              | revert                                                                                                                                 |
+| `receiveWithAuthorization` by `msg.sender != to`                                | revert                                                                                                                                 |
+| `receiveWithAuthorization` by `to`                                              | ok                                                                                                                                     |
+| `cancelAuthorization` (signed by authorizer, submitted by anyone) then transfer | revert; `AuthorizationCanceled`                                                                                                        |
+| same nonce across transfer/receive variants                                     | second reverts                                                                                                                         |
+| `to == address(0)`                                                              | ERC-20 revert                                                                                                                          |
+| EIP-2098 64-byte signature                                                      | **revert** (`ECDSAInvalidSignatureLength`) — the mock accepts 65 bytes only; the TS side must expand compact forms before calling (E3) |
+| high-`s` (`s' = n − s`, `v' = v ^ 1`)                                           | revert `ECDSAInvalidSignatureS` (T-17)                                                                                                 |
+| `mint` by anyone                                                                | works (test token) — `Deploy.s.sol` must never deploy it off Anvil (A19)                                                               |
 
 ## A14 — Cross-chain / cross-contract replay (T-14)
 

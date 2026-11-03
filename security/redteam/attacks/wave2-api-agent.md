@@ -14,31 +14,65 @@ pnpm --filter @ethglobal/api --filter @ethglobal/agent test -- --run --reporter=
 security/redteam/run-wave.sh 2          # adds the e2e loop, log/ledger scans, static gates, coverage check
 ```
 
-**If a route, header or code differs from api.md §2** (e.g. `deny: cap` mapped to 409 instead of 429): the code is wrong until INTERFACES changes — test the *property* (no state change, `verify` not called), record the rename in the wave report, keep going (PLAN §7.4).
+**If a route, header or code differs from api.md §2** (e.g. `deny: cap` mapped to 409 instead of 429): the code is wrong until INTERFACES changes — test the _property_ (no state change, `verify` not called), record the rename in the wave report, keep going (PLAN §7.4).
 
 ## 0. Shared fixture (`services/api/test/attack/fixture.ts`)
 
 ```ts
 import { createApp } from '../../src/app';
 import { buildDeps } from '../../src/deps';
-import { fakeClock, T0, anvilAccounts, anvilKeys, fixtureProof, paymentPayload } from '@ethglobal/adapters/testing';
+import {
+  fakeClock,
+  T0,
+  anvilAccounts,
+  anvilKeys,
+  fixtureProof,
+  paymentPayload,
+} from '@ethglobal/adapters/testing';
 import { generateSessionKeypair, bytesToHex } from '@ethglobal/crypto';
 import { encodePaymentPayload, decodePaymentRequired } from '@ethglobal/protocol/x402';
 
 export async function harness(env: Record<string, string> = {}) {
   const clock = fakeClock(T0);
-  const deps = await buildDeps({ MODE: 'local', X402_FACILITATOR: 'mock', RESELLER: 'mock', OCTROI_SECRET: '07'.repeat(32), ...env }, { now: clock.now });
+  const deps = await buildDeps(
+    {
+      MODE: 'local',
+      X402_FACILITATOR: 'mock',
+      RESELLER: 'mock',
+      OCTROI_SECRET: '07'.repeat(32),
+      ...env,
+    },
+    { now: clock.now },
+  );
   const app = createApp(deps);
-  const ip = (n = 1) => ({ 'x-forwarded-for': `203.0.113.${n}` });           // ignored unless TRUST_PROXY=1 — see AP8
+  const ip = (n = 1) => ({ 'x-forwarded-for': `203.0.113.${n}` }); // ignored unless TRUST_PROXY=1 — see AP8
   const json = (path: string, body: unknown, headers: Record<string, string> = {}) =>
-    app.request(path, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+    app.request(path, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...headers },
+      body: JSON.stringify(body),
+    });
   /** challenge → rp-context → IDKit-shaped proof → /claim, the PWA's exact order (web.md /verify). */
-  async function claim(opts: { seed?: string; level?: 'orb' | 'document' | 'device'; spk?: string; campaignId?: string } = {}) {
+  async function claim(
+    opts: {
+      seed?: string;
+      level?: 'orb' | 'document' | 'device';
+      spk?: string;
+      campaignId?: string;
+    } = {},
+  ) {
     const spk = opts.spk ?? bytesToHex(generateSessionKeypair().publicKey);
-    const ch = await (await json('/challenge', { audience: 'recharge', path: '/claim', sessionPubKey: spk })).json();
+    const ch = await (
+      await json('/challenge', { audience: 'recharge', path: '/claim', sessionPubKey: spk })
+    ).json();
     await json('/world/rp-context', { audience: 'recharge', path: '/claim' });
     const proof = fixtureProof(opts.level ?? 'orb', ch.signal, opts.seed ?? 'human-1');
-    return json('/claim', { proof, campaignId: opts.campaignId ?? deps.seedCampaignId, challenge: ch, sessionPubKey: spk });
+    return json('/claim', {
+      proof,
+      campaignId: opts.campaignId ?? deps.seedCampaignId,
+      challenge: ch,
+      sessionPubKey: spk,
+    });
   }
   return { app, deps, clock, json, claim, ip };
 }
@@ -73,20 +107,20 @@ export async function harness(env: Record<string, string> = {}) {
 
 **Mock provider** (`POST /webhooks/reseller/mock`, `MockReseller.signedWebhook(events, nowSec)`):
 
-| # | Request | Expected |
-|---|---|---|
-| 1 | as signed | `204`; `mbUsed`/`usageAsOf` patched; `/me` cache invalidated (next read `cached: false`) |
-| 2 | same bytes again | `409` |
-| 3 | timestamp `now − 299` / `now + 299` | `204` |
-| 4 | `now − 301` / `now + 301` | `401` |
-| 5 | timestamp in **ms** with a matching MAC | `401` |
-| 6 | body re-serialised (`JSON.stringify(JSON.parse(raw))` with keys reordered, or one extra space) | `401` |
-| 7 | signature header missing / empty / non-hex / base64 of the right MAC | `401` / `401` / `401` / `204` only if base64 is a documented encoding |
-| 8 | valid MAC, `usedMb` lower than the stored value | `204`, `mbUsed` **unchanged** (monotonic), warning logged |
-| 9 | valid MAC, `usedMb > totalMb` / negative / NaN | `400`, nothing patched |
-| 10 | valid MAC, unknown ICCID | `204`, nothing patched, no existence oracle (same latency class as #1) |
-| 11 | 300 KiB body | `413` (webhook limit 256 KiB) |
-| 12 | garbage bytes / invalid UTF-8 | `400`, never `500` |
+| #   | Request                                                                                        | Expected                                                                                 |
+| --- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 1   | as signed                                                                                      | `204`; `mbUsed`/`usageAsOf` patched; `/me` cache invalidated (next read `cached: false`) |
+| 2   | same bytes again                                                                               | `409`                                                                                    |
+| 3   | timestamp `now − 299` / `now + 299`                                                            | `204`                                                                                    |
+| 4   | `now − 301` / `now + 301`                                                                      | `401`                                                                                    |
+| 5   | timestamp in **ms** with a matching MAC                                                        | `401`                                                                                    |
+| 6   | body re-serialised (`JSON.stringify(JSON.parse(raw))` with keys reordered, or one extra space) | `401`                                                                                    |
+| 7   | signature header missing / empty / non-hex / base64 of the right MAC                           | `401` / `401` / `401` / `204` only if base64 is a documented encoding                    |
+| 8   | valid MAC, `usedMb` lower than the stored value                                                | `204`, `mbUsed` **unchanged** (monotonic), warning logged                                |
+| 9   | valid MAC, `usedMb > totalMb` / negative / NaN                                                 | `400`, nothing patched                                                                   |
+| 10  | valid MAC, unknown ICCID                                                                       | `204`, nothing patched, no existence oracle (same latency class as #1)                   |
+| 11  | 300 KiB body                                                                                   | `413` (webhook limit 256 KiB)                                                            |
+| 12  | garbage bytes / invalid UTF-8                                                                  | `400`, never `500`                                                                       |
 
 Timing: run #1 and #4 2 000 times each and compare medians — a difference > 2 ms suggests an early-return compare (record; Low unless the MAC itself leaks).
 
@@ -115,7 +149,7 @@ Timing: run #1 and #4 2 000 times each and compare medians — a difference > 2 
 
 1. Campaign with `claimsPerHour = 5`, 20 distinct humans fired with `Promise.all` ⇒ exactly 5 × `201`, 15 × `429 hourly_cap`; `dataDrop.claim` ×5, `reseller.order` ×5; `personhood.verify` called **≤ 5** times (the admission slot is taken before `verify`). `verify` called 20 times ⇒ **High** (15 humans burned their one-time v4 uniqueness proof, T-24).
 2. Admission leak: make `dataDrop.claim` revert `HourlyCap` for slot #3 (chain-side race) ⇒ that request answers `429`/retryable, and the slot is released — a subsequent claim in the same hour can still use the remaining capacity (assert the queue size returns to its pre-request value; a leaked slot per failure is a DoS, Med).
-3. **Verified-but-unserved recovery (T-24, §7 item 15).** Make `dataDrop.claim` throw `chain_unavailable` once *after* `verify` succeeded ⇒ response `503` with a retryable code. Then, with the verifier switched to answer `nullifier_replayed` for that nullifier (IDKit 4 one-time proof), retry with a fresh challenge **from the same session key** ⇒ `201` (the intent completes) — not `409`, not "verify again". Retry from a **different** session key ⇒ `401`/`409` (the intent is bound to the session; nobody else can redeem a human's pending claim). Intent older than its TTL ⇒ the human gets a clear "try again later / pay" state, never a silent 500.
+3. **Verified-but-unserved recovery (T-24, §7 item 15).** Make `dataDrop.claim` throw `chain_unavailable` once _after_ `verify` succeeded ⇒ response `503` with a retryable code. Then, with the verifier switched to answer `nullifier_replayed` for that nullifier (IDKit 4 one-time proof), retry with a fresh challenge **from the same session key** ⇒ `201` (the intent completes) — not `409`, not "verify again". Retry from a **different** session key ⇒ `401`/`409` (the intent is bound to the session; nobody else can redeem a human's pending claim). Intent older than its TTL ⇒ the human gets a clear "try again later / pay" state, never a silent 500.
 
 ### AP6 — Campaign states and the pending-profile saga (T-24, T-25)
 
@@ -127,23 +161,23 @@ Timing: run #1 and #4 2 000 times each and compare medians — a difference > 2 
 
 Base: `GET /esim/topup?key=<k>&mb=100` ⇒ `402`, header `PAYMENT-REQUIRED` decodes to the body, `accepts[0].amount === '400000'`, `extra.name === 'USD Coin'` (Anvil), no `maxAmountRequired` key anywhere; **no ledger write, no reseller call** (spies).
 
-| # | Attack | Expected |
-|---|---|---|
-| 1 | no header | `402` (above) |
-| 2 | v1 header `X-PAYMENT: <valid payload>` | `402` (ignored) — never served |
-| 3 | `PAYMENT-SIGNATURE` with `x402Version: 1` / with `maxAmountRequired` in `accepted` / network `base-sepolia` | `400` or `402 invalid_payment`; never `200` |
-| 4 | `accepted.amount: '1'`, `payTo: stranger`, `asset: other`, `network: 'eip155:1'`, `extra.name: 'Fake'`, `maxTimeoutSeconds: 99999` | `402 invalid_payment` each |
-| 5 | `mb=200` with a one-step payment; `mb=100` with a two-step payment (over-payment) | `402` each (exact amount) |
-| 6 | `mb=199`, `mb=0`, `mb=-100`, `mb=1e3`, `mb=3100`, `mb=100&mb=200` (duplicate param) | `400` each; duplicate param must not let the price use one value and the grant the other |
-| 7 | valid payment replayed (same nonce) | first `200`, second `402 invalid_payment`; `mbTotal` +100 once |
-| 8 | valid payment for key A sent to `?key=B` | `402`; or, if the payment is not key-bound by design, `200` for B only and A unchanged — record (Low) |
-| 9 | `/esim/provision` with `X-Session-Pubkey: spkA` and `authorization.nonce = keccak(spkB)` | `402` (C4); with no `X-Session-Pubkey` ⇒ `400` |
-| 10 | serve-before-settle: `MockPaymentRail.settle` returns `{ success: false, errorReason: 'settlement_pending', transaction: '0x…' }` | not `200`; no reseller call; a retry after settlement succeeds once |
-| 11 | ⛓ front-run: the stranger submits the human's `transferWithAuthorization` to `MockUSDC3009` first | `200` with the stranger's tx hash in `PAYMENT-RESPONSE` (T-15), `mbTotal` +100 once |
-| 12 | `PAYMENT-SIGNATURE` of 17 KiB / not base64 / base64 of non-JSON | `400` each, before any adapter call |
-| 13 | `GET /esim/topup?key=<expired>` with a valid payment | `410`, and the payment is **not settled** (nothing charged for a dead entitlement) — settle-then-410 is **High** |
-| 14 | daily cap: 21st top-up for one ICCID today | `429 daily_cap` **before** `settle` |
-| 15 | Hedera (fixture-backed `RoutingPaymentRail`, `hedera:testnet` in `X402_NETWORKS`): payload `{ signedTransaction }` (old name) / a `transaction` whose decoded transfer pays another account / `transactionId.accountId ≠ extra.feePayer` / validity 300 s | `402` each (T-78) — if the API forwards to the facilitator without decoding, say so in the report |
+| #   | Attack                                                                                                                                                                                                                                                    | Expected                                                                                                         |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 1   | no header                                                                                                                                                                                                                                                 | `402` (above)                                                                                                    |
+| 2   | v1 header `X-PAYMENT: <valid payload>`                                                                                                                                                                                                                    | `402` (ignored) — never served                                                                                   |
+| 3   | `PAYMENT-SIGNATURE` with `x402Version: 1` / with `maxAmountRequired` in `accepted` / network `base-sepolia`                                                                                                                                               | `400` or `402 invalid_payment`; never `200`                                                                      |
+| 4   | `accepted.amount: '1'`, `payTo: stranger`, `asset: other`, `network: 'eip155:1'`, `extra.name: 'Fake'`, `maxTimeoutSeconds: 99999`                                                                                                                        | `402 invalid_payment` each                                                                                       |
+| 5   | `mb=200` with a one-step payment; `mb=100` with a two-step payment (over-payment)                                                                                                                                                                         | `402` each (exact amount)                                                                                        |
+| 6   | `mb=199`, `mb=0`, `mb=-100`, `mb=1e3`, `mb=3100`, `mb=100&mb=200` (duplicate param)                                                                                                                                                                       | `400` each; duplicate param must not let the price use one value and the grant the other                         |
+| 7   | valid payment replayed (same nonce)                                                                                                                                                                                                                       | first `200`, second `402 invalid_payment`; `mbTotal` +100 once                                                   |
+| 8   | valid payment for key A sent to `?key=B`                                                                                                                                                                                                                  | `402`; or, if the payment is not key-bound by design, `200` for B only and A unchanged — record (Low)            |
+| 9   | `/esim/provision` with `X-Session-Pubkey: spkA` and `authorization.nonce = keccak(spkB)`                                                                                                                                                                  | `402` (C4); with no `X-Session-Pubkey` ⇒ `400`                                                                   |
+| 10  | serve-before-settle: `MockPaymentRail.settle` returns `{ success: false, errorReason: 'settlement_pending', transaction: '0x…' }`                                                                                                                         | not `200`; no reseller call; a retry after settlement succeeds once                                              |
+| 11  | ⛓ front-run: the stranger submits the human's `transferWithAuthorization` to `MockUSDC3009` first                                                                                                                                                         | `200` with the stranger's tx hash in `PAYMENT-RESPONSE` (T-15), `mbTotal` +100 once                              |
+| 12  | `PAYMENT-SIGNATURE` of 17 KiB / not base64 / base64 of non-JSON                                                                                                                                                                                           | `400` each, before any adapter call                                                                              |
+| 13  | `GET /esim/topup?key=<expired>` with a valid payment                                                                                                                                                                                                      | `410`, and the payment is **not settled** (nothing charged for a dead entitlement) — settle-then-410 is **High** |
+| 14  | daily cap: 21st top-up for one ICCID today                                                                                                                                                                                                                | `429 daily_cap` **before** `settle`                                                                              |
+| 15  | Hedera (fixture-backed `RoutingPaymentRail`, `hedera:testnet` in `X402_NETWORKS`): payload `{ signedTransaction }` (old name) / a `transaction` whose decoded transfer pays another account / `transactionId.accountId ≠ extra.feePayer` / validity 300 s | `402` each (T-78) — if the API forwards to the facilitator without decoding, say so in the report                |
 
 ### AP8 — Rate limits, write amplification, limiter races (T-45)
 
@@ -262,7 +296,7 @@ Harness: `services/agent/test/fake-api.ts` (agent.md §6) serving hostile bodies
 ### AG1 — Cap bypass (T-30, T-57)
 
 1. 24 h simulated loop (tick every 5 s fake time, usage +3 MB/min, random webhook-like jumps) ⇒ `Σ usd6 of agent-topup receipts per UTC day ≤ maxUsd6PerDay`; across the UTC midnight boundary the counter resets once, not twice (23:59:59Z and 00:00:00Z in different buckets).
-2. Concurrent ticks: start two `tick(deps, key)` at once (and two agent processes over one ledger) ⇒ at most one purchase per trigger; journal shows one `buy`. Two purchases ⇒ **High** (the cap counts receipts written *after* settle, so a race buys twice before either is counted).
+2. Concurrent ticks: start two `tick(deps, key)` at once (and two agent processes over one ledger) ⇒ at most one purchase per trigger; journal shows one `buy`. Two purchases ⇒ **High** (the cap counts receipts written _after_ settle, so a race buys twice before either is counted).
 3. Receipt write lag: make `ReceiptStore.spentUsd6` return the pre-purchase value for one tick (the API's receipt not yet indexed) ⇒ the agent's own journal/state still blocks the second step (a cap that depends only on the ledger's eventual consistency is Med).
 4. `stepMb: 300` with $8.90 spent of $10 ⇒ no buy (`8.9 + 1.2 > 10`).
 5. Paused policy ⇒ zero signatures, even with `mbUsed == mbTotal`.
@@ -272,19 +306,19 @@ Harness: `services/agent/test/fake-api.ts` (agent.md §6) serving hostile bodies
 
 Fake API answers `GET /esim/topup` with a `402` whose `accepts[]` is mutated one field at a time from the legitimate entry:
 
-| Mutation | Expected |
-|---|---|
-| `amount: '4000000'` (10×), `amount: '399999'`, `amount: '400000.0'` | no signature; `agent.skip { reason: 'no-acceptable-terms', field: 'amount' }` |
-| `payTo` = stranger / Hedera alias | no signature |
-| `asset` = another token / `0.0.0` (HBAR) | no signature |
-| `network` = `eip155:1` / `eip155:84532` not in the allow-list / `hedera:mainnet` | no signature |
-| EVM `extra.name: 'Fake USD'` (≠ `readDomain`) | no signature (`domain-mismatch`, A-21) |
-| Hedera `extra.feePayer` = an unpinned account | no signature |
-| Hedera `maxTimeoutSeconds: 3600` | no signature, or signed with validity ≤ 180 s — never 3600 |
-| `x402Version: 1`, `maxAmountRequired` instead of `amount` | no signature |
-| legitimate entry **second**, hostile first | signs the legitimate one only (no "first entry" bug) |
-| 9 entries / 100 KiB body | rejected before parsing work |
-| `PAYMENT-REQUIRED` header and body disagree | uses the header (v2: protocol data is in headers) or refuses — never mixes |
+| Mutation                                                                         | Expected                                                                      |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `amount: '4000000'` (10×), `amount: '399999'`, `amount: '400000.0'`              | no signature; `agent.skip { reason: 'no-acceptable-terms', field: 'amount' }` |
+| `payTo` = stranger / Hedera alias                                                | no signature                                                                  |
+| `asset` = another token / `0.0.0` (HBAR)                                         | no signature                                                                  |
+| `network` = `eip155:1` / `eip155:84532` not in the allow-list / `hedera:mainnet` | no signature                                                                  |
+| EVM `extra.name: 'Fake USD'` (≠ `readDomain`)                                    | no signature (`domain-mismatch`, A-21)                                        |
+| Hedera `extra.feePayer` = an unpinned account                                    | no signature                                                                  |
+| Hedera `maxTimeoutSeconds: 3600`                                                 | no signature, or signed with validity ≤ 180 s — never 3600                    |
+| `x402Version: 1`, `maxAmountRequired` instead of `amount`                        | no signature                                                                  |
+| legitimate entry **second**, hostile first                                       | signs the legitimate one only (no "first entry" bug)                          |
+| 9 entries / 100 KiB body                                                         | rejected before parsing work                                                  |
+| `PAYMENT-REQUIRED` header and body disagree                                      | uses the header (v2: protocol data is in headers) or refuses — never mixes    |
 
 Also: the `value` signed equals `priceUsd6(mb, STEP_MB, /plans.priceUsd6PerStep)` computed by the agent; a `/plans` response that itself lies (price ×10) is caught by `AGENT_MAX_USD6_PER_STEP` ⇒ no signature. Any signature produced for a mutated entry ⇒ **Critical**.
 
@@ -312,7 +346,7 @@ The agent reads Arkiv directly (R2: `EntitlementStore.getByKey`, `AgentPolicySto
 2. writes an `entitlement` with the victim's key and `mbUsed = mbTotal` ⇒ no purchase (the real entitlement is at 60 %);
 3. writes fake `agent-topup` receipts for the victim ⇒ no effect on `spentUsd6` (else the attacker can freeze someone's agent — DoS, Med);
 4. with `AGENT_WATCH_KEYS` empty, "every agentpolicy entity whose owner == AGENT_OWNER" — the stranger writes 1 000 policies with `owner = AGENT_OWNER` ⇒ the agent watches **none** of them (creator filter), and the loop's per-tick work stays bounded.
-Any purchase driven by a foreign entity ⇒ **Critical**. Config: `AGENT_LEDGER_WRITER` (§7 item 13) must be set and pinned; absent ⇒ boot fails.
+   Any purchase driven by a foreign entity ⇒ **Critical**. Config: `AGENT_LEDGER_WRITER` (§7 item 13) must be set and pinned; absent ⇒ boot fails.
 
 ### AG6 — No LLM holds wallet tools (T-84)
 

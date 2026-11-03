@@ -7,31 +7,31 @@ This directory attacks Recharge before the judges do. The model is `docs/THREAT-
 
 ## 1. What is here
 
-| Path | What it is |
-|---|---|
-| `PLAN.md` | Wave gating, roles, SLAs, the per-wave attack matrix, the human live checks |
-| `attacks/wave1-contracts.md` | A1–A19: `DataDrop`, `MockUSDC3009`, `Deploy.s.sol` (Foundry) |
-| `attacks/wave1-octroi.md` | P1–P6 protocol · O1–O13, G, S octroi · C1–C5 crypto · E1–E6 eip3009 (vitest) |
-| `attacks/wave1-adapters.md` | L1–L16: mocks, `live/` adapters over fixtures, Arkiv forgery (vitest) |
-| `attacks/wave2-api-agent.md` | AP1–AP21 `services/api` routes and middleware · AG1–AG8 `services/agent` |
-| `attacks/wave3-web-ops.md` | W1–W11 PWA (Playwright) · OP1–OP7 scripts, fixtures, docs, CI |
-| `findings/` | One file per finding (`RT-W<wave>-<seq>-<slug>.md`), format in `findings/README.md`; `INDEX.md` is generated |
-| `run-wave.sh` | The wave runner: attack suites + static gates + coverage; exit 0 = cleared |
-| `tools/scan.sh` + `tools/forbidden-patterns.txt` | Forbidden-pattern scan (LPAs, nullifiers, PINs, keys, bearer headers, reseller credentials) over logs, dumps, fixtures, docs, bundles |
-| `tools/semgrep/recharge.yml` + `tools/semgrep/selftest.sh` | 19 offline semgrep rules, each tied to a threat; the self-test proves they parse and fire |
-| `tools/slither.config.json` | slither gate for `packages/contracts` (fail on medium) |
-| `tools/deps-check.sh` | Frozen lockfile, `pnpm audit`, postinstall allow-list, pinned `npx`, banned vendor look-alikes, one `@hiero-ledger/sdk`, secrets hygiene |
-| `tools/coverage-check.sh` | Machine check of THREAT-MODEL §5.12 (matrix complete, steps resolve, regression files exist) |
-| `tools/findings-index.sh` | Regenerates `findings/INDEX.md` from finding front matter |
+| Path                                                       | What it is                                                                                                                               |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `PLAN.md`                                                  | Wave gating, roles, SLAs, the per-wave attack matrix, the human live checks                                                              |
+| `attacks/wave1-contracts.md`                               | A1–A19: `DataDrop`, `MockUSDC3009`, `Deploy.s.sol` (Foundry)                                                                             |
+| `attacks/wave1-octroi.md`                                  | P1–P6 protocol · O1–O13, G, S octroi · C1–C5 crypto · E1–E6 eip3009 (vitest)                                                             |
+| `attacks/wave1-adapters.md`                                | L1–L16: mocks, `live/` adapters over fixtures, Arkiv forgery (vitest)                                                                    |
+| `attacks/wave2-api-agent.md`                               | AP1–AP21 `services/api` routes and middleware · AG1–AG8 `services/agent`                                                                 |
+| `attacks/wave3-web-ops.md`                                 | W1–W11 PWA (Playwright) · OP1–OP7 scripts, fixtures, docs, CI                                                                            |
+| `findings/`                                                | One file per finding (`RT-W<wave>-<seq>-<slug>.md`), format in `findings/README.md`; `INDEX.md` is generated                             |
+| `run-wave.sh`                                              | The wave runner: attack suites + static gates + coverage; exit 0 = cleared                                                               |
+| `tools/scan.sh` + `tools/forbidden-patterns.txt`           | Forbidden-pattern scan (LPAs, nullifiers, PINs, keys, bearer headers, reseller credentials) over logs, dumps, fixtures, docs, bundles    |
+| `tools/semgrep/recharge.yml` + `tools/semgrep/selftest.sh` | 19 offline semgrep rules, each tied to a threat; the self-test proves they parse and fire                                                |
+| `tools/slither.config.json`                                | slither gate for `packages/contracts` (fail on medium)                                                                                   |
+| `tools/deps-check.sh`                                      | Frozen lockfile, `pnpm audit`, postinstall allow-list, pinned `npx`, banned vendor look-alikes, one `@hiero-ledger/sdk`, secrets hygiene |
+| `tools/coverage-check.sh`                                  | Machine check of THREAT-MODEL §5.12 (matrix complete, steps resolve, regression files exist)                                             |
+| `tools/findings-index.sh`                                  | Regenerates `findings/INDEX.md` from finding front matter                                                                                |
 
 All tools run in this sandbox with what is installed: bash, GNU grep (`-P`), awk, jq, git, pnpm, forge, slither, semgrep, jscpd. Nothing reaches a testnet or a vendor host.
 
 ## 2. Ground rules (PLAN §7, condensed)
 
 1. **`MODE=local` only.** Anvil 31337, `MockUSDC3009`, in-memory / fixture adapters. `run-wave.sh` exports `MODE=local` and unsets live key variables. No testnet RPC, no vendor API, no real key, LPA or nullifier ever enters an agent context.
-2. **Attack tests assert the attack fails.** Foundry `test_Attack_<Name>`; vitest `describe('attack: <name>')` in `test/attack/*.attack.test.ts`; Playwright `apps/web/e2e/abuse/<area>.spec.ts`. A test that asserts the attack *succeeds* is itself a finding.
+2. **Attack tests assert the attack fails.** Foundry `test_Attack_<Name>`; vitest `describe('attack: <name>')` in `test/attack/*.attack.test.ts`; Playwright `apps/web/e2e/abuse/<area>.spec.ts`. A test that asserts the attack _succeeds_ is itself a finding.
 3. **Red team adds tests, fixtures and findings — never builder source.** Proposed fixes go in the finding file.
-4. **Code vs `docs/INTERFACES.md`:** the code is wrong until the architect changes the file. A different name for the same thing is a *rename* (wave report), a missing property is a *finding*.
+4. **Code vs `docs/INTERFACES.md`:** the code is wrong until the architect changes the file. A different name for the same thing is a _rename_ (wave report), a missing property is a _finding_.
 5. **Vendor shapes come from `docs/vendor/API-FACTS.md`** as adopted by INTERFACES §13 A-18…A-30 (x402 v2 `accepts[].amount`; `hedera:testnet` + HTS `0.0.429274` + `{ transaction }` + `extra.feePayer`; Base Sepolia USDC EIP-712 name `"USDC"`; Arkiv SDK 1.0.1 on rabdi 7794095 with `expiration: ExpirationTime.*`; IDKit 4.6 backend-signed `rp_context` + `/api/v4/verify/{rp_id}`; eSIM Access `RT-*` HMAC headers, unsigned webhooks). Code that uses an older primitive is a finding; semgrep flags most of them.
 6. **File the finding the moment an attack test confirms it** — not at the end of the run.
 
@@ -52,11 +52,11 @@ Entry condition (PLAN §3): the wave's PR is merged, CI is green, and the builde
 
 ### 3.2 Bring up the local stack (only what the wave needs)
 
-| Wave | Needs | Command |
-|---|---|---|
-| 1 | nothing running; Foundry + vitest only | `cd packages/contracts && pnpm deps && forge build` |
-| 2 | Anvil + deployed contracts for ⛓ steps; everything else is in-process `app.request()` | `pnpm dev:chain` (Anvil 31337, `deploy/addresses.anvil.json`) |
-| 3 | Anvil + API + agent + `next build && next start` | `scripts/e2e-local.sh --web --keep` (or start each by hand and set `PLAYWRIGHT_BASE_URL`) |
+| Wave | Needs                                                                                 | Command                                                                                   |
+| ---- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| 1    | nothing running; Foundry + vitest only                                                | `cd packages/contracts && pnpm deps && forge build`                                       |
+| 2    | Anvil + deployed contracts for ⛓ steps; everything else is in-process `app.request()` | `pnpm dev:chain` (Anvil 31337, `deploy/addresses.anvil.json`)                             |
+| 3    | Anvil + API + agent + `next build && next start`                                      | `scripts/e2e-local.sh --web --keep` (or start each by hand and set `PLAYWRIGHT_BASE_URL`) |
 
 Never point any of it at a testnet; `env.ts` refusing live configs is itself attacked (AP16).
 
@@ -82,7 +82,7 @@ What it runs, in order: the wave's attack suites (`forge test --match-path 'test
 
 ### 3.5 Write the report
 
-`security/redteam/reports/wave-<n>.md`: the attack-surface note; per step `test path · result (failed as expected / FINDING RT-…) · renames`; findings by severity and status (`tools/findings-index.sh` first); tool summaries (slither, semgrep, scan, deps, coverage); residual risks added to THREAT-MODEL §8; **CLEARED / NOT CLEARED** with the blocking ids. Each script's *Reporting* section says which steps to lead with.
+`security/redteam/reports/wave-<n>.md`: the attack-surface note; per step `test path · result (failed as expected / FINDING RT-…) · renames`; findings by severity and status (`tools/findings-index.sh` first); tool summaries (slither, semgrep, scan, deps, coverage); residual risks added to THREAT-MODEL §8; **CLEARED / NOT CLEARED** with the blocking ids. Each script's _Reporting_ section says which steps to lead with.
 
 ## 4. Filing and closing findings
 
@@ -111,13 +111,13 @@ DECISION §6.5's red-team row is satisfied when wave 3 is cleared and `run-wave.
 
 ## 6. Tool exit codes and known sandbox quirks
 
-| Tool | 0 | 1 | 2 |
-|---|---|---|---|
-| `run-wave.sh` | cleared | not cleared | usage |
-| `tools/scan.sh` | clean | forbidden pattern found | could not run (bad pattern, grep error, unreadable file) |
-| `tools/semgrep/selftest.sh` | rules parse and behave | a rule missed a positive / fired on a negative / has no test case | semgrep/jq missing or the rule file does not parse |
-| `tools/coverage-check.sh` | covered | gaps listed | markers or rows unparsable |
-| `tools/deps-check.sh` | OK | a hygiene check failed | — |
+| Tool                        | 0                      | 1                                                                 | 2                                                        |
+| --------------------------- | ---------------------- | ----------------------------------------------------------------- | -------------------------------------------------------- |
+| `run-wave.sh`               | cleared                | not cleared                                                       | usage                                                    |
+| `tools/scan.sh`             | clean                  | forbidden pattern found                                           | could not run (bad pattern, grep error, unreadable file) |
+| `tools/semgrep/selftest.sh` | rules parse and behave | a rule missed a positive / fired on a negative / has no test case | semgrep/jq missing or the rule file does not parse       |
+| `tools/coverage-check.sh`   | covered                | gaps listed                                                       | markers or rows unparsable                               |
+| `tools/deps-check.sh`       | OK                     | a hygiene check failed                                            | —                                                        |
 
 - `semgrep --validate` needs semgrep.dev (blocked): use `tools/semgrep/selftest.sh`. Always pass `--metrics=off --disable-version-check`.
 - `slither` runs **without** `--foundry-compile-all` (that flag runs `forge clean`, which deletes builders' `out/` mid-run, and crashed crytic-compile on forge 1.5 here).

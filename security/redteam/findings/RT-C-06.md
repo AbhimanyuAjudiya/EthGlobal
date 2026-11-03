@@ -29,7 +29,7 @@ cd packages/contracts && forge test --match-test test_RT_RenounceOwnershipDisabl
 ## Impact
 
 One mis-click (or a compromised owner key) removes the only T-01 recovery: attestor rotation. A later attestor-key leak then
-cannot be fixed on-chain; every *new* campaign is drainable at the hourly cap until sponsors pause. The README marks it
+cannot be fixed on-chain; every _new_ campaign is drainable at the hourly cap until sponsors pause. The README marks it
 "Low, accepted", but README §4 / findings README rule 4 require Founder/Chair `sign_off` and a THREAT-MODEL §8 row for
 `accepted-risk` — neither exists.
 

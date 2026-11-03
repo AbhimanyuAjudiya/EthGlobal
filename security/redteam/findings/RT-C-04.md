@@ -26,7 +26,7 @@ cd packages/contracts && forge test --match-path test/redteam/RT_Deploy.t.sol --
 
 1. `vm.chainId(84532)`; take the chains.json record and replace `usdc` with an EOA (a typo) → `deploy()` succeeds.
 2. Same with an 18-decimal ERC-20 → `deploy()` succeeds; `DataDrop.usdc()` is that token, immutably.
-(The builder's own `test_BaseSepoliaDeploysDataDropOnly` also deploys against a codeless address without complaint.)
+   (The builder's own `test_BaseSepoliaDeploysDataDropOnly` also deploys against a codeless address without complaint.)
 
 ## Impact
 

@@ -32,7 +32,7 @@ cd packages/contracts && forge test --match-test test_RT_LedgerOnlyStrangerCanno
 
 ## Impact
 
-In LEDGER_ONLY the contract is the *only* public record of sponsor commitments, but it records whatever any caller
+In LEDGER_ONLY the contract is the _only_ public record of sponsor commitments, but it records whatever any caller
 declares. Nothing ties a campaign to the native HTS transfer that is supposed to fund it. Consequences:
 
 - An indexer / dashboard / judge reading `CampaignCreated` + `Claimed` sees "$3.4e32 budget, N claims paid" for a campaign

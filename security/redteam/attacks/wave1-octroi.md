@@ -10,39 +10,96 @@ pnpm --filter @ethglobal/protocol --filter @ethglobal/octroi --filter @ethglobal
 
 ```ts
 import { InMemoryLedger, MockPaymentRail, MockPersonhood } from '@ethglobal/adapters';
-import { T0, anvilAccounts, fakeClock, fixtureProof, paymentPayload } from '@ethglobal/adapters/testing';
+import {
+  T0,
+  anvilAccounts,
+  fakeClock,
+  fixtureProof,
+  paymentPayload,
+} from '@ethglobal/adapters/testing';
 import { AUDIENCE, NETWORKS, WORLD_ACTION } from '@ethglobal/protocol/ids';
 import { keccak256, randomBytes, bytesToHex } from '@ethglobal/crypto';
 import type { Campaign, CampaignCounters, OctroiDeps } from '@ethglobal/octroi';
 
 export const SECRET = new Uint8Array(32).fill(7);
-export const MOCK_USDC = '0x5FbDB2315678afecb367f032d93F642f64180aa3';          // first Anvil deployment; any address works for pure tests
-export const SPK = bytesToHex(randomBytes(32));                                  // session public key (hex32)
-export const resource = { url: 'http://127.0.0.1:8787/claim', description: 'welcome bundle', mimeType: 'application/json' };
+export const MOCK_USDC = '0x5FbDB2315678afecb367f032d93F642f64180aa3'; // first Anvil deployment; any address works for pure tests
+export const SPK = bytesToHex(randomBytes(32)); // session public key (hex32)
+export const resource = {
+  url: 'http://127.0.0.1:8787/claim',
+  description: 'welcome bundle',
+  mimeType: 'application/json',
+};
 
 export const campaign = (over: Partial<Campaign> = {}): Campaign => ({
-  id: ('0x' + 'ab'.repeat(32)) as `0x${string}`, sponsor: anvilAccounts[3], name: 'Demo sponsor',
+  id: ('0x' + 'ab'.repeat(32)) as `0x${string}`,
+  sponsor: anvilAccounts[3],
+  name: 'Demo sponsor',
   bundleMb: { orb: 300, document: 300, device: 0 },
-  pricePerClaimUsd6: 500_000n, maxClaims: 1000, claimsPerHour: 5, validityDays: 7,
-  wholesaleUsd6PerGb: 1_140_000n, idResaleUsd6: 500_000n, planId: 'in-1gb-7d',
-  network: NETWORKS.anvil, contract: anvilAccounts[9], createdAt: T0, expiresAt: T0 + 7 * 864e5, ...over,
+  pricePerClaimUsd6: 500_000n,
+  maxClaims: 1000,
+  claimsPerHour: 5,
+  validityDays: 7,
+  wholesaleUsd6PerGb: 1_140_000n,
+  idResaleUsd6: 500_000n,
+  planId: 'in-1gb-7d',
+  network: NETWORKS.anvil,
+  contract: anvilAccounts[9],
+  createdAt: T0,
+  expiresAt: T0 + 7 * 864e5,
+  ...over,
 });
-export const counters = (over: Partial<CampaignCounters> = {}): CampaignCounters =>
-  ({ paused: false, budgetUsd6: 500_000_000n, spentUsd6: 0n, claimsThisHour: 0, hourBucket: Math.floor(T0 / 3_600_000), claimed: false, ...over });
+export const counters = (over: Partial<CampaignCounters> = {}): CampaignCounters => ({
+  paused: false,
+  budgetUsd6: 500_000_000n,
+  spentUsd6: 0n,
+  claimsThisHour: 0,
+  hourBucket: Math.floor(T0 / 3_600_000),
+  claimed: false,
+  ...over,
+});
 
 export function deps(clock = fakeClock()) {
   const personhood = new MockPersonhood({ expectSignal: true });
   const d: OctroiDeps = {
-    ledger: new InMemoryLedger({ now: clock.now }), personhood, payments: new MockPaymentRail({ now: clock.now }),
-    secret: SECRET, now: clock.now, action: WORLD_ACTION,
-    priceUsd6PerStep: 400_000n, stepMb: 100, maxMbPerPurchase: 3000, validityDays: 7,
-    accepts: [{ scheme: 'exact', network: NETWORKS.anvil, asset: MOCK_USDC, payTo: anvilAccounts[1], maxTimeoutSeconds: 300 }],
+    ledger: new InMemoryLedger({ now: clock.now }),
+    personhood,
+    payments: new MockPaymentRail({ now: clock.now }),
+    secret: SECRET,
+    now: clock.now,
+    action: WORLD_ACTION,
+    priceUsd6PerStep: 400_000n,
+    stepMb: 100,
+    maxMbPerPurchase: 3000,
+    validityDays: 7,
+    accepts: [
+      {
+        scheme: 'exact',
+        network: NETWORKS.anvil,
+        asset: MOCK_USDC,
+        payTo: anvilAccounts[1],
+        maxTimeoutSeconds: 300,
+      },
+    ],
     keccak256,
   };
   return { ...d, clock, personhood };
 }
-export const freeReq = (d: ReturnType<typeof deps>, ch: Challenge, proof = fixtureProof('orb', ch.signal), c = campaign(), ct = counters()) =>
-  ({ resource, mb: 0, proof, challenge: ch, sessionPubKey: SPK, campaign: c, counters: ct, existingEntitlement: null });
+export const freeReq = (
+  d: ReturnType<typeof deps>,
+  ch: Challenge,
+  proof = fixtureProof('orb', ch.signal),
+  c = campaign(),
+  ct = counters(),
+) => ({
+  resource,
+  mb: 0,
+  proof,
+  challenge: ch,
+  sessionPubKey: SPK,
+  campaign: c,
+  counters: ct,
+  existingEntitlement: null,
+});
 ```
 
 ## P — `@ethglobal/protocol` (`packages/protocol/test/attack/*.attack.test.ts`)
@@ -65,13 +122,17 @@ export const freeReq = (d: ReturnType<typeof deps>, ch: Challenge, proof = fixtu
 
 ```ts
 it('second claim with the same nullifier is deny:replay even when the verifier allows repeat verifications', async () => {
-  const d = deps(); const c = campaign();
+  const d = deps();
+  const c = campaign();
   const ch1 = challenge(AUDIENCE, '/claim', SPK, d.now(), SECRET);
   const first = await decide(freeReq(d, ch1), d);
   expect(first.kind).toBe('serve-free');
   // decide() persists nothing (INTERFACES §5): the API would write the entitlement after DataDrop.claim. Simulate both outcomes:
   const ch2 = challenge(AUDIENCE, '/claim', SPK, d.now(), SECRET);
-  const viaLedger = await decide({ ...freeReq(d, ch2), existingEntitlement: (first as any).entitlement }, d);
+  const viaLedger = await decide(
+    { ...freeReq(d, ch2), existingEntitlement: (first as any).entitlement },
+    d,
+  );
   expect(viaLedger).toMatchObject({ kind: 'deny', reason: 'replay' });
   const ch3 = challenge(AUDIENCE, '/claim', SPK, d.now(), SECRET);
   const viaChain = await decide({ ...freeReq(d, ch3), counters: counters({ claimed: true }) }, d);
@@ -85,12 +146,16 @@ The scaffold `MockPersonhood` refuses a second `verify` for the same `(action, n
 
 ```ts
 it('a proof minted for another challenge is invalid-proof', async () => {
-  const d = deps(); const chA = challenge(AUDIENCE, '/claim', SPK, d.now(), SECRET); const chB = challenge(AUDIENCE, '/claim', SPK, d.now(), SECRET);
+  const d = deps();
+  const chA = challenge(AUDIENCE, '/claim', SPK, d.now(), SECRET);
+  const chB = challenge(AUDIENCE, '/claim', SPK, d.now(), SECRET);
   const r = await decide(freeReq(d, chB, fixtureProof('orb', chA.signal)), d);
   expect(r).toMatchObject({ kind: 'deny', reason: 'invalid-proof' });
 });
 it('decide passes the recomputed signal to personhood.verify', async () => {
-  const d = deps(); const spy = vi.spyOn(d.personhood, 'verify'); const ch = challenge(AUDIENCE, '/claim', SPK, d.now(), SECRET);
+  const d = deps();
+  const spy = vi.spyOn(d.personhood, 'verify');
+  const ch = challenge(AUDIENCE, '/claim', SPK, d.now(), SECRET);
   await decide(freeReq(d, ch), d);
   expect(spy).toHaveBeenCalledWith(expect.anything(), { action: WORLD_ACTION, signal: ch.signal });
   expect(ch.signal).toBe(signalFor(ch.nonce, AUDIENCE));
@@ -101,26 +166,99 @@ it('decide passes the recomputed signal to personhood.verify', async () => {
 
 ```ts
 const ch = () => challenge(AUDIENCE, '/claim', SPK, T0, SECRET);
-it('consume twice → ok then replayed',           async () => { const d = deps(); const c = ch(); const set = new Set<string>(); expect(await consumeChallenge(d.ledger, set, c, SPK, T0, SECRET)).toBe('ok'); expect(await consumeChallenge(d.ledger, set, c, SPK, T0, SECRET)).toBe('replayed'); });
-it('fresh Set, populated ledger → replayed',    async () => { const d = deps(); const c = ch(); await consumeChallenge(d.ledger, new Set(), c, SPK, T0, SECRET); expect(await consumeChallenge(d.ledger, new Set(), c, SPK, T0, SECRET)).toBe('replayed'); });
-it('exp boundary',                              async () => { const d = deps(); const c = ch(); expect(c.exp).toBe(T0 + 120_000); expect(await consumeChallenge(d.ledger, new Set(), c, SPK, c.exp - 1, SECRET)).toBe('ok'); expect(await consumeChallenge(d.ledger, new Set(), ch(), SPK, c.exp + 1, SECRET)).toBe('expired'); });
-it('tampered path / audience / exp / nonce byte → invalid (MAC)', async () => { const d = deps(); for (const bad of [{ path: '/gift/claim' }, { audience: 'evil' }, { exp: T0 + 10 }, { nonce: flipLastByte(ch().nonce) }]) expect(await consumeChallenge(d.ledger, new Set(), { ...ch(), ...bad } as Challenge, SPK, T0, SECRET)).toBe('invalid'); });
-it('different sessionPubKey than issued → invalid (free-lane binding, T-32)', async () => { const d = deps(); expect(await consumeChallenge(d.ledger, new Set(), ch(), bytesToHex(randomBytes(32)), T0, SECRET)).toBe('invalid'); });
-it('challenge minted with another secret → invalid',  async () => { const d = deps(); const forged = challenge(AUDIENCE, '/claim', SPK, T0, new Uint8Array(32).fill(9)); expect(await consumeChallenge(d.ledger, new Set(), forged, SPK, T0, SECRET)).toBe('invalid'); });
+it('consume twice → ok then replayed', async () => {
+  const d = deps();
+  const c = ch();
+  const set = new Set<string>();
+  expect(await consumeChallenge(d.ledger, set, c, SPK, T0, SECRET)).toBe('ok');
+  expect(await consumeChallenge(d.ledger, set, c, SPK, T0, SECRET)).toBe('replayed');
+});
+it('fresh Set, populated ledger → replayed', async () => {
+  const d = deps();
+  const c = ch();
+  await consumeChallenge(d.ledger, new Set(), c, SPK, T0, SECRET);
+  expect(await consumeChallenge(d.ledger, new Set(), c, SPK, T0, SECRET)).toBe('replayed');
+});
+it('exp boundary', async () => {
+  const d = deps();
+  const c = ch();
+  expect(c.exp).toBe(T0 + 120_000);
+  expect(await consumeChallenge(d.ledger, new Set(), c, SPK, c.exp - 1, SECRET)).toBe('ok');
+  expect(await consumeChallenge(d.ledger, new Set(), ch(), SPK, c.exp + 1, SECRET)).toBe('expired');
+});
+it('tampered path / audience / exp / nonce byte → invalid (MAC)', async () => {
+  const d = deps();
+  for (const bad of [
+    { path: '/gift/claim' },
+    { audience: 'evil' },
+    { exp: T0 + 10 },
+    { nonce: flipLastByte(ch().nonce) },
+  ])
+    expect(
+      await consumeChallenge(
+        d.ledger,
+        new Set(),
+        { ...ch(), ...bad } as Challenge,
+        SPK,
+        T0,
+        SECRET,
+      ),
+    ).toBe('invalid');
+});
+it('different sessionPubKey than issued → invalid (free-lane binding, T-32)', async () => {
+  const d = deps();
+  expect(
+    await consumeChallenge(d.ledger, new Set(), ch(), bytesToHex(randomBytes(32)), T0, SECRET),
+  ).toBe('invalid');
+});
+it('challenge minted with another secret → invalid', async () => {
+  const d = deps();
+  const forged = challenge(AUDIENCE, '/claim', SPK, T0, new Uint8Array(32).fill(9));
+  expect(await consumeChallenge(d.ledger, new Set(), forged, SPK, T0, SECRET)).toBe('invalid');
+});
 it('ledger put throws → unavailable, and decide() denies ledger-unavailable', async () => {
-  const d = deps(); const broken = Object.create(d.ledger, { put: { value: async () => { throw new Error('arkiv rpc down'); } } }) as typeof d.ledger;
+  const d = deps();
+  const broken = Object.create(d.ledger, {
+    put: {
+      value: async () => {
+        throw new Error('arkiv rpc down');
+      },
+    },
+  }) as typeof d.ledger;
   expect(await consumeChallenge(broken, new Set(), ch(), SPK, T0, SECRET)).toBe('unavailable');
   const r = await decide(freeReq({ ...d, ledger: broken }, ch()), { ...d, ledger: broken });
   expect(r).toMatchObject({ kind: 'deny', reason: 'ledger-unavailable' });
 });
 it('two concurrent consumes of one nonce: exactly one ok', async () => {
-  const d = deps(); const set = new Set<string>(); const c = ch();
-  const slow = Object.create(d.ledger, { put: { value: async (i: LedgerPutInput) => { await new Promise((r) => setTimeout(r, 5)); return d.ledger.put(i); } } }) as typeof d.ledger;
-  const rs = await Promise.all([consumeChallenge(slow, set, c, SPK, T0, SECRET), consumeChallenge(slow, set, c, SPK, T0, SECRET)]);
+  const d = deps();
+  const set = new Set<string>();
+  const c = ch();
+  const slow = Object.create(d.ledger, {
+    put: {
+      value: async (i: LedgerPutInput) => {
+        await new Promise((r) => setTimeout(r, 5));
+        return d.ledger.put(i);
+      },
+    },
+  }) as typeof d.ledger;
+  const rs = await Promise.all([
+    consumeChallenge(slow, set, c, SPK, T0, SECRET),
+    consumeChallenge(slow, set, c, SPK, T0, SECRET),
+  ]);
   expect(rs.filter((r) => r === 'ok')).toHaveLength(1);
 });
-it('issuing a challenge writes nothing (D-3)', async () => { const d = deps(); ch(); expect(await d.ledger.query({})).toHaveLength(0); });
-it('consuming writes exactly one nonce entity with expiresIn 120', async () => { const d = deps(); await consumeChallenge(d.ledger, new Set(), ch(), SPK, T0, SECRET); const es = await d.ledger.query({ annotations: { type: 'nonce' } }); expect(es).toHaveLength(1); expect(es[0]!.expiresAt).toBe(T0 + 120_000); });
+it('issuing a challenge writes nothing (D-3)', async () => {
+  const d = deps();
+  ch();
+  expect(await d.ledger.query({})).toHaveLength(0);
+});
+it('consuming writes exactly one nonce entity with expiresIn 120', async () => {
+  const d = deps();
+  await consumeChallenge(d.ledger, new Set(), ch(), SPK, T0, SECRET);
+  const es = await d.ledger.query({ annotations: { type: 'nonce' } });
+  expect(es).toHaveLength(1);
+  expect(es[0]!.expiresAt).toBe(T0 + 120_000);
+});
 ```
 
 Two `ok`s ⇒ **High** (Set updated after the `await`). Fresh-Set replay accepted ⇒ **High** (entity written after `ok`).
@@ -151,17 +289,35 @@ it('unknown level → none → payment-required', …);
 
 ```ts
 it('never exceeds 300 MB and never makes farming EV-positive', () => {
-  fc.assert(fc.property(fc.bigInt({ min: 100_000n, max: 50_000_000n }), fc.constantFrom('orb', 'document'), (wholesaleUsd6PerGb, tier) => {
-    const mb = sizeBundle({ bundleMb: { orb: 300, document: 300, device: 0 }, idResaleUsd6: 500_000n, wholesaleUsd6PerGb }, tier);
-    expect(Number.isInteger(mb) && mb >= 0 && mb <= 300).toBe(true);
-    expect(BigInt(mb) * wholesaleUsd6PerGb / 1000n).toBeLessThanOrEqual(400_000n);        // ≤ 80 % of the $0.50 ID price
-  }));
-  expect(sizeBundle(campaign({ wholesaleUsd6PerGb: 2_500_000n }), 'orb')).toBe(160);       // DECISION §6.5: exactly 160 at $2.50/GB
-  expect(sizeBundle(campaign({ wholesaleUsd6PerGb: 1_140_000n }), 'orb')).toBe(300);       // 350 → capped
-  expect(sizeBundle(campaign({ wholesaleUsd6PerGb: 0n }), 'orb')).toBe(300);               // guard
-  expect(sizeBundle(campaign({ bundleMb: { orb: 5000, document: 5000, device: 0 } }), 'orb')).toBe(300);
-  expect(sizeBundle(campaign({ bundleMb: { orb: 100, document: 300, device: 0 } }), 'orb')).toBe(100);
-  expect(sizeBundle(campaign(), 'device')).toBe(0); expect(sizeBundle(campaign(), 'none')).toBe(0);
+  fc.assert(
+    fc.property(
+      fc.bigInt({ min: 100_000n, max: 50_000_000n }),
+      fc.constantFrom('orb', 'document'),
+      (wholesaleUsd6PerGb, tier) => {
+        const mb = sizeBundle(
+          {
+            bundleMb: { orb: 300, document: 300, device: 0 },
+            idResaleUsd6: 500_000n,
+            wholesaleUsd6PerGb,
+          },
+          tier,
+        );
+        expect(Number.isInteger(mb) && mb >= 0 && mb <= 300).toBe(true);
+        expect((BigInt(mb) * wholesaleUsd6PerGb) / 1000n).toBeLessThanOrEqual(400_000n); // ≤ 80 % of the $0.50 ID price
+      },
+    ),
+  );
+  expect(sizeBundle(campaign({ wholesaleUsd6PerGb: 2_500_000n }), 'orb')).toBe(160); // DECISION §6.5: exactly 160 at $2.50/GB
+  expect(sizeBundle(campaign({ wholesaleUsd6PerGb: 1_140_000n }), 'orb')).toBe(300); // 350 → capped
+  expect(sizeBundle(campaign({ wholesaleUsd6PerGb: 0n }), 'orb')).toBe(300); // guard
+  expect(sizeBundle(campaign({ bundleMb: { orb: 5000, document: 5000, device: 0 } }), 'orb')).toBe(
+    300,
+  );
+  expect(sizeBundle(campaign({ bundleMb: { orb: 100, document: 300, device: 0 } }), 'orb')).toBe(
+    100,
+  );
+  expect(sizeBundle(campaign(), 'device')).toBe(0);
+  expect(sizeBundle(campaign(), 'none')).toBe(0);
 });
 ```
 
@@ -233,21 +389,70 @@ it('a 16-byte secret is refused by whoever constructs deps (env.ts in wave 2); h
 ### O13 — `shouldTopUp` (T-30; INTERFACES A-13/A-14)
 
 ```ts
-const e = (over = {}) => ({ v: 1, key: 'ent:v1:x', kind: 'free', status: 'ready', tier: 'orb', planId: 'p', mbTotal: 300, mbUsed: 250, usageAsOf: T0, usageSource: 'webhook', createdAt: T0, expiresAt: T0 + 3 * 864e5, ...over }) as Entitlement;
-const p = (over = {}) => ({ maxUsd6PerDay: 10_000_000n, thresholdMb: 60, stepMb: 100, paused: false, topUpOnExpiry: true, expiryLeadS: 3600, ...over });
-it('threshold: one step at ≤ thresholdMb remaining', () => expect(shouldTopUp(e(), p(), 0n, T0, 400_000n)).toEqual({ buy: true, mb: 100, reason: 'threshold', costUsd6: 400_000n }));
-it('61 MB remaining: no buy',                          () => expect(shouldTopUp(e({ mbUsed: 239 }), p(), 0n, T0, 400_000n).buy).toBe(false));
-it('cap: the step that would cross the cap is refused', () => expect(shouldTopUp(e(), p(), 9_610_000n, T0, 400_000n)).toEqual({ buy: false, reason: 'cap' }));
-it('cap: exactly reaching the cap is allowed',          () => expect(shouldTopUp(e(), p(), 9_600_000n, T0, 400_000n).buy).toBe(true));
-it('paused wins',                                      () => expect(shouldTopUp(e({ mbUsed: 300 }), p({ paused: true }), 0n, T0, 400_000n)).toEqual({ buy: false, reason: 'paused' }));
+const e = (over = {}) =>
+  ({
+    v: 1,
+    key: 'ent:v1:x',
+    kind: 'free',
+    status: 'ready',
+    tier: 'orb',
+    planId: 'p',
+    mbTotal: 300,
+    mbUsed: 250,
+    usageAsOf: T0,
+    usageSource: 'webhook',
+    createdAt: T0,
+    expiresAt: T0 + 3 * 864e5,
+    ...over,
+  }) as Entitlement;
+const p = (over = {}) => ({
+  maxUsd6PerDay: 10_000_000n,
+  thresholdMb: 60,
+  stepMb: 100,
+  paused: false,
+  topUpOnExpiry: true,
+  expiryLeadS: 3600,
+  ...over,
+});
+it('threshold: one step at ≤ thresholdMb remaining', () =>
+  expect(shouldTopUp(e(), p(), 0n, T0, 400_000n)).toEqual({
+    buy: true,
+    mb: 100,
+    reason: 'threshold',
+    costUsd6: 400_000n,
+  }));
+it('61 MB remaining: no buy', () =>
+  expect(shouldTopUp(e({ mbUsed: 239 }), p(), 0n, T0, 400_000n).buy).toBe(false));
+it('cap: the step that would cross the cap is refused', () =>
+  expect(shouldTopUp(e(), p(), 9_610_000n, T0, 400_000n)).toEqual({ buy: false, reason: 'cap' }));
+it('cap: exactly reaching the cap is allowed', () =>
+  expect(shouldTopUp(e(), p(), 9_600_000n, T0, 400_000n).buy).toBe(true));
+it('paused wins', () =>
+  expect(shouldTopUp(e({ mbUsed: 300 }), p({ paused: true }), 0n, T0, 400_000n)).toEqual({
+    buy: false,
+    reason: 'paused',
+  }));
 it('expiry fires once per expiresAt value', () => {
   const soon = e({ mbUsed: 0, expiresAt: T0 + 1800_000 });
   expect(shouldTopUp(soon, p(), 0n, T0, 400_000n)).toMatchObject({ buy: true, reason: 'expiry' });
-  expect(shouldTopUp(soon, p(), 0n, T0, 400_000n, soon.expiresAt)).toEqual({ buy: false, reason: 'already-bought-for-expiry' });
+  expect(shouldTopUp(soon, p(), 0n, T0, 400_000n, soon.expiresAt)).toEqual({
+    buy: false,
+    reason: 'already-bought-for-expiry',
+  });
 });
-it('an expired entity is never topped up (it cannot be extended)', () => expect(shouldTopUp(e({ expiresAt: T0 - 1 }), p(), 0n, T0, 400_000n)).toEqual({ buy: false, reason: 'expired' }));
-it('stepMb 300 costs 3 steps and the cap counts the whole cost', () => expect(shouldTopUp(e(), p({ stepMb: 300 }), 8_900_000n, T0, 400_000n)).toEqual({ buy: false, reason: 'cap' }));   // 8.9 + 1.2 > 10
-it('24 h simulated loop never exceeds the cap', () => { /* usage +3 MB/min, re-feed verdicts; Σ costUsd6 ≤ maxUsd6PerDay */ });
+it('an expired entity is never topped up (it cannot be extended)', () =>
+  expect(shouldTopUp(e({ expiresAt: T0 - 1 }), p(), 0n, T0, 400_000n)).toEqual({
+    buy: false,
+    reason: 'expired',
+  }));
+it('stepMb 300 costs 3 steps and the cap counts the whole cost', () =>
+  expect(shouldTopUp(e(), p({ stepMb: 300 }), 8_900_000n, T0, 400_000n)).toEqual({
+    buy: false,
+    reason: 'cap',
+  })); // 8.9 + 1.2 > 10
+it('24 h simulated loop never exceeds the cap', () => {
+  /* usage +3 MB/min, re-feed verdicts; Σ costUsd6 ≤ maxUsd6PerDay */
+});
 ```
 
 ### G — `decideGiftReclaim` (D-7, T-71)

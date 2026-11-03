@@ -36,6 +36,8 @@ jobs:
       - name: Install forge libraries
         run: pnpm --filter @ethglobal/contracts run deps
 
+      - name: Build workspace packages (packages resolve each other through dist)
+        run: pnpm -r build
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test

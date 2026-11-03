@@ -11,7 +11,17 @@ rules:
     severity: ERROR
     languages: [typescript, javascript]
     paths:
-      include: ["**/packages/octroi/**", "**/packages/eip3009/**", "**/packages/crypto/**", "**/packages/adapters/src/**", "**/packages/protocol/src/**", "**/services/**", "**/apps/web/lib/**", "**/scripts/**"]
+      include:
+        [
+          "**/packages/octroi/**",
+          "**/packages/eip3009/**",
+          "**/packages/crypto/**",
+          "**/packages/adapters/src/**",
+          "**/packages/protocol/src/**",
+          "**/services/**",
+          "**/apps/web/lib/**",
+          "**/scripts/**",
+        ]
       exclude: ["*.test.ts", "**/gas*"]
     pattern-either:
       - pattern: "parseEther(...)"
@@ -44,7 +54,15 @@ rules:
     severity: ERROR
     languages: [typescript, javascript]
     paths:
-      include: ["**/packages/crypto/**", "**/packages/octroi/**", "**/packages/eip3009/**", "**/packages/protocol/src/**", "**/services/**", "**/apps/web/lib/**"]
+      include:
+        [
+          "**/packages/crypto/**",
+          "**/packages/octroi/**",
+          "**/packages/eip3009/**",
+          "**/packages/protocol/src/**",
+          "**/services/**",
+          "**/apps/web/lib/**",
+        ]
       exclude: ["*.test.ts", "*.spec.ts"]
     pattern: Math.random()
 
@@ -64,7 +82,13 @@ rules:
     severity: WARNING
     languages: [typescript, javascript]
     paths:
-      include: ["**/services/**", "**/packages/octroi/**", "**/packages/crypto/**", "**/packages/adapters/src/**"]
+      include:
+        [
+          "**/services/**",
+          "**/packages/octroi/**",
+          "**/packages/crypto/**",
+          "**/packages/adapters/src/**",
+        ]
       exclude: ["*.test.ts", "**/scripts/**"]
     pattern-either:
       - pattern: console.log(...)

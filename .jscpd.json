@@ -20,8 +20,6 @@
     "**/fixtures/**",
     "**/*.json"
   ],
-  "reporters": [
-    "console"
-  ],
+  "reporters": ["console"],
   "blame": false
 }

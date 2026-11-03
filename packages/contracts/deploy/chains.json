@@ -1,58 +1,74 @@
 {
   "31337": {
-    "name": "Anvil",
-    "slug": "anvil",
-    "rpcEnv": "ANVIL_RPC_URL",
+    "explorer": "",
     "gasToken": "ETH",
-    "explorer": ""
+    "name": "Anvil",
+    "rpcEnv": "ANVIL_RPC_URL",
+    "slug": "anvil",
+    "usdc": "",
+    "usdcHts": ""
   },
   "1301": {
-    "name": "Unichain Sepolia",
-    "slug": "unichain_sepolia",
-    "rpcEnv": "UNICHAIN_SEPOLIA_RPC_URL",
+    "explorer": "https://sepolia.uniscan.xyz",
     "gasToken": "ETH",
-    "explorer": "https://sepolia.uniscan.xyz"
+    "name": "Unichain Sepolia",
+    "rpcEnv": "UNICHAIN_SEPOLIA_RPC_URL",
+    "slug": "unichain_sepolia",
+    "usdc": "",
+    "usdcHts": ""
   },
   "5042002": {
-    "name": "Arc Testnet",
-    "slug": "arc_testnet",
-    "rpcEnv": "ARC_TESTNET_RPC_URL",
+    "explorer": "https://testnet.arcscan.app",
     "gasToken": "USDC",
-    "explorer": "https://testnet.arcscan.app"
+    "name": "Arc Testnet",
+    "rpcEnv": "ARC_TESTNET_RPC_URL",
+    "slug": "arc_testnet",
+    "usdc": "",
+    "usdcHts": ""
   },
   "16602": {
-    "name": "0G Galileo",
-    "slug": "zg_galileo",
-    "rpcEnv": "ZG_GALILEO_RPC_URL",
+    "explorer": "https://chainscan-galileo.0g.ai",
     "gasToken": "OG",
-    "explorer": "https://chainscan-galileo.0g.ai"
+    "name": "0G Galileo",
+    "rpcEnv": "ZG_GALILEO_RPC_URL",
+    "slug": "zg_galileo",
+    "usdc": "",
+    "usdcHts": ""
   },
   "296": {
-    "name": "Hedera Testnet",
-    "slug": "hedera_testnet",
-    "rpcEnv": "HEDERA_TESTNET_RPC_URL",
+    "explorer": "https://hashscan.io/testnet",
     "gasToken": "HBAR",
-    "explorer": "https://hashscan.io/testnet"
+    "name": "Hedera Testnet",
+    "rpcEnv": "HEDERA_TESTNET_RPC_URL",
+    "slug": "hedera_testnet",
+    "usdc": "0x0000000000000000000000000000000000068cDa",
+    "usdcHts": "0.0.429274"
   },
   "4801": {
-    "name": "World Chain Sepolia",
-    "slug": "worldchain_sepolia",
-    "rpcEnv": "WORLDCHAIN_SEPOLIA_RPC_URL",
+    "explorer": "https://worldchain-sepolia.explorer.alchemy.com",
     "gasToken": "ETH",
-    "explorer": "https://worldchain-sepolia.explorer.alchemy.com"
+    "name": "World Chain Sepolia",
+    "rpcEnv": "WORLDCHAIN_SEPOLIA_RPC_URL",
+    "slug": "worldchain_sepolia",
+    "usdc": "",
+    "usdcHts": ""
   },
   "1874": {
-    "name": "Whitechain Sepolia",
-    "slug": "whitechain_sepolia",
-    "rpcEnv": "WHITECHAIN_SEPOLIA_RPC_URL",
+    "explorer": "",
     "gasToken": "WBT",
-    "explorer": ""
+    "name": "Whitechain Sepolia",
+    "rpcEnv": "WHITECHAIN_SEPOLIA_RPC_URL",
+    "slug": "whitechain_sepolia",
+    "usdc": "",
+    "usdcHts": ""
   },
   "84532": {
-    "name": "Base Sepolia",
-    "slug": "base_sepolia",
-    "rpcEnv": "BASE_SEPOLIA_RPC_URL",
+    "explorer": "https://sepolia.basescan.org",
     "gasToken": "ETH",
-    "explorer": "https://sepolia.basescan.org"
+    "name": "Base Sepolia",
+    "rpcEnv": "BASE_SEPOLIA_RPC_URL",
+    "slug": "base_sepolia",
+    "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "usdcHts": ""
   }
 }

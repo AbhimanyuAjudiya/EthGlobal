@@ -1,30 +1,59 @@
-# Forbidden patterns for Recharge logs, ledger dumps, HCS messages, fixtures and docs (docs/THREAT-MODEL.md T-31, T-37, T-44, T-50, T-68).
-# PCRE regexes (grep -P), one per line; lines starting with # are comments. Used by scan.sh via `grep -P -f`.
-# The only tolerated LPA form is the MockReseller's LPA:1$local.test$<id>, and only in fixtures/mocks/tests — scan.sh excludes those paths.
-LPA:1\$(?!local\.test\$)
-"lpa"[[:space:]]*:[[:space:]]*"
-sealedLpa"[[:space:]]*:[[:space:]]*"[A-Za-z0-9+/=]{40,}
-# raw World nullifier / proof material
-nullifier_hash"?[[:space:]]*[:=][[:space:]]*"?0x[0-9a-fA-F]{64}
-"proof"[[:space:]]*:[[:space:]]*"0x[0-9a-fA-F]{128,}
-merkle_root"?[[:space:]]*[:=][[:space:]]*"?0x[0-9a-fA-F]{64}
-# bearer payment headers / signed authorizations in logs
+# Forbidden patterns for Recharge logs, ledger dumps, HCS messages, fixtures, docs, scripts and the web bundle
+# (docs/THREAT-MODEL.md T-31, T-37, T-44, T-50, T-64, T-68, T-81, T-86).
+# PCRE (grep -P), one per line; lines starting with # are comments. scan.sh compiles all lines into ONE alternation.
+# A trailing "  # [relaxed-skip]" tag drops the rule for mocks/tests/fixtures/security docs (synthetic values live there).
+#
+# --- activation codes (LPA, GSMA SGP.22 "LPA:1$<SM-DP+ FQDN>$<matching-id>") ---------------------------------------------
+# A real-looking LPA anywhere. Allowed: the MockReseller form LPA:1$local.test$…, the reserved *.example TLD, and templates
+# such as LPA:1$<smdp>$… (no FQDN). eSIM Access returns it in the `ac` field.
+LPA:1\$(?!local\.test\$)(?![^$\s]*\.example\$)[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+\$[A-Za-z0-9-]{4,}
+"lpa"[[:space:]]*:[[:space:]]*"  # [relaxed-skip]
+sealedLpa"[[:space:]]*:[[:space:]]*"[A-Za-z0-9+/=]{40,}  # [relaxed-skip]
+"secretKey"[[:space:]]*:[[:space:]]*"(?:0x)?[0-9a-fA-F]{64}  # [relaxed-skip]
+#
+# --- World ID proof material (v2 legacy and v4 shapes) ------------------------------------------------------------------
+nullifier_hash"?[[:space:]]*[:=][[:space:]]*"?0x[0-9a-fA-F]{64}  # [relaxed-skip]
+"nullifier"[[:space:]]*:[[:space:]]*"(?:0x[0-9a-fA-F]{60,64}|[0-9]{60,78})"  # [relaxed-skip]
+"proof"[[:space:]]*:[[:space:]]*"0x[0-9a-fA-F]{128,}  # [relaxed-skip]
+merkle_root"?[[:space:]]*[:=][[:space:]]*"?0x[0-9a-fA-F]{64}  # [relaxed-skip]
+RP_SIGNING_KEY[[:space:]]*[:=][[:space:]]*["']?(?:0x)?[0-9a-fA-F]{64}
+signingKeyHex"?[[:space:]]*[:=][[:space:]]*["']?(?:0x)?[0-9a-fA-F]{64}
+#
+# --- bearer payment headers / signed authorizations / sponsor bearer ------------------------------------------------------
 PAYMENT-SIGNATURE[[:space:]]*[:=][[:space:]]*[A-Za-z0-9+/=]{40,}
 payment-signature"[[:space:]]*:[[:space:]]*"[A-Za-z0-9+/=]{40,}
-# ICCIDs (19–20 digits starting 89) in clear
-\b89[0-9]{17,18}\b
-# 16-digit PINs in clear (format 1234-5678-9012-3456 or 16 digits) outside the print pipeline
-\b[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{4}\b
-"pin"[[:space:]]*:[[:space:]]*"[0-9]{16}"
-# private keys / mnemonics
-PRIVATE_KEY[[:space:]]*=[[:space:]]*0x[0-9a-fA-F]{64}
-ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
-5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a
-test test test test test test test test test test test junk
-# clear ICCID in JSON
-"iccid"[[:space:]]*:[[:space:]]*"[0-9]{18,22}"
-# webhook / HMAC / seal secrets (env dumps in logs)
+Recharge-Sponsor [A-Za-z0-9+/=]{40,}
+"auditKey"[[:space:]]*:[[:space:]]*"(?:0x)?[0-9a-fA-F]{64}"  # [relaxed-skip]
+#
+# --- ICCIDs and PINs in clear --------------------------------------------------------------------------------------------
+\b89[0-9]{17,18}\b  # [relaxed-skip]
+"iccid"[[:space:]]*:[[:space:]]*"[0-9]{18,22}"  # [relaxed-skip]
+\b[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{4}\b  # [relaxed-skip]
+"pin"[[:space:]]*:[[:space:]]*"[0-9]{16}"  # [relaxed-skip]
+#
+# --- operator tokens in URLs (print sheet T-64; any ?token= in a log or a committed file) --------------------------------
+[?&]token=[A-Za-z0-9_-]{16,}
+PRINT_TOKEN[[:space:]]*=[[:space:]]*(?![A-Z0-9_]+=)[A-Za-z0-9_-]{16,}
+#
+# --- reseller credentials (eSIM Access RT-* headers; Airalo client secret; MegaeSIM key) ----------------------------------
+RT-AccessCode"?[[:space:]]*[:=][[:space:]]*["']?[A-Za-z0-9]{16,}
+RT-Signature"?[[:space:]]*[:=][[:space:]]*["']?[0-9a-f]{64}
+"accessCode"[[:space:]]*:[[:space:]]*"[A-Za-z0-9]{16,}"
+(?:ESIMACCESS|RESELLER|AIRALO|MEGAESIM)_[A-Z_]*(?:SECRET|ACCESS_CODE|API_KEY)[[:space:]]*=[[:space:]]*(?![A-Z0-9_]+=)[A-Za-z0-9+/=_-]{12,}
+#
+# --- private keys / mnemonics / API keys ---------------------------------------------------------------------------------
+PRIVATE_KEY[[:space:]]*=[[:space:]]*0x[0-9a-fA-F]{64}  # [relaxed-skip]
+ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80  # [relaxed-skip]
+59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d  # [relaxed-skip]
+5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a  # [relaxed-skip]
+test test test test test test test test test test test junk  # [relaxed-skip]
+# Hedera DER-encoded private keys (ED25519 / ECDSA secp256k1 prefixes) — never committed, never logged
+302e020100300506032b657004220420[0-9a-fA-F]{64}
+3030020100300706052b8104000a04220420[0-9a-fA-F]{64}
+sk-ant-[A-Za-z0-9_-]{20,}
+CDP_API_KEY_SECRET[[:space:]]*=[[:space:]]*(?![A-Z0-9_]+=)\S{16,}
+#
+# --- HMAC / seal / webhook secrets (env dumps in logs) --------------------------------------------------------------------
 OCTROI_SECRET\s*=\s*(?![A-Z0-9_]+=)[A-Fa-f0-9x]{32,}
 SERVER_SEAL_KEY\s*=\s*(?![A-Z0-9_]+=)[A-Fa-f0-9x]{32,}
 INVENTORY_SEAL_KEY\s*=\s*(?![A-Z0-9_]+=)[A-Fa-f0-9x]{32,}

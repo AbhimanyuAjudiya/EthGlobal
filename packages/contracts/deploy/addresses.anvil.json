@@ -1,0 +1,14 @@
+{
+  "chainId": 31337,
+  "network": "eip155:31337",
+  "ledgerOnly": false,
+  "dataDrop": "0x90193C961A926261B756D1E5bb255e67ff9498A1",
+  "usdc": "0x34A1D3fff3958843C43aD80F30b94c510645C316",
+  "usdcHts": "",
+  "payout": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+  "attestor": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+  "owner": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+  "deployer": "0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38",
+  "deployedAt": 1,
+  "txs": { "dataDrop": "", "usdc": "" }
+}

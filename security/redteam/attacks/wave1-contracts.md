@@ -311,7 +311,7 @@ Sign with `vm.sign(ANVIL_KEY_5, digest)` (the vectors script uses #5 too) and `u
 
 ## A14 — Cross-chain / cross-contract replay (T-14)
 
-Sign under chainId 31337; `vm.chainId(84532)`; `usdc.DOMAIN_SEPARATOR()` now differs (OZ `EIP712` recomputes when `block.chainid != _cachedChainId`) and the old signature reverts. A second `MockUSDC3009` rejects the first one's signatures (`verifyingContract`). Record the separator values for `fixtures/eip3009/domains.json`.
+Sign under chainId 31337; `vm.chainId(84532)`; `usdc.DOMAIN_SEPARATOR()` now differs (OZ `EIP712` recomputes when `block.chainid != _cachedChainId`) and the old signature reverts. A second `MockUSDC3009` rejects the first one's signatures (`verifyingContract`). Record the separator values for `fixtures/eip3009/domains.json`. `MockUSDC3009` is `EIP712("USD Coin","2")` by design; the real Base Sepolia USDC (`0x036CbD53842c5426634e7929541eC2318f3dCF7e`) is `name() == "USDC"` (API-FACTS §7, INTERFACES A-21) — so a Foundry test must never be the evidence for the Base Sepolia domain; the TS side reads it from `accepts[].extra` (`wave1-octroi.md` E1).
 
 ## A15 — Settlement front-run → paid-but-denied (T-15)
 

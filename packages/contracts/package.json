@@ -3,12 +3,26 @@
   "version": "0.0.0",
   "private": true,
   "description": "Foundry project: Solidity contracts, deploy scripts and chain registry.",
+  "exports": {
+    "./abi/*.json": "./abi/*.json",
+    "./abi/*": "./abi/*.json",
+    "./addresses/*.json": "./deploy/addresses.*.json",
+    "./addresses/*": "./deploy/addresses.*.json",
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "deps": "test -d lib/forge-std -a -d lib/openzeppelin-contracts || forge install foundry-rs/forge-std@v1.17.0 OpenZeppelin/openzeppelin-contracts@v5.7.0 --no-git",
     "build": "forge build",
     "test": "forge test",
     "fmt": "forge fmt",
     "fmt:check": "forge fmt --check",
-    "clean": "forge clean"
+    "clean": "forge clean",
+    "abi": "bash script/abi.sh",
+    "abi:check": "bash script/abi.sh --check",
+    "vectors": "forge script script/EmitVectors.s.sol",
+    "snapshot": "forge snapshot",
+    "snapshot:check": "forge snapshot --check",
+    "deploy:txs": "node script/fill-deploy-txs.mjs",
+    "slither": "slither . --filter-paths lib"
   }
 }

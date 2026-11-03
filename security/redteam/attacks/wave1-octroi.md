@@ -47,7 +47,7 @@ export const freeReq = (d: ReturnType<typeof deps>, ch: Challenge, proof = fixtu
 
 ## P — `@ethglobal/protocol` (`packages/protocol/test/attack/*.attack.test.ts`)
 
-**P1 — x402 codec and payload bounds (T-26, T-28, T-45).** `decodePaymentPayload(base64 of 17 KiB)` throws `RechargeError('invalid_request')` before parsing; `accepted.payTo = '0.0.1234'` with `network: 'eip155:31337'` rejected (and the reverse); `accepts` longer than 8 rejected; `amount: '1.5'` / `'-1'` / `''` rejected; `x402Version: 1` rejected; `sessionNonce(SPK, keccak256)` hashes the **32 bytes** (`keccak256(hexToBytes(SPK))`), not the hex string — compare with viem `keccak256(hexToBytes(SPK))`.
+**P1 — x402 v2 codec and payload bounds (T-26, T-28, T-45; INTERFACES A-18, A-20).** `decodePaymentPayload(base64 of 17 KiB)` throws `RechargeError('invalid_request')` before parsing; `accepted.payTo = '0.0.1234'` with `network: 'eip155:31337'` rejected (and the reverse); `payTo` a Hedera alias (`0.0.<hex alias>` / EVM address on `hedera:testnet`) rejected; `accepts` longer than 8 rejected; `amount: '1.5'` / `'-1'` / `''` rejected; **v1 shapes rejected**: `x402Version: 1`, a requirement carrying `maxAmountRequired` (with or without `amount`), network `'base-sepolia'` / `'hedera:296'` / `'eip155:296'`, a payload under the v1 header name `X-PAYMENT` (the codec reads `PAYMENT-SIGNATURE` only); a `hedera:testnet` requirement without `extra.feePayer` or with `maxTimeoutSeconds > 180` rejected; a Hedera payload `{ signedTransaction }` (the pre-A-20 name) rejected and `{ transaction: <base64> }` accepted; `encodePaymentRequired` of a body never emits the key `maxAmountRequired`; a settlement `{ success: false, errorReason: 'settlement_pending', transaction: '0x…' }` decodes as non-terminal; `sessionNonce(SPK, keccak256)` hashes the **32 bytes** (`keccak256(hexToBytes(SPK))`), not the hex string — compare with viem `keccak256(hexToBytes(SPK))`.
 
 **P2 — `fetchWithPayment` signs at most once (T-57).** A stub `fetch` that answers 402 twice: `signer.sign` called exactly once, the second 402 is returned to the caller unpaid; `timeoutMs` honoured (a never-resolving fetch rejects); `PAYMENT-RESPONSE` surfaced as `settlement`.
 
@@ -79,7 +79,7 @@ it('second claim with the same nullifier is deny:replay even when the verifier a
 });
 ```
 
-The scaffold `MockPersonhood` refuses a second `verify` for the same `(action, nullifier)` with `already_verified` — that is **not** the control (the World action is unlimited, ARCHITECTURE §6). Construct the mock permissively (`maxVerifications: Infinity` if the builder added the option from THREAT-MODEL §7.6; otherwise a stub that always succeeds) and keep the test green. If `decide()` only denies because the mock threw ⇒ **Critical finding**. Also assert: `serve-free.claimKey === onchainClaimKey(c.id, campaignClaimKey(auditKey(SECRET, c.id), nullifier))` and `serve-free.entitlement.key === keys.entitlementFree(quotaKey(SECRET, nullifier))`.
+The scaffold `MockPersonhood` refuses a second `verify` for the same `(action, nullifier)` with `already_verified` — that is **not** the control (the World action is unlimited, ARCHITECTURE §6). Construct the mock permissively (`maxVerifications: Infinity` if the builder added the option from THREAT-MODEL §7.6; otherwise a stub that always succeeds) and keep the test green. If `decide()` only denies because the mock threw ⇒ **Critical finding**. (ARCHITECTURE §6 once said the World action is unlimited; IDKit 4 uniqueness proofs are one-time per (action, user) — API-FACTS §4.5 — so run O1 twice: with a permissive stub, and with `MockPersonhood({ maxVerifications: 1 })`, where the second call must still be `deny: replay` from the engine's own check, **before** `verify` is reached when `existingEntitlement`/`claimed` is already known.) Also assert: `serve-free.claimKey === onchainClaimKey(c.id, campaignClaimKey(auditKey(SECRET, c.id), nullifier))` and `serve-free.entitlement.key === keys.entitlementFree(quotaKey(SECRET, nullifier))`.
 
 ### O2 — Proof not bound to our challenge (T-19)
 
@@ -108,7 +108,7 @@ it('tampered path / audience / exp / nonce byte → invalid (MAC)', async () => 
 it('different sessionPubKey than issued → invalid (free-lane binding, T-32)', async () => { const d = deps(); expect(await consumeChallenge(d.ledger, new Set(), ch(), bytesToHex(randomBytes(32)), T0, SECRET)).toBe('invalid'); });
 it('challenge minted with another secret → invalid',  async () => { const d = deps(); const forged = challenge(AUDIENCE, '/claim', SPK, T0, new Uint8Array(32).fill(9)); expect(await consumeChallenge(d.ledger, new Set(), forged, SPK, T0, SECRET)).toBe('invalid'); });
 it('ledger put throws → unavailable, and decide() denies ledger-unavailable', async () => {
-  const d = deps(); const broken = Object.create(d.ledger, { put: { value: async () => { throw new Error('kaolin'); } } }) as typeof d.ledger;
+  const d = deps(); const broken = Object.create(d.ledger, { put: { value: async () => { throw new Error('arkiv rpc down'); } } }) as typeof d.ledger;
   expect(await consumeChallenge(broken, new Set(), ch(), SPK, T0, SECRET)).toBe('unavailable');
   const r = await decide(freeReq({ ...d, ledger: broken }, ch()), { ...d, ledger: broken });
   expect(r).toMatchObject({ kind: 'deny', reason: 'ledger-unavailable' });
@@ -132,14 +132,18 @@ A `/claim` challenge presented to `decide()` for a request whose route is `/gift
 ### O5 — Tier escalation (T-22)
 
 ```ts
-it('tier comes from the verifier, never from the body', async () => {
+it('tier comes from the verifier, never from the body (v2 field and IDKit 4 identifier both forged)', async () => {
   const d = deps(); vi.spyOn(d.personhood, 'verify').mockResolvedValue({ nullifierHash: ('0x' + '11'.repeat(32)) as Hex, level: 'device' });
   const ch = challenge(AUDIENCE, '/claim', SPK, d.now(), SECRET);
-  const r = await decide(freeReq(d, ch, { ...fixtureProof('device', ch.signal), verification_level: 'orb' }), d);
+  const p = fixtureProof('device', ch.signal) as any;                         // IDKit-4-shaped (INTERFACES A-26)
+  const forged = { ...p, verification_level: 'orb', responses: (p.responses ?? []).map((x: any) => ({ ...x, identifier: 'proof_of_human', issuer_schema_id: 1 })) };
+  const r = await decide(freeReq(d, ch, forged), d);
   expect(r.kind).toBe('payment-required');                                   // device: no gift, the human price
   expect((r as any).body.accepts[0].amount).toBe('400000');
 });
 it.each([['orb', 'orb'], ['document', 'document'], ['secure_document', 'document'], ['device', 'device']] as const)('tierFromLevel(%s) = %s', (l, t) => expect(tierFromLevel(l)).toBe(t));
+// v4 identifiers (INTERFACES A-25 "level from the response identifier"); the exact mapping is [verify Wed] — the test pins whatever the architect writes, and asserts selfie/unknown never map above device:
+it.each(['selfie', 'unknown', '', 'ORB'])('tierFromLevel(%s) is device or none, never orb/document', (l) => expect(['device', 'none']).toContain(tierFromLevel(l as any)));
 it('unknown level → none → payment-required', …);
 ```
 
@@ -202,11 +206,11 @@ The scaffold `MockPaymentRail` accepts `value ≥ amount`; the **engine** must r
 
 ### O10 — Serve-before-settle (T-27)
 
-`settle` → `{ success: false }` ⇒ `deny: invalid-payment`; `settle` throws ⇒ deny (not a 500 — `decide()` never throws for business outcomes, ARCHITECTURE §9); `settle` returns `success: true` with `transaction: '0x12'` or a different `network` ⇒ deny (`settleResultSchema` min length / network match); `verify` false ⇒ `settle` **never called** (spy).
+`settle` → `{ success: false }` ⇒ `deny: invalid-payment`; `settle` throws ⇒ deny (not a 500 — `decide()` never throws for business outcomes, ARCHITECTURE §9); `settle` returns `success: true` with `transaction: '0x12'` or a different `network` ⇒ deny (`settleResultSchema` min length / network match); per-network transaction ids: `eip155:*` requires 32-byte hex, `hedera:testnet` requires `0.0.x@sss.nnnnnnnnn` — a Hedera id on an EVM settlement, or an EVM hash on a Hedera one, ⇒ deny; `errorReason: 'settlement_pending'` (non-terminal, A-18) ⇒ **no** `serve-paid`; `verify` false ⇒ `settle` **never called** (spy).
 
 ### O11 — `accepts[]` substitution (T-28)
 
-For each field of `payload.accepted` — `network: 'eip155:1'`, `asset: other`, `payTo: anvilAccounts[7]`, `amount: '1'`, `scheme: 'permit'`, `maxTimeoutSeconds: 9999` — ⇒ `deny: invalid-payment`. The engine compares against `buildAccepts(deps, mb)`, never against what the client echoes.
+For each field of `payload.accepted` — `network: 'eip155:1'`, `asset: other`, `payTo: anvilAccounts[7]`, `amount: '1'`, `scheme: 'permit'`, `maxTimeoutSeconds: 9999`, `extra.name: 'Fake USD'` (EVM), `extra.feePayer: '0.0.666'` (Hedera), an added `maxAmountRequired: '1'` — ⇒ `deny: invalid-payment`. The engine compares against `buildAccepts(deps, mb)`, never against what the client echoes.
 
 ### O12 — Keys (T-18, T-29; INTERFACES A-9)
 
@@ -318,7 +322,7 @@ The adapter-level replay cache and provider headers are `wave1-adapters.md` L7/L
 
 ## E — `@ethglobal/eip3009`
 
-**E1 — Vectors (T-13, T-14).** `fixtures/eip3009/vectors.json` (written by `forge script script/EmitVectors.s.sol`, Anvil key #5): every tuple's `transfer`/`receive` digest reproduced by `digestTransferWithAuthorization(domain(token, chainId, 'USD Coin', '2'), auth)`; `recoverSigner(digest, sig)` = Anvil #5; a digest under `chainId 84532` differs. If the file is absent, `describe.skipIf` and write **"vectors unverified"** in the report. `domains.json`: `readDomain` is used for live tokens — a hard-coded `("USD Coin","2")` anywhere outside the mock's own test is a Med finding (Base Sepolia faucet USDC may differ).
+**E1 — Vectors and per-chain domains (T-13, T-14; INTERFACES A-21).** `fixtures/eip3009/vectors.json` (written by `forge script script/EmitVectors.s.sol`, Anvil key #5): every tuple's `transfer`/`receive` digest reproduced by `digestTransferWithAuthorization(domain(token, chainId, 'USD Coin', '2'), auth)` for `MockUSDC3009`; `recoverSigner(digest, sig)` = Anvil #5; a digest under `chainId 84532` differs. If the file is absent, `describe.skipIf` and write **"vectors unverified"** in the report. Base Sepolia (verified, API-FACTS §7): `USDC_EIP712_DOMAIN['eip155:84532']` is `{ name: 'USDC', version: '2' }` with `verifyingContract 0x036CbD53842c5426634e7929541eC2318f3dCF7e`; `domainFromRequirements(req)` returns exactly that from `accepts[].extra`; an authorization signed under `'USD Coin'` for that token recovers to a **different** address than the same one under `'USDC'` (so the facilitator would reject it) — assert both; `domainFromRequirements` of a requirement without `extra.name` throws (never defaults to "USD Coin"). A hard-coded `("USD Coin","2")` anywhere outside the mock and its tests is a **High** finding (every Base Sepolia payment fails on stage).
 
 **E2 — `recoverSigner` (async, T-17).** viem `signTypedData` round trip; flipped-`s` ⇒ rejected; `v ∈ {0,1}` normalised; `v = 29` rejected; 64-byte EIP-2098 **accepted** here and expanded to 65 bytes by `encode*` before calldata (the mock accepts 65 only, A13).
 

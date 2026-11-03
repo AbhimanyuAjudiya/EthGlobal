@@ -10,6 +10,7 @@ If a brief and this file disagree, **this file wins** and the brief is fixed. If
 
 - Code blocks are the public surface of each package, in the language it ships in. Everything else in a package is private.
 - `[verify Wed]` marks an external API shape reconstructed from documentation the sandbox cannot reach; the live adapter codes against it, the fixture recorded at the Wednesday pre-deploy corrects it, and the fixture becomes the truth.
+- **`docs/vendor/API-FACTS.md`** (verified 3 Nov 2026 against pinned vendor repos and npm tarballs) is the reference for every vendor shape, package name and version below. Where this file and the fact sheet disagreed, this file was amended (§13, A-18…A-30). Only the items the fact sheet marks **[unverified]** remain `[verify Wed]`; everything else is coded as stated and a recording that contradicts it is a finding, not a silent fix.
 - Package names are the real workspace names: `@ethglobal/protocol` (new), `@ethglobal/crypto` (new), `@ethglobal/eip3009` (new), `@ethglobal/octroi` (new), `@ethglobal/adapters` (exists), `@ethglobal/ui` (exists), `@ethglobal/contracts` (exists), `@ethglobal/api` (exists), `@ethglobal/agent` (new), `@ethglobal/web` (exists).
 
 ### 0.1 Conventions that are not negotiable
@@ -56,8 +57,20 @@ export const USDC_DECIMALS = 6;
 /** Asset ids per network. Anvil's MockUSDC3009 comes from deploy/addresses.anvil.json at runtime. */
 export const USDC_ASSET = {
   [NETWORKS.baseSepolia]: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
-  [NETWORKS.hederaTestnet]: '0.0.429274', // HTS id; EVM alias 0x0000000000000000000000000000000000068cDa
+  [NETWORKS.hederaTestnet]: '0.0.429274', // HTS id, 6 decimals (A-20); EVM long-zero alias 0x0000000000000000000000000000000000068cDA
 } as const;
+/**
+ * EIP-712 domain of USDC per EVM network (A-21). Circle's Base Sepolia USDC signs as name "USDC"; Ethereum, Base mainnet and
+ * World Chain sign as "USD Coin"; version is "2" everywhere. The API copies this into accepts[].extra and every EVM signer takes
+ * the domain from accepts[].extra — never from a literal. readDomain() cross-checks it wherever an RPC is reachable.
+ */
+export const USDC_EIP712_DOMAIN: Readonly<Record<string, { name: string; version: string }>> = {
+  [NETWORKS.anvil]: { name: 'USD Coin', version: '2' },     // MockUSDC3009 (§6.2)
+  [NETWORKS.baseSepolia]: { name: 'USDC', version: '2' },   // 0x036CbD53842c5426634e7929541eC2318f3dCF7e
+  'eip155:8453': { name: 'USD Coin', version: '2' },          // Base mainnet; never advertised while SALES_ENABLED=false
+};
+/** Hedera transactions are valid for at most 180 s (A-20): accepts[].maxTimeoutSeconds on hedera:* never exceeds this. */
+export const HEDERA_MAX_TIMEOUT_S = 180;
 
 export const WORLD_ACTION = 'recharge-welcome';
 export const AUDIENCE = 'recharge';
@@ -288,20 +301,27 @@ export const agentPolicySchema = z.object({
 These replace the hand-written `PaymentResource`, `PaymentRequirements`, `PaymentRequired`, `PaymentAuthorization`, `PaymentPayload`, `VerifyResult`, `SettleResult` in `packages/adapters/src/types.ts`, which re-exports the inferred types (§3).
 
 ```ts
-export const paymentResourceSchema = z.object({ url: z.url(), description: z.string().max(200), mimeType: z.string().max(80) });
+export const paymentResourceSchema = z.object({ url: z.url(), description: z.string().max(200), mimeType: z.string().max(80) }); // v2 also allows serviceName/tags/iconUrl; we never send them
 
 export const paymentRequirementsSchema = z.object({
   scheme: z.literal('exact'),
   network: caipNetworkSchema,
   asset: z.string().max(64),
-  amount: digitsSchema,                      // base units (USDC 6-dec)
+  amount: digitsSchema,                      // base units (USDC 6-dec). x402 v2 name; v1's `maxAmountRequired` must never appear (A-18)
   payTo: z.string().max(64),                 // EVM address on eip155:*, Hedera account id on hedera:*
   maxTimeoutSeconds: z.int().positive().max(3_600),
-  extra: z.record(z.string(), z.unknown()).optional(),
+  extra: z.record(z.string(), z.unknown()).optional(), // eip155: { name, version } = the token's EIP-712 domain; hedera: { feePayer: '0.0.x' } (A-20, A-21)
 }).superRefine((r, ctx) => {
   const ok = r.network.startsWith('eip155:') ? /^0x[0-9a-fA-F]{40}$/.test(r.payTo)
            : r.network.startsWith('hedera:') ? /^0\.0\.\d{1,12}$/.test(r.payTo) : false;
   if (!ok) ctx.addIssue({ code: 'custom', path: ['payTo'], message: 'payTo does not match network' });
+  if (r.network.startsWith('eip155:') && (typeof r.extra?.name !== 'string' || typeof r.extra?.version !== 'string'))
+    ctx.addIssue({ code: 'custom', path: ['extra'], message: 'EVM exact needs extra.name and extra.version (EIP-712 domain)' });
+  if (r.network.startsWith('hedera:')) {
+    if (typeof r.extra?.feePayer !== 'string' || !/^0\.0\.\d{1,12}$/.test(r.extra.feePayer))
+      ctx.addIssue({ code: 'custom', path: ['extra', 'feePayer'], message: 'Hedera exact needs extra.feePayer (facilitator account)' });
+    if (r.maxTimeoutSeconds > HEDERA_MAX_TIMEOUT_S) ctx.addIssue({ code: 'custom', path: ['maxTimeoutSeconds'], message: 'Hedera tx valid ≤ 180 s' });
+  }
 });
 export type PaymentRequirements = z.infer<typeof paymentRequirementsSchema>;
 /** accepts[] entry before the per-request amount is known. */
@@ -312,6 +332,7 @@ export const paymentRequiredSchema = z.object({
   resource: paymentResourceSchema,
   accepts: z.array(paymentRequirementsSchema).min(1).max(8),
   error: z.string().max(200).optional(),
+  extensions: z.record(z.string(), z.unknown()).optional(), // v2 field; we send {} or omit (no `agentkit` extension in v0, A-25)
 });
 export type PaymentRequired = z.infer<typeof paymentRequiredSchema>;
 
@@ -321,27 +342,31 @@ export const paymentAuthorizationSchema = z.object({
 });
 export type PaymentAuthorization = z.infer<typeof paymentAuthorizationSchema>;
 export const evmExactPayloadSchema = z.object({ signature: hexSchema, authorization: paymentAuthorizationSchema });
-/** Hedera exact scheme: a frozen, signed HTS transfer serialised as base64 transaction bytes. [verify Wed] */
-export const hederaExactPayloadSchema = z.object({ signedTransaction: z.base64(), memo: z.string().max(100).optional() });
+/** Hedera exact scheme (`@x402/hedera` 2.29.0, A-20): base64 of a partially-signed TransferTransaction whose transactionId.accountId == accepted.extra.feePayer; the facilitator co-signs and submits. */
+export const hederaExactPayloadSchema = z.object({ transaction: z.base64().max(8_192) });
 
 export const paymentPayloadSchema = z.object({
   x402Version: z.literal(2),
+  resource: paymentResourceSchema.optional(),   // v2 clients echo it; ignored by the server
   accepted: paymentRequirementsSchema,
   payload: z.union([evmExactPayloadSchema, hederaExactPayloadSchema]),
+  extensions: z.record(z.string(), z.unknown()).optional(),
 });
 export type PaymentPayload = z.infer<typeof paymentPayloadSchema>;
 export const isEvmExact = (p: PaymentPayload['payload']): p is z.infer<typeof evmExactPayloadSchema> => 'authorization' in p;
 
 export const verifyResultSchema = z.discriminatedUnion('isValid', [
   z.object({ isValid: z.literal(true), payer: z.string().max(64) }),
-  z.object({ isValid: z.literal(false), invalidReason: z.string().max(80) }),
+  z.object({ isValid: z.literal(false), invalidReason: z.string().max(80), payer: z.string().max(64).optional() }),
 ]);
 export type VerifyResult = z.infer<typeof verifyResultSchema>;
 export const settleResultSchema = z.discriminatedUnion('success', [
   z.object({ success: z.literal(true), transaction: z.string().min(10).max(128), network: caipNetworkSchema, payer: z.string().max(64) }),
-  z.object({ success: z.literal(false), errorReason: z.string().max(80), network: caipNetworkSchema }),
+  z.object({ success: z.literal(false), errorReason: z.string().max(80), network: caipNetworkSchema,
+             transaction: z.string().max(128).optional(), payer: z.string().max(64).optional() }), // spec sends transaction: ""; 'settlement_pending' carries the tx and is non-terminal
 ]);
 export type SettleResult = z.infer<typeof settleResultSchema>;
+// Hedera facilitators put the tx id (`0.0.x@seconds.nanos`) in `transaction`; a body with only `transactionId` is normalised into `transaction` by the adapter before parsing (A-20).
 /** Body of the PAYMENT-RESPONSE header. */
 export const paymentResponseSchema = settleResultSchema;
 ```
@@ -349,9 +374,41 @@ export const paymentResponseSchema = settleResultSchema;
 ### 1.6 `schemas/api.ts` — request and response bodies of `services/api`
 
 ```ts
-export const personhoodProofSchema = z.object({
-  proof: hexSchema, merkle_root: hexSchema, nullifier_hash: hexSchema, verification_level: verificationLevelSchema,
+/**
+ * IDKit 4.6 result (A-25), forwarded to the verifier UNCHANGED (`.loose()` keeps fields we do not model). Uniqueness proofs only:
+ * session results (`session_id`) are rejected. V4 `nullifier` is a decimal string; V3 legacy (`allow_legacy_proofs`) carries hex.
+ * The tier is never read from here — only from the verifier's response (T-22).
+ */
+const idkitResponseV4Schema = z.object({
+  identifier: z.string().max(32),                 // 'proof_of_human' | 'passport' | 'mnc' | 'selfie'
+  issuer_schema_id: z.int().optional(), nullifier: z.string().regex(/^\d{1,78}$/), expires_at_min: z.int().optional(),
+  proof: z.array(hexSchema).length(5), signal_hash: hexSchema, sybil_score: z.number().optional(),
+}).loose();
+const idkitResponseV3Schema = z.object({
+  identifier: z.string().max(32),                 // 'orb' | 'secure_document' | 'document' | 'device' | 'selfie' [partly unverified]
+  merkle_root: hexSchema, nullifier: z.string().max(80), proof: z.union([hexSchema, z.array(hexSchema).max(8)]),
+  signal_hash: hexSchema, max_age: z.int().optional(),
+}).loose();
+export const personhoodProofSchema = z.discriminatedUnion('protocol_version', [
+  z.object({ protocol_version: z.literal('4.0'), nonce: z.string().max(80), action: z.string().max(64), environment: z.string().max(16).optional(),
+             responses: z.array(idkitResponseV4Schema).min(1).max(4) }).loose(),
+  z.object({ protocol_version: z.literal('3.0'), nonce: z.string().max(80), action: z.string().max(64),
+             responses: z.array(idkitResponseV3Schema).min(1).max(4) }).loose(),
+]);
+export type PersonhoodProof = z.infer<typeof personhoodProofSchema>;   // adapters re-exports this as its PersonhoodProof
+/** The ONE identifier → level mapping (A-26); live verifier, mock and tests all use it. Unknown identifiers map to undefined (no tier). */
+export const IDENTIFIER_LEVEL: Readonly<Record<string, VerificationLevel>> = {
+  proof_of_human: 'orb', orb: 'orb', passport: 'secure_document', mnc: 'secure_document', secure_document: 'secure_document',
+  document: 'document', device: 'device', selfie: 'device', face: 'device',
+};
+export function verificationLevelFromIdentifier(identifier: string): VerificationLevel | undefined;
+/** Backend-signed RP context IDKit 4 requires (A-25); snake_case so the PWA passes it to IDKit.request() as is. */
+export const rpContextRequestSchema = z.object({ audience: z.literal(AUDIENCE), path: z.enum(CHALLENGE_PATHS) });
+export const rpContextSchema = z.object({
+  rp_id: z.string().regex(/^(rp|app)_[A-Za-z0-9]{1,64}$/), nonce: hexSchema, created_at: z.int().positive(), expires_at: z.int().positive(), // unix seconds
+  signature: hexSchema, app_id: z.string().max(80), action: z.string().max(64), environment: z.enum(['production', 'staging']),
 });
+export type RpContext = z.infer<typeof rpContextSchema>;
 export const challengeRequestSchema = z.object({
   audience: z.literal(AUDIENCE), path: z.enum(CHALLENGE_PATHS), sessionPubKey: hex32Schema,
 });
@@ -611,7 +668,7 @@ export class SealError extends Error {}
 
 ## 3. `@ethglobal/adapters` — additions to the scaffold (`packages/adapters`)
 
-Dependencies: `@ethglobal/protocol`, `@ethglobal/crypto`, `@ethglobal/eip3009`; `live/` additionally `@arkiv-network/sdk`, `@hashgraph/sdk`, `viem`. Subpath exports: `.` (ports, mocks, factory, codec re-exports — browser-safe), `./live` (Node only), `./testing`.
+Dependencies: `@ethglobal/protocol`, `@ethglobal/crypto`, `@ethglobal/eip3009`; `live/` additionally `@arkiv-network/sdk@1.0.1`, `@x402/hedera@2.29.0` (which pins `@hiero-ledger/sdk@2.90.1` — import Hedera SDK symbols through `@x402/hedera`'s re-exports so exactly one SDK copy exists; never `@hashgraph/sdk`, A-22), `viem`. Subpath exports: `.` (ports, mocks, factory, codec re-exports — browser-safe), `./live` (Node only), `./testing`.
 
 ### 3.1 `src/types.ts` — final shape (existing ports unchanged unless listed)
 
@@ -667,7 +724,7 @@ export interface Adapters {
 export type AdapterName = Exclude<keyof Adapters, 'mode'>;
 ```
 
-`PaymentRail` keeps `createPaymentRequirement / verify / settle`; `verify`/`settle` take the union payload and must return `invalidReason: 'unsupported_scheme'` for a payload shape they do not implement. `Personhood.verify` **must** compare `context.signal` with the proof's binding when a signal is given (scaffold gap, T-19): `MockPersonhood` takes `{ expectSignal: true }` and `fixtureProof(level, signal)` builds matching proofs.
+`PersonhoodProof` becomes the IDKit 4 result (re-exported from §1.6) and `PersonhoodContext` gains the challenge `signal`; `PersonhoodResult { nullifierHash: Hex; level: VerificationLevel }` is unchanged — live adapters normalise the verifier's credential identifier to a level with `verificationLevelFromIdentifier` (`proof_of_human|orb → orb`, `passport|mnc → secure_document`, `document → document` — both document levels give the document tier — `device|selfie|face → device`; unknown → `invalid_proof`) and a V4 decimal nullifier to hex32 (A-25). `PaymentRail` keeps `createPaymentRequirement / verify / settle`; `verify`/`settle` take the union payload and must return `invalidReason: 'unsupported_scheme'` for a payload shape they do not implement. `Personhood.verify` **must** compare `context.signal` with the proof's binding when a signal is given (scaffold gap, T-19): `MockPersonhood` takes `{ expectSignal: true }` and `fixtureProof(level, signal)` builds matching proofs.
 
 ### 3.2 Factory and options
 
@@ -694,17 +751,28 @@ export class MockTreasury implements Treasury { refunds(): ReadonlyArray<{ netwo
 ```ts
 export const liveConfigSchema: z.ZodType<LiveConfig>;   // zod over process.env (see §12 for the variables)
 export function createLiveAdapters(config: LiveConfig, deps?: { fetch?: typeof fetch; now?: () => number; logger?: Pick<Console, 'info' | 'warn'> }): Adapters;
-export class ArkivLedger implements Ledger { constructor(opts: { client: ArkivClientLike; blockTimeMs: number; now: () => number }) } // seconds→blocks rounded UP, drift logged (T-35)
-export class WorldCloudPersonhood implements Personhood { constructor(opts: { appId: string; fetch?: typeof fetch; baseUrl?: string }) }
-export class RemoteFacilitator implements PaymentRail { constructor(opts: { url: string; fetch?: typeof fetch; allowedHosts: string[]; networks: string[] }) }
+/** @arkiv-network/sdk 1.0.1 on rabdi (chain 7794095) by default (A-23); expiresIn seconds → `expiration: ExpirationTime.fromSeconds(ceil to 2-s blocks)`, ≤ 7,884,000 blocks (A-24); drift logged (T-35). */
+export class ArkivLedger implements Ledger { constructor(opts: { client: ArkivClientLike; blockTimeMs: number; now: () => number }) }
+/** IDKit 4 cloud verify: POST {baseUrl = https://developer.world.org}/api/v4/verify/{rpId}, body = the IDKit result unchanged (A-25). */
+export class WorldCloudPersonhood implements Personhood { constructor(opts: { rpId: string; action: string; environment: 'production' | 'staging'; fetch?: typeof fetch; baseUrl?: string }) }
+/** Issues the backend-signed rp_context (idkit-core/signing signRequest; key never leaves the API). Local mode: a fixed test key. */
+export function createRpContextSigner(opts: { appId: string; rpId: string; action: string; environment: 'production' | 'staging'; signingKeyHex: Hex; ttlS?: number; now: () => number }): { issue(): Promise<RpContext> };
+/** x402 v2 facilitator (`/supported`, `/verify`, `/settle`); default https://x402.org/facilitator for eip155:84532 and hedera:testnet; Hedera fee payer read from /supported kinds[].extra.feePayer (A-20). */
+export class RemoteFacilitator implements PaymentRail { constructor(opts: { url: string; fetch?: typeof fetch; allowedHosts: string[]; networks: string[]; expectFeePayer?: Record<string, string> }) }
 export class SelfRunFacilitator implements PaymentRail { constructor(opts: { publicClient; relayer: Relayer; token: Address; chainId: number; network: string; now: () => number; perFromRateLimit?: number }) }
 export class RoutingPaymentRail implements PaymentRail { constructor(rails: Record<string /* network */, PaymentRail>) }
-export class EsimAccessReseller implements Reseller { constructor(opts: { accessCode: string; secret: string; webhookSecret: string; fetch?: typeof fetch; baseUrl?: string; now: () => number }) }
-export class MegaEsimReseller implements Reseller { constructor(opts: { apiKey: string; webhookSecret: string; fetch?: typeof fetch; baseUrl?: string; now: () => number }) }
+/** PRIMARY reseller (A-27). HMAC-signed RT-* headers on every call; webhooks are unsigned per the docs ⇒ URL token + sender-IP allow-list, and payloads are hints re-checked with /esim/query. */
+export class EsimAccessReseller implements Reseller { constructor(opts: { accessCode: string; signingKey?: string /* default = accessCode, per the official reference */; webhookToken: string; webhookIps?: string[]; fetch?: typeof fetch; baseUrl?: string; now: () => number }) }
+/** FIXTURE-ONLY STUB (A-28): no public API docs exist. Every method throws AdapterError('reseller','unavailable') unless constructed over recorded fixtures; liveConfigSchema refuses RESELLER=megaesim. */
+export class MegaEsimReseller implements Reseller { constructor(opts: { fixtureFetch?: typeof fetch; baseUrl?: string; now: () => number }) }
 export class InventoryReseller implements Reseller { constructor(opts: { file: string; sealKey: Uint8Array; now: () => number }) }   // fixtures/inventory.enc (T-41)
 export class FallbackReseller implements Reseller { constructor(primary: Reseller, fallback: Reseller) }   // order() falls back; usage/topUp do not
-export class HcsLog implements ConsensusLog { constructor(opts: { client: HederaClientLike; mirrorUrl: string; fetch?: typeof fetch }) }
-export function hcs14Uaid(input: { registry: 'hedera'; name: string; version: string; protocol: 'x402'; nativeId: string; skills?: string[] }): string; // [verify Wed] against the HCS-14 spec vector in fixtures/hcs/hcs14-vector.json
+export class HcsLog implements ConsensusLog { constructor(opts: { client: HederaClientLike /* @hiero-ledger/sdk Client via @x402/hedera */; mirrorUrl: string; fetch?: typeof fetch }) }
+/**
+ * HCS-14 self-issued UAID (A-29): `uaid:aid:<base58(sha384(JSON.stringify({ skills, name, nativeId, protocol, registry, version })))>;uid=0;registry=<registry>;nativeId=<nativeId>;proto=<protocol>`,
+ * keys in exactly that order, strings trimmed, protocol/registry lower-cased, skills sorted integers. Conformance test against @hashgraphonline/standards-sdk createUaid (devDependency).
+ */
+export function hcs14Uaid(input: { registry: 'hedera'; name: string; version: string; protocol: 'x402'; nativeId: string /* CAIP-10 hedera:testnet:0.0.x */; skills?: number[] }): string;
 export class EnsResolver implements NameResolver { constructor(opts: { mainnetClient; fallbackClient? }) }  // viem normalize + getEnsAddress/getEnsText (T-43)
 export class SwarmBlobStore implements BlobStore { constructor(opts: { beeUrl: string; postageBatchId: string; fetch?: typeof fetch }) }
 export class EvmTreasury implements Treasury { constructor(opts: { walletClient; publicClient; token: Address; network: string }) }        // ERC-20 transfer from the payout wallet
@@ -719,10 +787,11 @@ export const T0: number;                                            // Date.UTC(
 export function fakeClock(start?: number): { now: () => number; advance(ms: number): void; set(ms: number): void };
 export const anvilAccounts: readonly Address[];                     // ten, mnemonic "test test … junk"
 export const anvilKeys: readonly Hex[];                             // the matching private keys (public; never fund elsewhere)
-export const anvilRoles: { deployer: 0; payout: 1; attestor: 2; sponsor: 3; agent: 4; human: 5; relayer: 6; stranger: 7 };
+export const anvilRoles: { deployer: 0; payout: 1; attestor: 2; sponsor: 3; agent: 4; human: 5; relayer: 6; stranger: 7; treasury: 8 };   // treasury added by A-31
 export function loadFixture<T = unknown>(relPath: string): T;      // from <repo>/fixtures
 /** Replays recorded HTTP exchanges; throws FixtureMiss({method,url,body}) on an unmatched request so request shapes are asserted. */
 export function fixtureFetch(relPath: string, opts?: { strictBody?: boolean }): typeof fetch;
+/** IDKit-4-shaped result (V4 for orb/document, V3 'device' for device) whose signal_hash = hashToField(signal); MockPersonhood({ expectSignal }) checks exactly that (A-25). */
 export function fixtureProof(level: VerificationLevel, signal?: Hex, seed?: string): PersonhoodProof;
 export function paymentPayload(req: PaymentRequirements, overrides?: Partial<PaymentAuthorization>, signature?: Hex): PaymentPayload;
 export function requirementInput(overrides?: Partial<PaymentRequirementInput>): PaymentRequirementInput;
@@ -745,8 +814,10 @@ Leaf. Dependency: `viem`. Shared by `SelfRunFacilitator`, the PWA payer, the age
 ```ts
 export interface Authorization3009 { from: Address; to: Address; value: bigint; validAfter: bigint; validBefore: bigint; nonce: Hex }
 export const TRANSFER_WITH_AUTHORIZATION_TYPES, RECEIVE_WITH_AUTHORIZATION_TYPES, CANCEL_AUTHORIZATION_TYPES; // viem TypedData objects
-/** Never hard-code name/version: Circle USDC is ("USD Coin","2") on most chains but testnet deployments differ; read them (readDomain) and record per chain in fixtures/eip3009/domains.json. */
+/** The domain name is configurable per chain (A-21): Base Sepolia USDC = ("USDC","2"), mainnets = ("USD Coin","2"); callers pass it from accepts[].extra (protocol USDC_EIP712_DOMAIN). Recorded per chain in fixtures/eip3009/domains.json. */
 export function domain(token: Address, chainId: number, name: string, version: string): TypedDataDomain;
+/** The one builder the exact-EVM payload signers use (PWA EvmWalletSigner, agent EvmPayer, testing paymentPayload): domain from accepted.extra.{name,version}, chainId from the eip155 reference, verifyingContract = asset. Throws on a missing/non-string name or version. */
+export function domainFromRequirements(req: { network: string; asset: string; extra?: Record<string, unknown> }): TypedDataDomain;
 export async function readDomain(publicClient: PublicClient, token: Address): Promise<{ name: string; version: string; chainId: number }>; // ERC-5267 eip712Domain(), fallback name()/version()
 export function typedDataTransferWithAuthorization(d: TypedDataDomain, a: Authorization3009): TypedDataDefinition;
 export function typedDataReceiveWithAuthorization(d: TypedDataDomain, a: Authorization3009): TypedDataDefinition;
@@ -968,6 +1039,7 @@ Base URL `NEXT_PUBLIC_API_URL` (local `http://127.0.0.1:8787`). JSON everywhere;
 | `GET /healthz` | — | `healthSchema` | exists |
 | `GET /plans` | — | `plansResponseSchema` | public; cached 60 s |
 | `POST /challenge` | `challengeRequestSchema` | `challengeSchema` | 10/min/IP; no ledger write |
+| `POST /world/rp-context` | `rpContextRequestSchema` | `rpContextSchema` | 10/min/IP; no ledger write; signs with `WORLD_RP_SIGNING_KEY` (idkit-core `signRequest`, ttl 300 s); the PWA calls it after `/challenge` and before `IDKit.request` (A-25) |
 | `POST /claim` | `claimRequestSchema` | `entitledResponseSchema` (201; 202 when `pending-profile`) | 5/min/IP; `octroi()` free lane; attestor `DataDrop.claim` |
 | `GET /esim/provision?mb=&planId=` | header `PAYMENT-SIGNATURE` (optional), `X-Session-Pubkey` (required) | 402 `paymentRequiredSchema` + header `PAYMENT-REQUIRED`; or 201 `entitledResponseSchema` + header `PAYMENT-RESPONSE` | `octroi()` paid lane; nonce must equal `sessionNonce` |
 | `GET /esim/topup?key=&mb=` | header `PAYMENT-SIGNATURE` (optional) | 402 …; or 200 `topUpResponseSchema` + `PAYMENT-RESPONSE` | per-ICCID daily cap `TOPUPS_PER_ICCID_PER_DAY` (default 20) |
@@ -976,14 +1048,14 @@ Base URL `NEXT_PUBLIC_API_URL` (local `http://127.0.0.1:8787`). JSON everywhere;
 | `POST /gift/reclaim` | `giftReclaimRequestSchema` | `giftReclaimResponseSchema` | challenge path `/gift/reclaim`; EIP-712 `GiftReclaim` by the gift's `payer`; `decideGiftReclaim`; writes a pending `gift-reclaim` receipt **before** `treasury.refund`, patches the tx after; per-giftId mutex; `TREASURY_MAX_USD6_PER_DAY` |
 | `GET /card/:serial` | — | `cardPreviewSchema` | read-only; 404 for unknown; constant-time |
 | `POST /card/redeem` | `cardRedeemRequestSchema` | `entitledResponseSchema` | 10/min/IP; challenge path `/card/redeem`; campaign-funded cards call `DataDrop.claim` |
-| `POST /webhooks/reseller/:provider` | raw body + provider headers | 204 | `reseller.verifyWebhook`; 401 on failure; 409 on replay; never 500 |
+| `POST /webhooks/reseller/:provider` | raw body + provider headers (`esimaccess`: `?token=` = `ESIMACCESS_WEBHOOK_TOKEN`) | 204 | `reseller.verifyWebhook`; 401 on failure; 409 on replay; never 500; for `esimaccess` each event triggers an authoritative `reseller.usage(iccid)` read before any patch (A-27) |
 | `GET /me/:key` | — | `meResponseSchema` | 60-s cache (read path only, T-51); `?refresh=1` polls `reseller.usage` ≤ 1/min/ICCID; 404 unknown; 410 `expired` |
 | `GET /me/:key/receipts` | — | `receiptsResponseSchema` | ledger query |
 | `GET /sponsor/:id` | header `Authorization: Recharge-Sponsor <base64 {sponsor, issuedAt, signature}>` | `sponsorViewSchema` | EIP-712 `SponsorLogin`, issuedAt within 1 h, signer == campaign sponsor |
 | `POST /sponsor` | `sponsorRegisterSchema` | 201 `{ id, auditKey }` | signer == `campaign.sponsor` and == on-chain `campaigns(id).sponsor` |
 | `PUT /agent/policy` | `agentPolicyPutSchema` | 200 `agentPolicyViewSchema` | EIP-712 `AgentPolicy`; owner must equal the entitlement's `payer` (paid) or be the first owner registered for a free entitlement |
 | `GET /agent/policy/:key` | — | `agentPolicyViewSchema` | public read (policy is public on the ledger anyway) |
-| `GET /facilitator/supported` · `POST /facilitator/verify` · `POST /facilitator/settle` | x402 facilitator API `{ x402Version, paymentPayload, paymentRequirements }` | `{ kinds }` · `verifyResultSchema` · `settleResultSchema` | the self-run facilitator (EVM exact), also usable by third parties |
+| `GET /facilitator/supported` · `POST /facilitator/verify` · `POST /facilitator/settle` | x402 facilitator API `{ x402Version, paymentPayload, paymentRequirements }` | `{ kinds, extensions: [], signers }` · `verifyResultSchema` · `settleResultSchema` | the self-run facilitator (EVM exact), also usable by third parties |
 | `GET /openapi.json` | — | OpenAPI 3.1 | generated from the schemas; committed; `pnpm openapi:check` |
 
 **Middleware order (fixed):** `requestId → logger → securityHeaders (no-store, nosniff, no-referrer) → cors(allow-list) → rateLimit(ip; X-Forwarded-For only when TRUST_PROXY=1) → bodyLimit(64 KiB) → idempotency(Idempotency-Key, 24 h, POST only) → validate(zod) → x402() → octroi() → handler → errorMapper`.
@@ -1003,10 +1075,10 @@ export const agentConfigSchema = z.object({
   AGENT_TICK_MS: z.coerce.number().int().min(1_000).default(60_000),   // 5_000 in local
   AGENT_DRY_RUN: z.coerce.boolean().default(false),
   AGENT_ONCE: z.coerce.boolean().default(false),
-  AGENT_PAYTO_ALLOWLIST: z.string(),                  // comma list of `<network>|<asset>|<payTo>` pinned from /plans at install time (T-56)
+  AGENT_PAYTO_ALLOWLIST: z.string(),                  // comma list of `<network>|<asset>|<payTo>` (+ `|<feePayer>` on hedera:*, A-20) pinned from /plans at install time (T-56)
   AGENT_MAX_USD6_PER_STEP: digitsSchema.default('1000000'),
   AGENT_EVM_PRIVATE_KEY: hex32Schema.optional(),      // Anvil #4 locally; Base Sepolia key live
-  AGENT_HEDERA_ACCOUNT_ID: hederaAccountSchema.optional(), AGENT_HEDERA_PRIVATE_KEY: z.string().optional(),
+  AGENT_HEDERA_ACCOUNT_ID: hederaAccountSchema.optional(), AGENT_HEDERA_PRIVATE_KEY: z.string().optional(), // ECDSA (PrivateKey.fromStringECDSA); account associated with 0.0.429274
   AGENT_UAID: z.string().optional(),                  // computed by hcs14Uaid on first run and persisted to .agent/uaid
   HCS_TOPIC_ID: z.string().optional(), HEDERA_MIRROR_URL: z.url().optional(),
   LLM_PROVIDER: z.enum(['none', 'anthropic']).default('none'),
@@ -1018,7 +1090,7 @@ export function tick(deps: AgentDeps, key: string): Promise<TickResult>;   // re
 export interface NotificationFacts { mbRemaining: number; mbTotal: number; expiresAt: number; boughtMb: number; spentTodayUsd6: string; capUsd6: string; reason: 'threshold' | 'expiry' | 'cap' | 'paused' }
 export function phraseNotification(facts: NotificationFacts, llm?: Inference): Promise<string>;
 ```
-CLI: `recharge-agent [--once] [--dry-run] [--key <entitlementKey>]`.
+CLI: `recharge-agent [--once] [--dry-run] [--key <entitlementKey>]`. Live wallet: `@hashgraph/hedera-agent-kit@4.2.0` (`HederaAgentAPI`, core account/token/consensus plugins, `AgentMode.AUTONOMOUS`) for balance, association and the HCS receipt; the x402 payload itself comes from `@x402/hedera/exact/client` (`createClientHederaSigner` + `ExactHederaScheme`) wrapped as a `PaymentSigner`, because the Agent Kit does not speak x402 (A-22).
 
 ---
 
@@ -1026,7 +1098,7 @@ CLI: `recharge-agent [--once] [--dry-run] [--key <entitlementKey>]`.
 
 - **Contract events:** `ModeSet(bool)`, `CampaignCreated(bytes32,address,uint128,uint96,uint32,uint64)`, `Claimed(bytes32,bytes32,uint96,uint64)`, `Paused(bytes32,bool,address)`, `Refunded(bytes32,uint128)`, `AttestorSet(address)`; `MockUSDC3009`: ERC-20 `Transfer`, `AuthorizationUsed`, `AuthorizationCanceled`.
 - **HCS message types (`t`):** `claim`, `settle`, `gift`, `gift-claim`, `gift-reclaim`, `card-redeem`, `agent-topup`. One topic per deployment (`HCS_TOPIC_ID`), created by a human on Wed; agent messages carry `uaid`.
-- **HTTP headers:** `PAYMENT-REQUIRED`, `PAYMENT-SIGNATURE`, `PAYMENT-RESPONSE`, `X-Session-Pubkey`, `X-Request-Id`, `Idempotency-Key`, `Authorization: Recharge-Sponsor …`, webhook `x-recharge-signature` / `x-recharge-timestamp` / `x-recharge-event-id` (mock reseller).
+- **HTTP headers:** `PAYMENT-REQUIRED`, `PAYMENT-SIGNATURE`, `PAYMENT-RESPONSE`, `X-Session-Pubkey`, `X-Request-Id`, `Idempotency-Key`, `Authorization: Recharge-Sponsor …`, webhook `x-recharge-signature` / `x-recharge-timestamp` / `x-recharge-event-id` (mock reseller); eSIM Access outbound `RT-AccessCode` / `RT-Timestamp` (ms) / `RT-RequestID` / `RT-Signature` (A-27).
 - **Ledger annotations:** §1.1 `ANN`; entity types §1.1 `ENTITY_TYPES`; logical key prefixes `ent:v1:`, `paid:`, `giftent:`, `gift:`, `nonce:`, `rcpt:`, `camp:`, `policy:`.
 - **Log events:** §1.10 `LOG_EVENTS`.
 - **PWA ↔ API:** no cookies; the PWA stores `entitlementKey`s and opened LPAs in IndexedDB (device-local), never the session secret.
@@ -1039,13 +1111,13 @@ Recorded exchanges: `{ "name", "recordedAt", "exchanges": [ { "request": { "meth
 
 | Path | Content | Recorded by |
 |---|---|---|
-| `fixtures/world/verify-ok.json`, `verify-max-verifications.json`, `verify-invalid-proof.json`, `verify-malformed.json`, `hash-to-field-vectors.json` | `POST /api/v2/verify/{app_id}` exchanges; IDKit `hashToField` vectors | orchestrator from docs; Integrations Wed |
-| `fixtures/facilitator/x402org/{supported,verify-ok,settle-ok,settle-nonce-used,verify-invalid}.json` | EVM exact scheme | orchestrator from the x402 spec; Wed |
-| `fixtures/facilitator/hedera/{supported,verify-ok,settle-ok}.json` | Hedera exact scheme `[verify Wed]` | Integrations Wed 14:00 |
-| `fixtures/reseller/esimaccess/{plans,order,query,topup,usage,webhook-usage}.json` | eSIM Access open API | orchestrator from docs; Integrations Tue/Wed |
-| `fixtures/reseller/megaesim/*.json` | MegaeSIM sandbox | Integrations Tue (instant sandbox) |
-| `fixtures/arkiv/{create,get,query,update,expired}.json` | SDK-level exchanges (JSON-RPC bodies) | Integrations Wed |
-| `fixtures/hcs/{submit-receipt,mirror-messages,hcs14-vector}.json` | SDK receipt shape, mirror REST page, one HCS-14 UAID vector from the spec | orchestrator; Wed |
+| `fixtures/world/{verify-ok-v4,verify-ok-v3-legacy,verify-replayed,verify-all-failed,verify-malformed}.json`, `hash-to-field-vectors.json`, `rp-context-vector.json` | `POST /api/v4/verify/{rp_id}` exchanges (body = IDKit result unchanged); `hashToField` vectors from API-FACTS §4.2; one `signRequest` message/signature pair (A-25) | orchestrator from API-FACTS; Integrations Wed |
+| `fixtures/facilitator/x402org/{supported,verify-ok,settle-ok,settle-nonce-used,verify-invalid}.json` | EVM exact (`eip155:84532`, `extra { name: "USDC", version: "2" }`) and Hedera kinds as listed by `https://x402.org/facilitator/supported` | orchestrator from the x402 spec @ 0e6e8c5; Wed |
+| `fixtures/facilitator/hedera/{supported,verify-ok,settle-ok}.json` | Hedera exact (`hedera:testnet`, `extra.feePayer`, payload `{ transaction }`, settle `transaction` = `0.0.x@s.n`) from x402.org, fallback Blocky402 / Launa | orchestrator from `@x402/hedera@2.29.0`; Integrations Wed 14:00 |
+| `fixtures/reseller/esimaccess/{balance,plans,order,query,query-pending,topup,usage,cancel,webhook-data-usage,webhook-check-health}.json` | eSIM Access open API with signed `RT-*` headers (A-27) | orchestrator from `esimaccess-api@b9421b3`; Integrations Wed (real `ac`, webhook body) |
+| `fixtures/reseller/megaesim/README.md` only | no public API; stays empty unless the vendor supplies docs on-site (A-28) | Integrations, only if docs arrive |
+| `fixtures/arkiv/{create,get,query,update,expired}.json` | `ArkivClientLike`-level exchanges for `@arkiv-network/sdk@1.0.1` on rabdi 7794095 (A-23) | orchestrator; Integrations Wed |
+| `fixtures/hcs/{submit-receipt,mirror-messages,hcs14-vector}.json` | `@hiero-ledger/sdk` receipt shape, mirror REST page, one HCS-14 UAID vector computed with `@hashgraphonline/standards-sdk@0.1.192` (A-29) | orchestrator; Wed |
 | `fixtures/ens/{resolve-ok,resolve-null,text-avatar}.json` | viem `getEnsAddress`/`getEnsText` RPC exchanges | orchestrator |
 | `fixtures/eip3009/{vectors.json,domains.json}` | Circle-layout typed-data digests + signatures produced by `forge` and viem (must agree); per-chain `(name, version)` | contracts + eip3009 workstreams |
 | `fixtures/swarm/{upload,download}.json` | Bee gateway `POST /bzz`, `GET /bzz/{ref}` | Wed |
@@ -1064,14 +1136,14 @@ ATTESTOR_PRIVATE_KEY=          # DataDrop.claim; local: Anvil #2
 RELAYER_PRIVATE_KEY=           # self-run facilitator; local: Anvil #6
 PAYOUT_ADDRESS=                # x402 payTo on EVM networks and DataDrop payout; local: Anvil #1
 PAYOUT_HEDERA_ACCOUNT=         # x402 payTo on hedera:testnet
-TREASURY_PRIVATE_KEY=          # key of PAYOUT_ADDRESS, used ONLY for gift reclaims (EvmTreasury); local: Anvil #1
-TREASURY_HEDERA_PRIVATE_KEY=   # key of PAYOUT_HEDERA_ACCOUNT, same purpose
+TREASURY_PRIVATE_KEY=          # a SEPARATE refund wallet (not PAYOUT_ADDRESS), funded ≤ TREASURY_MAX_USD6_PER_DAY, used ONLY for gift reclaims (EvmTreasury); local: Anvil #8 (`anvilRoles.treasury`, A-31)
+TREASURY_HEDERA_ACCOUNT= TREASURY_HEDERA_PRIVATE_KEY=   # separate Hedera refund account (ECDSA, associated with 0.0.429274), same purpose
 TREASURY_MAX_USD6_PER_DAY=50000000   # $50/day of reclaims; the API refuses beyond it (503 treasury cap, logged)
 GIFT_RECLAIM_FEE_USD6=0        # deducted from a reclaim to cover the network fee (testnet: 0)
 DATADROP_ADDRESS=              # optional override of deploy/addresses.<slug>.json
 X402_FACILITATOR=self          # mock | self | remote (local default: self when ANVIL_RPC_URL answers, else mock)
-X402_FACILITATOR_URL_EVM=      # remote facilitator for eip155:*; host must be in the allow-list (T-42)
-X402_FACILITATOR_URL_HEDERA=   # remote facilitator for hedera:testnet
+X402_FACILITATOR_URL_EVM=https://x402.org/facilitator      # host must be in the allow-list (T-42): x402.org, api.testnet.blocky402.com, testnet.facilitator.launa.dev, localhost
+X402_FACILITATOR_URL_HEDERA=https://x402.org/facilitator   # fallback https://api.testnet.blocky402.com (fee payer 0.0.7162784)
 X402_NETWORKS=eip155:31337     # comma list of accepts[] networks; must ⊂ TESTNET_NETWORKS unless SALES_ENABLED=true and LEGAL_MEMO_OK=true (T-52)
 PRICE_USD6_PER_STEP=400000     # $0.40 per 100 MB
 VALIDITY_DAYS=7
@@ -1083,16 +1155,20 @@ CORS_ORIGINS=http://127.0.0.1:3000,http://localhost:3000
 PRINT_TOKEN=                   # protects /print/cards (T-64)
 # Reseller
 RESELLER=mock                  # mock | esimaccess | megaesim | inventory ; RESELLER_FALLBACK=inventory
-ESIMACCESS_ACCESS_CODE= ESIMACCESS_SECRET= ESIMACCESS_WEBHOOK_SECRET= ESIMACCESS_BASE_URL=https://api.esimaccess.com/api/v1/open
-MEGAESIM_API_KEY= MEGAESIM_WEBHOOK_SECRET= MEGAESIM_BASE_URL=
+ESIMACCESS_ACCESS_CODE= ESIMACCESS_SIGNING_KEY= ESIMACCESS_WEBHOOK_TOKEN= ESIMACCESS_BASE_URL=https://api.esimaccess.com/api/v1/open   # signing key defaults to the access code (A-27)
+ESIMACCESS_WEBHOOK_IPS=3.1.131.226,54.254.74.88,18.136.190.97,18.136.60.197,18.136.19.137
+# MegaeSIM: no variables — fixture-only stub (A-28); RESELLER=megaesim is refused in live
 MOCK_RESELLER_WEBHOOK_SECRET=  # local webhook simulator
 INVENTORY_FILE=fixtures/inventory.enc INVENTORY_SEAL_KEY=
 # World (server side)
-WORLD_APP_ID= WORLD_ACTION=recharge-welcome WORLD_VERIFY_BASE_URL=https://developer.worldcoin.org
-# Arkiv
-ARKIV_RPC_URL= ARKIV_WS_URL= ARKIV_PRIVATE_KEY= ARKIV_CHAIN_ID=60138453025 ARKIV_BLOCK_TIME_MS=2000
+WORLD_APP_ID= WORLD_RP_ID= WORLD_RP_SIGNING_KEY= WORLD_ACTION=recharge-welcome WORLD_ENVIRONMENT=production WORLD_VERIFY_BASE_URL=https://developer.world.org   # signing key: Portal shows it once; server secret only (A-25)
+# Arkiv — rabdi testnet; Kaolin (60138453025) is retired (A-23). tiramisu 7738577 is the configurable alternative if Arkiv judges ask for it.
+ARKIV_CHAIN_ID=7794095 ARKIV_RPC_URL=https://rpc.rabdi.db-chain.testnet.arkiv.network ARKIV_WS_URL=wss://rpc.rabdi.db-chain.testnet.arkiv.network
+ARKIV_ACCESS_KEY=              # hub.arkiv.network/access-keys; appended as the last RPC path segment (not a secret, never logged anyway)
+ARKIV_PRIVATE_KEY= ARKIV_BLOCK_TIME_MS=2000 ARKIV_EXPLORER=https://rabdi.explorer.arkiv.network   # gas: tGLM from hub.arkiv.network/faucet
 # Hedera / HCS
-HEDERA_ACCOUNT_ID= HEDERA_PRIVATE_KEY= HCS_TOPIC_ID= HEDERA_MIRROR_URL=https://testnet.mirrornode.hedera.com
+HEDERA_ACCOUNT_ID= HEDERA_PRIVATE_KEY= HCS_TOPIC_ID= HEDERA_MIRROR_URL=https://testnet.mirrornode.hedera.com   # ECDSA keys (PrivateKey.fromStringECDSA)
+X402_HEDERA_FEE_PAYER=         # optional pin; must equal the facilitator's /supported extra.feePayer (x402.org advertises 0.0.9185802) (A-20)
 # ENS
 ENS_RPC_URL= ENS_FALLBACK_RPC_URL=
 # Swarm
@@ -1102,9 +1178,9 @@ AGENT_API_URL=http://127.0.0.1:8787 AGENT_TICK_MS=5000 AGENT_WATCH_KEYS= AGENT_O
 AGENT_EVM_PRIVATE_KEY= AGENT_HEDERA_ACCOUNT_ID= AGENT_HEDERA_PRIVATE_KEY= AGENT_UAID= AGENT_DRY_RUN=0 AGENT_ONCE=0 LLM_PROVIDER=none
 # Web (public)
 NEXT_PUBLIC_API_URL=http://127.0.0.1:8787 NEXT_PUBLIC_MODE=local NEXT_PUBLIC_ANVIL_RPC_URL=http://127.0.0.1:8545
-NEXT_PUBLIC_WORLD_APP_ID= NEXT_PUBLIC_WORLD_ACTION=recharge-welcome NEXT_PUBLIC_EXPLORER_EVM= NEXT_PUBLIC_EXPLORER_HEDERA=https://hashscan.io/testnet NEXT_PUBLIC_ARKIV_EXPLORER=
+NEXT_PUBLIC_WORLD_APP_ID= NEXT_PUBLIC_WORLD_ACTION=recharge-welcome NEXT_PUBLIC_WORLD_ENVIRONMENT=production NEXT_PUBLIC_EXPLORER_EVM= NEXT_PUBLIC_EXPLORER_HEDERA=https://hashscan.io/testnet NEXT_PUBLIC_ARKIV_EXPLORER=https://rabdi.explorer.arkiv.network
 ```
-`services/api/src/env.ts` rejects: `MODE=live` with any Anvil key in `ATTESTOR_PRIVATE_KEY`/`RELAYER_PRIVATE_KEY`/`ARKIV_PRIVATE_KEY`; `LOG_LEVEL=debug|trace` in live; `OCTROI_SECRET` shorter than 32 bytes; `X402_NETWORKS` outside the testnet set without both sales flags.
+`services/api/src/env.ts` rejects: `MODE=live` with any Anvil key in `ATTESTOR_PRIVATE_KEY`/`RELAYER_PRIVATE_KEY`/`ARKIV_PRIVATE_KEY`; `LOG_LEVEL=debug|trace` in live; `OCTROI_SECRET` shorter than 32 bytes; `X402_NETWORKS` outside the testnet set without both sales flags; in live: `RESELLER=megaesim` (A-28), a missing `WORLD_RP_ID`/`WORLD_RP_SIGNING_KEY` (A-25), `ARKIV_CHAIN_ID=60138453025` (Kaolin, retired, A-23).
 
 ---
 
@@ -1146,12 +1222,26 @@ Nobody imports another package's `src/` or `dist/` path; package names and subpa
 | A-15 | routes list | adds `GET /me/:key/receipts`, `PUT/GET /agent/policy`, `/facilitator/*`, `/openapi.json`, `GET /card/:serial`; `/card/:pin` removed | receipts screen, agent sheet persistence, self-run facilitator, OpenAPI deliverable. |
 | A-16 | Adapters bundle `+ reseller, consensus` | `+ reseller, consensus, blobs, treasury` | Swarm bonus needs a blob port; gift reclaims need an outbound-USDC port. |
 | A-17 | gifts "escrow" with a claim-window `expiresIn` (rule for lapsed gifts unspecified) | the escrow entity's `expiresIn` **is** the claim window; after it the sender reclaims via `POST /gift/reclaim` (USDC returned minus `GIFT_RECLAIM_FEE_USD6`, for `GIFT_RECLAIM_WINDOW_S`), decided by `decideGiftReclaim` from the receipts plus the escrow's absence | design pass finding (coordinator, 3 Nov): the `/gift` copy must state what happens; the absence of the expired escrow is what authorises the refund — expiry stays load-bearing. |
+| A-18 | (scaffold, briefs, some prior art) x402 terms as `maxAmountRequired` and loose `PaymentRequired`/`SettleResult` shapes | x402 **v2**: `accepts[].amount` (atomic-unit digit string) is the only amount field; `PaymentRequired.extensions?`, `PaymentPayload.resource?`/`extensions?`; verify-failure `payer?`; settle-failure `transaction?` (`""`) and `payer?`; `settlement_pending` is non-terminal and carries the tx | `docs/vendor/API-FACTS.md` §1.3–1.5 (spec `x402@0e6e8c5` §5–7). `maxAmountRequired` is the v1 name; a v2 facilitator rejects it. The forbidden-pattern / semgrep sets should flag the string in app code. |
+| A-19 | x402 implemented only by our codec; no reference packages named | reference packages pinned at **`@x402/{core,evm,hedera,fetch,hono}@2.29.0`** (catalog). `@ethglobal/protocol/x402` stays the **one** codec and loop in app code; `@x402/core` is a devDependency of `@ethglobal/protocol` for a conformance test (our encode ⇄ their decode, both directions, on every fixture); `@x402/hedera/exact/client` builds the Hedera payload in the agent (A-22); the legacy v1 packages (`x402`, `x402-hono`, `x402-fetch`, …) are banned | API-FACTS §1.1. Interop is proved against the reference, not asserted; one codec still owns the wire (no-duplication rule). |
+| A-20 | Hedera exact payload `{ signedTransaction, memo }` `[verify Wed]`; Hedera facilitator "hedera-dev"; fee payer unspecified | network id **`hedera:testnet`** (never `hedera:296`/`eip155:296` for x402); asset HTS **`0.0.429274`**, 6 dp; `accepts[].extra.feePayer` = the facilitator's account (from `/supported` kinds `extra`; x402.org advertises `0.0.9185802`, Blocky402 `0.0.7162784`); payload **`{ transaction: <base64 partially-signed TransferTransaction> }`** with `transactionId.accountId == feePayer`; `maxTimeoutSeconds ≤ 180`; settlement tx id `0.0.x@s.n` read from `transaction` (fallback `transactionId`); payer **and** payee associated with the token; `payTo` a plain `0.0.x` (aliases rejected) | API-FACTS §1.6–1.7, §2.2 (`@x402/hedera@2.29.0`, `scheme_exact_hedera.md`). The schema now enforces `extra.feePayer` and the 180-s cap. |
+| A-21 | eip3009 `domain()` comment "("USD Coin","2") on most chains"; Base Sepolia name unknown | per-chain EIP-712 domain is **data**: `USDC_EIP712_DOMAIN` in `@ethglobal/protocol/ids` — Base Sepolia **`"USDC"`**, mainnets `"USD Coin"`, version `"2"`; the API puts it in `accepts[].extra`; `@ethglobal/eip3009` gains `domainFromRequirements(req)` and every exact-EVM payload builder (PWA, agent, `paymentPayload()` test builder, `SelfRunFacilitator`) takes the name from `extra`, cross-checked with `readDomain()` where an RPC answers; `MockUSDC3009` stays `"USD Coin"` | API-FACTS §1.3, §1.8, §7 (`FiatTokenV2_2._domainSeparator`, x402 `defaultAssets.ts`). A hard-coded "USD Coin" produces a signature Base Sepolia rejects. |
+| A-22 | `@hashgraph/sdk`; `hedera-agent-kit` (v3 toolkit) | Hedera SDK **`@hiero-ledger/sdk@2.90.1`**, imported through `@x402/hedera`'s re-exports (one SDK copy; `pnpm why @hiero-ledger/sdk` shows one); keys via `PrivateKey.fromStringECDSA`; Agent Kit **`@hashgraph/hedera-agent-kit@4.2.0`** (`HederaAgentAPI` + core plugins, `AgentMode.AUTONOMOUS`; `RETURN_BYTES` for human-in-the-loop) — the Agent Kit is the agent's wallet and HCS tool, `@x402/hedera` produces the x402 payload | API-FACTS §2.5–2.6: `@hashgraph/sdk` stopped at 2.81.0; unscoped `hedera-agent-kit` 3.8.2 is deprecated; two SDK copies break `instanceof`. |
+| A-23 | Arkiv **Kaolin**, chain `60138453025`; ETH faucet | Arkiv SDK **`@arkiv-network/sdk@1.0.1`**, default network **rabdi** (chain **7794095**, `https://rpc.rabdi.db-chain.testnet.arkiv.network/<accessKey>`, explorer `rabdi.explorer.arkiv.network`, gas **tGLM** from `hub.arkiv.network/faucet`, access key from `hub.arkiv.network/access-keys`); tiramisu 7738577 configurable if Arkiv judges ask; **Kaolin is retired — removed everywhere** (env, briefs, DISCLOSURE template, checklists) and refused by `env.ts`; Arkiv is not a `DataDrop` target, so `deploy/chains.json` gets no Arkiv record | API-FACTS §3.1–3.2 (`arkiv-sdk@1.0.1 src/chains/rabdi.ts`, `db-chain-networks@8af442e`). DECISION §6.6/§7.2/§7.3 say "Kaolin"; read rabdi there (the committee text is not edited). |
+| A-24 | Ledger `expiresIn` seconds → BTL blocks passed as `expiresIn` | the port keeps `expiresIn` (seconds); `ArkivLedger` maps it to **`expiration: ExpirationTime.fromSeconds(ceil(s / 2) × 2)`** (whole 2-s blocks, rounded up), rejects `> 7,884,000 × 2 s` (~182.5 d) with `invalid_request`, reads expiry from `$expiresAt` (a block number) → ms; one `defineSchema('recharge.<type>.v1', …)` per `ENTITY_TYPES` entry: payload = non-indexed `bytes()`, `ANN.*` = indexed `str()`, `expiresAt` = indexed `u64()`; queries via `select().from(schema).where(and(eq…))`, ≤ 100 rows per page, paginated by `$key` | API-FACTS §3.3: the old `expiresIn`/BTL option is gone from the SDK. Expiry stays load-bearing (T-35). |
+| A-25 | IDKit "current major"; v2 proof `{ proof, merkle_root, nullifier_hash, verification_level }`; `POST /api/v2/verify/{app_id}`; "Agent Pass" | **`@worldcoin/idkit@4.6.0` / `@worldcoin/idkit-core@4.6.0`** (never `^2`/`^3`; `idkit-standalone` is discontinued). IDKit 4 needs a **backend-signed `rp_context`**: new route `POST /world/rp-context` (`signRequest` from `@worldcoin/idkit-core/signing`, `WORLD_RP_SIGNING_KEY` server-only, ttl 300 s). The PWA: `/challenge` → `/world/rp-context` → `IDKit.request({ app_id, action, rp_context, allow_legacy_proofs: true, environment }).preset(documentLegacy({ signal: challenge.signal }))` (preset choice `[verify Wed]` with World) → forwards the result **unchanged**. Verify: **`POST https://developer.world.org/api/v4/verify/{rp_id}`**; assert `success`, `action`, `environment`, every `signal_hash == hashToField(signal)`; level from the response identifier; decimal nullifier → hex32. **"Agent Pass" has no public docs**: World's product is AgentKit (beta, an x402 `agentkit` extension on World Chain); not built in v0, the "IDKit humans only" label stays | API-FACTS §4.1–4.6 (`developer-docs@b07e972`, `idkit-core@4.6.0` types). The v2 endpoint pairs only with the v2 widget. |
+| A-26 | `personhoodProofSchema` (v2 fields); `fixtureProof` encodes the signal in proof bytes | `personhoodProofSchema` = IDKit 4 V4/V3 union, `.loose()`; `rpContextSchema`, `rpContextRequestSchema`, `IDENTIFIER_LEVEL` / `verificationLevelFromIdentifier` (the one identifier → level map) added (§1.6); `fixtureProof` builds an IDKit-shaped result with `signal_hash = hashToField(signal)` and `MockPersonhood({ expectSignal })` checks that, as the live verifier does | follows A-25; the mock must enforce what production enforces (T-19). |
+| A-27 | eSIM Access: `RT-Signature = HMAC(secret, …)`; webhooks "signed with the same RT-* headers"; order body with `amount`/`price`; usage by ICCID | eSIM Access is the **primary** reseller. Outbound: `RT-AccessCode`, `RT-Timestamp` (ms), `RT-RequestID` (uuid), `RT-Signature` = lower-case hex HMAC-SHA256(key = accessCode by default, `timestamp + requestId + accessCode + rawBody`); 8 req/s client limiter; `/esim/order { transactionId, packageInfoList:[{ packageCode, count:1 }] }`, poll `/esim/query` every 3 s ≤ 30 s (empty `ac` ⇒ `pending-profile`); top-up needs `esimTranNo` (resolved by `/esim/query { iccid }`) and a top-up `packageCode` from `/package/list { iccid }`; error codes `101003/401001 → unauthorized`, `200007 → unavailable`, `310402 → re-query`. **Webhooks carry no documented signature**: `verifyWebhook` checks a URL token (`ESIMACCESS_WEBHOOK_TOKEN`) + the documented sender IPs + a body-hash replay cache, and the API treats each event as a hint, re-reading `reseller.usage(iccid)` before any patch; `CHECK_HEALTH` → 204 | API-FACTS §5.1 (`esimaccess-api@b9421b3`). An unsigned webhook must never move a balance on its own numbers (T-34). |
+| A-28 | MegaeSIM primary with an "instant sandbox" | MegaeSIM has **no public API docs**: `MegaEsimReseller` is a **fixture-only stub** (throws `unavailable`; contract suite skipped until a vendor-supplied recording exists); `liveConfigSchema`/`env.ts` refuse `RESELLER=megaesim`. Chain: `RESELLER=esimaccess`, `RESELLER_FALLBACK=inventory` (`InventoryReseller` over the sealed pre-bought file) | API-FACTS §5.2 (two searches, Nov 2026). The round-3 sandbox claim is unverified. |
+| A-29 | `hcs14Uaid` = sha256 of canonical JSON, string skills, no `uid` | `id = base58(sha384(JSON.stringify({ skills, name, nativeId, protocol, registry, version })))` with exactly that key order, skills sorted **integers**; `uaid:aid:<id>;uid=0;registry=…;nativeId=<CAIP-10 hedera:testnet:0.0.x>;proto=…`; conformance against `@hashgraphonline/standards-sdk@0.1.192` `createUaid` | API-FACTS §2.7 (`standards-sdk@04f97c8:src/hcs-14`). |
+| A-30 | `GET /facilitator/supported` → `{ kinds }`; remote facilitator allow-list `x402.org, *.hedera.com` | our self-run `supported` returns the v2 shape `{ kinds, extensions: [], signers: { "eip155:*": [relayer] } }`; remote allow-list = `x402.org`, `api.testnet.blocky402.com`, `testnet.facilitator.launa.dev`, `localhost`; default URL for both EVM and Hedera is `https://x402.org/facilitator`, Blocky402 the Hedera fallback | API-FACTS §1.5–1.6. |
+| A-31 | treasury = the payout key (`TREASURY_PRIVATE_KEY` = key of `PAYOUT_ADDRESS`) | the treasury is a **separate** refund wallet (EVM and Hedera), funded with at most one day's `TREASURY_MAX_USD6_PER_DAY`; `payout` keys never sit on the API host | red team `PLAN.md` §9 / T-71: a compromised API must not be able to drain the payout balance; the drain bound becomes the treasury float. |
 
 ---
 
 ## 14. The interfaces workstream (how this file becomes code; 2 agent-hours, lands first in wave 1)
 
-**Create:** `packages/protocol/{package.json,tsconfig.json,tsconfig.build.json,src/index.ts,src/ids.ts,src/units.ts,src/errors.ts,src/events.ts,src/http.ts,src/x402.ts,src/typed-data.ts,src/pin.ts,src/schemas/{index,common,entities,x402,api,webhooks,hcs}.ts,test/*.test.ts}`; `packages/crypto/*` **complete** (§2 is ~150 lines of `@noble` wrappers and octroi needs it on day one; tests: seal/open round trip, wrong key, wrong AAD, flipped byte, 10⁴ distinct nonces, webhook MAC ±299/±301 s, ms timestamp rejected, HMAC vectors); `packages/eip3009/*` skeleton (package.json, tsconfig, `src/index.ts` exporting the §4 signatures as `throw new Error('not implemented')` stubs so dependants compile — the adapters-live workstream implements it); `packages/adapters/src/types.ts` edits (§3.1), `src/index.ts` re-exports, `package.json` subpath exports (`./live`, `./testing`), `src/testing/index.ts` with `fakeClock`, `T0`, `anvilAccounts`/`anvilKeys`/`anvilRoles`, `loadFixture`, `fixtureFetch`, `paymentPayload`, `requirementInput`, `fixtureProof`; `eslint.config.js` zones (§12) and a `no-restricted-syntax` rule banning bare `fetch(` outside `packages/protocol/src/http.ts` and `packages/adapters/src/testing/`; `.env.example` additions (§11); `pnpm-workspace.yaml` catalog entries for `zod`, `viem`, `@noble/*`, `fast-check`, `@playwright/test` and `minimumReleaseAge: 3 days` (T-65); `.jscpd.json` unchanged (1 %).
+**Create:** `packages/protocol/{package.json,tsconfig.json,tsconfig.build.json,src/index.ts,src/ids.ts,src/units.ts,src/errors.ts,src/events.ts,src/http.ts,src/x402.ts,src/typed-data.ts,src/pin.ts,src/schemas/{index,common,entities,x402,api,webhooks,hcs}.ts,test/*.test.ts}`; `packages/crypto/*` **complete** (§2 is ~150 lines of `@noble` wrappers and octroi needs it on day one; tests: seal/open round trip, wrong key, wrong AAD, flipped byte, 10⁴ distinct nonces, webhook MAC ±299/±301 s, ms timestamp rejected, HMAC vectors); `packages/eip3009/*` skeleton (package.json, tsconfig, `src/index.ts` exporting the §4 signatures as `throw new Error('not implemented')` stubs so dependants compile — the adapters-live workstream implements it); `packages/adapters/src/types.ts` edits (§3.1), `src/index.ts` re-exports, `package.json` subpath exports (`./live`, `./testing`), `src/testing/index.ts` with `fakeClock`, `T0`, `anvilAccounts`/`anvilKeys`/`anvilRoles`, `loadFixture`, `fixtureFetch`, `paymentPayload`, `requirementInput`, `fixtureProof`; `eslint.config.js` zones (§12) and a `no-restricted-syntax` rule banning bare `fetch(` outside `packages/protocol/src/http.ts` and `packages/adapters/src/testing/`; `.env.example` additions (§11); `pnpm-workspace.yaml` catalog entries for `zod`, `viem`, `@noble/*`, `fast-check`, `@playwright/test`, and the vendor pins of A-19…A-25 (`@x402/core|evm|hedera|fetch|hono: 2.29.0`, `@arkiv-network/sdk: 1.0.1`, `@hiero-ledger/sdk: 2.90.1`, `@hashgraph/hedera-agent-kit: 4.2.0`, `@worldcoin/idkit: 4.6.0`, `@worldcoin/idkit-core: 4.6.0`, `@hashgraphonline/standards-sdk: 0.1.192`) and `minimumReleaseAge: 3 days` (T-65); `.jscpd.json` unchanged (1 %).
 
 **Tests (vitest):** every schema accepts its fixture example and rejects one mutation per field class; `units`: `usd6('0.40') === 400000n`, `formatUsd6(400000n) === '$0.40'`, `priceUsd6(300, 100, 400000n) === 1200000n`, `assertMbStep(199, 100, 3000)` throws `invalid_request`, `mbFromBytes(1_073_741_824) === 1073`; `x402`: header round-trips, `decodePaymentPayload` rejects > 16 KiB and a payload whose `accepted.payTo` mismatches its network, `fetchWithPayment` signs at most once and surfaces `PAYMENT-RESPONSE`; `pin`: Verhoeff vectors, 10⁴ generated PINs all valid and distinct; `typed-data.canonicalJson` is stable under key order; `errors`: every code has a status and every `ADAPTER_CODE_MAP` value is a code.
 

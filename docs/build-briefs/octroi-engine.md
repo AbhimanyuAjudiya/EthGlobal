@@ -15,7 +15,7 @@ services/api ─┐                       ┌── Ledger (InMemoryLedger | Ark
 services/agent┼──▶ @ethglobal/octroi ─┼── Personhood (MockPersonhood | WorldCloudPersonhood)
 scripts/      ─┘   rules + stores     └── PaymentRail (MockPaymentRail | SelfRunFacilitator | RemoteFacilitator)
 ```
-You never know whether you are talking to a mock or to Kaolin. You import **types** and the **mocks for tests** from `@ethglobal/adapters` (root export only — never `@ethglobal/adapters/live`), schemas and constants from `@ethglobal/protocol`, HMAC/keccak/random from `@ethglobal/crypto`. Nothing imports you except the API, the agent and scripts.
+You never know whether you are talking to a mock or to Arkiv (rabdi testnet; INTERFACES A-23). You import **types** and the **mocks for tests** from `@ethglobal/adapters` (root export only — never `@ethglobal/adapters/live`), schemas and constants from `@ethglobal/protocol`, HMAC/keccak/random from `@ethglobal/crypto`. Nothing imports you except the API, the agent and scripts.
 
 ## 2. Files
 
@@ -189,7 +189,7 @@ The cache is per process and bounded by the caller (the API prunes entries older
         mbTotal: mb, mbUsed: 0, usageAsOf: now, usageSource:'none', createdAt: now, expiresAt: now + campaign.validityDays×86_400_000 }
       return serve-free { entitlement, claimKey, campaignClaimKey: cck, tier, mb }
 2. PAID LANE (payment present):
-   a. accepts = buildAccepts(deps, mb); the entry E with deep-equality to payment.accepted (scheme, network, asset lower-cased, amount, payTo lower-cased for EVM, maxTimeoutSeconds; `extra` ignored) must exist ⇒ else deny 'invalid-payment' (detail 'requirements_mismatch') (T-28)
+   a. accepts = buildAccepts(deps, mb); the entry E with deep-equality to payment.accepted (scheme, network, asset lower-cased, amount, payTo lower-cased for EVM, maxTimeoutSeconds, and `extra` by `canonicalJson` equality — it carries the EIP-712 domain on EVM and `feePayer` on Hedera, INTERFACES A-20/A-21) must exist ⇒ else deny 'invalid-payment' (detail 'requirements_mismatch') (T-28)
    b. requireSessionKey: !sessionPubKey ⇒ 'invalid-request'; EVM payload: authorization.nonce !== sessionNonce(sessionPubKey, keccak256) ⇒ 'invalid-payment' (detail 'session_binding') (T-32); Hedera payload: the memo must equal sessionPubKey [verify Wed]
    c. EVM payload: authorization.value !== E.amount (exact, T-26) ⇒ 'invalid-payment'; authorization.to !== E.payTo ⇒ 'invalid-payment'
    d. payments.verify(payment, E) → !isValid ⇒ 'invalid-payment' (detail invalidReason)
@@ -201,7 +201,7 @@ The cache is per process and bounded by the caller (the API prunes entries older
 `decide()` persists nothing and never calls `reseller`, the chain or HCS — the API does that after (ARCHITECTURE §2.1 steps 6–7). For top-ups the API passes the existing entitlement's `mb` request and ignores the returned entitlement's key (it patches the existing one); document this in the README.
 
 ### 4.5 `payment-required` body (§4.6 of INTERFACES is `paymentRequired()`)
-`accepts = buildAccepts(deps, mb)` = each `AcceptTemplate` with `amount = usd6ToWire(priceUsd6(mb, stepMb, priceUsd6PerStep))`; `resource` from the request; `error` = `'payment required'` or the deny detail when falling through from the free lane (`'device tier: paid lane at the human price'`). Nothing in `extra` except `{ mb, stepMb, sessionKeyRequired: !!requireSessionKey }`.
+`accepts = buildAccepts(deps, mb)` = each `AcceptTemplate` with `amount = usd6ToWire(priceUsd6(mb, stepMb, priceUsd6PerStep))`; `resource` from the request; `error` = `'payment required'` or the deny detail when falling through from the free lane (`'device tier: paid lane at the human price'`). `extra` = the template's vendor-required keys copied verbatim (EVM `{ name, version }` from `USDC_EIP712_DOMAIN` — `"USDC"` on Base Sepolia; Hedera `{ feePayer }`; the API builds the templates, octroi never invents them) plus `{ mb, stepMb, sessionKeyRequired: !!requireSessionKey }`; nothing else. Amounts are `amount` digit strings (x402 v2; never `maxAmountRequired`, A-18).
 
 ### 4.6 `shouldTopUp` truth table (evaluate top to bottom)
 | Condition | Verdict |
@@ -256,4 +256,4 @@ The cache is per process and bounded by the caller (the API prunes entries older
 
 1. **Floats on money paths.** `0.4 / 0.0025` is `159.99999999999997` in IEEE 754; the acceptance test expects 160. Every division in `sizeBundle`, `priceUsd6`, `shouldTopUp` is `bigint`; `Number()` is applied only to a final MB count that is known to fit.
 2. **Awaiting before the cache check.** `consumeChallenge` must `cache.has/add` synchronously before the first `await`; otherwise two concurrent requests with the same challenge both pass (T-20). And on a ledger failure the nonce **stays** in the cache: fail closed is the rule, even though it blocks a legitimate retry for 120 s.
-3. **Comparing the wrong things.** `payment.accepted` must be compared field by field with addresses lower-cased and `amount` as a string of digits (not `BigInt ≥` — exact); `tier` must come from `PersonhoodResult.level`, never from `proof.verification_level`; `existingEntitlement` must be looked up by `keys.entitlementFree(quotaKey)` (the global pseudonym), not by the campaign claim key.
+3. **Comparing the wrong things.** `payment.accepted` must be compared field by field with addresses lower-cased and `amount` as a string of digits (not `BigInt ≥` — exact); `tier` must come from `PersonhoodResult.level`, never from anything in the proof body (the IDKit 4 result has no trustworthy level field; A-25); `existingEntitlement` must be looked up by `keys.entitlementFree(quotaKey)` (the global pseudonym), not by the campaign claim key.

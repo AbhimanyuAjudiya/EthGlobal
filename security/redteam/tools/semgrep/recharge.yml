@@ -1,13 +1,18 @@
-# Recharge red-team rules. Run:  semgrep --config security/redteam/tools/semgrep/recharge.yml --error --metrics=off apps packages services scripts
+# Recharge red-team rules (offline; no registry rules are fetched).
+#   semgrep --config security/redteam/tools/semgrep/recharge.yml --error --metrics=off --disable-version-check apps packages services scripts
+#   security/redteam/tools/semgrep/selftest.sh      # proves every rule parses AND fires on its positive case, not on its negative
+# `semgrep --validate` needs semgrep.dev (p/semgrep-rule-lints) and is blocked in this sandbox; selftest.sh is the offline
+# equivalent: a parse error makes semgrep exit 7, and the corpus under selftest/ checks behaviour.
 # Each rule names the threat it enforces (docs/THREAT-MODEL.md). Suppress only with  // nosemgrep: <rule-id> -- <reason>
+# Path globs are written unanchored (**/…) so they match both from the repo root and inside selftest/.
 rules:
   - id: recharge-usdc-18-decimals
-    message: "T-08: USDC is 6 decimals everywhere in Recharge. parseEther / 1e18 / 10**18 on a value path is a 10^12 pricing error. Use the usdc6() helper."
+    message: "T-08: USDC is 6 decimals everywhere in Recharge (Base Sepolia USDC, MockUSDC3009, HTS 0.0.429274). parseEther / 1e18 / 10**18 on a value path is a 10^12 pricing error. Use the usd6() helper."
     severity: ERROR
     languages: [typescript, javascript]
     paths:
-      include: [packages/octroi, packages/eip3009, packages/crypto, packages/adapters/src, services, apps/web/lib, scripts]
-      exclude: ["**/*.test.ts", "**/gas*"]
+      include: ["**/packages/octroi/**", "**/packages/eip3009/**", "**/packages/crypto/**", "**/packages/adapters/src/**", "**/packages/protocol/src/**", "**/services/**", "**/apps/web/lib/**", "**/scripts/**"]
+      exclude: ["*.test.ts", "**/gas*"]
     pattern-either:
       - pattern: "parseEther(...)"
       - pattern: "formatEther(...)"
@@ -18,12 +23,13 @@ rules:
       - pattern: "1_000_000_000_000_000_000n"
 
   - id: recharge-no-dangerous-html
-    message: "T-58: dangerouslySetInnerHTML is banned; names, gift messages and 402 error strings are attacker-controlled. Render as text."
+    message: "T-58: dangerouslySetInnerHTML is banned; ENS names, gift messages, campaign/plan names and 402 error strings are attacker-controlled. Render as text."
     severity: ERROR
     languages: [typescript, javascript]
     paths:
-      include: [apps/web, packages/ui]
-    pattern: dangerouslySetInnerHTML
+      include: ["**/apps/web/**", "**/packages/ui/**"]
+    # a plain TS pattern does not match a JSX attribute name; the regex does (selftest proves it)
+    pattern-regex: \bdangerouslySetInnerHTML\b
 
   - id: recharge-no-eval
     message: "T-58: eval / new Function are banned (CSP forbids them and they turn any string into code)."
@@ -34,29 +40,32 @@ rules:
       - pattern: new Function(...)
 
   - id: recharge-math-random-for-secrets
-    message: "T-33/T-48/N3: Math.random is not a CSPRNG. Use crypto.getRandomValues / randomBytes for nonces, PINs, keys and AEAD nonces."
+    message: "T-33/T-48/N3: Math.random is not a CSPRNG. Use crypto.getRandomValues / randomBytes for nonces, PINs, keys, AEAD nonces and idempotency keys."
     severity: ERROR
     languages: [typescript, javascript]
     paths:
-      include: [packages/crypto, packages/octroi, packages/eip3009, services, apps/web/lib]
-      exclude: ["**/*.test.ts", "**/*.spec.ts"]
+      include: ["**/packages/crypto/**", "**/packages/octroi/**", "**/packages/eip3009/**", "**/packages/protocol/src/**", "**/services/**", "**/apps/web/lib/**"]
+      exclude: ["*.test.ts", "*.spec.ts"]
     pattern: Math.random()
 
   - id: recharge-webhook-must-read-raw-body
-    message: "T-34: the webhook HMAC covers the raw body. Read it with c.req.text() and verify before parsing; c.req.json() re-serialises and breaks (or bypasses) the MAC."
+    message: "T-34/T-83: the webhook check covers the raw body. Read it once with c.req.text() / c.req.raw.text() and verify before parsing; c.req.json()/parseBody()/valid('json') re-serialise and break (or bypass) the MAC."
     severity: ERROR
     languages: [typescript]
     paths:
-      include: ["services/api/src/routes/webhooks*.ts", "services/api/src/**/webhook*.ts"]
-    pattern: $C.req.json()
+      include: ["**/services/api/src/routes/webhooks*.ts", "**/services/api/src/**/webhook*.ts"]
+    pattern-either:
+      - pattern: $C.req.json()
+      - pattern: $C.req.parseBody(...)
+      - pattern: $C.req.valid("json")
 
   - id: recharge-no-console-log-in-services
     message: "T-50: use the pino logger with redaction; console.log bypasses redaction and can print an LPA, a proof or a PAYMENT-SIGNATURE."
     severity: WARNING
     languages: [typescript, javascript]
     paths:
-      include: [services, packages/octroi, packages/crypto, packages/adapters/src]
-      exclude: ["**/*.test.ts", "scripts/**"]
+      include: ["**/services/**", "**/packages/octroi/**", "**/packages/crypto/**", "**/packages/adapters/src/**"]
+      exclude: ["*.test.ts", "**/scripts/**"]
     pattern-either:
       - pattern: console.log(...)
       - pattern: console.debug(...)
@@ -67,8 +76,8 @@ rules:
     severity: ERROR
     languages: [typescript]
     paths:
-      include: ["services/agent/src/**"]
-      exclude: ["services/agent/src/notify/**", "services/agent/src/**/*notif*", "services/agent/src/**/*.test.ts"]
+      include: ["**/services/agent/src/**"]
+      exclude: ["**/services/agent/src/notify/**", "**/services/agent/src/**/*notif*", "*.test.ts"]
     pattern-either:
       - pattern: import { ..., Inference, ... } from "$M"
       - pattern: import { ..., MockInference, ... } from "$M"
@@ -81,43 +90,142 @@ rules:
               metavariable: $M
               regex: (.*notify.*|.*inference.*|.*llm.*|.*openai.*|.*anthropic.*)
 
+  - id: recharge-agent-llm-holds-transfer-tools
+    message: "T-84: never hand Hedera Agent Kit tools to a model. A LangChain/AI-SDK/MCP toolkit (getTools()) in AUTONOMOUS mode lets any prompt-injected string call TRANSFER_FUNGIBLE_TOKEN_TOOL past every cap. INTERFACES A-22 allows HederaAgentAPI.run(method, args) called from code with args the agent computed; the x402 payload itself comes from @x402/hedera."
+    severity: ERROR
+    languages: [typescript, javascript]
+    paths:
+      include: ["**/services/agent/**"]
+      exclude: ["*.test.ts"]
+    pattern-either:
+      - pattern: new HederaLangchainToolkit(...)
+      - pattern: new HederaAIToolkit(...)
+      - pattern: $TK.getTools()
+      - pattern-regex: from ['"]@hashgraph/hedera-agent-kit-(langchain|ai-sdk|mcp|elizaos|adk)['"]
+
   - id: recharge-mutation-inside-get-handler
-    message: "T-47: a GET handler writes to the ledger. Redemption and claims must be POST; GET must be read-only (link-preview bots and prefetchers issue GETs). x402 settlement on GET /esim/* is the one allowed case: add // nosemgrep with that reason."
+    message: "T-47: a GET handler mutates state. Redemption, claims and refunds must be POST; GET must be read-only (link-preview bots and prefetchers issue GETs). Allowed with // nosemgrep and a reason: x402 settlement on GET /esim/*, and GET /me/:key?refresh=1 (usage patch, pending-profile retry)."
     severity: ERROR
     languages: [typescript]
     paths:
-      include: ["services/api/src/**"]
+      include: ["**/services/api/src/**"]
     patterns:
       - pattern-inside: |
           $APP.get($PATH, ...)
       - pattern-either:
           - pattern: $L.update(...)
           - pattern: $L.put(...)
+          - pattern: $S.create(...)
+          - pattern: $S.patch(...)
+          - pattern: $S.markClaimed(...)
           - pattern: $R.order(...)
           - pattern: $R.topUp(...)
+          - pattern: $D.claim(...)
+          - pattern: $T.refund(...)
+
+  - id: recharge-seed-hook-without-local-guard
+    message: "T-85: an X-Seed-* hook (validity override, claim window, campaign-funded cards without payment) is read outside a MODE === 'local' guard. In live it mints sponsor-funded cards for free and shortens expiry. Read the header only inside if (env.MODE === 'local') { … }, and env.ts must refuse the hooks in live."
+    severity: ERROR
+    languages: [typescript]
+    paths:
+      include: ["**/services/api/src/**"]
+    patterns:
+      - pattern-either:
+          - pattern: $C.req.header("$H")
+          - pattern: $C.req.raw.headers.get("$H")
+          - pattern: $HDRS.get("$H")
+      - metavariable-regex:
+          metavariable: $H
+          regex: (?i)^x-seed-
+      - pattern-not-inside: |
+          if (<... "local" ...>) { ... }
+      - pattern-not-inside: |
+          if (<... "local" ...>) { ... } else { ... }
+
+  - id: recharge-rp-signing-key-in-client
+    message: "T-81: World ID v4 rp_context must be signed on the backend. RP_SIGNING_KEY / signRequest from @worldcoin/idkit-core/signing must never be imported or referenced in apps/web or packages/ui (it ships to every browser)."
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include: ["**/apps/web/**", "**/packages/ui/**"]
+      exclude: ["**/apps/web/e2e/**", "*.test.ts", "*.spec.ts"]
+    pattern-regex: (RP_SIGNING_KEY|signingKeyHex|@worldcoin/idkit-core/signing|@worldcoin/idkit/signing|@worldcoin/idkit-server)
+
+  - id: recharge-secret-in-browser-storage
+    message: "T-60/T-76: session secrets, sealed or opened LPAs, PINs and audit keys never go to localStorage/sessionStorage (any XSS or shared device reads them). The opened LPA may live in IndexedDB only until install is confirmed."
+    severity: ERROR
+    languages: [typescript, javascript]
+    paths:
+      include: ["**/apps/web/**", "**/packages/ui/**"]
+      exclude: ["*.test.ts", "*.spec.ts"]
+    patterns:
+      - pattern-either:
+          - pattern: localStorage.setItem($K, ...)
+          - pattern: sessionStorage.setItem($K, ...)
+          - pattern: window.localStorage.setItem($K, ...)
+      - metavariable-regex:
+          metavariable: $K
+          regex: (?i).*(lpa|secret|sealed|pin|audit|session|privkey|private).*
+
+  - id: recharge-x402-v1-primitive
+    message: "T-26/T-28: x402 v1 primitive in a v2 codebase (docs/vendor/API-FACTS.md §1). v2 uses PAYMENT-REQUIRED / PAYMENT-SIGNATURE / PAYMENT-RESPONSE headers, accepts[].amount (not maxAmountRequired), CAIP-2 networks (eip155:84532, hedera:testnet) and the @x402/* packages. Mixing v1 lets a v1 payload or plain network name bypass the v2 schema checks."
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include: ["**/apps/**", "**/packages/**", "**/services/**", "**/scripts/**"]
+      exclude: ["**/test/attack/**", "**/fixtures/hostile/**"]
+    pattern-regex: (\bmaxAmountRequired\s*\??:|\.maxAmountRequired\b|['"]maxAmountRequired['"]|['"`][Xx]-[Pp][Aa][Yy][Mm][Ee][Nn][Tt](-[Rr]esponse|-RESPONSE)?['"`]|['"`]base-sepolia['"`]|['"`](hedera|eip155):29[5-7]['"`]|from\s+['"`]x402(-hono|-fetch|-express|-next|-axios)?['"`])
+
+  - id: recharge-world-id-legacy-primitive
+    message: "T-38/T-80: World ID legacy v2 primitive. IDKit 4.6 requires a backend-signed rp_context and the cloud verifier is POST /api/v4/verify/{rp_id} with the IDKit result unchanged; the response's environment must equal 'production' in live (docs/vendor/API-FACTS.md §4). The v2 endpoint and the ISuccessResult shape do not carry environment and are being retired."
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include: ["**/apps/**", "**/packages/**", "**/services/**"]
+      exclude: ["**/test/attack/**", "**/fixtures/hostile/**", "**/fixtures/world/legacy/**"]
+    pattern-regex: (/api/v2/verify|@worldcoin/idkit-standalone|ISuccessResult|['"]@worldcoin/idkit['"]\s*:\s*['"][\^~]?[23]\.)
+
+  - id: recharge-arkiv-legacy-primitive
+    message: "T-35/T-79: Arkiv legacy primitive. SDK 1.0.1 (@arkiv-network/sdk) targets rabdi (chain 7794095) with { expiration: ExpirationTime.fromSeconds(n) } and the $expiresAt system field; golem-base-sdk, BTL/expiresIn-as-blocks and the retired Kaolin chain (60138453025) are gone (docs/vendor/API-FACTS.md §3)."
+    severity: ERROR
+    languages: [generic]
+    paths:
+      include: ["**/packages/adapters/src/**", "**/services/**", "**/scripts/**"]
+      exclude: ["**/test/attack/**"]
+    pattern-regex: (golem-base-sdk|60138453025|(?i:kaolin)|\bbtl\s*[:=]|\bBTL\b|permissionlessExtension\s*:\s*true)
+
+  - id: recharge-hedera-legacy-primitive
+    message: "T-65/T-78: Hedera legacy primitive. Use @hiero-ledger/sdk (the SDK @x402/hedera pins; a second SDK copy breaks instanceof checks), @hashgraph/hedera-agent-kit v4 (the unscoped hedera-agent-kit is deprecated), and PrivateKey.fromStringECDSA / fromStringED25519 (fromString and generate are deprecated and guess the key type)."
+    severity: WARNING
+    languages: [generic]
+    paths:
+      include: ["**/packages/adapters/src/**", "**/services/**", "**/scripts/**", "**/package.json"]
+      exclude: ["**/test/attack/**"]
+    pattern-regex: (['"]@hashgraph/sdk['"]|['"]hedera-agent-kit['"]|PrivateKey\.fromString\(|PrivateKey\.generate\()
 
   - id: recharge-anvil-key-literal-outside-dev-tooling
     message: "T-52/T-63: Anvil account #0's private key appears outside dev tooling. It must never be a default in services, the agent, or the web bundle."
     severity: ERROR
     languages: [generic]
     paths:
-      include: [apps, packages, services]
-      exclude: ["**/*.test.ts", "**/*.spec.ts", "**/fixtures/**", "**/test/**"]
-    pattern: ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+      include: ["**/apps/**", "**/packages/**", "**/services/**"]
+      exclude: ["*.test.ts", "*.spec.ts", "**/fixtures/**", "**/test/**"]
+    # generic `pattern:` does not match inside a 0x-prefixed token; the regex does
+    pattern-regex: ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 
   - id: recharge-next-public-secret
-    message: "T-29/T-52: a NEXT_PUBLIC_* variable named like a secret ships to every browser. Secrets, HMAC keys and private keys never get the NEXT_PUBLIC_ prefix."
+    message: "T-29/T-52/T-81: a NEXT_PUBLIC_* variable named like a secret ships to every browser. Secrets, HMAC keys, signing keys, access codes and private keys never get the NEXT_PUBLIC_ prefix."
     severity: ERROR
     languages: [generic]
     paths:
-      include: [apps, packages, services, .env.example]
-    pattern-regex: NEXT_PUBLIC_[A-Z0-9_]*(SECRET|PRIVATE|HMAC|MNEMONIC|TOKEN)[A-Z0-9_]*
+      include: ["**/apps/**", "**/packages/**", "**/services/**", "**/.env.example"]
+    pattern-regex: NEXT_PUBLIC_[A-Z0-9_]*(SECRET|PRIVATE|HMAC|MNEMONIC|TOKEN|SIGNING|SEAL|ACCESS_CODE|API_KEY|PASSWORD)[A-Z0-9_]*
 
   - id: recharge-lpa-literal-in-source
-    message: "T-31: an activation code literal in source or docs. Only the MockReseller's LPA:1$local.test$ form is allowed, and only in mocks, tests and fixtures."
+    message: "T-31: a real-looking activation code literal in source or docs. Only the MockReseller's LPA:1$local.test$ form (or the reserved *.example TLD) is allowed, and only in mocks, tests and fixtures."
     severity: ERROR
     languages: [generic]
     paths:
-      include: [apps, packages, services, scripts, docs]
-      exclude: ["**/mocks/**", "**/test/**", "**/fixtures/**", "**/*.test.ts", "docs/THREAT-MODEL.md", "security/**"]
-    pattern-regex: LPA:1\$(?!local\.test\$)
+      include: ["**/apps/**", "**/packages/**", "**/services/**", "**/scripts/**", "**/docs/**"]
+      exclude: ["**/mocks/**", "**/test/**", "**/fixtures/**", "*.test.ts"]
+    pattern-regex: LPA:1\$(?!local\.test\$)(?![^$\s]*\.example\$)[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+\$[A-Za-z0-9-]{4,}

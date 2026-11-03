@@ -11,7 +11,15 @@ offline = true
 optimizer = true
 optimizer_runs = 200
 evm_version = "cancun"
-fs_permissions = [{ access = "read", path = "./deploy" }]
+# read: chain registry, build artefacts (ABI inspection test, T-10), committed ABIs, EIP-3009 vectors.
+# write: deploy/addresses.<slug>.json, abi/*.json, fixtures/eip3009/vectors.json.
+fs_permissions = [
+    { access = "read-write", path = "./deploy" },
+    { access = "read-write", path = "./abi" },
+    { access = "read", path = "./out" },
+    { access = "read", path = "./script" },
+    { access = "read-write", path = "../../fixtures/eip3009" },
+]
 remappings = [
     "forge-std/=lib/forge-std/src/",
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
@@ -19,10 +27,17 @@ remappings = [
 
 [fuzz]
 runs = 512
+# Fixed seed: fuzz/invariant inputs (and therefore `.gas-snapshot`) are reproducible, so `forge snapshot --check` is
+# stable in CI. The red team overrides it (`--fuzz-seed`, FOUNDRY_FUZZ_SEED) for wider exploration.
+seed = "0x5eed"
 
 [invariant]
 runs = 64
 depth = 32
+
+# Lint production code and scripts; tests intentionally cast revert data and buckets.
+[lint]
+ignore = ["test/**/*.sol"]
 
 [fmt]
 line_length = 120

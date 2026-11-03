@@ -20,7 +20,7 @@
    └──────┬───────┘                └┬───────┬────────────┬───────────┬─────────┘
           │ install                 │       │            │           │
    ┌──────▼───────┐        Arkiv ◀──┘   x402 facilitator  eSIM reseller  HCS topic (+ Swarm blobs)
-   │ iOS/Android  │      (Kaolin;         (remote or        (orders out;      (receipts; agent UAID)
+   │ iOS/Android  │      (rabdi;          (remote or        (orders out;      (receipts; agent UAID)
    │ eSIM sheet   │       entities        self-run /verify  LPA + usage
    └──────────────┘       expire)         /settle)          webhooks in)
                                    ▲
@@ -45,7 +45,7 @@ Notation: **R1–R3** are the three load-bearing Arkiv reads (DECISION Table D, 
 
 1. PWA `/` → "Prove I'm human → 300 MB". PWA generates an X25519 **session keypair** in memory (`crypto.generateSessionKeypair`).
 2. `POST /challenge { audience:'recharge', path:'/claim', sessionPubKey }` → `octroi.challenge()` mints `{ nonce, exp = now+120 s, signal = keccak(nonce ‖ 'recharge') }`; the nonce carries an HMAC tag over `(audience, path, exp, sessionPubKey)`. **No ledger write.**
-3. PWA opens IDKit (`app_id`, action `recharge-welcome`, `signal`, requested level ≥ document) → proof.
+3. PWA fetches a backend-signed `rp_context` (`POST /world/rp-context`, INTERFACES A-25), then opens IDKit 4 (`app_id`, action `recharge-welcome`, `rp_context`, `signal`, legacy preset returning the highest credential ≥ document) → IDKit result, forwarded unchanged.
 4. `POST /claim { proof, campaignId, challenge, sessionPubKey }`. Middleware: rate limit (5/min/IP), zod, `octroi()`.
 5. `decide()` in this order (T-24: nothing burns a verification before the cheap checks pass): campaign exists (`CampaignStore` R0) and on-chain counters (`campaigns(id)`, `claimsInHour`) say not paused / not expired / budget left / hour cap not reached → **admission slot** taken from the per-campaign queue (T-46) → `consumeChallenge` (MAC + session key + exp; in-memory set synchronously; then `NonceStore.consume` writes the nonce entity `expiresIn 120`; `'unavailable'` ⇒ deny) → `personhood.verify(proof, { action, signal })` → `tier = tierFromLevel(result.level)` (verifier's level, never the body's — T-22) → `mb = sizeBundle(campaign, tier)`; `0` (device/none) ⇒ `payment-required` with the human price → `quotaKey`, `campaignClaimKey`, `onchainClaimKey` → replay check: `EntitlementStore.getByKey('ent:v1:'+quotaKey)` exists or `DataDrop.claimed(id, claimKey)` ⇒ `deny: replay` → `serve-free`.
 6. API: `DataDrop.claim(id, claimKey)` from the single attestor sender queue; wait for the receipt; map reverts (`AlreadyClaimed→409`, `HourlyCap→429`, `CampaignPaused→423`, `BudgetExhausted→409`). Sponsor USDC moves to `payout` on Hedera (token mode) — "sponsor money moves on Hedera for every human claim".
@@ -89,7 +89,7 @@ Retry rule (T-57): keep the signed payload until `validBefore`; before re-signin
 
 ### 2.6 Expiry (the Arkiv clock)
 
-- Every entity carries `expiresIn` at write and `annotations.expiresAt` (ms); reads treat an entity as dead if the ledger no longer returns it **or** `annotations.expiresAt < now` (T-35). `ArkivLedger` converts seconds → blocks with `ARKIV_BLOCK_TIME_MS`, rounding up and logging the implied drift; Kaolin's measured block time goes into `docs/ARKIV_FEEDBACK.md` on Wednesday.
+- Every entity carries `expiresIn` at write and `annotations.expiresAt` (ms); reads treat an entity as dead if the ledger no longer returns it **or** `annotations.expiresAt < now` (T-35). `ArkivLedger` converts seconds → blocks with `ARKIV_BLOCK_TIME_MS`, rounding up and logging the implied drift; rabdi's measured block time (nominal 2 s; INTERFACES A-23/A-24) goes into `docs/ARKIV_FEEDBACK.md` on Wednesday.
 - `/me/:key` after expiry → 410 `expired`; the PWA shows "0 MB · expired Sun 09:12 · Add 100 MB · $0.40". The agent's `expiry` trigger fires **before** expiry (`expiresAt − now ≤ expiryLeadS`) because a vanished entity cannot be extended; a top-up resets `expiresIn` (`ledger.update`).
 - Nonces die after 120 s; gifts at `claimBy`; receipts after 30 d; agent policies after 30 d; campaigns at `expiresAt`. `scripts/demo-seed.ts` writes one entitlement with `expiresIn: 90` so an entity is **seen** dying during the demo and in `e2e-local.sh`.
 - Division of truth (stated in `ARKIV_FEEDBACK.md`): the reseller is the source of truth for **usage**, Arkiv for **entitlement**; the webhook (flow F5) reconciles: `verifyWebhook` → replay cache → `usedMb` monotonic → `EntitlementStore.patch({ mbUsed, usageAsOf, usageSource:'webhook' })`.
@@ -186,7 +186,7 @@ Invariants: `spent ≤ budget`; `spent = pricePerClaim × #claims(id)`; token mo
 | **Session keypair** (X25519) | the buyer's PWA, memory only (T-60) | open one sealed LPA | — | one LPA |
 | **Agent wallets** | `services/agent` (Hedera Agent Kit account; Base Sepolia key) | pay x402 within `TopUpPolicy` + `AGENT_PAYTO_ALLOWLIST` + `AGENT_MAX_USD6_PER_STEP` | exceed the daily cap (code), pay an unlisted `payTo` | funded with ≈ one day's cap |
 | **Reseller API key, webhook secrets** | api | order profiles, verify webhooks | — | prepaid balance; idempotency keys |
-| **Arkiv key** | api (writes); agent reads need no key | create/update entities (gas on Kaolin) | — | faucet ETH |
+| **Arkiv key** | api (writes); agent reads need no key | create/update entities (gas: tGLM on rabdi) | — | faucet tGLM |
 | **HCS submit keys** | api and agent (separate accounts) | submit receipts | forge another's receipts (topic has no submit key restriction; the UAID and account id identify the submitter) | — |
 | **World `app_id` / action** | public | — | — | the action is configured **unlimited**; one-per-human is ours (T-24) |
 
@@ -202,11 +202,11 @@ Invariants: `spent ≤ budget`; `spent = pricePerClaim × #claims(id)`; token mo
 
 | Port | `MODE=local` (CI, red team, orchestrator) | `MODE=live` (humans, VPS) | Selector |
 |---|---|---|---|
-| `ledger` | `InMemoryLedger` (+`update`, expiry clock) | `ArkivLedger` (Kaolin 60138453025, `@arkiv-network/sdk`) | `MODE` |
-| `personhood` | `MockPersonhood { expectSignal: true }` + `fixtureProof()`; UI labels "simulated World ID" | `WorldCloudPersonhood` (`POST developer.worldcoin.org/api/v2/verify/{app_id}`) | `MODE` |
-| `payments` | `X402_FACILITATOR=self` → `SelfRunFacilitator` on Anvil (real EIP-3009 verify + relayed `transferWithAuthorization`; default for e2e); `=mock` → `MockPaymentRail` (unit tests) | `RoutingPaymentRail { eip155:84532 → RemoteFacilitator(x402.org) ∥ SelfRunFacilitator; hedera:testnet → RemoteFacilitator(hedera-dev) }` | `MODE`, `X402_FACILITATOR`, `X402_NETWORKS` |
-| `reseller` | `MockReseller` (deterministic `LPA:1$local.test$<id>`, usage clock, signed webhook simulator) | `EsimAccessReseller` / `MegaEsimReseller`, wrapped in `FallbackReseller(primary, InventoryReseller)` | `RESELLER`, `RESELLER_FALLBACK` |
-| `consensus` | `MockConsensusLog` | `HcsLog` (`@hashgraph/sdk` submit; mirror REST read) | `MODE` |
+| `ledger` | `InMemoryLedger` (+`update`, expiry clock) | `ArkivLedger` (rabdi 7794095, `@arkiv-network/sdk@1.0.1`; Kaolin retired, A-23) | `MODE` |
+| `personhood` | `MockPersonhood { expectSignal: true }` + `fixtureProof()`; UI labels "simulated World ID" | `WorldCloudPersonhood` (`POST developer.world.org/api/v4/verify/{rp_id}`, A-25) | `MODE` |
+| `payments` | `X402_FACILITATOR=self` → `SelfRunFacilitator` on Anvil (real EIP-3009 verify + relayed `transferWithAuthorization`; default for e2e); `=mock` → `MockPaymentRail` (unit tests) | `RoutingPaymentRail { eip155:84532 → RemoteFacilitator(x402.org) ∥ SelfRunFacilitator; hedera:testnet → RemoteFacilitator(x402.org; Blocky402 fallback) }` (A-20, A-30) | `MODE`, `X402_FACILITATOR`, `X402_NETWORKS` |
+| `reseller` | `MockReseller` (deterministic `LPA:1$local.test$<id>`, usage clock, signed webhook simulator) | `EsimAccessReseller` (primary), wrapped in `FallbackReseller(primary, InventoryReseller)`; `MegaEsimReseller` is a fixture-only stub (A-27, A-28) | `RESELLER`, `RESELLER_FALLBACK` |
+| `consensus` | `MockConsensusLog` | `HcsLog` (`@hiero-ledger/sdk` submit via `@x402/hedera` re-exports; mirror REST read, A-22) | `MODE` |
 | `names` | `MockNameResolver` (`alice.eth`, `bob.eth` → Anvil #0/#1) | `EnsResolver` (viem mainnet; Sepolia fallback) | `MODE` |
 | `blobs` | `MemoryBlobStore` | `SwarmBlobStore` (Bee `POST /bzz`) | `MODE` |
 | `treasury` | `MockTreasury` | `RoutingTreasury { eip155 → EvmTreasury; hedera → HederaTreasury }` | `MODE` |

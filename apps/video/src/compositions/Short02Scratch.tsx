@@ -3,11 +3,7 @@
  * The scratch is never rendered (a rendered scratch is the fake the object exists to refute); only the
  * end card is RENDERED.
  */
-import { captionFiles, CaptionTrack } from '../captions';
-import { Frame } from '../components/Frame';
-import { ShotTrack, type Shot } from '../components/ShotTrack';
-import { type FootageAvailability, type FootageKey } from '../footage/manifest';
-import { EndCard } from '../scenes/EndCard';
+import { ShortShell, type FootageKey, type ShortBaseProps, type Shot } from '../scenes';
 
 export const SHORT02_FOOTAGE: readonly FootageKey[] = [
   'macro',
@@ -17,12 +13,7 @@ export const SHORT02_FOOTAGE: readonly FootageKey[] = [
   'back',
 ];
 
-export type Short02Props = {
-  footage: FootageAvailability;
-  serial: string;
-  endLine: string;
-  theme: 'light' | 'dark';
-};
+export type Short02Props = ShortBaseProps & { serial: string };
 
 export const short02Defaults: Short02Props = {
   footage: {},
@@ -85,19 +76,6 @@ export function Short02Scratch(p: Short02Props) {
         'Card back: Bundle 300 MB / Paid by Hedera $0.50 / Network fee $0.00 and the To: ________ .eth line; a pen writes a teammate’s real name.',
       mustSee: ['the three receipt lines', 'the .eth write-in'],
     },
-    {
-      id: 'S6',
-      from: 400,
-      to: 450,
-      type: 'RENDERED',
-      name: 'EndCard',
-      render: <EndCard line={p.endLine} />,
-    },
   ];
-  return (
-    <Frame theme={p.theme}>
-      <ShotTrack shots={shots} footage={p.footage} />
-      <CaptionTrack captions={captionFiles.Short02Scratch.captions} />
-    </Frame>
-  );
+  return <ShortShell composition="Short02Scratch" shots={shots} endFrom={400} endId="S6" {...p} />;
 }

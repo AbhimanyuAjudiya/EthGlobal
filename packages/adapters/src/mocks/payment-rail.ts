@@ -97,7 +97,8 @@ export class MockPaymentRail implements PaymentRail {
     if (!INTEGER.test(authorization.validAfter) || !INTEGER.test(authorization.validBefore)) {
       return invalid('invalid_validity');
     }
-    if (BigInt(authorization.validAfter) > now) return invalid('not_yet_valid');
+    // EIP-3009 is strict on both ends: validAfter < block.timestamp < validBefore (FiatTokenV2_2, MockUSDC3009).
+    if (BigInt(authorization.validAfter) >= now) return invalid('not_yet_valid');
     if (BigInt(authorization.validBefore) <= now) return invalid('expired');
     if (this.#usedNonces.has(nonceKey(accepted.network, payload.payload))) {
       return invalid('nonce_already_used');

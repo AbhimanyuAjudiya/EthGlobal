@@ -1,9 +1,12 @@
 import fc from 'fast-check';
-import { keccak256, toBytes, verifyTypedData, type TypedData } from 'viem';
+import { getAddress, keccak256, toBytes, verifyTypedData, type TypedData } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { describe, expect, it } from 'vitest';
 
 import { example } from './helpers.js';
+import vectors from '../../../fixtures/eip3009/vectors.json' with { type: 'json' };
+import { USDC_ASSET, USDC_EIP712_DOMAIN } from '../src/ids.js';
+import { paymentAuthorizationSchema } from '../src/schemas/index.js';
 import {
   AGENT_POLICY_TYPES,
   canonicalJson,
@@ -119,5 +122,40 @@ describe('canonicalJson', () => {
         expect(canonicalJson(JSON.parse(text))).toBe(text);
       }),
     );
+  });
+});
+
+describe('agreement with the recorded EIP-3009 vectors (fixtures/eip3009/vectors.json)', () => {
+  it('USDC_EIP712_DOMAIN matches the recorded per-chain domains (A-21)', () => {
+    for (const d of vectors.domains) {
+      expect(USDC_EIP712_DOMAIN[`eip155:${d.chainId}`]).toEqual({
+        name: d.name,
+        version: d.version,
+      });
+    }
+    expect(vectors.domains.find((d) => d.chainId === 84532)?.verifyingContract).toBe(
+      USDC_ASSET['eip155:84532'],
+    );
+  });
+
+  it('every recorded authorization is a valid wire PaymentAuthorization (digit-string times)', () => {
+    for (const v of vectors.vectors) {
+      const { from, to, value, validAfter, validBefore, nonce } = v;
+      const parsed = paymentAuthorizationSchema.safeParse({
+        from,
+        to,
+        value,
+        validAfter,
+        validBefore,
+        nonce,
+      });
+      expect(parsed.success).toBe(true);
+    }
+  });
+
+  it('the Hedera USDC long-zero alias is the EIP-55 form viem accepts', () => {
+    const alias = `0x${(429274).toString(16).padStart(40, '0')}` as const;
+    expect(getAddress(alias)).toBe('0x0000000000000000000000000000000000068cDa');
+    expect(USDC_ASSET['hedera:testnet']).toBe('0.0.429274');
   });
 });

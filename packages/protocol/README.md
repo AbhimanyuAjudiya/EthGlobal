@@ -1,0 +1,72 @@
+# @ethglobal/protocol
+
+The leaf package every other workstream builds on: wire and ledger schemas (zod 4, types are `z.infer<>`),
+the x402 v2 header codec and the one 402 client loop, money/data units, identifiers and logical keys, the
+error-code table, event names, `httpJson`, the EIP-712 message definitions and the gift-card PIN format.
+Runtime dependency: `zod` only. Browser-safe (no Node built-ins; `apps/web` imports it).
+
+| Subpath | What | Spec |
+| --- | --- | --- |
+| `./ids` | `Hex`/`Address`, `NETWORKS`, `USDC_ASSET`, `USDC_EIP712_DOMAIN`, protocol constants, `ANN`, `KEY_PREFIXES`, `keys.*`, day/hour buckets | INTERFACES §1.1 |
+| `./units` | `Usd6` (bigint micro-USD), MB (1 GB = 1000 MB), `priceUsd6`, `secondsUntil`, formatting | §1.2 |
+| `./schemas` | common fields, ledger entities, x402 v2, API bodies, webhooks, HCS (+ `encodeHcsMessage`) | §1.3–1.7 |
+| `./x402` | `PAYMENT-*` header codec, `paymentRequired()`, `sessionNonce`, `fetchWithPayment` | §1.8 |
+| `./errors` | `ERROR_CODES`, `RechargeError`, `ADAPTER_CODE_MAP` | §1.9 |
+| `./events` | contract events/errors, HCS types, log events, non-x402 header names | §1.10, §9 |
+| `./http` | `httpJson` — the only place raw `fetch` is called (eslint-enforced) | §1.11 |
+| `./typed-data` | `rechargeDomain`, `GiftClaim`/`GiftReclaim`/`SponsorLogin`/`AgentPolicy` types, `canonicalJson` | §1.12 |
+| `./pin` | `generatePin` (15 CSPRNG digits + Verhoeff), `isValidPin`, `formatPin`, `serialFromGiftId` | §1.13 |
+
+```ts
+import { fetchWithPayment } from '@ethglobal/protocol/x402';
+import { formatUsd6 } from '@ethglobal/protocol/units';
+
+const { response, settlement } = await fetchWithPayment({ fetch, url, signer, now: Date.now });
+formatUsd6(400_000n); // '$0.40'
+```
+
+Tests: `pnpm --filter @ethglobal/protocol test` (unit, property and fixture tests; every exported schema
+accepts its example in `fixtures/protocol/examples.json` and rejects one mutation per field class).
+`pnpm --filter @ethglobal/protocol exec vitest run test/conformance` runs the A-19 interop suite: our codec ⇄
+`@x402/core@2.29.0` (a devDependency only), both directions, byte-identical headers, on every x402 fixture.
+
+## Decisions
+
+Where `docs/INTERFACES.md` and `docs/vendor/API-FACTS.md` disagree, API-FACTS wins (it was verified against
+pinned vendor source on 3 Nov 2026). Most such conflicts were already resolved by the architect in INTERFACES
+§13 A-18…A-31 and are implemented as written there. The ones below are the remaining calls made while coding.
+
+| # | Decision | Why / citation |
+| --- | --- | --- |
+| D-1 | `paymentAuthorizationSchema.validAfter` / `validBefore` are **digit strings** (unix seconds), not `z.int()` as §1.5 still shows. | API-FACTS §1.4 example (`"validAfter": "1740672089"`); `@x402/evm@2.29.0` `ExactEIP3009Payload` types them `string` and `createEIP3009Payload` sends `validAfter: "0"`. Integers would fail interop with every reference client; the conformance suite proves the string form. `@ethglobal/eip3009` `fromPaymentAuthorization` converts to `bigint`. |
+| D-2 | `caipNetworkSchema` namespace class is `[a-z0-9-]{3,8}` (adds `-`). | Same character classes as `@x402/core@2.29.0` `NetworkSchemaV2` (`/^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}$/`), so anything the reference accepts we parse. |
+| D-3 | `paymentRequirementsSchema` is built from an unrefined `requirementsShape`; `acceptTemplateSchema = shape.omit({ amount }).superRefine(sameRules)`. `plansResponseSchema.paid.accepts` uses it. | zod 4 refuses `.omit()` on a refined object; the template must also obey the payTo/extra/feePayer/180-s rules (A-6, A-20, A-21). |
+| D-4 | `paymentPayloadSchema` additionally rejects an EVM payload on `hedera:*` and a Hedera payload on `eip155:*`. | The union alone would accept a mismatched pair; the scheme is per network (A-5, A-20). |
+| D-5 | `hederaExactPayloadSchema = { transaction: base64 ≤ 8192 }`. | API-FACTS §1.7 / `@x402/hedera@2.29.0` `ExactHederaPayload { transaction: string }` (A-20). |
+| D-6 | `LPA_PATTERN` allows `LPA:1$<fqdn>$<matching id>[$<oid>[$0\|1]]`; `lpaSchema` caps at 255 chars. §1.3 called the third segment "confirmation code". | API-FACTS §5.4 (GSMA SGP.22): the 3rd segment is the SM-DP+ OID (digits and dots), the 4th the confirmation-code-required flag. |
+| D-7 | Header decoders reject > 16 KiB for **all three** headers (not only PAYMENT-SIGNATURE), require canonical padded base64 and strict UTF-8, and report `RechargeError('invalid_request', …, { reason: 'too_large' \| 'base64' \| 'utf8' \| 'json' \| 'schema' })`. Encoders validate first. | §1.8 asks for typed errors; one bound for all headers is cheaper than three. Byte-identical with `@x402/core` `safeBase64Encode(JSON.stringify(…))`. |
+| D-8 | `fetchWithPayment`: sends `X-Session-Pubkey` when `sessionPubKey` is given, and throws `invalid_payment` if the signer's EIP-3009 nonce is not `sessionNonce(sessionPubKey)` (T-32); a 402 without `PAYMENT-REQUIRED` is `invalid_request` (`missing_header`); per-request timeout 30 s (`AbortSignal.any` with any caller signal). The injected fetch is called unbound (`fetch.call(globalThis, …)`) — browsers throw "Illegal invocation" otherwise. Same in `httpJson`. | §1.8 leaves these open; T-32 makes the binding a client-side invariant too. |
+| D-9 | `personhoodProofSchema` V4 `proof[]` elements accept 0x-hex **or** decimal field elements. | API-FACTS §4.3 writes `["0x..", x5]`; the pinned `@worldcoin/idkit-core@4.6.0` `index.d.ts` says "decimal strings". Accepting both is the only shape that cannot reject a real IDKit result. Everything else follows §1.6 (A-25/A-26) verbatim, incl. `.loose()` and rejecting `session_id`. |
+| D-10 | `paymentResourceSchema` keeps `description`/`mimeType` required (as amended §1.5) although the x402 spec makes them optional. Zod strips unknown keys, so `serviceName`/`tags`/`iconUrl` from third parties parse. | Architect's call in §1.5; our server always sends them. Our `PaymentPayload.resource` is optional and unused. |
+| D-11 | `RechargeError(code, message = code, details?, retryable = false)`; `ADAPTER_CODE_MAP` maps every protocol code to itself plus the adapter codes of ARCHITECTURE §9 (`expired`/`not_yet_valid`/`recipient_mismatch`/`invalid_signature`/`unsupported_scheme` → `invalid_payment`, `invalid_amount` → `invalid_request`, `timeout` → `ledger_unavailable`, `invalid_action`/`invalid_expiry`/`fixture_miss`/`not_implemented` → `internal_error`). Frozen. | §1.9 lists only examples; identity entries let an adapter throw a protocol code directly. |
+| D-12 | `HttpError(status, body, url, reason = 'status')` with `reason ∈ status \| schema \| timeout \| network`; status 0 for timeout/network. With `schema`, every returned status is validated (pass a union when `allowStatus` bodies differ). | Adapters must map timeouts to `unavailable` and bad bodies to `invalid_response`; the extra field is additive. |
+| D-13 | `formatUsd6` always shows two decimals and keeps sub-cent digits (`1234567n → '$1.234567'`) instead of rounding; en-US grouping; negatives as `-$0.40`. | "exact; no floats" (§1.2): a rounded string would misstate an amount. |
+| D-14 | `formatMb` floors to one decimal and drops `.0` (`1000 → '1 GB'`, `1999 → '1.9 GB'`). `formatAsOf`/`formatExpiry` default to `Asia/Kolkata` and render with `en-IN` parts (`IST`); durations are floored; past expiry renders `Expired · …`, under a minute `under 1 m`. | Never overstate data or time left; the product is India-first and §1.2's example is IST. |
+| D-15 | `secondsUntil` rounds **up** (an entity never dies before `expiresAt`), minimum 1. | §1.2 "never below 1"; T-35 reads `min(ledger expiry, annotation)` so rounding up is safe. |
+| D-16 | `canonicalJson`: keys sorted by UTF-16 code units, recursively; `undefined` dropped in objects / `null` in arrays (JSON.stringify rules); throws `TypeError` on `bigint` and non-finite numbers. | One canonicaliser for policy hashes and fixture matching; money must already be a digit string. |
+| D-17 | `generatePin` rejection-samples bytes `< 250` (`byte % 10`) for unbiased digits; `formatPin`/`serialFromGiftId` throw `invalid_request` on malformed input; `verhoeffCheckDigit`/`verhoeffValid` are exported for tests and the card printer. | §1.13 does not say how to turn bytes into digits; modulo bias would leak. |
+| D-18 | `keys.entitlementFree(quotaKey)` is not lower-cased (exactly §1.1); every other key lower-cases its hex/payer parts. `KEY_PREFIXES` is exported and used to build `keys`. | Verbatim spec; the quota key is produced lower-case by `@ethglobal/crypto` `hmacKey`. |
+| D-19 | HCS: `encodeHcsMessage` / `decodeHcsMessage` (§1.7 says "encode() throws above 1024"). | Names made explicit; both validate and enforce `HCS_MAX_BYTES` in UTF-8 bytes. |
+| D-20 | `MOCK_WEBHOOK_HEADERS` (lower-case) and `webhookCanonical(ts, body)` live in `./schemas` next to the webhook schemas; `REQUEST_ID_HEADER`, `IDEMPOTENCY_KEY_HEADER`, `SPONSOR_AUTH_SCHEME` and `USDC3009_EVENTS` in `./events`. | §9 is "one list"; each name is defined once. |
+| D-21 | `@ethglobal/crypto` defines its own structural `SealedBox` and `Hex` (identical shape to the protocol types) and adds `hashToField` (World ID `keccak256 >> 8`, API-FACTS §4.2 vectors) and `ReplayGuard` (shared webhook replay window). | §12: crypto is a leaf and cannot import protocol. `hashToField` is needed by the mock and live personhood adapters and the PWA's simulated IDKit (A-25/A-26) — one implementation. |
+| D-22 | Ledger `expiresIn` stays **seconds**; `ArkivLedger` maps it to `expiration: ExpirationTime.fromSeconds(ceil(s / 2) × 2)` (documented on `LedgerPutInput`). | API-FACTS §3.3 (`@arkiv-network/sdk@1.0.1` dropped `expiresIn`/BTL); A-24. |
+
+## Known gaps (for the orchestrator)
+
+- `pnpm install` cannot currently run: `minimumReleaseAge: 4320` (T-65) makes pnpm re-resolve the whole graph,
+  and ~40 versions locked before the gate existed (next 16.4.4, vitest 5.1.0, viem 2.57.14, tailwind 4.3.4,
+  hono 4.13.16, …) are younger than three days until ~6 Nov 2026. The lockfile therefore does not yet list
+  `@ethglobal/{protocol,crypto,eip3009}`; it must be regenerated once those versions age past the gate (or with
+  an explicit, reviewed exception).
+- Coverage thresholds in `vitest.config.ts` are set but unmeasured: `@vitest/coverage-v8@5.1.0` is inside
+  the same gate.

@@ -1,27 +1,25 @@
 /** Video 01 — "No Service → LTE" (SCRIPTS.md §2). 20.0 s / 600 frames, 1080 × 1920. */
-import { captionFiles, CaptionTrack } from '../captions';
-import { Frame } from '../components/Frame';
-import { SeedTag } from '../components/SeedTag';
-import { ShotTrack, type Shot } from '../components/ShotTrack';
-import { UiScreen } from '../components/UiScreen';
-import { type FootageAvailability, type FootageKey } from '../footage/manifest';
-import { EndCard } from '../scenes/EndCard';
-import { IssuingSequence } from '../scenes/IssuingSequence';
-import { NotificationCard } from '../scenes/NotificationCard';
+import {
+  IssuingSequence,
+  NotificationCard,
+  SeedTag,
+  ShortShell,
+  UiScreen,
+  type FootageKey,
+  type ShortBaseProps,
+  type Shot,
+} from '../scenes';
 import { seed } from '../seed';
 
 export const SHORT01_FOOTAGE: readonly FootageKey[] = ['arrivals', 'screen01', 'lte', 'room01'];
 
-export type Short01Props = {
-  footage: FootageAvailability;
+export type Short01Props = ShortBaseProps & {
   /** S6 was cut S6a → S6b: show the Chivo Mono elapsed note (SCRIPTS.md §2 S6). */
   s6Cut: boolean;
   /** In-points (frames) of S2–S5 inside the one subject-phone screen recording. */
   screenIn: { s2: number; s3: number; s4: number; s5: number };
   seed: typeof seed.short01;
   sponsorName: string;
-  endLine: string;
-  theme: 'light' | 'dark';
 };
 
 export const short01Defaults: Short01Props = {
@@ -118,19 +116,16 @@ export function Short01NoService(p: Short01Props) {
         </div>
       ),
     },
-    {
-      id: 'S7',
-      from: 540,
-      to: 600,
-      type: 'RENDERED',
-      name: 'EndCard',
-      render: <EndCard line={p.endLine} />,
-    },
   ];
   return (
-    <Frame theme={p.theme}>
-      <ShotTrack shots={shots} footage={p.footage} room="room01" />
-      <CaptionTrack captions={captionFiles.Short01NoService.captions} flags={{ s6Cut: p.s6Cut }} />
-    </Frame>
+    <ShortShell
+      composition="Short01NoService"
+      shots={shots}
+      endFrom={540}
+      endId="S7"
+      room="room01"
+      flags={{ s6Cut: p.s6Cut }}
+      {...p}
+    />
   );
 }

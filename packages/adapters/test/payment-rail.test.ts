@@ -55,6 +55,7 @@ describe('MockPaymentRail', () => {
     ['recipient_mismatch', { to: '0x0000000000000000000000000000000000000001' }],
     ['expired', { validBefore: seconds(Date.UTC(2026, 10, 3, 11)) }],
     ['not_yet_valid', { validAfter: seconds(Date.UTC(2026, 10, 3, 13)) }],
+    ['not_yet_valid', { validAfter: seconds(T0) }], // strict: validAfter == now is not yet valid
     ['invalid_amount', { value: 'ten' }],
     ['invalid_validity', { validBefore: 'soon' }],
   ])('reports %s', async (reason, overrides) => {

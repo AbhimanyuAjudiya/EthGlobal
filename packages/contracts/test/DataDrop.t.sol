@@ -66,6 +66,76 @@ contract DataDropTest is Test {
         drop.claim(id, key(id, ix));
     }
 
+    /// A stranger tries to take over campaign ID with an identical, fully funded call: only the id check can revert.
+    function _expectStrangerCannotHijackId() internal {
+        usdc.mint(STRANGER, BUDGET);
+        vm.startPrank(STRANGER);
+        usdc.approve(address(drop), type(uint256).max);
+        vm.expectRevert(IDataDrop.CampaignExists.selector);
+        drop.createCampaign(ID, BUDGET, PRICE, CAP, expiresAt);
+        vm.stopPrank();
+        assertEq(drop.campaigns(ID).sponsor, SPONSOR);
+    }
+
+    /// Switches to Hedera testnet, etches the HTS mock and associates `usdc` as owner; asserts event and recorded call.
+    function _associateOnHedera() internal {
+        vm.chainId(296);
+        vm.etch(HTS, type(HtsPrecompileMock).runtimeCode);
+        vm.expectEmit(true, true, true, true, address(drop));
+        emit DataDrop.HtsAssociated(address(usdc));
+        vm.prank(OWNER);
+        drop.associateHts(address(usdc));
+        (address acct, address tok) = HtsPrecompileMock(HTS).last();
+        assertEq(acct, address(drop));
+        assertEq(tok, address(usdc));
+    }
+
+    /// Claims `n` fresh keys on `id` as the attestor, warping `step` seconds after each attempt. A revert must be
+    /// BudgetExhausted (and ends the loop) when `budgetOnly`, else one of HourlyCap/BudgetExhausted/CampaignExpired.
+    /// After every attempt the current bucket's count is ≤ `cap`. Returns the number of successful claims.
+    function _claimSequence(bytes32 id, uint256 n, uint256 step, uint32 cap, bool budgetOnly)
+        internal
+        returns (uint256 ok)
+    {
+        vm.startPrank(ATTESTOR);
+        for (uint256 i = 0; i < n; i++) {
+            try drop.claim(id, key(id, i)) {
+                ok++;
+            } catch (bytes memory r) {
+                bytes4 sel = bytes4(r);
+                if (budgetOnly) {
+                    assertEq(sel, IDataDrop.BudgetExhausted.selector);
+                    break;
+                }
+                assertTrue(
+                    sel == IDataDrop.HourlyCap.selector || sel == IDataDrop.BudgetExhausted.selector
+                        || sel == IDataDrop.CampaignExpired.selector,
+                    "unexpected revert"
+                );
+            }
+            assertLe(drop.claimsInHour(id, drop.currentHourBucket()), cap);
+            vm.warp(block.timestamp + step);
+        }
+        vm.stopPrank();
+    }
+
+    /// `who` (neither attestor nor sponsor of ID) is denied claim, pause(true), pause(false) and refund on ID, and
+    /// `associateHts` reverts with `associateError`.
+    function _expectOutsiderDenied(address who, bytes memory associateError) internal {
+        vm.startPrank(who);
+        vm.expectRevert(IDataDrop.NotAttestor.selector);
+        drop.claim(ID, key(ID, 1));
+        vm.expectRevert(IDataDrop.NotSponsor.selector);
+        drop.pause(ID, true);
+        vm.expectRevert(IDataDrop.NotSponsor.selector);
+        drop.pause(ID, false);
+        vm.expectRevert(IDataDrop.NotSponsor.selector);
+        drop.refund(ID);
+        vm.expectRevert(associateError);
+        drop.associateHts(address(usdc));
+        vm.stopPrank();
+    }
+
     function _assertNoTransferLogs(Vm.Log[] memory logs) internal pure {
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].topics.length > 0) assertTrue(logs[i].topics[0] != TRANSFER_TOPIC, "unexpected Transfer");
@@ -136,13 +206,7 @@ contract DataDropTest is Test {
 
     function test_RevertWhen_CreateCampaignIdExists() public {
         _claim(ID, 1);
-        usdc.mint(STRANGER, BUDGET);
-        vm.startPrank(STRANGER);
-        usdc.approve(address(drop), type(uint256).max);
-        vm.expectRevert(IDataDrop.CampaignExists.selector);
-        drop.createCampaign(ID, BUDGET, PRICE, CAP, expiresAt);
-        vm.stopPrank();
-        assertEq(drop.campaigns(ID).sponsor, SPONSOR);
+        _expectStrangerCannotHijackId();
         assertEq(drop.campaigns(ID).spent, PRICE);
         assertEq(usdc.balanceOf(STRANGER), BUDGET);
     }
@@ -464,15 +528,7 @@ contract DataDropTest is Test {
         vm.expectRevert(IDataDrop.NotHedera.selector);
         drop.associateHts(address(usdc));
 
-        vm.chainId(296);
-        vm.etch(HTS, type(HtsPrecompileMock).runtimeCode);
-        vm.expectEmit(true, true, true, true, address(drop));
-        emit DataDrop.HtsAssociated(address(usdc));
-        vm.prank(OWNER);
-        drop.associateHts(address(usdc));
-        (address acct, address tok) = HtsPrecompileMock(HTS).last();
-        assertEq(acct, address(drop));
-        assertEq(tok, address(usdc));
+        _associateOnHedera();
         assertEq(HtsPrecompileMock(HTS).callCount(), 1);
 
         vm.prank(STRANGER);
@@ -500,13 +556,7 @@ contract DataDropTest is Test {
     }
 
     function test_AssociateHtsOnHederaCallsPrecompileWithThisAndToken() public {
-        vm.chainId(296);
-        vm.etch(HTS, type(HtsPrecompileMock).runtimeCode);
-        vm.prank(OWNER);
-        drop.associateHts(address(usdc));
-        (address acct, address tok) = HtsPrecompileMock(HTS).last();
-        assertEq(acct, address(drop));
-        assertEq(tok, address(usdc));
+        _associateOnHedera();
         vm.prank(OWNER);
         vm.expectRevert(DataDrop.NotUsdc.selector); // token mode: only usdc may be associated
         drop.associateHts(address(0xBEEF));
@@ -518,7 +568,7 @@ contract DataDropTest is Test {
         DataDrop lo = new DataDrop(IERC20(address(0)), PAYOUT, ATTESTOR, OWNER);
         vm.prank(OWNER);
         lo.associateHts(address(0xBEEF));
-        (acct, tok) = HtsPrecompileMock(HTS).last();
+        (address acct, address tok) = HtsPrecompileMock(HTS).last();
         assertEq(acct, address(lo));
         assertEq(tok, address(0xBEEF));
     }
@@ -728,23 +778,7 @@ contract DataDropTest is Test {
         bytes32 id = keccak256(abi.encode("seq", n, cap, warpSeconds));
         uint128 budget = 30 * uint128(PRICE) + 7;
         _create(id, budget, PRICE, cap, expiresAt);
-        uint256 ok;
-        vm.startPrank(ATTESTOR);
-        for (uint256 i = 0; i < n; i++) {
-            try drop.claim(id, key(id, i)) {
-                ok++;
-            } catch (bytes memory r) {
-                bytes4 sel = bytes4(r);
-                assertTrue(
-                    sel == IDataDrop.HourlyCap.selector || sel == IDataDrop.BudgetExhausted.selector
-                        || sel == IDataDrop.CampaignExpired.selector,
-                    "unexpected revert"
-                );
-            }
-            assertLe(drop.claimsInHour(id, drop.currentHourBucket()), cap);
-            vm.warp(block.timestamp + step);
-        }
-        vm.stopPrank();
+        uint256 ok = _claimSequence(id, n, step, cap, false);
         IDataDrop.Campaign memory c = drop.campaigns(id);
         assertLe(c.spent, c.budget);
         assertEq(c.spent, ok * PRICE);
@@ -758,17 +792,7 @@ contract DataDropTest is Test {
         usdc.mint(SPONSOR, budget);
         vm.prank(SPONSOR);
         drop.createCampaign(id, budget, price, type(uint32).max, expiresAt);
-        uint256 ok;
-        vm.startPrank(ATTESTOR);
-        for (uint256 i = 0; i < n; i++) {
-            try drop.claim(id, key(id, i)) {
-                ok++;
-            } catch (bytes memory r) {
-                assertEq(bytes4(r), IDataDrop.BudgetExhausted.selector);
-                break;
-            }
-        }
-        vm.stopPrank();
+        uint256 ok = _claimSequence(id, n, 0, type(uint32).max, true);
         assertEq(drop.campaigns(id).spent, ok * price);
         assertLe(drop.campaigns(id).spent, budget);
         vm.warp(expiresAt + 1);
@@ -936,13 +960,7 @@ contract DataDropTest is Test {
 
     // A4 — id hijack (T-04)
     function test_Attack_CreateCampaignWithExistingIdReverts() public {
-        usdc.mint(STRANGER, BUDGET);
-        vm.startPrank(STRANGER);
-        usdc.approve(address(drop), type(uint256).max);
-        vm.expectRevert(IDataDrop.CampaignExists.selector);
-        drop.createCampaign(ID, BUDGET, PRICE, CAP, expiresAt);
-        vm.stopPrank();
-        assertEq(drop.campaigns(ID).sponsor, SPONSOR);
+        _expectStrangerCannotHijackId();
     }
 
     function test_Attack_IdNotReusableAfterRefund() public {
@@ -986,30 +1004,9 @@ contract DataDropTest is Test {
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, SPONSOR));
         drop.associateHts(address(usdc));
         vm.stopPrank();
-        // stranger on ID
-        vm.startPrank(STRANGER);
-        vm.expectRevert(IDataDrop.NotAttestor.selector);
-        drop.claim(ID, key(ID, 1));
-        vm.expectRevert(IDataDrop.NotSponsor.selector);
-        drop.pause(ID, true);
-        vm.expectRevert(IDataDrop.NotSponsor.selector);
-        drop.refund(ID);
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, STRANGER));
-        drop.associateHts(address(usdc));
-        vm.stopPrank();
-        // owner
-        vm.startPrank(OWNER);
-        vm.expectRevert(IDataDrop.NotAttestor.selector);
-        drop.claim(ID, key(ID, 1));
-        vm.expectRevert(IDataDrop.NotSponsor.selector);
-        drop.pause(ID, true);
-        vm.expectRevert(IDataDrop.NotSponsor.selector);
-        drop.pause(ID, false);
-        vm.expectRevert(IDataDrop.NotSponsor.selector);
-        drop.refund(ID);
-        vm.expectRevert(IDataDrop.NotHedera.selector);
-        drop.associateHts(address(usdc));
-        vm.stopPrank();
+        // stranger (sponsor of sid only) and owner on ID
+        _expectOutsiderDenied(STRANGER, abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, STRANGER));
+        _expectOutsiderDenied(OWNER, abi.encodeWithSelector(IDataDrop.NotHedera.selector));
         // the rightful sponsors can refund
         vm.prank(SPONSOR);
         drop.refund(ID);

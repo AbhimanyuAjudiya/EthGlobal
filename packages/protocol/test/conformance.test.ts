@@ -64,7 +64,9 @@ const kinds = [
   },
 ] as const;
 
-const cases = kinds.flatMap((kind) => kind.fixtures.map((fixture) => [kind.header, fixture, kind] as const));
+const cases = kinds.flatMap((kind) =>
+  kind.fixtures.map((fixture) => [kind.header, fixture, kind] as const),
+);
 
 describe('x402 conformance with @x402/core 2.29.0', () => {
   it.each(cases)('%s %s: ours → theirs (and their v2 schema accepts it)', (_h, fixture, kind) => {

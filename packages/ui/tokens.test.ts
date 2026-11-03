@@ -49,11 +49,27 @@ describe('fonts.css', () => {
     for (const font of fontTokens) expect(block?.[1], `${pairing} ${font}`).toContain(`--${font}:`);
   });
 
-  it('loads fonts with display=swap and sets tabular numerals on html', () => {
+  it('loads every family in one swap-enabled Google Fonts request and sets tabular numerals on html', () => {
     const imports =
       fontsCss.match(/@import url\('https:\/\/fonts\.googleapis\.com[^']+'\);/g) ?? [];
-    expect(imports.length).toBeGreaterThanOrEqual(3);
-    for (const line of imports) expect(line).toContain('display=swap');
+    expect(imports).toHaveLength(1);
+    const url = imports[0] ?? '';
+    expect(url).toContain('display=swap');
+    // Turbopack drops an external @import whose URL holds a literal comma; axes/ranges must use %2C.
+    expect(url).not.toContain(',');
+    for (const family of [
+      'Eczar',
+      'Schibsted+Grotesk',
+      'Mukta',
+      'IBM+Plex+Mono',
+      'IBM+Plex+Sans:',
+      'IBM+Plex+Sans+Devanagari',
+      'Archivo',
+      'Anek+Devanagari',
+      'Chivo+Mono',
+    ]) {
+      expect(url, family).toContain(`family=${family}`);
+    }
     expect(fontsCss).toMatch(/html\s*\{[^}]*font-variant-numeric: tabular-nums/);
   });
 });

@@ -18,7 +18,13 @@ report pnpm "pnpm --version"
 report forge "forge --version"
 report anvil "anvil --version"
 report cast "cast --version"
-report solc "solc --version | tail -n 1"
+# forge compiles with the static binaries under ~/.svm (binaries.soliditylang.org is blocked in the sandbox);
+# a `solc` on PATH may be a solc-select wrapper that downloads on demand, so prefer the seeded binary.
+if [[ -x "$HOME/.svm/0.8.30/solc-0.8.30" ]]; then
+  printf '%-6s %s\n' solc "$("$HOME/.svm/0.8.30/solc-0.8.30" --version | tail -n 1)"
+else
+  report solc "solc --version | tail -n 1"
+fi
 report git "git --version"
 
 if [[ -d "$HOME/.svm" ]]; then

@@ -26,6 +26,11 @@ No components yet; those arrive with the product.
 </html>
 ```
 
+`fonts.css` loads all nine families through one Google Fonts `@import`, with every comma percent-encoded:
+Next 16.4 / Turbopack drops an external `@import` whose URL contains a literal comma (bisected against
+production builds), and the Tailwind pipeline only keeps the import when it is the first statement of the
+entry stylesheet, hence the import order above.
+
 Colour tokens are written once with `light-dark()`; `color-scheme` on `:root` follows `prefers-color-scheme`
 and `[data-theme]` overrides it. Any element can opt into the other palette with `color-scheme: dark`.
 Rules that travel with the tokens: one accent on at most ~5 % of pixels, never a gradient; P&L uses

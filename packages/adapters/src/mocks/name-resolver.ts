@@ -1,3 +1,4 @@
+import { normalizeEnsName } from '../ens-name.js';
 import { anvilAccounts } from '../testing/anvil.js';
 
 import type { Address, NameResolver } from '../types.js';
@@ -15,8 +16,8 @@ export const defaultNameRecords: readonly NameRecord[] = [
   { name: 'bob.eth', address: anvilAccounts[1] },
 ];
 
-/** Lower-cases and trims; full ENSIP-15 normalisation ships with the live adapter. */
-export const normalizeName = (name: string): string => name.trim().toLowerCase();
+/** Trim + ENSIP-15 (one implementation with the live EnsResolver); throws invalid_name. */
+export const normalizeName = normalizeEnsName;
 
 export class MockNameResolver implements NameResolver {
   readonly #records = new Map<string, NameRecord>();

@@ -3,9 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   CANCEL_AUTHORIZATION_TYPES,
-  domain,
-  NotImplementedError,
-  recoverSigner,
+  EIP3009_ABI,
   RECEIVE_WITH_AUTHORIZATION_TYPES,
   TRANSFER_WITH_AUTHORIZATION_TYPES,
 } from '../src/index.js';
@@ -29,7 +27,7 @@ const typehashes = [
   ],
 ] as const;
 
-describe('eip3009 skeleton', () => {
+describe('eip3009 type definitions and ABI', () => {
   it.each(typehashes)(
     '%# type definitions hash to the Circle typehash',
     (types, primaryType, hash) => {
@@ -40,10 +38,15 @@ describe('eip3009 skeleton', () => {
     },
   );
 
-  it('stubs throw NotImplementedError until implemented', async () => {
-    expect(() => domain('0x0000000000000000000000000000000000000001', 1, 'USDC', '2')).toThrow(
-      NotImplementedError,
-    );
-    await expect(recoverSigner('0x00', '0x00')).rejects.toThrow(/not implemented/);
+  it('the ABI carries exactly the bytes-signature overloads and the two events', () => {
+    const names = EIP3009_ABI.map((item) => `${item.type}:${item.name}`);
+    expect(names).toEqual([
+      'function:transferWithAuthorization',
+      'function:receiveWithAuthorization',
+      'function:cancelAuthorization',
+      'function:authorizationState',
+      'event:Transfer',
+      'event:AuthorizationUsed',
+    ]);
   });
 });

@@ -2,7 +2,7 @@
   "name": "@ethglobal/eip3009",
   "version": "0.0.0",
   "private": true,
-  "description": "EIP-3009 (Circle FiatTokenV2_2) typed data, digests, signature recovery, calldata and a viem relayer. Skeleton: signatures compile, implementations land in the adapters-live workstream.",
+  "description": "EIP-3009 (Circle FiatTokenV2_2) typed data, digests, strict signature recovery, calldata and a viem relayer.",
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -23,6 +23,8 @@
     "viem": "catalog:"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "catalog:",
+    "fast-check": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

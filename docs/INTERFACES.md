@@ -1000,6 +1000,14 @@ interface IDataDrop {
 // constructor(IERC20 usdc_, address payout_, address attestor_, address owner_)
 ```
 
+**Wave-1 red-team fixes (RT-C-01…07; `IDataDrop` above is unchanged; additions live in `DataDrop` and its ABI `abi/DataDrop.json`):**
+- **Campaign ids (RT-C-02).** `scopedCampaignId(address sponsor, uint64 salt) pure → bytes32` = `sponsor (20 bytes) ‖ 0x00000000 ‖ salt (8 bytes)`. Only `sponsor` can `createCampaign` a scoped id (anyone else gets `NotSponsor()`), so it cannot be squatted or front-run. Any other id stays first come, never reusable and never overwritten. **Every production/demo campaign uses a scoped id**, and `services/api` and `scripts/demo-seed.ts` **pin `(id, sponsor)`** from config: a campaign whose on-chain `sponsor` differs is treated as `no-campaign` and never claimed against.
+- **LEDGER_ONLY (RT-C-01).** `createCampaign` requires `ledgerSponsor(msg.sender)`, an owner-managed allow-list (`setLedgerSponsor(address,bool)` onlyOwner, event `LedgerSponsorSet(address indexed sponsor, bool allowed)`); otherwise `NotSponsor()`. Token mode stays permissionless. Every create in both modes also emits `CampaignFunded(bytes32 indexed id, address indexed funder, uint128 amount)`: tokens moved in token mode, a declaration by an allow-listed sponsor in LEDGER_ONLY (read `ModeSet` / `ledgerOnly()`).
+- **Refund recipient (RT-C-03).** `refund(bytes32 id, address to)`: sponsor-only, `to != 0`, same eligibility rules as `refund(id)`.
+- **`renounceOwnership()` (RT-C-06)** is `pure` and always reverts `RenounceDisabled()`.
+- **Over-budget check (RT-C-07).** `claim` checks `price > budget − spent` first, so it reports `BudgetExhausted` across the whole `uint128` range.
+- **Extra errors in the ABI** (outside `DATADROP_ERRORS`): `ZeroAddress`, `HtsAssociationFailed(int64)`, `NotUsdc`, `BudgetNotReceived`, `RenounceDisabled`. **Extra events:** `HtsAssociated(address indexed token)`, `CampaignFunded`, `LedgerSponsorSet`.
+
 ### 6.2 `src/interfaces/IEIP3009.sol` (implemented by `MockUSDC3009`; mirrors Circle FiatTokenV2_2)
 
 ```solidity
@@ -1024,8 +1032,9 @@ interface IEIP3009 {
 - `packages/contracts/abi/DataDrop.json`, `abi/MockUSDC3009.json` — `forge inspect <C> abi --json`, committed; `pnpm abi:check` fails CI on drift (T-12). Exported as `@ethglobal/contracts/abi/DataDrop.json`.
 - `packages/contracts/deploy/addresses.<slug>.json` — written by `Deploy.s.sol` (`vm.writeJson`), committed for live chains, git-ignored for `anvil`:
   ```json
-  { "chainId": 31337, "network": "eip155:31337", "ledgerOnly": false, "dataDrop": "0x…", "usdc": "0x…", "usdcHts": "", "payout": "0x…", "attestor": "0x…", "owner": "0x…", "deployer": "0x…", "deployedAt": 1762171200, "txs": { "dataDrop": "0x…", "usdc": "0x…" } }
+  { "chainId": 31337, "network": "eip155:31337", "ledgerOnly": false, "dataDrop": "0x…", "usdc": "0x…", "usdcHts": "", "payout": "0x…", "attestor": "0x…", "owner": "0x…", "pendingOwner": "0x0000000000000000000000000000000000000000", "deployer": "0x…", "deployedAt": 1762171200, "txs": { "dataDrop": "0x…", "usdc": "0x…" } }
   ```
+  `owner` is the **on-chain** `owner()` at deploy time. `pendingOwner` (added by RT-C-05) is the nominated cold owner that still has to call `acceptOwnership()`, or the zero address when there is none. On Hedera in token mode, `owner` is the deployer until the cold owner accepts. `CHAIN=<id> RPC_URL=… pnpm deploy:txs` refreshes both fields from the chain. Consumers (API `/healthz`, the drill) must treat a non-zero `pendingOwner` as "rotation key not yet in place".
 - `deploy/chains.json` gains per chain `"usdc"` (EVM address or `""`) and `"usdcHts"` (`"0.0.429274"` on 296, else `""`). Keys stay alphabetical (`stdJson` decodes sorted).
 
 ---

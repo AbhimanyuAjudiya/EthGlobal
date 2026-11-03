@@ -25,6 +25,13 @@ contract RT_ModelInvariantTest is StdInvariant, Test {
         tokenDrop = new DataDrop(IERC20(address(usdc)), payout, makeAddr("rt-attestor-0"), owner);
         ledgerDrop = new DataDrop(IERC20(address(0)), payout, makeAddr("rt-attestor-0"), owner);
         h = new RT_ModelHandler(tokenDrop, ledgerDrop, usdc, owner, payout);
+        // RT-C-01 fix: LEDGER_ONLY creation is owner-allow-listed. Allow the handler's sponsors (the operator does this
+        // after seeing their native HTS funding) so token/ledger parity is compared on funded input only.
+        vm.startPrank(owner);
+        for (uint256 i = 0; i < 3; i++) {
+            ledgerDrop.setLedgerSponsor(h.sponsorAt(i), true);
+        }
+        vm.stopPrank();
         targetContract(address(h));
     }
 

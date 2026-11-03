@@ -6,6 +6,7 @@ import {Test} from "forge-std/Test.sol";
 import {EIP3009Token} from "../src/EIP3009Token.sol";
 import {MockUSDC3009} from "../src/MockUSDC3009.sol";
 import {MockUSDC3009Named} from "./mocks/MockUSDC3009Named.sol";
+import {InstallAt} from "./utils/InstallAt.sol";
 
 /// @notice fixtures/eip3009/vectors.json (written by script/EmitVectors.s.sol, consumed by @ethglobal/eip3009) agrees
 ///         with the token: each domain's separator equals the contract's `DOMAIN_SEPARATOR()` when deployed at the
@@ -67,11 +68,7 @@ contract VectorsTest is Test {
             && keccak256(bytes(version)) == keccak256("2")
             ? type(MockUSDC3009).creationCode
             : abi.encodePacked(type(MockUSDC3009Named).creationCode, abi.encode(name, version));
-        // deployCodeTo without an artifact lookup: run the constructor at `at`, then install the runtime code
-        vm.etch(at, creation);
-        (bool ok, bytes memory runtime) = at.call("");
-        assertTrue(ok, "constructor");
-        vm.etch(at, runtime);
+        InstallAt.install(at, creation);
         t = EIP3009Token(at);
         assertEq(t.name(), name);
         assertEq(t.DOMAIN_SEPARATOR(), vm.parseJsonBytes32(json, string.concat(base, ".separator")));

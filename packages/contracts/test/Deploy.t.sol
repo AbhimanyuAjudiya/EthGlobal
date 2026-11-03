@@ -7,6 +7,8 @@ import {DataDrop} from "../src/DataDrop.sol";
 import {MockUSDC3009} from "../src/MockUSDC3009.sol";
 import {Deploy} from "../script/Deploy.s.sol";
 import {HtsPrecompileMock} from "./mocks/HtsPrecompileMock.sol";
+import {MockUSDC3009Named} from "./mocks/MockUSDC3009Named.sol";
+import {InstallAt} from "./utils/InstallAt.sol";
 
 /// @notice Guards the deploy script and deploy/chains.json (brief §6 Deploy.t.sol, wave1-contracts.md A19).
 /// @dev No test writes deploy/addresses.anvil.json: every test writes a unique deploy/addresses.test-*.json
@@ -38,17 +40,13 @@ contract DeployTest is Test {
         });
     }
 
-    function _indexOf(string memory hay, string memory needle) internal pure returns (uint256) {
-        bytes memory h = bytes(hay);
-        bytes memory n = bytes(needle);
-        for (uint256 i = 0; i + n.length <= h.length; i++) {
-            bool m = true;
-            for (uint256 j = 0; j < n.length && m; j++) {
-                if (h[i + j] != n[j]) m = false;
-            }
-            if (m) return i;
-        }
-        return type(uint256).max;
+    /// INTERFACES §6.3 key order of deploy/addresses.<slug>.json (RT-C-05 added pendingOwner after owner).
+    string internal constant ADDRESS_KEYS =
+        "chainId,network,ledgerOnly,dataDrop,usdc,usdcHts,payout,attestor,owner,pendingOwner,deployer,deployedAt,txs";
+
+    function _keyAt(string memory json, string memory k) internal pure returns (uint256 at) {
+        at = vm.indexOf(json, string.concat('"', k, '":'));
+        assertTrue(at != type(uint256).max, k);
     }
 
     function test_RunsAgainstTheDefaultChain() public {
@@ -89,22 +87,10 @@ contract DeployTest is Test {
         assertEq(vm.parseJsonUint(json, ".deployedAt"), block.timestamp);
         assertTrue(vm.keyExistsJson(json, ".txs.dataDrop"));
         assertTrue(vm.keyExistsJson(json, ".txs.usdc"));
-        string[12] memory order = [
-            '"chainId"',
-            '"network"',
-            '"ledgerOnly"',
-            '"dataDrop"',
-            '"usdc"',
-            '"usdcHts"',
-            '"payout"',
-            '"attestor"',
-            '"owner"',
-            '"deployer"',
-            '"deployedAt"',
-            '"txs"'
-        ];
-        for (uint256 i = 1; i < order.length; i++) {
-            assertLt(_indexOf(json, order[i - 1]), _indexOf(json, order[i]), order[i]);
+        assertEq(vm.parseJsonAddress(json, ".pendingOwner"), address(0));
+        string[] memory keys = vm.split(ADDRESS_KEYS, ",");
+        for (uint256 n = 1; n < keys.length; n++) {
+            assertLt(_keyAt(json, keys[n - 1]), _keyAt(json, keys[n]), keys[n]);
         }
         vm.removeFile(r.addressesPath);
     }
@@ -186,13 +172,18 @@ contract DeployTest is Test {
         (address acct, address tok) = HtsPrecompileMock(HTS).last();
         assertEq(acct, r.dataDrop);
         assertEq(tok, HEDERA_USDC);
-        // ownership handed to the cold owner in two steps
+        // ownership handed to the cold owner in two steps; the file says exactly that (RT-C-05)
         assertEq(dd.owner(), r.deployer);
         assertEq(dd.pendingOwner(), cfg.owner);
+        assertEq(r.owner, r.deployer);
+        assertEq(r.pendingOwner, cfg.owner);
+        string memory json = vm.readFile(cfg.addressesPath);
+        assertEq(vm.parseJsonAddress(json, ".owner"), r.deployer);
+        assertEq(vm.parseJsonAddress(json, ".pendingOwner"), cfg.owner);
         vm.prank(cfg.owner);
         dd.acceptOwnership();
         assertEq(dd.owner(), cfg.owner);
-        assertEq(vm.parseJsonAddress(vm.readFile(cfg.addressesPath), ".usdc"), HEDERA_USDC);
+        assertEq(vm.parseJsonAddress(json, ".usdc"), HEDERA_USDC);
         vm.removeFile(cfg.addressesPath);
     }
 
@@ -206,6 +197,10 @@ contract DeployTest is Test {
 
     function test_BaseSepoliaDeploysDataDropOnly() public {
         vm.chainId(84_532);
+        // stand-in for Circle's Base Sepolia USDC at its real address (the script checks code + decimals, RT-C-04)
+        InstallAt.install(
+            BASE_SEPOLIA_USDC, abi.encodePacked(type(MockUSDC3009Named).creationCode, abi.encode("USDC", "2"))
+        );
         Deploy.Config memory cfg = _cfg(false, "base-sepolia");
         Deploy.ChainRecord memory chain = deploy.loadChain(84_532);
         address deployer = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38; // forge's default broadcaster
@@ -245,9 +240,9 @@ contract DeployTest is Test {
 
     function test_NoPrivateKeyLiteralInScripts() public view {
         string memory src = vm.readFile(string.concat(vm.projectRoot(), "/script/Deploy.s.sol"));
-        assertEq(_indexOf(src, "ac0974"), type(uint256).max);
+        assertEq(vm.indexOf(src, "ac0974"), type(uint256).max);
         src = vm.readFile(string.concat(vm.projectRoot(), "/script/EmitVectors.s.sol"));
-        assertEq(_indexOf(src, "ac0974"), type(uint256).max);
-        assertEq(_indexOf(src, "8b3a350c"), type(uint256).max); // Anvil #5 key is derived, not pasted
+        assertEq(vm.indexOf(src, "ac0974"), type(uint256).max);
+        assertEq(vm.indexOf(src, "8b3a350c"), type(uint256).max); // Anvil #5 key is derived, not pasted
     }
 }

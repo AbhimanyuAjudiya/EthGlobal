@@ -211,7 +211,7 @@ contract RT_EIP3009Test is Test {
         vm.expectRevert(EIP3009Token.InvalidSignature.selector);
         _doTransfer(n, oldSig);
         _doTransfer(n, _tw(n));
-        (, , , uint256 cid, , , ) = usdc.eip712Domain();
+        (,,, uint256 cid,,,) = usdc.eip712Domain();
         assertEq(cid, 84_532);
     }
 
@@ -240,8 +240,7 @@ contract RT_EIP3009Test is Test {
     function test_RT_FailedTransferDoesNotBurnNonce() public {
         bytes32 n = keccak256("nobal");
         uint256 vb = block.timestamp + 1 hours;
-        bytes memory sig =
-            _sig(_digest(usdc, usdc.TRANSFER_WITH_AUTHORIZATION_TYPEHASH(), payee, 500e6, 0, vb, n));
+        bytes memory sig = _sig(_digest(usdc, usdc.TRANSFER_WITH_AUTHORIZATION_TYPEHASH(), payee, 500e6, 0, vb, n));
         vm.expectRevert();
         usdc.transferWithAuthorization(payer, payee, 500e6, 0, vb, n, sig);
         assertFalse(usdc.authorizationState(payer, n));
@@ -257,7 +256,8 @@ contract RT_EIP3009Test is Test {
         usdc.mint(p2, 1e6);
         uint256 vb = block.timestamp + 1 hours;
         bytes32 sh = keccak256(abi.encode(usdc.TRANSFER_WITH_AUTHORIZATION_TYPEHASH(), p2, payee, 1e6, 0, vb, n));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(k2, keccak256(abi.encodePacked("\x19\x01", usdc.DOMAIN_SEPARATOR(), sh)));
+        (uint8 v, bytes32 r, bytes32 s) =
+            vm.sign(k2, keccak256(abi.encodePacked("\x19\x01", usdc.DOMAIN_SEPARATOR(), sh)));
         usdc.transferWithAuthorization(p2, payee, 1e6, 0, vb, n, v, r, s);
         _doTransfer(n, _tw(n));
         assertEq(usdc.balanceOf(payee), 2e6);

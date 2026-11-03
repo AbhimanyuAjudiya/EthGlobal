@@ -76,6 +76,9 @@ export const ADAPTER_CODE_MAP: Readonly<Record<string, ErrorCode>> = Object.free
   timeout: 'ledger_unavailable',
   rate_limited: 'rate_limited',
   invalid_expiry: 'internal_error',
+  invalid_name: 'invalid_request',
+  too_large: 'invalid_request',
+  unsupported_network: 'invalid_request',
   fixture_miss: 'internal_error',
   not_implemented: 'internal_error',
 });

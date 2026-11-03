@@ -5,14 +5,14 @@ module: packages/contracts/src/DataDrop.sol
 threat: T-04
 severity: Med
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-contracts
 owner: builder-contracts
 found_at: 2026-11-04T02:45+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: packages/contracts/test/redteam/RT_DataDrop.t.sol::test_RT_IdSquatBlocksIntendedSponsor_RTFINDING
-regression_test:
-fix_commit:
+regression_test: packages/contracts/test/regression/T04_CampaignIdHijack.t.sol::test_Regression_RTC02_SquatterCannotPreemptScopedId
+fix_commit: (uncommitted, wave-1 fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -47,5 +47,7 @@ Regression test to add (builder): `packages/contracts/test/regression/T04_Campai
 `_RTFINDING` (CI filter: `forge test --no-match-test RTFINDING`); it must turn green with the fix.
 
 ## Builder notes (optional)
+
+Sponsor-scoped ids: `scopedCampaignId(sponsor, uint64 salt) = sponsor(20 bytes) ‖ 0x00000000 ‖ salt(8)`. A scoped id can be created only by its sponsor (anyone else gets `NotSponsor()`), so it cannot be squatted or front-run. Unscoped ids (e.g. keccak) keep the old rule (first come, never reusable, never overwritten), which keeps the red-team suite's raw-id fixtures valid. Production campaigns and the demo seed must use scoped ids, and the API pins `(id, sponsor)` and rejects a campaign whose `sponsor` differs (INTERFACES §6.1 note). The attack test is adapted to the fix (the squat itself now reverts). More cases: `T04_CampaignIdHijack.t.sol` (layout, fuzz only-own-sponsor, unscoped first-come, LEDGER_ONLY). The red-team `_RTFINDING` test was moved from `test/redteam/` to the regression above, adapted to assert the fixed behaviour; a comment marks its old place.
 
 ## Verification (red team)

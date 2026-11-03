@@ -4,6 +4,7 @@ pragma solidity 0.8.30;
 import {Script} from "forge-std/Script.sol";
 import {console} from "forge-std/console.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 import {DataDrop} from "../src/DataDrop.sol";
 import {MockUSDC3009} from "../src/MockUSDC3009.sol";
@@ -47,12 +48,14 @@ contract Deploy is Script {
         string addressesPath; // "" ⇒ deploy/addresses.<slug>.json
     }
 
-    /// @notice What was deployed.
+    /// @notice What was deployed. `owner` is the on-chain `owner()` right after the broadcast; `pendingOwner` is the
+    ///         nominated cold owner that still has to `acceptOwnership()` (address(0) when none) — RT-C-05.
     struct Result {
         address dataDrop;
         address usdc;
         address deployer;
         address owner;
+        address pendingOwner;
         bool ledgerOnly;
         string addressesPath;
     }
@@ -153,16 +156,17 @@ contract Deploy is Script {
                 string.concat("deploy/chains.json lists no usdc for ", chain.slug, "; set LEDGER_ONLY=true explicitly")
             );
             usdc = vm.parseAddress(chain.usdc);
+            _checkUsdc(usdc, hedera);
         }
 
         vm.startBroadcast();
         (, address deployer,) = vm.readCallers();
-        address owner = cfg.owner == address(0) ? deployer : cfg.owner;
+        address intendedOwner = cfg.owner == address(0) ? deployer : cfg.owner;
         DataDrop dataDrop;
         if (anvil) {
             MockUSDC3009 mock = new MockUSDC3009();
             usdc = address(mock);
-            dataDrop = new DataDrop(IERC20(usdc), cfg.payout, cfg.attestor, owner);
+            dataDrop = new DataDrop(IERC20(usdc), cfg.payout, cfg.attestor, intendedOwner);
             string memory mnemonic = vm.envOr("ANVIL_MNEMONIC", ANVIL_MNEMONIC);
             for (uint32 i = 0; i < ANVIL_FUNDED_ACCOUNTS; i++) {
                 // derives a *public* Anvil account address from the public test mnemonic; no key is used to sign
@@ -173,9 +177,10 @@ contract Deploy is Script {
             // associateHts is onlyOwner: deploy owned by the broadcaster, associate, then hand over (2-step).
             dataDrop = new DataDrop(IERC20(usdc), cfg.payout, cfg.attestor, deployer);
             dataDrop.associateHts(usdc);
-            if (owner != deployer) dataDrop.transferOwnership(owner); // OWNER_ADDRESS must call acceptOwnership()
+            // OWNER_ADDRESS must call acceptOwnership(); until then the addresses file says so (RT-C-05)
+            if (intendedOwner != deployer) dataDrop.transferOwnership(intendedOwner);
         } else {
-            dataDrop = new DataDrop(IERC20(usdc), cfg.payout, cfg.attestor, owner);
+            dataDrop = new DataDrop(IERC20(usdc), cfg.payout, cfg.attestor, intendedOwner);
         }
         vm.stopBroadcast();
 
@@ -186,7 +191,8 @@ contract Deploy is Script {
             dataDrop: address(dataDrop),
             usdc: usdc,
             deployer: deployer,
-            owner: owner,
+            owner: dataDrop.owner(),
+            pendingOwner: dataDrop.pendingOwner(),
             ledgerOnly: usdc == address(0),
             addressesPath: bytes(cfg.addressesPath).length != 0 ? cfg.addressesPath : defaultAddressesPath(chain.slug)
         });
@@ -194,9 +200,29 @@ contract Deploy is Script {
         console.log("DataDrop  %s (ledgerOnly=%s)", result.dataDrop, result.ledgerOnly);
         console.log("USDC      %s", result.usdc);
         console.log("addresses %s", result.addressesPath);
+        if (result.pendingOwner != address(0)) {
+            console.log(
+                "TODO      %s must call acceptOwnership() on DataDrop; then CHAIN=%s RPC_URL=... pnpm deploy:txs",
+                result.pendingOwner,
+                block.chainid
+            );
+        }
+    }
+
+    /// @dev RT-C-04: the immutable `usdc` must be a contract with 6 decimals (T-08). On Hedera an HTS token's long-zero
+    ///      address may expose no EVM bytecode to `extcodesize` [verify Wed]; there a missing code is tolerated (the
+    ///      runbook checks decimals on the mirror node), but a contract that answers `decimals()` must answer 6.
+    function _checkUsdc(address usdc, bool hedera) internal view {
+        if (usdc.code.length == 0) {
+            require(hedera, string.concat("usdc ", vm.toString(usdc), " has no code on this chain"));
+            return;
+        }
+        uint8 d = IERC20Metadata(usdc).decimals();
+        require(d == 6, string.concat("usdc ", vm.toString(usdc), " has ", vm.toString(d), " decimals, expected 6"));
     }
 
     /// @dev Hand-assembled so the key order is exactly INTERFACES §6.3 (stdJson serialisation does not promise it).
+    ///      `owner` is the on-chain owner now; `pendingOwner` the nominee still to accept (zero address when none).
     ///      `txs` stays empty here (a script cannot see its own tx hashes); `script/fill-deploy-txs.mjs` fills it.
     function _writeAddresses(ChainRecord memory chain, Config memory cfg, Result memory r) internal {
         string memory q = '"';
@@ -218,8 +244,12 @@ contract Deploy is Script {
         json = string.concat(
             json,
             string.concat('  "payout": ', q, vm.toString(cfg.payout), q, ",\n"),
-            string.concat('  "attestor": ', q, vm.toString(cfg.attestor), q, ",\n"),
+            string.concat('  "attestor": ', q, vm.toString(cfg.attestor), q, ",\n")
+        );
+        json = string.concat(
+            json,
             string.concat('  "owner": ', q, vm.toString(r.owner), q, ",\n"),
+            string.concat('  "pendingOwner": ', q, vm.toString(r.pendingOwner), q, ",\n"),
             string.concat('  "deployer": ', q, vm.toString(r.deployer), q, ",\n"),
             string.concat('  "deployedAt": ', vm.toString(block.timestamp), ",\n"),
             '  "txs": { "dataDrop": "", "usdc": "" }\n',

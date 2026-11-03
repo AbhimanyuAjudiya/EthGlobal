@@ -5,14 +5,14 @@ module: packages/contracts/src/DataDrop.sol
 threat: T-07
 severity: Low
 likelihood: L
-status: open
+status: fixed
 found_by: redteam-contracts
 owner: builder-contracts
 found_at: 2026-11-04T02:45+05:30
 due: next report (Low: opportunistic, PLAN §6.3)
 attack_test: packages/contracts/test/redteam/RT_DataDrop.t.sol::test_RT_MaxBudgetAndPriceNoOverflow_RTFINDING
-regression_test:
-fix_commit:
+regression_test: packages/contracts/test/regression/T07_BudgetAccounting.t.sol::test_Regression_RTC07_MaxBudgetAndPriceReportsBudgetExhausted
+fix_commit: (uncommitted, wave-1 fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -43,5 +43,7 @@ Regression test to add (builder): `packages/contracts/test/regression/T07_Budget
 `_RTFINDING` (CI filter: `forge test --no-match-test RTFINDING`); it must turn green with the fix.
 
 ## Builder notes (optional)
+
+`claim` now compares against the remainder, `if (price > budget - spent) revert BudgetExhausted()`, before the add (`budget ≥ spent` is invariant), so the top of the range reports `BudgetExhausted()` and never `Panic(0x11)`. Fuzzed in `testFuzz_NoPanicAtTheTopOfTheRange`. The red-team `_RTFINDING` test was moved from `test/redteam/` to the regression above, adapted to assert the fixed behaviour; a comment marks its old place.
 
 ## Verification (red team)

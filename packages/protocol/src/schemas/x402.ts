@@ -193,3 +193,20 @@ export const settleResultSchema = z.discriminatedUnion('success', [
 export type SettleResult = z.infer<typeof settleResultSchema>;
 /** Body of the PAYMENT-RESPONSE header. */
 export const paymentResponseSchema = settleResultSchema;
+
+/**
+ * Facilitator `GET /supported` (API-FACTS §1.5, A-30): `kinds[]` per (version, scheme, network), Hedera kinds carry
+ * `extra.feePayer`; `signers` maps a CAIP family to the facilitator's addresses. Unknown keys are stripped.
+ */
+export const supportedKindSchema = z.object({
+  x402Version: z.literal(2),
+  scheme: z.string().max(32),
+  network: caipNetworkSchema,
+  extra: z.record(z.string(), z.unknown()).optional(),
+});
+export const supportedResponseSchema = z.object({
+  kinds: z.array(supportedKindSchema).max(64),
+  extensions: z.array(z.string().max(64)).max(32).optional(),
+  signers: z.record(z.string(), z.array(z.string().max(128)).max(16)).optional(),
+});
+export type SupportedResponse = z.infer<typeof supportedResponseSchema>;

@@ -136,6 +136,13 @@ contract DataDropTest is Test {
         vm.stopPrank();
     }
 
+    /// A LEDGER_ONLY DataDrop on which the owner has allow-listed SPONSOR (RT-C-01).
+    function _ledgerOnlyWithSponsor() internal returns (DataDrop lo) {
+        lo = new DataDrop(IERC20(address(0)), PAYOUT, ATTESTOR, OWNER);
+        vm.prank(OWNER);
+        lo.setLedgerSponsor(SPONSOR, true);
+    }
+
     function _assertNoTransferLogs(Vm.Log[] memory logs) internal pure {
         for (uint256 i = 0; i < logs.length; i++) {
             if (logs[i].topics.length > 0) assertTrue(logs[i].topics[0] != TRANSFER_TOPIC, "unexpected Transfer");
@@ -491,7 +498,7 @@ contract DataDropTest is Test {
     // ───────────────────────────── LEDGER_ONLY ─────────────────────────────
 
     function test_LedgerOnlyMovesNoTokens() public {
-        DataDrop lo = new DataDrop(IERC20(address(0)), PAYOUT, ATTESTOR, OWNER);
+        DataDrop lo = _ledgerOnlyWithSponsor();
         assertTrue(lo.ledgerOnly());
         assertEq(lo.usdc(), address(0));
         uint256 sponsorBal = usdc.balanceOf(SPONSOR);
@@ -595,16 +602,17 @@ contract DataDropTest is Test {
         // the artefact's size depends on build flags (slither adds build-info): keep its parse out of the gas snapshot
         vm.pauseGasMetering();
         string memory json = vm.readFile(string.concat(vm.projectRoot(), "/out/DataDrop.sol/DataDrop.json"));
+        // refund appears twice (refund(id), refund(id,to)); renounceOwnership is `pure` and always reverts (RT-C-06)
         string[9] memory allowed = [
             "createCampaign",
             "claim",
             "pause",
             "refund",
             "setAttestor",
+            "setLedgerSponsor",
             "associateHts",
             "transferOwnership",
-            "acceptOwnership",
-            "renounceOwnership"
+            "acceptOwnership"
         ];
         bool[9] memory seen;
         uint256 mutating;
@@ -628,7 +636,7 @@ contract DataDropTest is Test {
             assertTrue(ok, string.concat("unexpected state-changing function: ", name));
             mutating++;
         }
-        assertEq(mutating, allowed.length);
+        assertEq(mutating, allowed.length + 1); // + the refund(id, to) overload
         for (uint256 j = 0; j < allowed.length; j++) {
             assertTrue(seen[j], allowed[j]);
         }
@@ -644,12 +652,14 @@ contract DataDropTest is Test {
         drop.pause(ID, false);
         vm.startPrank(OWNER);
         drop.setAttestor(STRANGER);
+        drop.setLedgerSponsor(STRANGER, true);
         drop.associateHts(address(usdc));
         drop.transferOwnership(SPONSOR);
         vm.stopPrank();
         vm.prank(SPONSOR);
         drop.acceptOwnership();
         vm.prank(SPONSOR);
+        vm.expectRevert(DataDrop.RenounceDisabled.selector);
         drop.renounceOwnership();
         _assertNoTransferLogs(vm.getRecordedLogs());
         assertEq(usdc.balanceOf(address(drop)), BUDGET);
@@ -1112,6 +1122,15 @@ contract DataDropTest is Test {
         DataDrop lo = new DataDrop(IERC20(address(0)), PAYOUT, ATTESTOR, OWNER);
         assertTrue(lo.ledgerOnly());
         assertEq(lo.usdc(), address(0));
+        vm.prank(SPONSOR);
+        vm.expectRevert(IDataDrop.NotSponsor.selector); // not allow-listed yet (RT-C-01)
+        lo.createCampaign(ID, BUDGET, PRICE, CAP, expiresAt);
+        vm.expectEmit(true, true, true, true, address(lo));
+        emit DataDrop.LedgerSponsorSet(SPONSOR, true);
+        vm.prank(OWNER);
+        lo.setLedgerSponsor(SPONSOR, true);
+        vm.expectEmit(true, true, true, true, address(lo));
+        emit DataDrop.CampaignFunded(ID, SPONSOR, BUDGET);
         vm.prank(SPONSOR);
         lo.createCampaign(ID, BUDGET, PRICE, CAP, expiresAt);
         vm.prank(ATTESTOR);

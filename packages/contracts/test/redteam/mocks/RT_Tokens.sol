@@ -148,7 +148,9 @@ contract RT_ReenterAnyToken is RT_Base {
     function arm(address target_, bytes[] calldata payloads) external {
         target = target_;
         delete _payloads;
-        for (uint256 i = 0; i < payloads.length; i++) _payloads.push(payloads[i]);
+        for (uint256 i = 0; i < payloads.length; i++) {
+            _payloads.push(payloads[i]);
+        }
         delete results;
         delete oks;
     }

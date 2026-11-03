@@ -740,6 +740,35 @@
       "usd6": "400000",
       "mb": 100,
       "reason": "threshold"
+    },
+    "supportedKindSchema": {
+      "x402Version": 2,
+      "scheme": "exact",
+      "network": "hedera:testnet",
+      "extra": {
+        "feePayer": "0.0.9185802"
+      }
+    },
+    "supportedResponseSchema": {
+      "kinds": [
+        {
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "eip155:84532"
+        },
+        {
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "hedera:testnet",
+          "extra": {
+            "feePayer": "0.0.9185802"
+          }
+        }
+      ],
+      "extensions": [],
+      "signers": {
+        "eip155:*": ["0x976EA74026E726554dB657fA54763abd0C3a0aa9"]
+      }
     }
   },
   "variants": {

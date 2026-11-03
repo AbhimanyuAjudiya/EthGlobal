@@ -22,7 +22,10 @@ import {IHederaTokenService} from "./interfaces/IHederaTokenService.sol";
 ///         checked and no value is ever scaled by 1e18.
 ///
 ///         Modes: `usdc == address(0)` ⇒ LEDGER_ONLY (state and events only, no token movement; sponsor funds move natively
-///         on HTS). Otherwise token mode with `SafeERC20` on every transfer.
+///         on HTS; only owner-allow-listed sponsors may create). Otherwise token mode with `SafeERC20` on every transfer.
+///
+///         Ids: use `scopedCampaignId(sponsor, salt)` — only that sponsor can create it, so it cannot be squatted. Other
+///         ids are first come, never reusable; the API pins `(id, sponsor)`. `renounceOwnership` is disabled.
 ///
 ///         Drain bound with a stolen attestor key (THREAT-MODEL §6.4): per hour ≤ Σ_live min(budget − spent,
 ///         pricePerClaim × claimsPerHour); at a bucket edge up to 2 × pricePerClaim × claimsPerHour within seconds.
@@ -57,10 +60,23 @@ contract DataDrop is IDataDrop, Ownable2Step, ReentrancyGuardTransient {
     error NotUsdc();
     /// @notice Token mode: the contract's USDC balance did not grow by exactly `budget` during `createCampaign`.
     error BudgetNotReceived();
+    /// @notice `renounceOwnership` is disabled: it would make attestor rotation (the T-01 recovery) impossible (RT-C-06).
+    error RenounceDisabled();
 
     /// @notice `associateHts` succeeded.
     /// @param token The associated HTS token.
     event HtsAssociated(address indexed token);
+    /// @notice Who backed a new campaign and with how much (RT-C-01). Token mode: `amount` USDC moved from `funder`
+    ///         into this contract. LEDGER_ONLY (see `ModeSet`): `amount` is declared by `funder`, an owner-allow-listed
+    ///         sponsor (`ledgerSponsor`) who funds natively on HTS; nothing moved on this contract.
+    /// @param id Campaign id.
+    /// @param funder The sponsor that funded (token mode) or declared (LEDGER_ONLY) the budget.
+    /// @param amount Budget in USDC base units (6 decimals).
+    event CampaignFunded(bytes32 indexed id, address indexed funder, uint128 amount);
+    /// @notice The owner allowed or revoked an account as a LEDGER_ONLY sponsor.
+    /// @param sponsor The account.
+    /// @param allowed Whether it may create LEDGER_ONLY campaigns.
+    event LedgerSponsorSet(address indexed sponsor, bool allowed);
 
     // forge-lint: disable-next-line(screaming-snake-case-immutable)
     IERC20 private immutable _usdc;
@@ -73,6 +89,8 @@ contract DataDrop is IDataDrop, Ownable2Step, ReentrancyGuardTransient {
     mapping(bytes32 => Campaign) private _campaigns;
     mapping(bytes32 => mapping(bytes32 => bool)) private _claimed;
     mapping(bytes32 => mapping(uint64 => uint32)) private _claimsInHour;
+    /// @notice LEDGER_ONLY only: accounts the owner allows to declare (unbacked-on-chain) budgets (RT-C-01).
+    mapping(address => bool) public ledgerSponsor;
 
     /// @notice Deploys a DataDrop. Emits `ModeSet(usdc_ == address(0))` and `AttestorSet(attestor_)`.
     /// @param usdc_ The 6-decimal USDC token, or address(0) for LEDGER_ONLY mode. Immutable.
@@ -99,11 +117,16 @@ contract DataDrop is IDataDrop, Ownable2Step, ReentrancyGuardTransient {
     /// @inheritdoc IDataDrop
     /// @dev Token mode pulls `budget` with `safeTransferFrom` and additionally checks the balance delta, so an HTS
     ///      facade that reports success without moving funds reverts (`BudgetNotReceived`) instead of creating an
-    ///      unfunded campaign (T-09).
+    ///      unfunded campaign (T-09). LEDGER_ONLY: only owner-allow-listed sponsors (`ledgerSponsor`) may create, else
+    ///      `NotSponsor` (RT-C-01). Sponsor-scoped ids (`scopedCampaignId`) can only be created by their sponsor, else
+    ///      `NotSponsor` (RT-C-02); any other id is first come, first served and never reusable.
     function createCampaign(bytes32 id, uint128 budget, uint96 pricePerClaim, uint32 claimsPerHour, uint64 expiresAt)
         external
         nonReentrant
     {
+        IERC20 token = _usdc;
+        if (address(token) == address(0) && !ledgerSponsor[msg.sender]) revert NotSponsor();
+        if (_isScoped(id) && address(uint160(uint256(id) >> 96)) != msg.sender) revert NotSponsor();
         if (_campaigns[id].sponsor != address(0)) revert CampaignExists();
         if (budget < pricePerClaim || pricePerClaim == 0 || claimsPerHour == 0 || expiresAt <= block.timestamp) {
             revert InvalidCampaign();
@@ -120,8 +143,8 @@ contract DataDrop is IDataDrop, Ownable2Step, ReentrancyGuardTransient {
             paused: false
         });
         emit CampaignCreated(id, msg.sender, budget, pricePerClaim, claimsPerHour, expiresAt);
+        emit CampaignFunded(id, msg.sender, budget);
 
-        IERC20 token = _usdc;
         if (address(token) != address(0)) {
             uint256 before = token.balanceOf(address(this));
             token.safeTransferFrom(msg.sender, address(this), budget);
@@ -144,12 +167,14 @@ contract DataDrop is IDataDrop, Ownable2Step, ReentrancyGuardTransient {
         uint32 inHour = _claimsInHour[id][bucket];
         if (inHour >= c.claimsPerHour) revert HourlyCap();
         uint96 price = c.pricePerClaim;
-        uint128 newSpent = c.spent + price;
-        if (newSpent > c.budget) revert BudgetExhausted();
+        uint128 spent = c.spent;
+        // compare against the remainder (budget ≥ spent is invariant) so a near-2^128 budget reports BudgetExhausted,
+        // never Panic(0x11) (RT-C-07)
+        if (price > c.budget - spent) revert BudgetExhausted();
 
         _claimed[id][claimKey] = true;
         _claimsInHour[id][bucket] = inHour + 1;
-        c.spent = newSpent;
+        c.spent = spent + price;
         emit Claimed(id, claimKey, price, bucket);
 
         IERC20 token = _usdc;
@@ -181,6 +206,35 @@ contract DataDrop is IDataDrop, Ownable2Step, ReentrancyGuardTransient {
     /// @dev Sets `budget = spent` before transferring, so a re-entrant or repeated refund hits `NotRefundable` and any
     ///      later claim hits `BudgetExhausted`.
     function refund(bytes32 id) external nonReentrant {
+        _refund(id, msg.sender);
+    }
+
+    /// @notice Same as `refund(id)` but pays the unspent budget to `to`, chosen by the sponsor — e.g. when the
+    ///         sponsor's own address is blacklisted/frozen by the token issuer (RT-C-03). Never an owner power (T-10).
+    /// @param id Campaign id.
+    /// @param to Recipient of `budget − spent`; must not be address(0).
+    function refund(bytes32 id, address to) external nonReentrant {
+        if (to == address(0)) revert ZeroAddress();
+        _refund(id, to);
+    }
+
+    /// @notice Owner only: allow or revoke `sponsor` as a LEDGER_ONLY campaign creator. The owner allow-lists a sponsor
+    ///         only after seeing its native HTS funding; has no effect on the token-mode path (RT-C-01).
+    /// @param sponsor The account.
+    /// @param allowed Whether it may create LEDGER_ONLY campaigns.
+    function setLedgerSponsor(address sponsor, bool allowed) external onlyOwner {
+        if (sponsor == address(0)) revert ZeroAddress();
+        ledgerSponsor[sponsor] = allowed;
+        emit LedgerSponsorSet(sponsor, allowed);
+    }
+
+    /// @notice Disabled (always reverts `RenounceDisabled`): an ownerless DataDrop could never rotate a compromised
+    ///         attestor (T-01, RT-C-06). Ownership can still move with `transferOwnership` + `acceptOwnership`.
+    function renounceOwnership() public pure override {
+        revert RenounceDisabled();
+    }
+
+    function _refund(bytes32 id, address to) internal {
         Campaign storage c = _campaigns[id];
         address sponsor = c.sponsor;
         if (msg.sender != sponsor || sponsor == address(0)) revert NotSponsor();
@@ -195,7 +249,7 @@ contract DataDrop is IDataDrop, Ownable2Step, ReentrancyGuardTransient {
         emit Refunded(id, amount);
 
         IERC20 token = _usdc;
-        if (address(token) != address(0)) token.safeTransfer(sponsor, amount);
+        if (address(token) != address(0)) token.safeTransfer(to, amount);
     }
 
     /// @inheritdoc IDataDrop
@@ -221,6 +275,20 @@ contract DataDrop is IDataDrop, Ownable2Step, ReentrancyGuardTransient {
     }
 
     // ───────────────────────────────────────────── views ─────────────────────────────────────────────
+
+    /// @notice A sponsor-scoped campaign id: `sponsor (20 bytes) ‖ 0x00000000 ‖ salt (8 bytes)`. Only `sponsor` can
+    ///         create it, so it cannot be squatted or front-run (RT-C-02). Use these for every production campaign.
+    /// @param sponsor The only account allowed to create the id.
+    /// @param salt Sponsor-chosen discriminator.
+    /// @return The id.
+    function scopedCampaignId(address sponsor, uint64 salt) external pure returns (bytes32) {
+        return bytes32((uint256(uint160(sponsor)) << 96) | uint256(salt));
+    }
+
+    /// @dev Scoped ids have bytes 20..23 == 0 (a random/keccak id does so with probability 2^-32).
+    function _isScoped(bytes32 id) internal pure returns (bool) {
+        return uint32(uint256(id) >> 64) == 0;
+    }
 
     function _checkAttestor() internal view {
         if (msg.sender != attestor) revert NotAttestor();

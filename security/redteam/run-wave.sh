@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Red-team wave runner (security/redteam/README.md, PLAN.md §4–5).
-#   security/redteam/run-wave.sh 1|2|3|all|static        # exit 0 == every attack failed as expected AND every gate is green
+#   security/redteam/run-wave.sh 1|2|3|all|static|contracts   # exit 0 == every attack failed as expected AND every gate is green
+#   (`contracts` = the wave-1 contracts gates + the contract-relevant static gates, runnable before the TS packages land)
 # Pass criterion: all attacks fail; every finding has a regression test (PLAN §1). Any ✗ line makes the exit status 1.
 # Always MODE=local: no testnet RPC, no vendor API, no real keys (PLAN §7.1). Tools used: bash, grep -P, awk, jq, git, pnpm, forge,
 # slither, semgrep, jscpd (via `pnpm dupcheck`). Nothing is installed or fetched except what pnpm's frozen lockfile already pins.
@@ -64,13 +65,37 @@ static_gates() {
   run bash "$TOOLS/coverage-check.sh"
 }
 
-wave1() {
-  step "wave 1: contracts — red-team attack tests + invariants + gas"
-  if need packages/contracts/test/attack "attack tests for wave1-contracts.md A1–A19"; then
-    run_in packages/contracts forge test --match-path 'test/attack/*' -vv
-    FOUNDRY_INVARIANT_RUNS=256 FOUNDRY_INVARIANT_DEPTH=64 run_in packages/contracts forge test --match-path 'test/invariant/*'
-    if [[ -f packages/contracts/.gas-snapshot ]]; then run_in packages/contracts forge snapshot --check --tolerance 5; else echo "(no gas snapshot yet)"; fi
+wave1_contracts() {
+  step "wave 1: contracts — red-team attack tests (test/redteam) + fixed-finding regressions (test/regression)"
+  # attack tests for wave1-contracts.md A1–A19 live in test/redteam/ (red team) and the builder's test/DataDrop.t.sol
+  # (test_Attack_*); a fixed RT-C finding's attack test moves to test/regression/T<nn>_*.t.sol as a passing regression.
+  if need packages/contracts/test/redteam "red-team attack tests for wave1-contracts.md A1–A19"; then
+    run_in packages/contracts forge test --match-path 'test/redteam/**' --no-match-test RTFINDING -vv
+    run_in packages/contracts forge test --match-path 'test/regression/**' -vv
+    run_in packages/contracts forge test --match-test '^test_Attack_|^test_Drill_' -vv
+    FOUNDRY_INVARIANT_RUNS=256 FOUNDRY_INVARIANT_DEPTH=64 run_in packages/contracts forge test --match-test '^invariant_'
+    # invariant entries carry no gas, and `--tolerance` mis-reports them as diffs: they are proven by the run above
+    if [[ -f packages/contracts/.gas-snapshot ]]; then
+      run_in packages/contracts forge snapshot --check --tolerance 5 --no-match-test 'invariant|RTFINDING'
+    else echo "(no gas snapshot yet)"; fi
+    run_in packages/contracts forge fmt --check
+    run_in packages/contracts pnpm -s abi:check
   fi
+  step "wave 1: contracts — regression tests named in THREAT-MODEL §5.12 exist"
+  run bash "$TOOLS/coverage-check.sh" --require packages/contracts
+}
+
+contracts_static() {
+  step "static: slither (DataDrop, MockUSDC3009)"
+  run_in packages/contracts slither . --config-file "$TOOLS/slither.config.json" --fail-medium
+  step "static: duplication (jscpd 1 %)"
+  [[ -f .jscpd.json ]] && run pnpm -s dupcheck
+  step "static: threat coverage matrix (THREAT-MODEL §5.12)"
+  run bash "$TOOLS/coverage-check.sh"
+}
+
+wave1() {
+  wave1_contracts
   step "wave 1: protocol / crypto / eip3009 / octroi / adapters — attack + fixture contract suites"
   for pkg in protocol crypto eip3009 octroi adapters; do
     if need "packages/$pkg/test/attack" "attack tests for @ethglobal/$pkg (wave1-octroi.md / wave1-adapters.md)"; then
@@ -126,11 +151,12 @@ wave3() {
 
 case "$wave" in
   1) wave1; static_gates ;;
+  contracts) wave1_contracts; contracts_static ;;
   2) wave2; static_gates ;;
   3) wave3; static_gates ;;
   all) wave1; wave2; wave3; static_gates ;;
   static) static_gates ;;
-  *) echo "usage: run-wave.sh 1|2|3|all|static" >&2; exit 2 ;;
+  *) echo "usage: run-wave.sh 1|2|3|all|static|contracts" >&2; exit 2 ;;
 esac
 bash "$TOOLS/findings-index.sh" > /dev/null 2>&1 || true
 open_blocking="$(grep -l -E '^severity: (Critical|High)' security/redteam/findings/RT-*.md 2>/dev/null | xargs -r grep -L -E '^status: (verified|closed)' 2>/dev/null)"

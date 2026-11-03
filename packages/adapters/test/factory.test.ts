@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
-import { createAdapters, parseAdapterMode, type AdapterName } from '../src/index.js';
+import { readFileSync } from 'node:fs';
+
+import { ADAPTER_CODE_MAP } from '@ethglobal/protocol/errors';
+
+import {
+  ADAPTER_ERROR_CODES,
+  createAdapters,
+  MemoryBlobStore,
+  MockConsensusLog,
+  MockReseller,
+  MockTreasury,
+  parseAdapterMode,
+  type AdapterName,
+} from '../src/index.js';
 
 const ports: readonly AdapterName[] = [
   'ledger',
@@ -21,19 +34,30 @@ describe('createAdapters', () => {
     for (const name of ports) expect(adapters[name]).toBeDefined();
   });
 
-  it('pending ports reject with not_implemented until their mocks land', async () => {
-    const { reseller, blobs, consensus, treasury } = createAdapters('local');
-    await expect(Promise.resolve().then(() => blobs.get('ref'))).rejects.toMatchObject({
-      code: 'not_implemented',
-      adapter: 'blobs',
+  it('wires the local mocks and their options', async () => {
+    const adapters = createAdapters('local', {
+      personhood: { expectSignal: true },
+      reseller: { failNextOrder: true },
     });
-    await expect(Promise.resolve().then(() => consensus.read('0.0.1'))).rejects.toMatchObject({
-      code: 'not_implemented',
+    expect(adapters.reseller).toBeInstanceOf(MockReseller);
+    expect(adapters.consensus).toBeInstanceOf(MockConsensusLog);
+    expect(adapters.blobs).toBeInstanceOf(MemoryBlobStore);
+    expect(adapters.treasury).toBeInstanceOf(MockTreasury);
+    await expect(adapters.reseller.order('in-1gb-7d', { idempotencyKey: 'k' })).rejects.toMatchObject({
+      code: 'unavailable',
     });
-    await expect(
-      Promise.resolve().then(() => treasury.balanceUsd6('eip155:31337')),
-    ).rejects.toMatchObject({ code: 'not_implemented' });
-    expect(() => reseller.verifyWebhook('{}', {}, 0)).toThrow(/not implemented/);
+    await expect(adapters.reseller.order('in-1gb-7d', { idempotencyKey: 'k' })).resolves.toMatchObject({
+      provider: 'mock',
+    });
+  });
+
+  it('every AdapterError code maps to an API error code (L15)', () => {
+    for (const code of ADAPTER_ERROR_CODES) expect(ADAPTER_CODE_MAP[code]).toBeDefined();
+  });
+
+  it('the root barrel never imports ./live (browser-safe; no Hedera/Arkiv SDK)', () => {
+    const src = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
+    expect(src).not.toMatch(/from '\.\/live|@hiero-ledger|@x402\/hedera|@arkiv-network/);
   });
 
   it('shares the injected clock between ledger and payments', async () => {

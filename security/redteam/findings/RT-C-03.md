@@ -5,14 +5,14 @@ module: packages/contracts/src/DataDrop.sol
 threat: T-10
 severity: Low
 likelihood: L
-status: open
+status: fixed
 found_by: redteam-contracts
 owner: builder-contracts
 found_at: 2026-11-04T02:45+05:30
 due: next report (Low: opportunistic, PLAN §6.3)
 attack_test: packages/contracts/test/redteam/RT_DataDrop.t.sol::test_RT_BlacklistedSponsorCanStillRecoverFunds_RTFINDING
-regression_test:
-fix_commit:
+regression_test: packages/contracts/test/regression/T10_RefundRecipient.t.sol::test_Regression_RTC03_BlacklistedSponsorRefundsToAlternateAddress
+fix_commit: (uncommitted, wave-1 fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -45,5 +45,7 @@ Regression test to add (builder): `packages/contracts/test/regression/T10_Refund
 `_RTFINDING` (CI filter: `forge test --no-match-test RTFINDING`); it must turn green with the fix.
 
 ## Builder notes (optional)
+
+Added `refund(bytes32 id, address to)`: sponsor-only, `to != 0`, same eligibility rules, and it shares one internal `_refund` with `refund(id)`. The recipient is the sponsor's choice, never an owner power; there is still no sweep (T-10). The README runbook now checks that `payout` is HTS-associated before the first claim. The red-team `_RTFINDING` test was moved from `test/redteam/` to the regression above, adapted to assert the fixed behaviour; a comment marks its old place.
 
 ## Verification (red team)

@@ -14,3 +14,4 @@ export {
   type RecordedResponse,
 } from './fixture-fetch.js';
 export { fixtureProof, paymentPayload, requirementInput, TEST_USDC } from './builders.js';
+export * from './contracts/index.js';

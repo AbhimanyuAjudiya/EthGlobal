@@ -11,6 +11,8 @@ import type { Personhood, PersonhoodContext, PersonhoodProof, PersonhoodResult }
 export interface MockPersonhoodOptions {
   /** When set and a signal is given, every response's signal_hash must equal hashToField(signal) (T-19). */
   expectSignal?: boolean;
+  /** The World environment production trusts (T-80); a V4 result for another environment is rejected. */
+  environment?: 'production' | 'staging';
 }
 
 const invalid = (message: string): AdapterError =>
@@ -24,9 +26,11 @@ const invalid = (message: string): AdapterError =>
 export class MockPersonhood implements Personhood {
   readonly #seen = new Set<string>();
   readonly #expectSignal: boolean;
+  readonly #environment: string;
 
   constructor(options: MockPersonhoodOptions = {}) {
     this.#expectSignal = options.expectSignal ?? false;
+    this.#environment = options.environment ?? 'production';
   }
 
   async verify(proof: PersonhoodProof, context: PersonhoodContext): Promise<PersonhoodResult> {
@@ -35,6 +39,10 @@ export class MockPersonhood implements Personhood {
     }
     const parsed = personhoodProofSchema.safeParse(proof);
     if (!parsed.success) throw invalid('not an IDKit 4 uniqueness result');
+    const environment = (parsed.data as { environment?: unknown }).environment;
+    if (environment !== undefined && environment !== this.#environment) {
+      throw invalid(`proof is for environment ${String(environment)}`);
+    }
     const [first] = parsed.data.responses;
     const level = first && verificationLevelFromIdentifier(first.identifier);
     const nullifierHash = first && nullifierHex(first.nullifier);

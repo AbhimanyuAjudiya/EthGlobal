@@ -49,21 +49,30 @@ test/                               DataDrop.t.sol, MockUSDC3009.t.sol, Vectors.
   unknown id `InvalidCampaign`. `pausedSince` is set on false→true only and cleared on true→false, so a no-op re-pause
   never moves the 24 h refund clock and unpause→pause restarts it.
 - **Refund.** Sponsor only, when `now ≥ expiresAt` or paused for ≥ 24 h; returns `budget − spent`, then `budget = spent`
-  (a second refund is `NotRefundable`, later claims `BudgetExhausted`). Campaign ids are never reusable (`CampaignExists`).
+  (a second refund is `NotRefundable`, later claims `BudgetExhausted`). `refund(id, to)` pays a recipient of the
+  sponsor's choice (for example when the issuer blacklisted the sponsor's address, RT-C-03); it is never an owner power.
+- **Campaign ids (RT-C-02).** Use **sponsor-scoped ids**, `scopedCampaignId(sponsor, salt)` = `sponsor ‖ 0x00000000 ‖
+salt`: only that sponsor can create one (anyone else gets `NotSponsor`), so it cannot be squatted or front-run. Any other
+  id is first come, never reusable (`CampaignExists`) and never overwritten. The API and seed pin `(id, sponsor)`.
+- **Budget check (RT-C-07).** `claim` tests `price > budget − spent` before adding, so it reports `BudgetExhausted` (never
+  `Panic`) up to `uint128` max.
 - **No other token path.** `usdc` and `payout` are immutable; there is no sweep/withdraw/rescue. Only `createCampaign`,
   `claim` and `refund` move tokens (`test_NoTokenMovesOutsideThreeFunctions` inspects the ABI and the logs).
 
 ### Roles and keys
 
-| Role     | Powers                                                  | Key                                  | Anvil default |
-| -------- | ------------------------------------------------------- | ------------------------------------ | ------------- |
-| owner    | `setAttestor` (non-zero), `associateHts`; Ownable2Step  | cold, on-site                        | deployer (#0) |
-| attestor | `claim`; `pause(id, true)` on any campaign              | API hot key (`ATTESTOR_PRIVATE_KEY`) | #2            |
-| sponsor  | `createCampaign`; `pause` both ways and `refund` on own | sponsor wallet                       | #3 (demo)     |
-| payout   | receives every claim payment (immutable)                | never on the API host (A-31)         | #1            |
+| Role     | Powers                                                                     | Key                                  | Anvil default |
+| -------- | -------------------------------------------------------------------------- | ------------------------------------ | ------------- |
+| owner    | `setAttestor`, `setLedgerSponsor` (non-zero), `associateHts`; Ownable2Step | cold, on-site                        | deployer (#0) |
+| attestor | `claim`; `pause(id, true)` on any campaign                                 | API hot key (`ATTESTOR_PRIVATE_KEY`) | #2            |
+| sponsor  | `createCampaign`; `pause` both ways and `refund` on own                    | sponsor wallet                       | #3 (demo)     |
+| payout   | receives every claim payment (immutable)                                   | never on the API host (A-31)         | #1            |
 
-`renounceOwnership` is inherited and would leave `setAttestor` dead forever (rotation impossible) — Low, accepted:
-never call it. A stolen attestor key can pause every campaign (DoS, sponsors unpause) and drain at most the bound below.
+`renounceOwnership()` is **disabled**: it always reverts with `RenounceDisabled` (RT-C-06). An ownerless DataDrop could
+never rotate a stolen attestor key, and rotation is the T-01 recovery. Because the risk is now removed rather than
+accepted, it needs no row in THREAT-MODEL §8, which covers only the T-01 self-attestation itself. Ownership still moves
+with `transferOwnership` + `acceptOwnership`. A stolen attestor key can pause every campaign (a DoS that sponsors undo by
+unpausing) and can drain at most the bound below.
 
 ### Drain bound (T-01, T-02)
 
@@ -74,12 +83,14 @@ edge up to **2 × pricePerClaim × claimsPerHour** within seconds (N claims at `
 
 ### Modes
 
-| Mode          | Constructed with     | Behaviour                                                                                                                                                                            |
-| ------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| token         | `usdc_ = <USDC>`     | `createCampaign` pulls `budget` with `safeTransferFrom` **and** checks the balance delta (`BudgetNotReceived`), so a facade that returns success without moving funds reverts (T-09) |
-| `LEDGER_ONLY` | `usdc_ = address(0)` | identical state and events, no token calls; `ModeSet(true)` at construction. For Hedera if the HTS ERC-20 facade misbehaves at the Wednesday pre-deploy; funds move natively on HTS  |
+| Mode          | Constructed with     | Behaviour                                                                                                                                                                                                                                                                                                                |
+| ------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| token         | `usdc_ = <USDC>`     | `createCampaign` pulls `budget` with `safeTransferFrom` **and** checks the balance delta (`BudgetNotReceived`), so a facade that returns success without moving funds reverts (T-09)                                                                                                                                     |
+| `LEDGER_ONLY` | `usdc_ = address(0)` | same state and events, no token calls; `ModeSet(true)` at construction. **Only owner-allow-listed sponsors** (`setLedgerSponsor`, after the owner has seen their native HTS funding) may create campaigns; others get `NotSponsor` (RT-C-01). For Hedera if the HTS ERC-20 facade misbehaves at the Wednesday pre-deploy |
 
-The mode is fixed at construction (`ModeSet(bool)` event, `ledgerOnly()` view) and the deploy script asserts it.
+The mode is fixed at construction (`ModeSet(bool)` event, `ledgerOnly()` view) and the deploy script asserts it. Every
+`createCampaign` also emits `CampaignFunded(id, funder, amount)`: in token mode the tokens moved, in LEDGER_ONLY an
+allow-listed sponsor declared the budget.
 
 ## MockUSDC3009 / EIP3009Token
 
@@ -110,7 +121,12 @@ deployer; required elsewhere), `LEDGER_ONLY` (default `false`), `ANVIL_MNEMONIC`
   record has no `usdc` refuses to deploy unless `LEDGER_ONLY=true` is explicit (THREAT-MODEL §6.1 rule 5 — echo it into
   `DISCLOSURE.md`). On 295/296 in token mode the script deploys owned by the broadcaster, calls `associateHts(usdc)` in
   the same broadcast, then `transferOwnership(OWNER_ADDRESS)` — **the owner must then call `acceptOwnership()`**.
-- Output: `deploy/addresses.<slug>.json` in the INTERFACES §6.3 shape (`txs` filled by `pnpm deploy:txs`).
+- Live token mode refuses a `usdc` without code or with `decimals() != 6` (RT-C-04). On Hedera a codeless HTS
+  long-zero alias is tolerated ([verify Wed]; check decimals on the mirror node), but a contract that answers
+  `decimals()` must answer 6.
+- Output: `deploy/addresses.<slug>.json` in the INTERFACES §6.3 shape (`txs` filled by `pnpm deploy:txs`). `owner` is the
+  on-chain owner and `pendingOwner` the cold owner that still has to `acceptOwnership()` (RT-C-05). After accepting, run
+  `CHAIN=<id> RPC_URL=… pnpm deploy:txs` to refresh both fields from the chain.
 
 ```sh
 CHAIN=31337 forge script script/Deploy.s.sol:Deploy --rpc-url anvil --broadcast --private-key $DEPLOYER_PRIVATE_KEY
@@ -140,12 +156,17 @@ export PAYOUT_ADDRESS=0x… ATTESTOR_ADDRESS=0x… OWNER_ADDRESS=0x…          
 # 1. token mode (default)
 CHAIN=296 forge script script/Deploy.s.sol:Deploy --rpc-url hedera_testnet --broadcast --legacy \
   --gas-limit 1000000 --private-key $DEPLOYER_PRIVATE_KEY
-CHAIN=296 pnpm deploy:txs
+CHAIN=296 pnpm deploy:txs                                                   # file shows pendingOwner = OWNER_ADDRESS
 cast send $DATADROP "acceptOwnership()" --rpc-url hedera_testnet --legacy --private-key $OWNER_PRIVATE_KEY
+CHAIN=296 RPC_URL=$HEDERA_TESTNET_RPC_URL pnpm deploy:txs                   # file now: owner = cold, pendingOwner = 0
+# payout must be associated with HTS USDC before the first claim (else every claim reverts; campaigns stay refundable)
+# demo campaign id: cast call $DATADROP "scopedCampaignId(address,uint64)(bytes32)" $SPONSOR 1
 # 2. smoke: sponsor approves + createCampaign (small budget), attestor claim → one Claimed on HashScan
 # 3. if transferFrom/association misbehaves: redeploy with LEDGER_ONLY=true (record it in DISCLOSURE.md)
 LEDGER_ONLY=true CHAIN=296 forge script script/Deploy.s.sol:Deploy --rpc-url hedera_testnet --broadcast --legacy \
   --private-key $DEPLOYER_PRIVATE_KEY
+# … then, once the sponsor's native HTS transfer is seen on HashScan, allow-list it (owner key):
+cast send $DATADROP "setLedgerSponsor(address,bool)" $SPONSOR true --rpc-url hedera_testnet --legacy --private-key $OWNER_PRIVATE_KEY
 ```
 
 ## Gas (`.gas-snapshot`)
@@ -153,8 +174,19 @@ LEDGER_ONLY=true CHAIN=296 forge script script/Deploy.s.sol:Deploy --rpc-url hed
 `claim` in token mode, cold, payout balance 0 → non-zero: **98 627** gas measured around the call
 (`test_GasSnapshot_Claim`, asserted ≤ 100 000); on Anvil a full `claim` tx (21 k base + calldata included) is ≈ 98.6 k
 with a funded payout, i.e. ≈ 77 k execution. `createCampaign` ≈ 131 k per tx including the `transferFrom`. Fuzz
-determinism: fixed `seed` and `include_push_bytes = false` (bytecode constants include the metadata hash, which would
-make the snapshot depend on build flags); the red team overrides both for wider exploration.
+determinism comes from three settings. A fixed `seed`. `include_push_bytes = false`, because bytecode constants include
+the metadata hash and would make the snapshot depend on build flags. `max_fuzz_dictionary_literals = 0`, because source
+literals are sampled from the selected test set and a `--match`/`--no-match` filter would otherwise change fuzz inputs.
+The red team overrides these for wider exploration. The snapshot contains everything, so a bare `forge snapshot --check`
+passes. The red-team gate runs `forge snapshot --check --tolerance 5 --no-match-test 'invariant|RTFINDING'`: invariant
+entries carry no gas, `--tolerance` mis-reports them as diffs, and they are proven by their own 256 × 64 run.
+
+## Tests
+
+`test/DataDrop.t.sol`, `MockUSDC3009.t.sol`, `Vectors.t.sol`, `Deploy.t.sol` (builder); `test/invariant/` (builder
+invariants); `test/redteam/` (red team, attack scripts A1–A19 and model invariants); `test/regression/T<nn>_*.t.sol`, the
+THREAT-MODEL §5.12 regression files. Each fixed red-team finding RT-C-01…07 has its former `_RTFINDING` attack test there,
+now passing. Gate: `security/redteam/run-wave.sh contracts`.
 
 ## Slither (`slither . --filter-paths lib`, 0.11.6)
 

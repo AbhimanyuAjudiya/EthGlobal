@@ -5,14 +5,14 @@ module: packages/contracts/src/DataDrop.sol
 threat: T-01
 severity: Low
 likelihood: L
-status: open
+status: fixed
 found_by: redteam-contracts
 owner: builder-contracts
 found_at: 2026-11-04T02:45+05:30
 due: next report (Low: opportunistic, PLAN §6.3)
 attack_test: packages/contracts/test/redteam/RT_DataDrop.t.sol::test_RT_RenounceOwnershipDisabled_RTFINDING
-regression_test:
-fix_commit:
+regression_test: packages/contracts/test/regression/T01_AttestorDrainBound.t.sol::test_Regression_RTC06_RenounceOwnershipRevertsAndRotationStillWorks
+fix_commit: (uncommitted, wave-1 fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -42,5 +42,7 @@ Regression test to add (builder): `packages/contracts/test/regression/T01_Attest
 `_RTFINDING` (CI filter: `forge test --no-match-test RTFINDING`); it must turn green with the fix.
 
 ## Builder notes (optional)
+
+`renounceOwnership()` is overridden as `pure` and always reverts `RenounceDisabled()`, so attestor rotation, the T-01 recovery, can never be thrown away. This is no longer an accepted risk, so no THREAT-MODEL §8 row is needed. The README's key table explains why and references §8. The red-team `_RTFINDING` test was moved from `test/redteam/` to the regression above, adapted to assert the fixed behaviour; a comment marks its old place.
 
 ## Verification (red team)

@@ -45,27 +45,7 @@ contract RT_DataDropTest is RT_Base {
         vm.stopPrank();
     }
 
-    /// RT-C-07: claim computes `c.spent + price` in uint128 BEFORE comparing with budget, so once spent is within
-    ///          `price` of 2^128 the next claim reverts Panic(0x11) instead of the binding BudgetExhausted() (the API
-    ///          decodes reverts by name). Reachable only with a near-uint128 budget — i.e. only in LEDGER_ONLY, where
-    ///          budgets are unbacked (RT-C-01). Property demanded: exhausted budget always reports BudgetExhausted.
-    function test_RT_MaxBudgetAndPriceNoOverflow_RTFINDING() public { // RT-FINDING RT-C-07
-        DataDrop lo = ledger;
-        uint96 p = type(uint96).max;
-        uint128 budget = type(uint128).max;
-        vm.prank(sponsor);
-        lo.createCampaign(ID, budget, p, type(uint32).max, expiresAt);
-        // fast-forward spent to just below budget: slot of Campaign = keccak(id, 3); spent is the high half of slot+1
-        bytes32 base = keccak256(abi.encode(ID, uint256(3)));
-        uint128 spent = budget - p; // exactly one claim left
-        vm.store(address(lo), bytes32(uint256(base) + 1), bytes32((uint256(spent) << 128) | uint256(budget)));
-        vm.startPrank(attestor);
-        lo.claim(ID, key(ID, 1));
-        assertEq(lo.campaigns(ID).spent, budget);
-        vm.expectRevert(IDataDrop.BudgetExhausted.selector);
-        lo.claim(ID, key(ID, 2));
-        vm.stopPrank();
-    }
+    // test_RT_MaxBudgetAndPriceNoOverflow_RTFINDING moved to test/regression/T07_BudgetAccounting.t.sol after the fix (fixed finding, now a passing regression).
 
     /// Property: expiresAt in the past, == now, price 0, cap 0, budget < price are all InvalidCampaign; expiresAt = now+1
     ///           is accepted but the campaign is claimable for exactly one second and refundable from expiresAt.
@@ -280,24 +260,7 @@ contract RT_DataDropTest is RT_Base {
         assertEq(drop.campaigns(ID).budget, BUDGET);
     }
 
-    /// RT-C-02: an id is first-come-first-served and never reusable, so anyone who learns a sponsor's intended id
-    ///          (deterministic like keccak256("demo-welcome"), or from the mempool) can squat it forever with a 1-unit
-    ///          campaign on attacker terms. Property demanded: the intended sponsor can still create its campaign
-    ///          under the id it chose (ids namespaced by sponsor).
-    function test_RT_IdSquatBlocksIntendedSponsor_RTFINDING() public { // RT-FINDING RT-C-02
-        bytes32 intended = keccak256("demo-welcome-2");
-        usdc.mint(stranger, 1);
-        vm.startPrank(stranger);
-        usdc.approve(address(drop), 1);
-        drop.createCampaign(intended, 1, 1, type(uint32).max, type(uint64).max); // squat: $0.000001, never expires
-        vm.stopPrank();
-        vm.prank(sponsor);
-        (bool ok,) = address(drop).call(
-            abi.encodeCall(IDataDrop.createCampaign, (intended, BUDGET, PRICE, CAP, expiresAt))
-        );
-        assertTrue(ok, "RT-C-02: squatted id permanently blocks the intended sponsor");
-        assertEq(drop.campaigns(intended).sponsor, sponsor, "RT-C-02: campaigns(id) now describes the squatter");
-    }
+    // test_RT_IdSquatBlocksIntendedSponsor_RTFINDING moved to test/regression/T04_CampaignIdHijack.t.sol after the fix (fixed finding, now a passing regression).
 
     /// Property: rotation race — after setAttestor, the old key's in-flight claim and pause revert; the new key claims
     ///           the same claimKey exactly once; rotating back to an old key re-enables it (owner's choice, by design).
@@ -348,14 +311,7 @@ contract RT_DataDropTest is RT_Base {
         assertEq(drop.owner(), cold);
     }
 
-    /// RT-C-06: renounceOwnership is live. The README calls this "Low, accepted" but there is no sign-off and no
-    ///          THREAT-MODEL §8 row (README §4 requires both). One call makes attestor rotation impossible forever, so
-    ///          the §6.7 drill (pause + rotate) can no longer complete. Property demanded: renounce reverts.
-    function test_RT_RenounceOwnershipDisabled_RTFINDING() public { // RT-FINDING RT-C-06
-        vm.prank(owner);
-        (bool ok,) = address(drop).call(abi.encodeWithSignature("renounceOwnership()"));
-        assertFalse(ok, "RT-C-06: renounceOwnership succeeded; setAttestor is now dead forever");
-    }
+    // test_RT_RenounceOwnershipDisabled_RTFINDING moved to test/regression/T01_AttestorDrainBound.t.sol after the fix (fixed finding, now a passing regression).
 
     // ───────────────────────────── token edge cases ─────────────────────────────
 
@@ -451,24 +407,7 @@ contract RT_DataDropTest is RT_Base {
         assertEq(d.campaigns(ID).spent, 0);
     }
 
-    /// RT-C-03: refund() always pays msg.sender and there is no sweep. If Circle blacklists the sponsor (or the
-    ///          sponsor is a contract that later cannot hold USDC), the unspent budget is locked forever. Property
-    ///          demanded: a sponsor can always recover budget − spent to some address it controls.
-    function test_RT_BlacklistedSponsorCanStillRecoverFunds_RTFINDING() public { // RT-FINDING RT-C-03
-        RT_BlacklistToken t = new RT_BlacklistToken();
-        DataDrop d = new DataDrop(IERC20(address(t)), payout, attestor, owner);
-        t.mint(sponsor, BUDGET);
-        vm.startPrank(sponsor);
-        t.approve(address(d), BUDGET);
-        d.createCampaign(ID, BUDGET, PRICE, CAP, expiresAt);
-        vm.stopPrank();
-        t.setBlacklisted(sponsor, true);
-        vm.warp(expiresAt);
-        vm.prank(sponsor);
-        (bool ok,) = address(d).call(abi.encodeCall(IDataDrop.refund, (ID)));
-        // there is no refund(id, to) / rescue path, so funds are stuck
-        assertTrue(ok, "RT-C-03: unspent budget permanently locked (no alternate recipient, no rescue)");
-    }
+    // test_RT_BlacklistedSponsorCanStillRecoverFunds_RTFINDING moved to test/regression/T10_RefundRecipient.t.sol after the fix (fixed finding, now a passing regression).
 
     /// Property (documented): a blacklisted/unassociated payout bricks every claim; the campaign stays refundable.
     function test_RT_BlacklistedPayoutBricksClaimsButRefundWorks() public {
@@ -544,20 +483,7 @@ contract RT_DataDropTest is RT_Base {
 
     // ───────────────────────────── LEDGER_ONLY ─────────────────────────────
 
-    /// RT-C-01: in LEDGER_ONLY mode createCampaign is permissionless AND unbacked: any address can declare any budget
-    ///          (here 2^128−1 base units ≈ $3.4e32) and the resulting CampaignCreated/Claimed events are byte-identical
-    ///          to a funded token-mode campaign. Nothing on-chain ties the declared budget to the native HTS transfer
-    ///          that is supposed to fund it, so a dashboard/indexer (or an API that serves any live campaign) is
-    ///          fooled — exactly T-09's "sponsor money never moved". Property demanded: in LEDGER_ONLY only an
-    ///          operator-attested sponsor (e.g. owner-gated createCampaign) can declare a budget.
-    function test_RT_LedgerOnlyStrangerCannotDeclareUnbackedBudget_RTFINDING() public { // RT-FINDING RT-C-01
-        assertEq(usdc.balanceOf(stranger), 0);
-        vm.prank(stranger);
-        (bool ok,) = address(ledger).call(
-            abi.encodeCall(IDataDrop.createCampaign, (ID, type(uint128).max, PRICE, type(uint32).max, expiresAt))
-        );
-        assertFalse(ok, "RT-C-01: unfunded stranger declared a $3.4e32 LEDGER_ONLY budget");
-    }
+    // test_RT_LedgerOnlyStrangerCannotDeclareUnbackedBudget_RTFINDING moved to test/regression/T09_HtsAssociation.t.sol after the fix (fixed finding, now a passing regression).
 
     // ───────────────────────────── gas griefing ─────────────────────────────
 

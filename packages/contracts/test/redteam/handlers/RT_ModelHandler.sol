@@ -67,7 +67,8 @@ contract RT_ModelHandler is Test {
     mapping(address => uint256) public ghostBalance; // expected USDC balance of each sponsor
     uint256 internal _nonce;
 
-    bytes32 internal constant TOPIC_CREATED = keccak256("CampaignCreated(bytes32,address,uint128,uint96,uint32,uint64)");
+    bytes32 internal constant TOPIC_CREATED =
+        keccak256("CampaignCreated(bytes32,address,uint128,uint96,uint32,uint64)");
     bytes32 internal constant TOPIC_CLAIMED = keccak256("Claimed(bytes32,bytes32,uint96,uint64)");
     bytes32 internal constant TOPIC_PAUSED = keccak256("Paused(bytes32,bool,address)");
     bytes32 internal constant TOPIC_REFUNDED = keccak256("Refunded(bytes32,uint128)");
@@ -218,8 +219,9 @@ contract RT_ModelHandler is Test {
         else exp = uint64(block.timestamp + bound(ttl, 1, 96 hours));
 
         bytes4 expected;
-        if (_m[id].sponsor != address(0)) expected = IDataDrop.CampaignExists.selector;
-        else if (budget < price || price == 0 || cap == 0 || exp <= block.timestamp) {
+        if (_m[id].sponsor != address(0)) {
+            expected = IDataDrop.CampaignExists.selector;
+        } else if (budget < price || price == 0 || cap == 0 || exp <= block.timestamp) {
             expected = IDataDrop.InvalidCampaign.selector;
         }
 
@@ -319,11 +321,13 @@ contract RT_ModelHandler is Test {
         if (who % 7 == 0) caller = tokenDrop.attestor();
         bytes4 expected;
         uint128 amount = c.budget - c.spent;
-        if (caller != c.sponsor) expected = IDataDrop.NotSponsor.selector;
-        else if (
-            !(block.timestamp >= c.expiresAt || (c.paused && block.timestamp - c.pausedSince >= 24 hours))
-        ) expected = IDataDrop.NotRefundable.selector;
-        else if (amount == 0) expected = IDataDrop.NotRefundable.selector;
+        if (caller != c.sponsor) {
+            expected = IDataDrop.NotSponsor.selector;
+        } else if (!(block.timestamp >= c.expiresAt || (c.paused && block.timestamp - c.pausedSince >= 24 hours))) {
+            expected = IDataDrop.NotRefundable.selector;
+        } else if (amount == 0) {
+            expected = IDataDrop.NotRefundable.selector;
+        }
 
         bool ok = _both(caller, abi.encodeCall(IDataDrop.refund, (id)), expected, "refund");
         if (ok && expected == bytes4(0)) {
@@ -360,7 +364,7 @@ contract RT_ModelHandler is Test {
     function rotate(uint256 seed) external {
         address cur = tokenDrop.attestor();
         address next = seed % 5 == 0 && oldAttestors.length > 0
-            ? oldAttestors[seed % oldAttestors.length] // rotate back to an old key
+            ? oldAttestors[seed % oldAttestors.length]  // rotate back to an old key
             : makeAddr(string.concat("rt-attestor-", vm.toString(_nonce++)));
         if (next == cur) return;
         oldAttestors.push(cur);

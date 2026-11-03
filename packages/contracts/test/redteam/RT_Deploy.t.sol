@@ -25,7 +25,10 @@ contract RT_DeployTest is Test {
     }
 
     function _cfg(bool lo, address owner_, string memory tag) internal view returns (Deploy.Config memory) {
-        return Deploy.Config({payout: PAYOUT, attestor: ATTESTOR, owner: owner_, ledgerOnly: lo, addressesPath: _path(tag)});
+        return
+            Deploy.Config({
+                payout: PAYOUT, attestor: ATTESTOR, owner: owner_, ledgerOnly: lo, addressesPath: _path(tag)
+            });
     }
 
     function _indexOf(string memory hay, string memory needle) internal pure returns (uint256) {
@@ -41,47 +44,11 @@ contract RT_DeployTest is Test {
         return type(uint256).max;
     }
 
-    /// RT-C-05: on Hedera token mode with OWNER_ADDRESS ≠ deployer the script deploys owned by the deployer, then
-    ///          only *nominates* the cold owner — yet addresses.<slug>.json records `"owner": <cold owner>`. Every
-    ///          consumer of the file (API /healthz, drill runbook, judges) is told the cold key owns the contract while
-    ///          the hot deployer key still holds setAttestor until acceptOwnership() is sent. Property demanded:
-    ///          the file's `owner` equals on-chain owner() (or the file carries `pendingOwner`).
-    function test_RT_HederaAddressesFileOwnerMatchesChain_RTFINDING() public { // RT-FINDING RT-C-05
-        vm.chainId(296);
-        vm.etch(HTS, type(HtsPrecompileMock).runtimeCode);
-        address cold = makeAddr("rt-cold-owner");
-        Deploy.Config memory cfg = _cfg(false, cold, "hedera-owner");
-        Deploy.Result memory r = deploy.deploy(deploy.loadChain(296), cfg);
-        address fileOwner = vm.parseJsonAddress(vm.readFile(cfg.addressesPath), ".owner");
-        address chainOwner = DataDrop(r.dataDrop).owner();
-        vm.removeFile(cfg.addressesPath);
-        assertEq(fileOwner, chainOwner, "RT-C-05: addresses file names the cold owner; chain owner is the deployer");
-    }
+    // test_RT_HederaAddressesFileOwnerMatchesChain_RTFINDING moved to test/regression/T10_DeployOwnerRecord.t.sol after the fix (fixed finding, now a passing regression).
 
-    /// RT-C-04: the script never checks that the live `usdc` it bakes in as an IMMUTABLE is a contract with
-    ///          decimals() == 6. A chains.json typo (an EOA, an 18-dec token, a token on another chain) produces a
-    ///          DataDrop that is dead or mis-priced by 1e12 forever — and the deploy "succeeds". Property demanded: the
-    ///          deploy reverts on a usdc without code or with decimals() != 6.
-    function test_RT_DeployRejectsUsdcWithoutCode_RTFINDING() public { // RT-FINDING RT-C-04
-        vm.chainId(84_532);
-        Deploy.ChainRecord memory chain = deploy.loadChain(84_532);
-        chain.usdc = vm.toString(makeAddr("rt-typo-eoa"));
-        Deploy.Config memory cfg = _cfg(false, makeAddr("rt-cold"), "nocode");
-        (bool ok,) = address(deploy).call(abi.encodeCall(Deploy.deploy, (chain, cfg)));
-        if (ok) vm.removeFile(cfg.addressesPath);
-        assertFalse(ok, "RT-C-04: DataDrop deployed with an immutable usdc that has no code");
-    }
+    // test_RT_DeployRejectsUsdcWithoutCode_RTFINDING moved to test/regression/T08_Decimals.t.sol after the fix (fixed finding, now a passing regression).
 
-    function test_RT_DeployRejectsEighteenDecimalUsdc_RTFINDING() public { // RT-FINDING RT-C-04
-        vm.chainId(84_532);
-        RT_EighteenDecToken t = new RT_EighteenDecToken();
-        Deploy.ChainRecord memory chain = deploy.loadChain(84_532);
-        chain.usdc = vm.toString(address(t));
-        Deploy.Config memory cfg = _cfg(false, makeAddr("rt-cold"), "18dec");
-        (bool ok,) = address(deploy).call(abi.encodeCall(Deploy.deploy, (chain, cfg)));
-        if (ok) vm.removeFile(cfg.addressesPath);
-        assertFalse(ok, "RT-C-04: DataDrop deployed with an 18-decimal immutable usdc");
-    }
+    // test_RT_DeployRejectsEighteenDecimalUsdc_RTFINDING moved to test/regression/T08_Decimals.t.sol after the fix (fixed finding, now a passing regression).
 
     /// Property: the Hedera addresses file keeps the INTERFACES §6.3 key order (not only the Anvil one).
     function test_RT_HederaAddressesKeyOrder() public {
@@ -91,8 +58,18 @@ contract RT_DeployTest is Test {
         deploy.deploy(deploy.loadChain(296), cfg);
         string memory json = vm.readFile(cfg.addressesPath);
         string[12] memory order = [
-            '"chainId"', '"network"', '"ledgerOnly"', '"dataDrop"', '"usdc"', '"usdcHts"',
-            '"payout"', '"attestor"', '"owner"', '"deployer"', '"deployedAt"', '"txs"'
+            '"chainId"',
+            '"network"',
+            '"ledgerOnly"',
+            '"dataDrop"',
+            '"usdc"',
+            '"usdcHts"',
+            '"payout"',
+            '"attestor"',
+            '"owner"',
+            '"deployer"',
+            '"deployedAt"',
+            '"txs"'
         ];
         for (uint256 i = 1; i < order.length; i++) {
             assertLt(_indexOf(json, order[i - 1]), _indexOf(json, order[i]), order[i]);

@@ -33,6 +33,8 @@ seed = "0x5eed"
 # bytecode PUSH constants include the metadata hash, which changes with build flags (slither, --build-info) and would
 # change the fuzz dictionary and therefore the snapshot; storage values and source literals still seed the dictionary.
 include_push_bytes = false
+# source literals are sampled from the *selected* test set, so a --match/--no-match filter would change fuzz inputs
+max_fuzz_dictionary_literals = 0
 
 [invariant]
 runs = 64

@@ -57,7 +57,7 @@ export const USDC_DECIMALS = 6;
 /** Asset ids per network. Anvil's MockUSDC3009 comes from deploy/addresses.anvil.json at runtime. */
 export const USDC_ASSET = {
   [NETWORKS.baseSepolia]: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
-  [NETWORKS.hederaTestnet]: '0.0.429274', // HTS id, 6 decimals (A-20); EVM long-zero alias 0x0000000000000000000000000000000000068cDA
+  [NETWORKS.hederaTestnet]: '0.0.429274', // HTS id, 6 decimals (A-20); EVM long-zero alias 0x0000000000000000000000000000000000068cDa
 } as const;
 /**
  * EIP-712 domain of USDC per EVM network (A-21). Circle's Base Sepolia USDC signs as name "USDC"; Ethereum, Base mainnet and

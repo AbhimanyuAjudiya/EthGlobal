@@ -14,6 +14,7 @@ catalog:
   "@noble/hashes": 2.4.0
   "@playwright/test": 1.63.0
   "@types/node": 22.20.5
+  "@vitest/coverage-v8": 5.1.0
   "@worldcoin/idkit": 4.6.0
   "@worldcoin/idkit-core": 4.6.0
   "@x402/core": 2.29.0

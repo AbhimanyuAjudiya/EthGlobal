@@ -1,3 +1,4 @@
+import { formatMb, formatUsd6 } from '@ethglobal/protocol/units';
 import {
   accentTokens,
   borderTokens,
@@ -125,7 +126,9 @@ export default function TokenSheet() {
         </ol>
         <dl className="mt-8 grid gap-4 sm:grid-cols-3">
           <div className="rounded-md border border-border-subtle bg-surface p-4">
-            <dt className="font-mono text-12 text-ink-tertiary">tabular-nums · ₹</dt>
+            <dt className="font-mono text-12 text-ink-tertiary">
+              tabular-nums · ₹ · {formatUsd6(400_000n, { unit: 'USDC' })} / {formatMb(100)}
+            </dt>
             <dd className="mt-2 text-32 text-ink">{specimen.amount}</dd>
           </div>
           <div className="rounded-md border border-border-subtle bg-surface p-4">

@@ -39,7 +39,7 @@ Modify:
 ```
 packages/contracts/script/Deploy.s.sol        // deploy both on Anvil, DataDrop only on live chains; write deploy/addresses.<slug>.json
 packages/contracts/test/Deploy.t.sol          // new ChainRecord fields; addresses file written; mode asserted per chain
-packages/contracts/deploy/chains.json         // + "usdc", "usdcHts" on every chain (alphabetical keys!); 84532 usdc = 0x036CbD53842c5426634e7929541eC2318f3dCF7e; 296 usdc = 0x0000000000000000000000000000000000068cDA (long-zero alias of HTS 0.0.429274 — computed, confirm on HashScan Wed) and usdcHts = "0.0.429274". No Arkiv record: Arkiv (rabdi 7794095; Kaolin 60138453025 is retired) is not a DataDrop target and lives in env (INTERFACES A-23)
+packages/contracts/deploy/chains.json         // + "usdc", "usdcHts" on every chain (alphabetical keys!); 84532 usdc = 0x036CbD53842c5426634e7929541eC2318f3dCF7e; 296 usdc = 0x0000000000000000000000000000000000068cDa (long-zero alias of HTS 0.0.429274 — computed, confirm on HashScan Wed) and usdcHts = "0.0.429274". No Arkiv record: Arkiv (rabdi 7794095; Kaolin 60138453025 is retired) is not a DataDrop target and lives in env (INTERFACES A-23)
 packages/contracts/foundry.toml               // fs_permissions: write ./deploy, write ./abi, write ../../fixtures/eip3009
 packages/contracts/package.json               // scripts: abi, abi:check, vectors, snapshot:check; "exports": {"./abi/*": "./abi/*.json", "./addresses/*": "./deploy/addresses.*.json"}
 packages/contracts/README.md                  // commands, modes, Hedera notes

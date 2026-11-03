@@ -10,8 +10,18 @@
     "**/dist/**",
     "**/cache/**",
     "**/broadcast/**",
-    "**/pnpm-lock.yaml"
+    "**/pnpm-lock.yaml",
+    "**/*.md",
+    "docs/**",
+    "research/**",
+    "marketing/**",
+    "security/**",
+    "**/abi/**",
+    "**/fixtures/**",
+    "**/*.json"
   ],
-  "reporters": ["console"],
+  "reporters": [
+    "console"
+  ],
   "blame": false
 }

@@ -10,6 +10,7 @@
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
+    "@ethglobal/protocol": "workspace:*",
     "@ethglobal/ui": "workspace:*",
     "next": "16.4.4",
     "react": "19.3.0",

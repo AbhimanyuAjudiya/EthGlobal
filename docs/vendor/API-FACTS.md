@@ -229,7 +229,7 @@ $1 cap on recognised stablecoins (`DEFAULT_ASSETS.md`).
 
 - Testnet USDC token id **`0.0.429274`**, mainnet **`0.0.456858`**, **6 decimals** (`@x402/hedera` `HEDERA_TESTNET_USDC`,
   `HEDERA_USDC_DECIMALS`; Circle's Hedera page lists the same ids per search).
-- EVM "long-zero" address form = `0x` + 40 hex of the entity number: testnet `0x0000000000000000000000000000000000068cDA`
+- EVM "long-zero" address form = `0x` + 40 hex of the entity number: testnet `0x0000000000000000000000000000000000068cDa`
   (429274 = 0x68CDA), mainnet `0x000000000000000000000000000000000006F89A` (computed; the testnet value also appears
   in a third-party Hedera guide — confirm on HashScan token page).
 - HTS decimals are set at token creation (default 0); never assume; read `/api/v1/tokens/{tokenId}`.
@@ -555,3 +555,6 @@ namehash("vitalik.eth"); // 0x...
 9. ENS: confirm a reachable mainnet RPC (and Sepolia for demo names), and whether judges want ENS text records (e.g. `com.twitter`, `avatar`) or only forward resolution for gifting.
 10. Apple link: test `https://esimsetup.apple.com/esim_qrcode_provisioning?carddata=...` on a team iPhone (iOS 17.4+) and the Android manual path; record which fields of the reseller response feed the link.
 11. Hedera Agent Kit: confirm `@hashgraph/hedera-agent-kit@4.2.0` tool outputs (`transactionId`, `topicSequenceNumber`) in `AUTONOMOUS` mode and that `@hiero-ledger/sdk@2.90.1` resolves to a single copy alongside `@x402/hedera` (run `pnpm why @hiero-ledger/sdk`).
+
+- **[added 3 Nov, contracts workstream]** `DataDrop.sol` uses OpenZeppelin `ReentrancyGuardTransient` (TSTORE/TLOAD, Cancun). Hedera's EVM must support transient storage for the Hedera testnet deploy; if the relay rejects it, swap the import to the storage `ReentrancyGuard` (same revert error; `claim` costs ~5k more gas). Verify at the Wed 14:00 pre-deploy.
+- **[added 3 Nov]** EIP-3009 `validAfter` is strict (`validAfter < block.timestamp`) in Circle's FiatTokenV2_2 and in `MockUSDC3009`; API-FACTS §7's `<=` wording is the loose one — code to strict.

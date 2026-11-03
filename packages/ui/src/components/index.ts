@@ -28,6 +28,14 @@ export { Hash, type HashProps } from './Hash';
 export { Icon, type IconProps } from './icons';
 export { MbMeter, WARNING_USED_FRACTION, type MbMeterProps } from './MbMeter';
 export { isStuck, OnchainAction, type OnchainActionProps, type ReviewRow } from './OnchainAction';
+export {
+  CARDS_PER_SHEET,
+  PrintSheet,
+  type PrintCard,
+  type PrintLayout,
+  type PrintSheetProps,
+  type PrintSide,
+} from './PrintSheet';
 export { Receipt, type ReceiptProps } from './Receipt';
 export { RuledList, type RuledRow } from './RuledList';
 export {

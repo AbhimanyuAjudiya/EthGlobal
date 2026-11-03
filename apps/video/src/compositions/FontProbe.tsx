@@ -14,10 +14,10 @@ import { v } from '../theme';
 export type FontProbeProps = { mode: 'product' | 'fallback' | 'sabotage' };
 
 const SAMPLES = [
-  { text: 'Recharge 300 MB ₹0', product: "'Anek Devanagari'", fallback: 'serif', size: 120 },
-  { text: 'क्योंकि आप इंसान हैं', product: "'Anek Devanagari'", fallback: 'sans-serif', size: 96 },
-  { text: '0x1a2b 4821 9930', product: "'Chivo Mono'", fallback: 'monospace', size: 96 },
-  { text: 'यहाँ रगड़ें', product: "'Baloo 2'", fallback: 'serif', size: 96 },
+  { text: 'Recharge 300 MB ₹0', product: "'Anek Devanagari'", fallback: 'serif', size: 72 },
+  { text: 'क्योंकि आप इंसान हैं', product: "'Anek Devanagari'", fallback: 'sans-serif', size: 64 },
+  { text: '0x1a2b 4821 9930', product: "'Chivo Mono'", fallback: 'monospace', size: 64 },
+  { text: 'यहाँ रगड़ें', product: "'Baloo 2'", fallback: 'serif', size: 64 },
 ] as const;
 
 function Report() {
@@ -65,7 +65,7 @@ function Sabotage() {
 export function FontProbe({ mode }: FontProbeProps) {
   return (
     <Frame>
-      <AbsoluteFill style={{ padding: 80, gap: 40 }}>
+      <AbsoluteFill style={{ padding: 64, gap: 16 }}>
         {SAMPLES.map((s) => (
           <div
             key={s.text}

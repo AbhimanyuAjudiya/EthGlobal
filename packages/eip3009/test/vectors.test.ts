@@ -43,7 +43,7 @@ describe('EIP-3009 vectors', () => {
     for (const { separator, ...domain } of domains) {
       expect(
         hashDomain({
-          domain,
+          domain: { ...domain, chainId: BigInt(domain.chainId) },
           types: {
             EIP712Domain: [
               { name: 'name', type: 'string' },

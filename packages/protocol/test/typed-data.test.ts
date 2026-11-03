@@ -138,19 +138,16 @@ describe('agreement with the recorded EIP-3009 vectors (fixtures/eip3009/vectors
     );
   });
 
-  it('every recorded authorization is a valid wire PaymentAuthorization (digit-string times)', () => {
+  it('recorded authorizations parse as wire PaymentAuthorization unless they exceed the 30-digit wire bound', () => {
+    let inBound = 0;
     for (const v of vectors.vectors) {
       const { from, to, value, validAfter, validBefore, nonce } = v;
-      const parsed = paymentAuthorizationSchema.safeParse({
-        from,
-        to,
-        value,
-        validAfter,
-        validBefore,
-        nonce,
-      });
-      expect(parsed.success).toBe(true);
+      const wire = { from, to, value, validAfter, validBefore, nonce };
+      const fits = [value, validAfter, validBefore].every((n) => n.length <= 30);
+      expect(paymentAuthorizationSchema.safeParse(wire).success).toBe(fits);
+      if (fits) inBound += 1;
     }
+    expect(inBound).toBeGreaterThanOrEqual(8);
   });
 
   it('the Hedera USDC long-zero alias is the EIP-55 form viem accepts', () => {

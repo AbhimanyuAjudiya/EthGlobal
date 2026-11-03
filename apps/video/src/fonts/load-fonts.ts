@@ -138,3 +138,10 @@ export function loadFonts(): Promise<FontGuardReport> {
   })();
   return loading;
 }
+
+/** Throws unless `family` is the face that paints `text` (used by the FontProbe sabotage check). */
+export function assertFacePaints(family: string, weight: string, text: string): void {
+  if (!paintsWithFace(family, weight, text)) {
+    throw new Error(`font guard: "${family}" ${weight} does not paint "${text}"; a fallback face would`);
+  }
+}

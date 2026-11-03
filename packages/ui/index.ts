@@ -55,6 +55,10 @@ export const colorTokens = [
 ] as const;
 export type ColorToken = (typeof colorTokens)[number];
 
+/** One radius per component family; never `rounded-2xl` everywhere. */
+export const radiusTokens = ['radius-control', 'radius-object'] as const;
+export type RadiusToken = (typeof radiusTokens)[number];
+
 export const typeScale = [11, 12, 13, 14, 16, 20, 24, 32, 44, 64] as const;
 export type TypeScaleStep = (typeof typeScale)[number];
 export const leading = { display: 1.15, text: 1.45, devanagari: 1.6 } as const;
@@ -91,6 +95,7 @@ export type MotionToken = (typeof motionTokens)[number];
 export type Token =
   | ColorToken
   | ObjectToken
+  | RadiusToken
   | FontToken
   | typeof scratchFontToken
   | MotionToken

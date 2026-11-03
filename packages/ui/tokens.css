@@ -85,6 +85,10 @@
   --leading-text: 1.45;
   --leading-devanagari: 1.6;
 
+  /* ── Radius: one per component family (controls, objects such as the coupon and the sheet) ── */
+  --radius-control: 0.375rem;
+  --radius-object: 0.75rem;
+
   /* ── Motion (§6): animate transform and opacity only ──────────────────── */
   --duration-micro: 100ms; /* press, toggle (80–120) */
   --duration-state: 180ms; /* hover, selection, tab, tooltip (150–200) */

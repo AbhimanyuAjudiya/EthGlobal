@@ -3,6 +3,40 @@
   "source": "docs",
   "note": "One valid example per exported schema of @ethglobal/protocol/schemas (INTERFACES §1). Values are synthetic; addresses are Anvil's public test accounts.",
   "examples": {
+    "hexSchema": "0x",
+    "hex32Schema": "0xabababababababababababababababababababababababababababababababab",
+    "hex24Schema": "0x4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e",
+    "evmAddressSchema": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "hederaAccountSchema": "0.0.429274",
+    "digitsSchema": "400000",
+    "caipNetworkSchema": "hedera:testnet",
+    "msSchema": 1793707200000,
+    "mbSchema": 300,
+    "tierSchema": "document",
+    "verificationLevelSchema": "secure_document",
+    "lpaSchema": "LPA:1$smdp.example.com$ABCD-1234-EFGH",
+    "entitlementKindSchema": "gift",
+    "entitlementStatusSchema": "pending-profile",
+    "usageSourceSchema": "poll",
+    "receiptKindSchema": "gift-reclaim",
+    "hcsRefSchema": {
+      "topic": "0.0.7001",
+      "sequence": 0
+    },
+    "receiptPublicSchema": {
+      "v": 1,
+      "kind": "provision",
+      "mb": 300,
+      "usd6": "1200000",
+      "network": "eip155:31337",
+      "tx": "0x7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b",
+      "payer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "hcs": {
+        "topic": "0.0.7001",
+        "sequence": 42
+      },
+      "at": 1793707200000
+    },
     "sealedBoxSchema": {
       "v": 1,
       "epk": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e",
@@ -549,12 +583,7 @@
         ]
       },
       "gift": {
-        "sizesMb": [
-          100,
-          300,
-          500,
-          1000
-        ],
+        "sizesMb": [100, 300, 500, 1000],
         "claimWindowS": 604800
       },
       "simulated": {

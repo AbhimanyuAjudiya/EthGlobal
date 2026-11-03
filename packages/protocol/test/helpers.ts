@@ -1,5 +1,4 @@
 import fixture from '../../../fixtures/protocol/examples.json' with { type: 'json' };
-
 import { RechargeError, type ErrorCode } from '../src/errors.js';
 
 export const examples = fixture.examples as Record<string, unknown>;
@@ -31,9 +30,15 @@ export function expectRecharge(fn: () => unknown, code: ErrorCode, reason?: stri
     fn();
   } catch (error) {
     if (!(error instanceof RechargeError)) throw error;
-    if (error.code !== code) throw new Error(`expected ${code}, got ${error.code}: ${error.message}`);
-    if (reason !== undefined && (error.details as { reason?: string } | undefined)?.reason !== reason) {
-      throw new Error(`expected reason ${reason}, got ${JSON.stringify(error.details)}`);
+    if (error.code !== code)
+      throw new Error(`expected ${code}, got ${error.code}: ${error.message}`, { cause: error });
+    if (
+      reason !== undefined &&
+      (error.details as { reason?: string } | undefined)?.reason !== reason
+    ) {
+      throw new Error(`expected reason ${reason}, got ${JSON.stringify(error.details)}`, {
+        cause: error,
+      });
     }
     return error;
   }

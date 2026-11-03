@@ -23,6 +23,7 @@
     "snapshot": "forge snapshot",
     "snapshot:check": "forge snapshot --check",
     "deploy:txs": "node script/fill-deploy-txs.mjs",
-    "slither": "slither . --filter-paths lib"
+    "slither": "slither . --filter-paths lib",
+    "coverage": "forge coverage --report summary --no-match-coverage \"(script|test)/\" --no-match-test test_GasSnapshot_Claim"
   }
 }

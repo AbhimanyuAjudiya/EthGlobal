@@ -73,7 +73,8 @@ function assertNonNegativeInt(value: number, name: string): void {
 }
 
 function assertStep(stepMb: number): void {
-  if (!Number.isSafeInteger(stepMb) || stepMb <= 0) throw invalid('stepMb must be a positive integer');
+  if (!Number.isSafeInteger(stepMb) || stepMb <= 0)
+    throw invalid('stepMb must be a positive integer');
 }
 
 /** mb × 1e6. */
@@ -144,7 +145,7 @@ function clockParts(ms: number, tz: string): Record<string, string> {
 /** 'usage as of 14:02' in `tz` (default IST). */
 export function formatAsOf(ms: number, tz: string = DEFAULT_TIME_ZONE): string {
   const p = clockParts(ms, tz);
-  return `usage as of ${p['hour']}:${p['minute']}`;
+  return `usage as of ${p.hour}:${p.minute}`;
 }
 
 function remaining(ms: number): string {
@@ -164,7 +165,7 @@ export function formatExpiry(
   tz: string = DEFAULT_TIME_ZONE,
 ): string {
   const p = clockParts(expiresAtMs, tz);
-  const at = `${p['weekday']} ${p['day']} ${p['month']} ${p['hour']}:${p['minute']} ${p['timeZoneName']}`;
+  const at = `${p.weekday} ${p.day} ${p.month} ${p.hour}:${p.minute} ${p.timeZoneName}`;
   const left = expiresAtMs - nowMs;
   return left > 0 ? `Expires in ${remaining(left)} · ${at}` : `Expired · ${at}`;
 }

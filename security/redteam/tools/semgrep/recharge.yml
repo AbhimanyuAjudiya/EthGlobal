@@ -209,7 +209,8 @@ rules:
     languages: [generic]
     paths:
       include: ["**/apps/**", "**/packages/**", "**/services/**"]
-      exclude: ["*.test.ts", "*.spec.ts", "**/fixtures/**", "**/test/**"]
+      # @ethglobal/adapters/testing exports anvilKeys by design (INTERFACES §3.4); run-wave.sh 3 greps the live web bundle for it (T-63)
+      exclude: ["*.test.ts", "*.spec.ts", "**/fixtures/**", "**/test/**", "**/src/testing/**"]
     # generic `pattern:` does not match inside a 0x-prefixed token; the regex does
     pattern-regex: ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 
@@ -222,10 +223,10 @@ rules:
     pattern-regex: NEXT_PUBLIC_[A-Z0-9_]*(SECRET|PRIVATE|HMAC|MNEMONIC|TOKEN|SIGNING|SEAL|ACCESS_CODE|API_KEY|PASSWORD)[A-Z0-9_]*
 
   - id: recharge-lpa-literal-in-source
-    message: "T-31: a real-looking activation code literal in source or docs. Only the MockReseller's LPA:1$local.test$ form (or the reserved *.example TLD) is allowed, and only in mocks, tests and fixtures."
+    message: "T-31: a real-looking activation code literal in source or docs. Only the MockReseller's LPA:1$local.test$ form (or the RFC 2606 reserved example names (*.example, example.com/.net/.org)) is allowed, and only in mocks, tests and fixtures."
     severity: ERROR
     languages: [generic]
     paths:
       include: ["**/apps/**", "**/packages/**", "**/services/**", "**/scripts/**", "**/docs/**"]
       exclude: ["**/mocks/**", "**/test/**", "**/fixtures/**", "*.test.ts"]
-    pattern-regex: LPA:1\$(?!local\.test\$)(?![^$\s]*\.example\$)[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+\$[A-Za-z0-9-]{4,}
+    pattern-regex: LPA:1\$(?!local\.test\$)(?![^$\s]*example(?:\.(?:com|net|org))?\$)[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+\$[A-Za-z0-9-]{4,}

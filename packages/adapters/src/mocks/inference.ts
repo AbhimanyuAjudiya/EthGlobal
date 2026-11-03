@@ -25,8 +25,8 @@ export class MockInference implements Inference {
     this.#sequence += 1;
     const model = options.model ?? this.#model;
     const text = this.#respond(prompt, options);
-    const requestId = await sha256Hex(`request:${this.#sequence}:${model}:${prompt}`);
-    const signature = await sha256Hex(`signature:${requestId}:${text}`);
+    const requestId = sha256Hex(`request:${this.#sequence}:${model}:${prompt}`);
+    const signature = sha256Hex(`signature:${requestId}:${text}`);
     return { text, requestId, signature, model };
   }
 }

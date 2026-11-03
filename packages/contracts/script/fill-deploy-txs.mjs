@@ -29,7 +29,8 @@ addresses.txs = {
   dataDrop: creation(addresses.dataDrop),
   usdc: chainId === '31337' ? creation(addresses.usdc) : '',
 };
-if (!addresses.txs.dataDrop) throw new Error(`DataDrop ${addresses.dataDrop} not found in ${runPath}`);
+if (!addresses.txs.dataDrop)
+  throw new Error(`DataDrop ${addresses.dataDrop} not found in ${runPath}`);
 writeFileSync(addressesPath, `${JSON.stringify(addresses, null, 2)}\n`);
 console.log(`fill-deploy-txs: ${addressesPath}`);
 console.log(JSON.stringify(addresses, null, 2));

@@ -48,9 +48,10 @@ export class RechargeError extends Error {
   }
 }
 
-const identity = Object.fromEntries(
-  Object.keys(ERROR_CODES).map((code) => [code, code]),
-) as Record<ErrorCode, ErrorCode>;
+const identity = Object.fromEntries(Object.keys(ERROR_CODES).map((code) => [code, code])) as Record<
+  ErrorCode,
+  ErrorCode
+>;
 
 /**
  * Adapter codes (`AdapterError.code`, ARCHITECTURE §9) → ErrorCode. One table; services/api/src/errors.ts

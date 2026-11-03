@@ -1,3 +1,5 @@
+import { isEvmExact, type EvmExactPayload } from '@ethglobal/protocol/schemas';
+
 import { AdapterError } from '../errors.js';
 import { isHex, sha256Hex } from '../hash.js';
 
@@ -59,23 +61,23 @@ export class MockPaymentRail implements PaymentRail {
   async settle(payload: PaymentPayload, requirements: PaymentRequirements): Promise<SettleResult> {
     const { network } = requirements;
     const verification = this.#check(payload, requirements);
-    if (!verification.isValid) {
-      return { success: false, errorReason: verification.invalidReason, network };
+    if (!verification.isValid || !isEvmExact(payload.payload)) {
+      const errorReason = verification.isValid ? 'unsupported_scheme' : verification.invalidReason;
+      return { success: false, errorReason, network };
     }
     const { from, nonce } = payload.payload.authorization;
-    this.#usedNonces.add(nonceKey(payload));
-    const transaction = await sha256Hex(
-      `settle:${network}:${from.toLowerCase()}:${nonce.toLowerCase()}`,
-    );
+    this.#usedNonces.add(nonceKey(payload.accepted.network, payload.payload));
+    const transaction = sha256Hex(`settle:${network}:${from.toLowerCase()}:${nonce.toLowerCase()}`);
     return { success: true, transaction, network, payer: from };
   }
 
   #check(payload: PaymentPayload, requirements: PaymentRequirements): VerifyResult {
     const invalid = (invalidReason: string): VerifyResult => ({ isValid: false, invalidReason });
     const accepted = payload.accepted;
+    if (payload.x402Version !== 2) return invalid('unsupported_x402_version');
+    if (!isEvmExact(payload.payload)) return invalid('unsupported_scheme');
     const { authorization, signature } = payload.payload;
 
-    if (payload.x402Version !== 2) return invalid('unsupported_x402_version');
     if (
       accepted.scheme !== requirements.scheme ||
       accepted.network !== requirements.network ||
@@ -91,16 +93,21 @@ export class MockPaymentRail implements PaymentRail {
     if (BigInt(authorization.value) < BigInt(requirements.amount))
       return invalid('insufficient_amount');
 
-    const now = Math.floor(this.#now() / 1000);
-    if (authorization.validAfter > now) return invalid('not_yet_valid');
-    if (authorization.validBefore <= now) return invalid('expired');
-    if (this.#usedNonces.has(nonceKey(payload))) return invalid('nonce_already_used');
+    const now = BigInt(Math.floor(this.#now() / 1000));
+    if (!INTEGER.test(authorization.validAfter) || !INTEGER.test(authorization.validBefore)) {
+      return invalid('invalid_validity');
+    }
+    if (BigInt(authorization.validAfter) > now) return invalid('not_yet_valid');
+    if (BigInt(authorization.validBefore) <= now) return invalid('expired');
+    if (this.#usedNonces.has(nonceKey(accepted.network, payload.payload))) {
+      return invalid('nonce_already_used');
+    }
 
     return { isValid: true, payer: authorization.from };
   }
 }
 
-function nonceKey(payload: PaymentPayload): string {
-  const { from, nonce } = payload.payload.authorization;
-  return `${payload.accepted.network}:${from.toLowerCase()}:${nonce.toLowerCase()}`;
+function nonceKey(network: string, payload: EvmExactPayload): string {
+  const { from, nonce } = payload.authorization;
+  return `${network}:${from.toLowerCase()}:${nonce.toLowerCase()}`;
 }

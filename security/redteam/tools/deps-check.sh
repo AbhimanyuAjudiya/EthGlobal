@@ -34,14 +34,22 @@ fi
 
 # 6. Secrets hygiene.
 git ls-files --error-unmatch .env > /dev/null 2>&1 && bad ".env is tracked by git"
-if git grep -n -E 'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' -- . ':!scripts/dev-chain.sh' ':!**/test/**' ':!**/fixtures/**' ':!**/*.test.ts' ':!security/**' ':!docs/THREAT-MODEL.md' ':!**/mocks/**' > /dev/null; then
-  bad "Anvil account #0 private key outside dev tooling/tests"
+if git grep -n -E 'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' -- . ':!scripts/dev-chain.sh' ':!**/test/**' ':!**/fixtures/**' ':!**/*.test.ts' ':!security/**' ':!docs/**' ':!research/**' ':!**/mocks/**'; then
+  bad "Anvil account #0 private key outside dev tooling/tests (lines above; docs may quote it, code may not)"
 fi
 if git grep -n -E '(PRIVATE_KEY|SECRET|MNEMONIC)[A-Z_]*=[^$<]{8,}' -- . ':!.env.example' ':!security/**' ':!docs/**' ':!research/**' > /dev/null; then
   bad "secret-looking assignment committed (see git grep output)"
 fi
 
-# 7. Foundry libs pinned and present (T-66).
+# 7. Banned / deprecated vendor packages never resolve (T-65; INTERFACES A-19, A-22, A-23, A-25): one Hedera SDK, no v1 x402.
+if [[ -f pnpm-lock.yaml ]]; then
+  banned="$(grep -oE "^  '?/?(@hashgraph/sdk|hedera-agent-kit|golem-base-sdk|@worldcoin/idkit-standalone|x402|x402-(hono|fetch|express|next|axios))@[0-9][^:']*" pnpm-lock.yaml | sort -u)"
+  [[ -z "$banned" ]] || bad "banned/deprecated packages in the lockfile: $(echo $banned)"
+  hiero="$(grep -oE "^  '?/?@hiero-ledger/sdk@[0-9][^(:']*" pnpm-lock.yaml | sort -u | wc -l)"
+  [[ "$hiero" -le 1 ]] || bad "more than one @hiero-ledger/sdk version in the lockfile ($hiero) — instanceof breaks across copies"
+fi
+
+# 8. Foundry libs pinned and present (T-66).
 grep -q 'forge-std@v1.17.0' packages/contracts/package.json && grep -q 'openzeppelin-contracts@v5.7.0' packages/contracts/package.json || bad "Foundry library pins changed in packages/contracts/package.json"
 if [[ -x "$HOME/.svm/0.8.30/solc-0.8.30" ]]; then note "solc 0.8.30 sha256: $(sha256sum "$HOME/.svm/0.8.30/solc-0.8.30" | cut -c1-16)…"; fi
 

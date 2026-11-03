@@ -30,9 +30,13 @@ describe('sealLpa / openLpa', () => {
   it('round-trips for any UTF-8 string and AAD', () => {
     const { publicKey, secretKey } = generateSessionKeypair();
     fc.assert(
-      fc.property(fc.string({ unit: 'grapheme' }), fc.uint8Array({ maxLength: 64 }), (text, extra) => {
-        expect(openLpa(sealLpa(text, publicKey, extra), secretKey, extra)).toBe(text);
-      }),
+      fc.property(
+        fc.string({ unit: 'grapheme' }),
+        fc.uint8Array({ maxLength: 64 }),
+        (text, extra) => {
+          expect(openLpa(sealLpa(text, publicKey, extra), secretKey, extra)).toBe(text);
+        },
+      ),
       { numRuns: 200 },
     );
   });
@@ -84,11 +88,15 @@ describe('sealLpa / openLpa', () => {
     const box = sealLpa(LPA, publicKey, aad);
     const ctLength = hexToBytes(box.ct).length;
     fc.assert(
-      fc.property(fc.constantFrom<'ct' | 'nonce' | 'epk'>('ct', 'nonce', 'epk'), fc.nat(), (field, n) => {
-        const length = field === 'ct' ? ctLength : field === 'nonce' ? 24 : 32;
-        const tampered: SealedBox = { ...box, [field]: flip(box[field], n % length) };
-        expect(() => openLpa(tampered, secretKey, aad)).toThrow(SealError);
-      }),
+      fc.property(
+        fc.constantFrom<'ct' | 'nonce' | 'epk'>('ct', 'nonce', 'epk'),
+        fc.nat(),
+        (field, n) => {
+          const length = field === 'ct' ? ctLength : field === 'nonce' ? 24 : 32;
+          const tampered: SealedBox = { ...box, [field]: flip(box[field], n % length) };
+          expect(() => openLpa(tampered, secretKey, aad)).toThrow(SealError);
+        },
+      ),
       { numRuns: 300 },
     );
   });
@@ -110,13 +118,15 @@ describe('sealLpa / openLpa', () => {
     const { secretKey } = generateSessionKeypair();
     expect(() => sealLpa(LPA, new Uint8Array(31), aad)).toThrow(SealError);
     expect(() => sealLpa(LPA, new Uint8Array(32), aad)).toThrow(SealError);
-    expect(() => openLpa(sealLpa(LPA, generateSessionKeypair().publicKey, aad), secretKey.slice(1), aad)).toThrow(
-      SealError,
-    );
+    expect(() =>
+      openLpa(sealLpa(LPA, generateSessionKeypair().publicKey, aad), secretKey.slice(1), aad),
+    ).toThrow(SealError);
   });
 
   it('lpaAad binds the lower-cased nonce and the entitlement key', () => {
-    expect(new TextDecoder().decode(lpaAad(`0x${'AB'.repeat(32)}`, 'paid:k'))).toBe(`${NONCE}|paid:k`);
+    expect(new TextDecoder().decode(lpaAad(`0x${'AB'.repeat(32)}`, 'paid:k'))).toBe(
+      `${NONCE}|paid:k`,
+    );
   });
 });
 

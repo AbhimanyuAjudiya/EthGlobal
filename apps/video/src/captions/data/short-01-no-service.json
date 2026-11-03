@@ -1,0 +1,27 @@
+{
+  "composition": "Short01NoService",
+  "source": "marketing/videos/SCRIPTS.md §2 (Video 01) shot list",
+  "durationInFrames": 600,
+  "captions": [
+    { "from": 8, "to": 60, "text": "Landed in Mumbai. No Service.", "style": "hook", "lang": "en" },
+    { "from": 90, "to": 130, "text": "One free bundle per human", "style": "ui", "lang": "en" },
+    { "from": 135, "to": 190, "text": "World App · one human, once", "style": "ui", "lang": "en" },
+    {
+      "from": 252,
+      "to": 330,
+      "text": "A sponsor paid. Because I'm human.",
+      "style": "ui",
+      "lang": "en"
+    },
+    { "from": 352, "to": 412, "text": "No QR. Same phone.", "style": "ui", "lang": "en" },
+    {
+      "from": 425,
+      "to": 470,
+      "text": "01:40 later",
+      "style": "note",
+      "lang": "en",
+      "mono": ["01:40 later"],
+      "when": "s6Cut"
+    }
+  ]
+}

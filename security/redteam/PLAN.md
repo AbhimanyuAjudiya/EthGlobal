@@ -11,8 +11,9 @@ A wave is **CLEARED** when all of the following hold, and the lead writes `secur
 1. Every attack listed for the wave in §4 exists as an automated test that **asserts the attack fails** (a revert, a `deny`, a `401/409/410/429`, an unchanged balance) and is green in CI under `MODE=local`.
 2. Every **Critical** and **High** finding is `verified` (fix merged, regression test path recorded, red team re-ran the attack).
 3. Every **Med** finding has an owner and a due date no later than `v0-prekickoff`, or is `accepted-risk` with Founder/Chair sign-off and a line in `README.md` / `docs/DISCLOSURE.md`.
-4. Tool gates are green: slither (no high/medium), semgrep (`recharge.yml`, zero findings or `nosemgrep` with a justification), forbidden-pattern scan (zero hits on logs, ledger dump, HCS messages, fixtures), `deps-check.sh`, `pnpm lint`, `pnpm typecheck`, `pnpm dupcheck`.
-5. `docs/THREAT-MODEL.md` has a `T-` row for every finding that revealed a threat it missed.
+4. `security/redteam/tools/coverage-check.sh --require <the wave's packages>` passes: every Critical/High threat of `THREAT-MODEL.md` §5.12 has its attack step and its builder-owned regression file under `test/regression/` (or `e2e/regression/`).
+5. Tool gates are green: slither (no high/medium), semgrep (`recharge.yml`, zero findings or `nosemgrep` with a justification), forbidden-pattern scan (zero hits on logs, ledger dump, HCS messages, fixtures), `deps-check.sh`, `pnpm lint`, `pnpm typecheck`, `pnpm dupcheck`.
+6. `docs/THREAT-MODEL.md` has a `T-` row for every finding that revealed a threat it missed (and a §5.12 row if it is Critical/High).
 
 The acceptance-test row "Red team" in `DECISION.md` §6.5 is satisfied when wave 3 is cleared and `security/redteam/run-wave.sh all` exits 0.
 
@@ -54,7 +55,7 @@ Red-team agents start **the moment the wave lands** from the pre-written scripts
 | `attacks/wave1-adapters.md` L1–L12 | T-35…T-44, T-36 (mock key space), T-19/T-24 (mock personhood gaps) | vitest: `packages/adapters/test/attack/*.attack.test.ts` (mocks), `packages/adapters/test/live/*.contract.test.ts` (fixtures: request shape, error mapping, malicious responses) | `pnpm --filter @ethglobal/adapters test` |
 | Static | T-08, T-11, T-65, T-66, secrets | slither, semgrep, forbidden-pattern scan over `fixtures/` and `packages/`, `deps-check.sh` | `security/redteam/run-wave.sh 1` |
 
-### Wave 2 (scripts `attacks/wave2-api.md`, `attacks/wave2-agent.md` are written by the red team during R1 so they are ready when wave 2 lands)
+### Wave 2 (script `attacks/wave2-api-agent.md` — steps AP1–AP21 for the API, AG1–AG8 for the agent; written before wave 2 lands)
 
 Routes and codes are INTERFACES §7 (`replay → 409`, `paused → 423`, `cap → 429`, `budget → 409`, `invalid-proof → 401`, `invalid-payment → 402`, `expired → 410`, `no-campaign → 404`, `ledger-unavailable → 503`, `invalid-request → 400`). Tests use `app.request()` on `createApp(deps)` with the `@ethglobal/adapters/testing` helpers, plus a real Anvil (`scripts/dev-chain.sh`) for the chain paths.
 
@@ -81,7 +82,7 @@ Routes and codes are INTERFACES §7 (`replay → 409`, `paused → 423`, `cap �
 | Key-rotation drill, local | T-01, §6.7 of the model | `scripts/e2e-local.sh --drill` (uses `scripts/redteam/pause-all.ts`) | pause → `setAttestor` → restart → old key `NotAttestor`; < 5 min on the clock |
 | Log redaction | T-50, T-68, T-72 | capture pino to a buffer during the e2e; `tools/scan.sh` | zero hits incl. `authorization` header |
 
-### Wave 3 (script `attacks/wave3-web.md`, written during R2)
+### Wave 3 (script `attacks/wave3-web-ops.md` — steps W1–W11 for the PWA, OP1–OP7 for ops/demo; written before wave 3 lands)
 
 | Attack | Threats | Executable form |
 |---|---|---|
@@ -105,15 +106,17 @@ slither + semgrep + `pnpm lint typecheck dupcheck` + `deps-check.sh` + an indepe
 | Tool | Version | Invocation | Gate |
 |---|---|---|---|
 | Foundry | 1.5.1, solc 0.8.30 offline | see §4; `[fuzz] runs = 512`, `[invariant] runs = 64 depth = 32` in `foundry.toml`; red-team runs raise them via env | all attack tests green; `forge snapshot --check` within 5 % |
-| slither | 0.11.6 | `cd packages/contracts && slither . --foundry-compile-all --config-file ../../security/redteam/tools/slither.config.json` (verified on the scaffold today: 0 results) | no high/medium (`fail_on: medium`); each suppression justified inline (`// slither-disable-next-line <detector> -- reason`) |
-| semgrep | 1.183.0 (`pip install semgrep` if absent — PyPI is reachable; `--validate` needs semgrep.dev and is blocked here — a normal run parses the rules) | `semgrep --config security/redteam/tools/semgrep/recharge.yml --error --metrics=off apps packages services scripts` (rule ids are prefixed `recharge-`; ARCHITECTURE §8 rule 3's `usdc-18-decimals` is `recharge-usdc-18-decimals`) | zero findings; `// nosemgrep: <rule-id> -- reason` only with a reason (the known one: x402 settlement inside `GET /esim/*`, and `/me/:key?refresh=1` patching usage) |
-| forbidden patterns | grep -P | `security/redteam/tools/scan.sh <paths…>` using `tools/forbidden-patterns.txt` (verified clean on `docs/` and `scripts/` today) | zero hits on logs, ledger dumps (`scripts/redteam/dump-ledger.ts` → `/tmp/recharge-redteam/ledger-dump.json`, ARCHITECTURE §5.1), HCS messages, fixtures, `docs/`, `scripts/` |
+| slither | 0.11.6 | `cd packages/contracts && slither . --config-file ../../security/redteam/tools/slither.config.json` (verified on the scaffold today: 0 results) | no high/medium (`fail_on: medium`); each suppression justified inline (`// slither-disable-next-line <detector> -- reason`) |
+| semgrep | 1.183.0 (`pip3 install semgrep` if absent — PyPI is reachable; `semgrep --validate` fetches `p/semgrep-rule-lints` from semgrep.dev, which is blocked here, so **`tools/semgrep/selftest.sh`** is the offline gate: it exits 2 if the rule file does not parse, and proves every rule fires on a positive and stays quiet on a negative case) | `semgrep --config security/redteam/tools/semgrep/recharge.yml --error --metrics=off apps packages services scripts` (rule ids are prefixed `recharge-`; ARCHITECTURE §8 rule 3's `usdc-18-decimals` is `recharge-usdc-18-decimals`) | zero findings; `// nosemgrep: <rule-id> -- reason` only with a reason (the known one: x402 settlement inside `GET /esim/*`, and `/me/:key?refresh=1` patching usage) |
+| forbidden patterns | grep -P | `security/redteam/tools/scan.sh <paths…>` using `tools/forbidden-patterns.txt` (the pre-3-Nov version never ran — GNU `grep -P -f` rejects multiple patterns and the error was swallowed — fixed: patterns are compiled into one alternation, a canary is checked, and a grep error exits 2) | zero hits on logs, ledger dumps (`scripts/dump-ledger.ts` → `.e2e/ledger-dump.json`, ops-demo brief §1), HCS messages, fixtures, `docs/`, `scripts/` |
 | dependency check | pnpm 10 | `security/redteam/tools/deps-check.sh` | frozen lockfile installs; `pnpm audit --prod --audit-level=high` clean; `onlyBuiltDependencies` unchanged; no unpinned `npx`; no Anvil key outside the allow-list; `.env` untracked |
 | vitest | 5.1 (catalog) | `pnpm test` (attack suites use the `.attack.test.ts` suffix and run with the normal suite) | green |
 | Playwright | 1.63 + Chromium 1243 (`/opt/pw-browsers`) | `pnpm --filter @ethglobal/web e2e:abuse` (wave 3 adds the script) | green |
-| wave runner | bash | `security/redteam/run-wave.sh 1|2|3|all` | exit 0 |
+| semgrep self-test | bash + jq | `security/redteam/tools/semgrep/selftest.sh` | every rule parses, fires on its positive, quiet on its negative |
+| coverage | bash | `security/redteam/tools/coverage-check.sh [--require <pkg>…]` | THREAT-MODEL §5.12 complete; steps resolve; regression files exist |
+| wave runner | bash | `security/redteam/run-wave.sh 1|2|3|all|static` (how-to: `security/redteam/README.md`) | exit 0 |
 
-Attack tests are **deterministic**: fake clocks (`fakeClock` from `packages/adapters/test/fixtures.ts`), seeded fuzz (`FOUNDRY_FUZZ_SEED` recorded in the finding when a counter-example is found), fixtures instead of network. They never touch a testnet or a sponsor API — the sandbox cannot anyway (`docs/ENVIRONMENT-CONSTRAINTS.md`), and that is a feature: every attack is reproducible by a judge with `pnpm test`.
+Attack tests are **deterministic**: fake clocks (`fakeClock` from `@ethglobal/adapters/testing`), seeded fuzz (`FOUNDRY_FUZZ_SEED` recorded in the finding when a counter-example is found), fixtures instead of network. They never touch a testnet or a sponsor API — the sandbox cannot anyway (`docs/ENVIRONMENT-CONSTRAINTS.md`), and that is a feature: every attack is reproducible by a judge with `pnpm test`.
 
 ## 6. Finding workflow
 
@@ -179,8 +182,8 @@ The finding id in the title (`fix(contracts): RT-W1-003 reject duplicate campaig
 
 | When | Who | Check | Record |
 |---|---|---|---|
-| Wed 4 Nov 14:00 pre-deploy | Integrations | `associateHts` then one `Claimed` on HashScan with `paid == 500000` (6-dec); Kaolin block time and write/read latency; one real reseller webhook captured with its exact headers → `fixtures/reseller/webhook-*.json`; facilitator `hedera` scheme payload captured → `fixtures/facilitator/` | `docs/DISCLOSURE.md`, `docs/ARKIV_FEEDBACK.md`, fixtures committed |
-| Wed evening | Integrations | World developer portal: action `recharge-welcome` set to **unlimited** verifications (T-24); `fixtures/world/*` re-recorded; `fixtures/eip3009/domains.json` filled from `readDomain` on Base Sepolia USDC (T-14) | README World section; fixtures |
+| Wed 4 Nov 14:00 pre-deploy | Integrations | `associateHts` then one `Claimed` on HashScan with `paid == 500000` (6-dec); rabdi (Arkiv, chain 7794095) block time and write/read latency; one real reseller webhook captured with its exact headers → `fixtures/reseller/webhook-*.json`; facilitator `hedera` scheme payload captured → `fixtures/facilitator/` | `docs/DISCLOSURE.md`, `docs/ARKIV_FEEDBACK.md`, fixtures committed |
+| Wed evening | Integrations | World developer portal: RP + **production** action `recharge-welcome`; confirm whether a v4 action can allow repeat verifications (API-FACTS §4.5 says uniqueness proofs are one-time per action and user — T-24's intent record is the control either way); `fixtures/world/*` re-recorded from `/api/v4/verify/{rp_id}` including one **staging** (simulator) response for T-80; `fixtures/eip3009/domains.json` filled from `readDomain` on Base Sepolia USDC (T-14) | README World section; fixtures |
 | Thu 21:00 keys | Integrations | On-site keys for attestor, relayer, Arkiv, treasury; **treasury wallet separate from payout** and funded ≤ `TREASURY_MAX_USD6_PER_DAY` (T-71); `env.ts` refuses Anvil keys | `docs/DISCLOSURE.md` |
 | Fri 6 Nov (after the 06:00 gate) | Security owner | Attestor compromise drill (`THREAT-MODEL.md` §6.7), timed; sponsor pause/unpause; rotate; `healthz.attestor` | `findings/DRILL-attestor-rotation.md` with the measured time |
 | Sat 7 Nov rehearsal | Product/PWA | QR-behind-tap and screenshot warning on three devices; `/install` opens the universal link with no referrer; live build has no demo wallet | rehearsal notes |

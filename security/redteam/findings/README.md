@@ -73,7 +73,7 @@ Date, command, result. The attack test must now fail-as-expected and the regress
 
 1. A finding is filed as soon as a failing attack test confirms it — not at the end of a run.
 2. `severity` is the red-team lead's call; `likelihood` may be argued by the builder in *Builder notes*.
-3. `fixed` requires `regression_test` and `fix_commit`; `verified` requires `verified_at` after the red team re-ran both the attack test and the regression test.
+3. `fixed` requires `regression_test` and `fix_commit`; `verified` requires `verified_at` after the red team re-ran both the attack test and the regression test. The regression test lives at the path `docs/THREAT-MODEL.md` §5.12 names for the finding's threat (`<package>/test/regression/T-xx-<slug>.test.ts`, Foundry `test/regression/Txx_<Name>.t.sol`, Playwright `apps/web/e2e/regression/T-xx-<slug>.spec.ts`); for a `threat: new` finding the lead adds the row and the path. `run-wave.sh` fails while any Critical/High finding is not `verified`/`closed`, and while any `fixed`+ finding has an empty `regression_test:`.
 4. `accepted-risk` requires `sign_off` by Founder or Chair **and** a corresponding line in `README.md` or `docs/DISCLOSURE.md` **and** a row in `docs/THREAT-MODEL.md` §8.
 5. Renames and interface drift are **not** findings; they go in the wave report under "renames observed".
 6. Never paste a secret, a real key, a real LPA or a real nullifier into a finding. Use the Anvil fixtures and `LPA:1$local.test$…` strings.

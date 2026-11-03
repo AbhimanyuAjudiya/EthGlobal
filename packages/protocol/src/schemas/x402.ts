@@ -41,22 +41,42 @@ const HEDERA_FEE_PAYER = HEDERA_ACCOUNT;
  * domain in extra.{name,version}; Hedera needs extra.feePayer and maxTimeoutSeconds ≤ 180.
  */
 const checkRequirements = (
-  r: { network: string; payTo: string; maxTimeoutSeconds: number; extra?: Record<string, unknown> | undefined },
+  r: {
+    network: string;
+    payTo: string;
+    maxTimeoutSeconds: number;
+    extra?: Record<string, unknown> | undefined;
+  },
   ctx: z.RefinementCtx,
 ): void => {
   if (!payToMatchesNetwork(r.network, r.payTo)) {
     ctx.addIssue({ code: 'custom', path: ['payTo'], message: 'payTo does not match network' });
   }
-  if (r.network.startsWith('eip155:') && (typeof r.extra?.['name'] !== 'string' || typeof r.extra['version'] !== 'string')) {
-    ctx.addIssue({ code: 'custom', path: ['extra'], message: 'EVM exact needs extra.name and extra.version (EIP-712 domain)' });
+  if (
+    r.network.startsWith('eip155:') &&
+    (typeof r.extra?.name !== 'string' || typeof r.extra.version !== 'string')
+  ) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['extra'],
+      message: 'EVM exact needs extra.name and extra.version (EIP-712 domain)',
+    });
   }
   if (r.network.startsWith('hedera:')) {
-    const feePayer = r.extra?.['feePayer'];
+    const feePayer = r.extra?.feePayer;
     if (typeof feePayer !== 'string' || !HEDERA_FEE_PAYER.test(feePayer)) {
-      ctx.addIssue({ code: 'custom', path: ['extra', 'feePayer'], message: 'Hedera exact needs extra.feePayer (facilitator account)' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['extra', 'feePayer'],
+        message: 'Hedera exact needs extra.feePayer (facilitator account)',
+      });
     }
     if (r.maxTimeoutSeconds > HEDERA_MAX_TIMEOUT_S) {
-      ctx.addIssue({ code: 'custom', path: ['maxTimeoutSeconds'], message: 'Hedera tx valid <= 180 s' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['maxTimeoutSeconds'],
+        message: 'Hedera tx valid <= 180 s',
+      });
     }
   }
 };
@@ -79,7 +99,9 @@ export const paymentRequirementsSchema = requirementsShape.superRefine(checkRequ
 export type PaymentRequirements = z.infer<typeof paymentRequirementsSchema>;
 
 /** accepts[] entry before the per-request amount is known. */
-export const acceptTemplateSchema = requirementsShape.omit({ amount: true }).superRefine(checkRequirements);
+export const acceptTemplateSchema = requirementsShape
+  .omit({ amount: true })
+  .superRefine(checkRequirements);
 export type AcceptTemplate = Omit<PaymentRequirements, 'amount'>;
 
 export const paymentRequiredSchema = z.object({
@@ -126,7 +148,11 @@ export const paymentPayloadSchema = z
   .superRefine((p, ctx) => {
     const evm = 'authorization' in p.payload;
     if (evm !== p.accepted.network.startsWith('eip155:')) {
-      ctx.addIssue({ code: 'custom', path: ['payload'], message: 'payload kind does not match network' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['payload'],
+        message: 'payload kind does not match network',
+      });
     }
   });
 export type PaymentPayload = z.infer<typeof paymentPayloadSchema>;

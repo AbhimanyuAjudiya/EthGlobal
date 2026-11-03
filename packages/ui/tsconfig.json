@@ -3,9 +3,10 @@
   "compilerOptions": {
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "lib": ["ES2023", "DOM"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["index.ts", "tokens.test.ts"]
+  "include": ["index.ts", "tokens.test.ts", "src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "*.config.ts"]
 }

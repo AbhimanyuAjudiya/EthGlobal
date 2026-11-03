@@ -1,12 +1,13 @@
 # Forbidden patterns for Recharge logs, ledger dumps, HCS messages, fixtures, docs, scripts and the web bundle
 # (docs/THREAT-MODEL.md T-31, T-37, T-44, T-50, T-64, T-68, T-81, T-86).
 # PCRE (grep -P), one per line; lines starting with # are comments. scan.sh compiles all lines into ONE alternation.
-# A trailing "  # [relaxed-skip]" tag drops the rule for mocks/tests/fixtures/security docs (synthetic values live there).
+# A trailing "  # [relaxed-skip]" tag drops the rule for mocks/tests/fixtures/security docs (synthetic values live there);
+# "[docs-ok]" also drops it for docs/ and research/ (public Anvil test keys quoted in build docs). Tags are space-separated.
 #
 # --- activation codes (LPA, GSMA SGP.22 "LPA:1$<SM-DP+ FQDN>$<matching-id>") ---------------------------------------------
-# A real-looking LPA anywhere. Allowed: the MockReseller form LPA:1$local.test$…, the reserved *.example TLD, and templates
+# A real-looking LPA anywhere. Allowed: the MockReseller form LPA:1$local.test$…, the RFC 2606 reserved example names (*.example, example.com/.net/.org), and templates
 # such as LPA:1$<smdp>$… (no FQDN). eSIM Access returns it in the `ac` field.
-LPA:1\$(?!local\.test\$)(?![^$\s]*\.example\$)[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+\$[A-Za-z0-9-]{4,}
+LPA:1\$(?!local\.test\$)(?![^$\s]*example(?:\.(?:com|net|org))?\$)[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+\$[A-Za-z0-9-]{4,}
 "lpa"[[:space:]]*:[[:space:]]*"  # [relaxed-skip]
 sealedLpa"[[:space:]]*:[[:space:]]*"[A-Za-z0-9+/=]{40,}  # [relaxed-skip]
 "secretKey"[[:space:]]*:[[:space:]]*"(?:0x)?[0-9a-fA-F]{64}  # [relaxed-skip]
@@ -43,10 +44,10 @@ RT-Signature"?[[:space:]]*[:=][[:space:]]*["']?[0-9a-f]{64}
 #
 # --- private keys / mnemonics / API keys ---------------------------------------------------------------------------------
 PRIVATE_KEY[[:space:]]*=[[:space:]]*0x[0-9a-fA-F]{64}  # [relaxed-skip]
-ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80  # [relaxed-skip]
-59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d  # [relaxed-skip]
-5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a  # [relaxed-skip]
-test test test test test test test test test test test junk  # [relaxed-skip]
+ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80  # [relaxed-skip] [docs-ok]
+59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d  # [relaxed-skip] [docs-ok]
+5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a  # [relaxed-skip] [docs-ok]
+test test test test test test test test test test test junk  # [relaxed-skip] [docs-ok]
 # Hedera DER-encoded private keys (ED25519 / ECDSA secp256k1 prefixes) — never committed, never logged
 302e020100300506032b657004220420[0-9a-fA-F]{64}
 3030020100300706052b8104000a04220420[0-9a-fA-F]{64}

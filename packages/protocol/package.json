@@ -60,7 +60,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "catalog:",
+    "@x402/core": "catalog:",
     "fast-check": "catalog:",
     "typescript": "catalog:",
     "viem": "catalog:",

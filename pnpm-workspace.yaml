@@ -5,11 +5,22 @@ packages:
 
 # Shared dependency versions; packages reference them with "catalog:".
 catalog:
+  "@arkiv-network/sdk": 1.0.1
+  "@hashgraph/hedera-agent-kit": 4.2.0
+  "@hashgraphonline/standards-sdk": 0.1.192
+  "@hiero-ledger/sdk": 2.90.1
   "@noble/ciphers": 2.4.0
   "@noble/curves": 2.4.0
   "@noble/hashes": 2.4.0
   "@playwright/test": 1.63.0
   "@types/node": 22.20.5
+  "@worldcoin/idkit": 4.6.0
+  "@worldcoin/idkit-core": 4.6.0
+  "@x402/core": 2.29.0
+  "@x402/evm": 2.29.0
+  "@x402/fetch": 2.29.0
+  "@x402/hedera": 2.29.0
+  "@x402/hono": 2.29.0
   fast-check: 4.10.2
   tsx: 4.23.15
   typescript: 5.9.3

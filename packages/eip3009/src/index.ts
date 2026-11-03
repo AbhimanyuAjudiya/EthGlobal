@@ -60,7 +60,10 @@ export const CANCEL_AUTHORIZATION_TYPES = {
   ],
 } as const;
 
-const AUTHORIZATION_INPUTS = [...AUTHORIZATION_FIELDS, { name: 'signature', type: 'bytes' }] as const;
+const AUTHORIZATION_INPUTS = [
+  ...AUTHORIZATION_FIELDS,
+  { name: 'signature', type: 'bytes' },
+] as const;
 
 /** transferWithAuthorization(bytes sig), receiveWithAuthorization(bytes sig), cancelAuthorization, authorizationState, Transfer, AuthorizationUsed. */
 export const EIP3009_ABI = [
@@ -139,8 +142,13 @@ const stub = (fn: string): never => {
   throw new NotImplementedError(fn);
 };
 
-/** The domain name is configurable per chain (A-21): Base Sepolia USDC = ("USDC","2"), mainnets = ("USD Coin","2"). */
-export function domain(_token: Address, _chainId: number, _name: string, _version: string): TypedDataDomain {
+/** The domain name is configurable per chain (A-21): Base Sepolia USDC signs as "USDC", mainnets as the other Circle name; take it from accepts[].extra. */
+export function domain(
+  _token: Address,
+  _chainId: number,
+  _name: string,
+  _version: string,
+): TypedDataDomain {
   return stub('domain');
 }
 /** Domain from accepted.extra.{name,version}, chainId from the eip155 reference, verifyingContract = asset. */

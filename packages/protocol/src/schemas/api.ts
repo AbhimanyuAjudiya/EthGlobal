@@ -85,7 +85,11 @@ export const personhoodProofSchema = z
   ])
   .superRefine((proof, ctx) => {
     if ('session_id' in proof) {
-      ctx.addIssue({ code: 'custom', path: ['session_id'], message: 'session proofs are not accepted' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['session_id'],
+        message: 'session proofs are not accepted',
+      });
     }
   });
 export type PersonhoodProof = z.infer<typeof personhoodProofSchema>;
@@ -105,7 +109,9 @@ export const IDENTIFIER_LEVEL: Readonly<Record<string, VerificationLevel>> = Obj
   selfie: 'device',
   face: 'device',
 });
-export const verificationLevelFromIdentifier = (identifier: string): VerificationLevel | undefined =>
+export const verificationLevelFromIdentifier = (
+  identifier: string,
+): VerificationLevel | undefined =>
   Object.hasOwn(IDENTIFIER_LEVEL, identifier) ? IDENTIFIER_LEVEL[identifier] : undefined;
 
 /** Backend-signed RP context IDKit 4 requires (A-25); snake_case so the PWA passes it to IDKit.request() as is. */
@@ -323,7 +329,12 @@ export const sponsorViewSchema = z.object({
     }),
   ),
   expiring: z.array(
-    z.object({ arkivKey: z.string(), remainingMb: mbSchema, expiresAt: msSchema, tier: tierSchema }),
+    z.object({
+      arkivKey: z.string(),
+      remainingMb: mbSchema,
+      expiresAt: msSchema,
+      tier: tierSchema,
+    }),
   ),
   /** Shown once, on the first authenticated read after registration. */
   auditKey: hex32Schema.optional(),

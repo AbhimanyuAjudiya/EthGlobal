@@ -1,17 +1,22 @@
 /*
  * Type pairings — research/design-foundations.md §3 and Appendix A.
  * Select one on <html data-type="ledger|terminal|bazaar">; "ledger" is the default.
- * Google Fonts serves only the faces a page actually renders, so declaring all nine families costs one CSS request.
+ * Google Fonts serves only the faces a page actually renders, so declaring all ten families costs one CSS request.
  * Upgrade path: self-host via @fontsource with unicode-range + size-adjust for the Devanagari companions.
  */
-/* One request for all nine families (Google Fonts CSS2 API; axes alphabetical; display=swap).
+/* One request for all ten families (Google Fonts CSS2 API; axes alphabetical; display=swap).
    Ledger:   Eczar, Schibsted Grotesk, Mukta, IBM Plex Mono
    Terminal: IBM Plex Sans (wdth 85–100), IBM Plex Sans Devanagari, Archivo (wdth 62–125), IBM Plex Mono
-   Bazaar:   Anek Devanagari (wdth 75–125), Chivo Mono
+   Bazaar:   Anek Devanagari (wdth 75–125), Chivo Mono, Baloo 2 (only for "rub here" on the latex)
    Every comma is written as %2C on purpose: Next 16.4 / Turbopack silently drops an external @import whose
    URL contains a literal comma (verified by bisecting production builds); Google Fonts accepts the
    percent-encoded form. tokens.test.ts guards this. */
-@import url('https://fonts.googleapis.com/css2?family=Anek+Devanagari:wdth%2Cwght@75..125%2C100..800&family=Archivo:wdth%2Cwght@62..125%2C100..900&family=Chivo+Mono:wght@100..900&family=Eczar:wght@400..800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wdth%2Cwght@85..100%2C100..700&family=IBM+Plex+Sans+Devanagari:wght@400;500;600;700&family=Mukta:wght@400;500;600;700&family=Schibsted+Grotesk:wght@400..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Anek+Devanagari:wdth%2Cwght@75..125%2C100..800&family=Archivo:wdth%2Cwght@62..125%2C100..900&family=Baloo+2:wght@400..800&family=Chivo+Mono:wght@100..900&family=Eczar:wght@400..800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wdth%2Cwght@85..100%2C100..700&family=IBM+Plex+Sans+Devanagari:wght@400;500;600;700&family=Mukta:wght@400;500;600;700&family=Schibsted+Grotesk:wght@400..900&display=swap');
+
+/* Baloo 2 is used once: "rub here · यहाँ रगड़ें" on the scratch latex (DECISION §8.3). */
+:root {
+  --font-scratch: 'Baloo 2', 'Anek Devanagari', system-ui, sans-serif;
+}
 
 /* A. "Ledger" — editorial-financial: Eczar display, Schibsted Grotesk text, Mukta for Devanagari, Plex Mono. */
 :root,

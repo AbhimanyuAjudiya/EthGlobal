@@ -1,6 +1,7 @@
 import { AdapterError } from '../errors.js';
 
 import type {
+  Annotations,
   Ledger,
   LedgerEntity,
   LedgerPutInput,
@@ -24,16 +25,7 @@ export class InMemoryLedger implements Ledger {
   }
 
   async put(input: LedgerPutInput): Promise<LedgerPutResult> {
-    if (
-      input.expiresIn !== undefined &&
-      !(Number.isInteger(input.expiresIn) && input.expiresIn > 0)
-    ) {
-      throw new AdapterError(
-        'ledger',
-        'invalid_expiry',
-        'expiresIn must be a positive integer (seconds)',
-      );
-    }
+    assertExpiresIn(input.expiresIn);
     this.#sequence += 1;
     const key = `ent_${String(this.#sequence).padStart(6, '0')}`;
     const createdAt = this.#now();
@@ -46,6 +38,23 @@ export class InMemoryLedger implements Ledger {
       expiresAt,
     });
     return { key, expiresAt };
+  }
+
+  /** Replaces payload and/or annotations in place (the key is stable here; Arkiv may assign a new one). */
+  async update(
+    key: string,
+    patch: { payload?: string; annotations?: Annotations },
+    expiresIn?: number,
+  ): Promise<LedgerPutResult> {
+    assertExpiresIn(expiresIn);
+    const entity = this.#entities.get(key);
+    if (!entity || !this.#isLive(entity)) {
+      throw new AdapterError('ledger', 'not_found', `no live entity ${key}`);
+    }
+    if (patch.payload !== undefined) entity.payload = patch.payload;
+    if (patch.annotations !== undefined) entity.annotations = { ...patch.annotations };
+    if (expiresIn !== undefined) entity.expiresAt = this.#now() + expiresIn * 1000;
+    return { key, expiresAt: entity.expiresAt };
   }
 
   async get(key: string): Promise<LedgerEntity | null> {
@@ -66,5 +75,15 @@ export class InMemoryLedger implements Ledger {
 
   #isLive(entity: LedgerEntity): boolean {
     return entity.expiresAt === null || entity.expiresAt > this.#now();
+  }
+}
+
+function assertExpiresIn(expiresIn: number | undefined): void {
+  if (expiresIn !== undefined && !(Number.isInteger(expiresIn) && expiresIn > 0)) {
+    throw new AdapterError(
+      'ledger',
+      'invalid_expiry',
+      'expiresIn must be a positive integer (seconds)',
+    );
   }
 }

@@ -57,13 +57,16 @@ function canonical(value: unknown, path: string): Json | undefined {
     if (!Number.isFinite(value)) throw new TypeError(`canonicalJson: non-finite number at ${path}`);
     return value;
   }
-  if (value === undefined || typeof value === 'function' || typeof value === 'symbol') return undefined;
+  if (value === undefined || typeof value === 'function' || typeof value === 'symbol')
+    return undefined;
   if (typeof value === 'bigint') {
-    throw new TypeError(`canonicalJson: bigint at ${path}; put money on the wire as a digit string`);
+    throw new TypeError(
+      `canonicalJson: bigint at ${path}; put money on the wire as a digit string`,
+    );
   }
   if (Array.isArray(value)) return value.map((item, i) => canonical(item, `${path}[${i}]`) ?? null);
   const out: Record<string, Json> = {};
-  for (const key of Object.keys(value as object).sort()) {
+  for (const key of Object.keys(value).sort()) {
     const item = canonical((value as Record<string, unknown>)[key], `${path}.${key}`);
     if (item !== undefined) out[key] = item;
   }

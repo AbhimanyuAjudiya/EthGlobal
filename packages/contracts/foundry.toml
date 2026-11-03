@@ -30,6 +30,9 @@ runs = 512
 # Fixed seed: fuzz/invariant inputs (and therefore `.gas-snapshot`) are reproducible, so `forge snapshot --check` is
 # stable in CI. The red team overrides it (`--fuzz-seed`, FOUNDRY_FUZZ_SEED) for wider exploration.
 seed = "0x5eed"
+# bytecode PUSH constants include the metadata hash, which changes with build flags (slither, --build-info) and would
+# change the fuzz dictionary and therefore the snapshot; storage values and source literals still seed the dictionary.
+include_push_bytes = false
 
 [invariant]
 runs = 64

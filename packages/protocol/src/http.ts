@@ -80,7 +80,8 @@ export async function httpJson<T = unknown>(
   if (!response.ok && !(opts.allowStatus ?? []).includes(response.status)) {
     throw new HttpError(response.status, body, url, 'status');
   }
-  if (opts.schema === undefined) return { status: response.status, headers: response.headers, data: body as T };
+  if (opts.schema === undefined)
+    return { status: response.status, headers: response.headers, data: body as T };
   const parsed = opts.schema.safeParse(body);
   if (!parsed.success) throw new HttpError(response.status, body, url, 'schema');
   return { status: response.status, headers: response.headers, data: parsed.data };

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { fakeClock, T0 } from './fixtures.js';
 import { InMemoryLedger } from '../src/mocks/ledger.js';
+import { fakeClock, T0 } from '../src/testing/index.js';
 
 describe('InMemoryLedger', () => {
   it('issues sequential keys and returns what was stored', async () => {
@@ -63,5 +63,33 @@ describe('InMemoryLedger', () => {
     const entity = await ledger.get(key);
     entity!.annotations.n = 2;
     expect((await ledger.get(key))?.annotations.n).toBe(1);
+  });
+
+  it('update replaces payload/annotations in place and resets the lifetime when given', async () => {
+    const clock = fakeClock();
+    const ledger = new InMemoryLedger({ now: clock.now });
+    const { key } = await ledger.put({
+      payload: 'a',
+      annotations: { type: 'gift', state: 'open' },
+      expiresIn: 60,
+    });
+    clock.advance(30_000);
+    await expect(
+      ledger.update(key, { annotations: { type: 'gift', state: 'claimed' } }),
+    ).resolves.toEqual({
+      key,
+      expiresAt: T0 + 60_000,
+    });
+    await expect(ledger.update(key, { payload: 'b' }, 120)).resolves.toEqual({
+      key,
+      expiresAt: T0 + 150_000,
+    });
+    expect(await ledger.get(key)).toMatchObject({
+      payload: 'b',
+      annotations: { state: 'claimed' },
+    });
+    await expect(ledger.update(key, {}, 0)).rejects.toMatchObject({ code: 'invalid_expiry' });
+    clock.advance(120_000);
+    await expect(ledger.update(key, { payload: 'c' })).rejects.toMatchObject({ code: 'not_found' });
   });
 });

@@ -34,8 +34,16 @@ describe('hashes (known-answer vectors)', () => {
 
   it.each([
     // RFC 4231 test cases 1 and 2
-    [new Uint8Array(20).fill(0x0b), 'Hi There', '0xb0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7'],
-    [utf8('Jefe'), 'what do ya want for nothing?', '0x5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843'],
+    [
+      new Uint8Array(20).fill(0x0b),
+      'Hi There',
+      '0xb0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7',
+    ],
+    [
+      utf8('Jefe'),
+      'what do ya want for nothing?',
+      '0x5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843',
+    ],
   ])('HMAC-SHA256 RFC 4231 vector %#', (key, data, mac) => {
     expect(bytesToHex(hmacSha256(key, data))).toBe(mac);
     expect(hmacKey(key, data)).toBe(mac);
@@ -95,7 +103,9 @@ describe('verifyWebhookSignature', () => {
 
   it('accepts hex (with or without 0x), base64 and base64url signatures', () => {
     expect(verifyWebhookSignature(secret, canonical, hex, ts, now)).toBe(true);
-    expect(verifyWebhookSignature(secret, canonical, hex.slice(2).toUpperCase(), ts, now)).toBe(true);
+    expect(verifyWebhookSignature(secret, canonical, hex.slice(2).toUpperCase(), ts, now)).toBe(
+      true,
+    );
     expect(verifyWebhookSignature(secret, canonical, b64, ts, now)).toBe(true);
     const url = b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=$/, '');
     expect(verifyWebhookSignature(secret, canonical, url, ts, now)).toBe(true);

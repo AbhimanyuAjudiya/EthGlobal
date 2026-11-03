@@ -109,7 +109,7 @@ Timing: run #1 and #4 2 000 times each and compare medians — a difference > 2 
 3. `GET /me/<key>/receipts` ⇒ no `entitlementKeyHash` (api.md §6 `me.test.ts`), no `payer` on free claims.
 4. Idempotent replay of the provisioning request (same `Idempotency-Key`, same body, same client) after 301 s ⇒ the cached response is **not** replayed with `sealedLpa` (T-74; see AP12).
 5. Error paths: force `blobs.put` to throw after sealing, and `EntitlementStore.patch` to throw after `blobs.put` — the 5xx body and the log line contain no `LPA:` and no sealed box.
-6. Dump: after AP1–AP11 in one harness, write `ledger.query({})` (all payloads + annotations) and `MockConsensusLog.messages(topic)` to `.e2e/redteam/ledger-dump.json` / `hcs-dump.json` and run `security/redteam/tools/scan.sh .e2e/redteam` ⇒ `scan: clean`. Then by schema: entitlement payloads carry `iccidHash` and `iccidEnc` only; gift payloads `pinKey` only; receipts `entitlementKeyHash` only; HCS messages ≤ 1024 bytes and none has `lpa|iccid|nullifier|pin` keys.
+6. Dump: after AP1–AP11 in one harness, write `ledger.query({})` (all payloads + annotations) and `MockConsensusLog.messages(topic)` to `$RT_OUT/ledger-dump.json` / `$RT_OUT/hcs-dump.json` (`RT_OUT` defaults to `${TMPDIR:-/tmp}/recharge-redteam`, never inside the repo) and run `security/redteam/tools/scan.sh $RT_OUT` ⇒ `scan: clean`. Then by schema: entitlement payloads carry `iccidHash` and `iccidEnc` only; gift payloads `pinKey` only; receipts `entitlementKeyHash` only; HCS messages ≤ 1024 bytes and none has `lpa|iccid|nullifier|pin` keys.
 
 ### AP5 — Hourly-cap race and burned verifications (T-46, T-24)
 
@@ -208,7 +208,7 @@ Base: `GET /esim/topup?key=<k>&mb=100` ⇒ `402`, header `PAYMENT-REQUIRED` deco
 
 ### AP15 — Log redaction (T-50, T-68, T-72, T-82, T-83)
 
-Capture pino output to a buffer for the whole AP1–AP14 run (or `scripts/e2e-local.sh` → `.e2e/api.log`), then `security/redteam/tools/scan.sh .e2e/*.log .e2e/ledger-dump.json .e2e/redteam` ⇒ clean (not the whole `.e2e/`: it legitimately holds the local audit key and demo PINs, which is why it must be git-ignored — OP1). In addition assert by search: no `PAYMENT-SIGNATURE` value, no `Recharge-Sponsor` bearer, no `?token=` on the webhook path, no `RT-AccessCode`/`RT-Signature` value, no `rp_context` signature, no nullifier in hex **or decimal** (the fixture's decimal string), no `LPA:`, no 16-digit PIN, no `auditKey`. Nullifier-derived log fields are `sha256(logKey ‖ nullifier)` only. `LOG_LEVEL=debug` in `MODE=live` ⇒ boot refused (AP16).
+Capture pino output to a buffer for the whole AP1–AP14 run (or `scripts/e2e-local.sh` → `.e2e/api.log`), then `security/redteam/tools/scan.sh .e2e/*.log .e2e/ledger-dump.json $RT_OUT` ⇒ clean (not the whole `.e2e/`: it legitimately holds the local audit key and demo PINs, which is why it must be git-ignored — OP1). In addition assert by search: no `PAYMENT-SIGNATURE` value, no `Recharge-Sponsor` bearer, no `?token=` on the webhook path, no `RT-AccessCode`/`RT-Signature` value, no `rp_context` signature, no nullifier in hex **or decimal** (the fixture's decimal string), no `LPA:`, no 16-digit PIN, no `auditKey`. Nullifier-derived log fields are `sha256(logKey ‖ nullifier)` only. `LOG_LEVEL=debug` in `MODE=live` ⇒ boot refused (AP16).
 
 ### AP16 — Environment guards (T-29, T-52, T-69, A-23, A-25, A-28)
 

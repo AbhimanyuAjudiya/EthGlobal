@@ -78,9 +78,13 @@ export function encodeHcsMessage(message: HcsMessage): string {
   const text = JSON.stringify(parseOrThrow(hcsMessageSchema, message, 'HCS message'));
   const bytes = utf8Length(text);
   if (bytes > HCS_MAX_BYTES) {
-    throw new RechargeError('invalid_request', `HCS message is ${bytes} bytes (max ${HCS_MAX_BYTES})`, {
-      reason: 'too_large',
-    });
+    throw new RechargeError(
+      'invalid_request',
+      `HCS message is ${bytes} bytes (max ${HCS_MAX_BYTES})`,
+      {
+        reason: 'too_large',
+      },
+    );
   }
   return text;
 }

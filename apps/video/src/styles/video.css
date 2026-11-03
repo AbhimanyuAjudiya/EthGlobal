@@ -1,0 +1,44 @@
+/*
+ * The video package's stylesheet. Tokens are the product's (packages/ui/tokens.css), imported, not copied.
+ * The type pairing is "bazaar" (DECISION §8.3) with self-hosted faces registered by src/fonts/load-fonts.ts;
+ * @ethglobal/ui/fonts.css is NOT imported because its Google Fonts @import cannot load in the render sandbox.
+ */
+@import '@ethglobal/ui/tokens.css';
+
+[data-type='bazaar'] {
+  --font-display: 'Anek Devanagari';
+  --font-text: 'Anek Devanagari';
+  --font-mono: 'Chivo Mono';
+  font-family: var(--font-text);
+  font-variation-settings:
+    'wdth' 100,
+    'wght' 500;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+[data-type='bazaar'] *,
+[data-type='bazaar'] *::before,
+[data-type='bazaar'] *::after {
+  box-sizing: border-box;
+}
+
+[data-type='bazaar'] [lang='hi'] {
+  line-height: var(--leading-devanagari);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variation-settings: normal;
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-feature-settings:
+    'tnum',
+    'zero';
+}
+
+.num {
+  font-feature-settings:
+    'tnum',
+    'zero';
+}

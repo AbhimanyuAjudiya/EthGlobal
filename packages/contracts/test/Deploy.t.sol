@@ -9,8 +9,8 @@ import {Deploy} from "../script/Deploy.s.sol";
 import {HtsPrecompileMock} from "./mocks/HtsPrecompileMock.sol";
 
 /// @notice Guards the deploy script and deploy/chains.json (brief §6 Deploy.t.sol, wave1-contracts.md A19).
-/// @dev Only `test_RunsAgainstTheDefaultChain` writes deploy/addresses.anvil.json; every other test writes a
-///      unique deploy/addresses.test-*.json (git-ignored) and deletes it, so parallel tests never race on a file.
+/// @dev No test writes deploy/addresses.anvil.json: every test writes a unique deploy/addresses.test-*.json
+///      (git-ignored) and deletes it, so parallel tests never race and a running dev chain's file is never clobbered.
 contract DeployTest is Test {
     Deploy internal deploy;
     address internal constant HTS = 0x0000000000000000000000000000000000000167;
@@ -52,7 +52,10 @@ contract DeployTest is Test {
     }
 
     function test_RunsAgainstTheDefaultChain() public {
-        // forge's default block.chainid is 31337, matching the CHAIN default.
+        // forge's default block.chainid is 31337, matching the CHAIN default. The run writes to a scratch file so a
+        // `forge test` never clobbers the addresses.anvil.json of a running `pnpm dev:chain`.
+        assertEq(deploy.defaultAddressesPath("anvil"), string.concat(vm.projectRoot(), "/deploy/addresses.anvil.json"));
+        deploy.setAddressesPathOverride(_path("anvil-run"));
         Deploy.Result memory r = deploy.run();
         DataDrop dd = DataDrop(r.dataDrop);
         MockUSDC3009 usdc = MockUSDC3009(r.usdc);
@@ -66,11 +69,12 @@ contract DeployTest is Test {
         assertEq(usdc.balanceOf(SPONSOR), 1_000_000e6);
         assertEq(usdc.balanceOf(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266), 1_000_000e6); // #0
         assertEq(usdc.balanceOf(0x14dC79964da2C08b23698B3D3cc7Ca32193d9955), 1_000_000e6); // #7
-        assertEq(usdc.balanceOf(0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f), 0); // #8 is not funded
-        assertEq(usdc.totalSupply(), 8 * 1_000_000e6);
+        assertEq(usdc.balanceOf(0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f), 1_000_000e6); // #8 treasury (A-31)
+        assertEq(usdc.balanceOf(0xa0Ee7A142d267C1f36714E4a8F75612F20a79720), 0); // #9 is not funded
+        assertEq(usdc.totalSupply(), 9 * 1_000_000e6);
 
-        // addresses.anvil.json: INTERFACES §6.3 shape, field order
-        assertEq(r.addressesPath, string.concat(vm.projectRoot(), "/deploy/addresses.anvil.json"));
+        // the addresses file: INTERFACES §6.3 shape, field order
+        assertEq(r.addressesPath, _path("anvil-run"));
         string memory json = vm.readFile(r.addressesPath);
         assertEq(vm.parseJsonUint(json, ".chainId"), 31_337);
         assertEq(vm.parseJsonString(json, ".network"), "eip155:31337");
@@ -102,6 +106,7 @@ contract DeployTest is Test {
         for (uint256 i = 1; i < order.length; i++) {
             assertLt(_indexOf(json, order[i - 1]), _indexOf(json, order[i]), order[i]);
         }
+        vm.removeFile(r.addressesPath);
     }
 
     function test_AnvilBudgetMovesWithBalanceDelta() public {

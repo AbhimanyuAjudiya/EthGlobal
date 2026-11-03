@@ -1,0 +1,50 @@
+{
+  "composition": "Short03AgentPaid",
+  "source": "marketing/videos/SCRIPTS.md §4 (Video 03) shot list",
+  "durationInFrames": 540,
+  "captions": [
+    { "from": 14, "to": 44, "text": "I'm asleep.", "style": "hook", "lang": "en" },
+    { "from": 46, "to": 90, "text": "My plan hit 18%.", "style": "hook", "lang": "en" },
+    {
+      "from": 96,
+      "to": 170,
+      "text": "The rule I set: ≤ $10 a day",
+      "style": "ui",
+      "lang": "en",
+      "mono": ["≤ $10"]
+    },
+    {
+      "from": 190,
+      "to": 245,
+      "text": "Settled on Hedera · 0.40 USDC",
+      "style": "ui",
+      "lang": "en",
+      "mono": ["0.40"]
+    },
+    {
+      "from": 250,
+      "to": 300,
+      "text": "Receipt on HCS · agent id hcs-14",
+      "style": "ui",
+      "lang": "en"
+    },
+    {
+      "from": 306,
+      "to": 380,
+      "text": "+100 MB · 400 MB total",
+      "style": "ui",
+      "lang": "en",
+      "mono": ["+100", "400"],
+      "when": "!simulated"
+    },
+    {
+      "from": 306,
+      "to": 380,
+      "text": "+100 MB · simulated usage",
+      "style": "ui",
+      "lang": "en",
+      "mono": ["+100"],
+      "when": "simulated"
+    }
+  ]
+}

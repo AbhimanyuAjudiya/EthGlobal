@@ -14,7 +14,11 @@ export const utf8Length = (s: string): number => encoder.encode(s).length;
 export const utf8Decode = (bytes: Uint8Array): string => fatalDecoder.decode(bytes);
 
 /** Parses `value` with `schema`, throwing RechargeError('invalid_request') with the zod issues as details. */
-export function parseOrThrow<S extends z.ZodType>(schema: S, value: unknown, label: string): z.output<S> {
+export function parseOrThrow<S extends z.ZodType>(
+  schema: S,
+  value: unknown,
+  label: string,
+): z.output<S> {
   const parsed = schema.safeParse(value);
   if (!parsed.success) {
     throw new RechargeError('invalid_request', `invalid ${label}`, {
@@ -26,7 +30,11 @@ export function parseOrThrow<S extends z.ZodType>(schema: S, value: unknown, lab
 }
 
 /** JSON.parse then parseOrThrow; malformed JSON is RechargeError('invalid_request', reason 'json'). */
-export function parseJsonOrThrow<S extends z.ZodType>(schema: S, text: string, label: string): z.output<S> {
+export function parseJsonOrThrow<S extends z.ZodType>(
+  schema: S,
+  text: string,
+  label: string,
+): z.output<S> {
   let json: unknown;
   try {
     json = JSON.parse(text);
@@ -43,6 +51,7 @@ export function hexBytes(hex: Hex): Uint8Array {
     throw new RechargeError('invalid_request', 'not an even-length 0x hex string');
   }
   const out = new Uint8Array(body.length / 2);
-  for (let i = 0; i < out.length; i += 1) out[i] = Number.parseInt(body.slice(i * 2, i * 2 + 2), 16);
+  for (let i = 0; i < out.length; i += 1)
+    out[i] = Number.parseInt(body.slice(i * 2, i * 2 + 2), 16);
   return out;
 }

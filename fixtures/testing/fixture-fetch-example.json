@@ -1,0 +1,72 @@
+{
+  "name": "fixtureFetch self-test",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "exchanges": [
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.test/v1/usage?iccid=8991&b=2&a=1"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "usedMb": 10
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.test/v1/usage?iccid=8991&b=2&a=1"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "usedMb": 20
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://api.example.test/v1/order",
+        "body": {
+          "plan": "IN-1GB",
+          "count": 1
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "x-order": "o1"
+        },
+        "body": {
+          "orderId": "o1"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://api.example.test/v1/ping"
+      },
+      "response": {
+        "status": 204
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.example.test/v1/text"
+      },
+      "response": {
+        "status": 503,
+        "headers": {
+          "content-type": "text/plain"
+        },
+        "body": "busy"
+      }
+    }
+  ]
+}

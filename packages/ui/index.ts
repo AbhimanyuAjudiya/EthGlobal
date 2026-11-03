@@ -41,6 +41,10 @@ export const seriesTokens = [
   'series-6',
 ] as const;
 
+/** Object colours (the coupon as paper and latex): one value in both themes, no light-dark(). */
+export const objectTokens = ['latex', 'ink-spot'] as const;
+export type ObjectToken = (typeof objectTokens)[number];
+
 export const colorTokens = [
   ...surfaceTokens,
   ...borderTokens,
@@ -58,6 +62,8 @@ export const leading = { display: 1.15, text: 1.45, devanagari: 1.6 } as const;
 export const typePairings = ['ledger', 'terminal', 'bazaar'] as const;
 export type TypePairing = (typeof typePairings)[number];
 export const fontTokens = ['font-display', 'font-text', 'font-mono'] as const;
+/** Baloo 2, used only for "rub here" on the scratch latex. */
+export const scratchFontToken = 'font-scratch';
 export type FontToken = (typeof fontTokens)[number];
 
 export const themes = ['light', 'dark'] as const;
@@ -82,7 +88,13 @@ export const motionTokens = [
 ] as const;
 export type MotionToken = (typeof motionTokens)[number];
 
-export type Token = ColorToken | FontToken | MotionToken | `text-${TypeScaleStep}`;
+export type Token =
+  | ColorToken
+  | ObjectToken
+  | FontToken
+  | typeof scratchFontToken
+  | MotionToken
+  | `text-${TypeScaleStep}`;
 
 /** `cssVar('accent')` → `var(--accent)`. */
 export function cssVar(token: Token): `var(--${Token})` {

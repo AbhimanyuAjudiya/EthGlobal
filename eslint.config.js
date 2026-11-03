@@ -12,6 +12,118 @@ import tseslint from 'typescript-eslint';
 
 const webFiles = ['apps/web/**/*.{ts,tsx}'];
 
+// ── Dependency rules (INTERFACES §12, ARCHITECTURE §4) ──────────────────────────────────────────
+const at = (name) => [`@ethglobal/${name}`, `@ethglobal/${name}/*`];
+/** Nobody imports another package's src/ or dist/; package names and subpath exports only. */
+const deepImports = {
+  group: [
+    '@ethglobal/*/src',
+    '@ethglobal/*/src/*',
+    '@ethglobal/*/dist',
+    '@ethglobal/*/dist/*',
+    '**/packages/*/src/**',
+    '**/packages/*/dist/**',
+    '../../*/src/**',
+    '../../../*/src/**',
+  ],
+  message:
+    'Import another package by its name and subpath exports, never its src/ or dist/ (INTERFACES §12).',
+};
+/** One zone: files may not import the listed workspace groups (type-only imports allowed where noted). */
+const zone = (files, banned, message, { allowTypeImports = false } = {}) => ({
+  files,
+  rules: {
+    '@typescript-eslint/no-restricted-imports': [
+      'error',
+      {
+        patterns: [
+          deepImports,
+          ...(banned.length ? [{ group: banned, message, allowTypeImports }] : []),
+        ],
+      },
+    ],
+  },
+});
+const zones = [
+  zone(['**/*.{ts,tsx}'], [], ''),
+  zone(
+    ['packages/{protocol,crypto,eip3009}/**/*.ts'],
+    ['@ethglobal/*'],
+    'protocol, crypto and eip3009 are leaves: third-party imports only.',
+  ),
+  zone(
+    ['packages/adapters/**/*.ts'],
+    [...at('octroi'), ...at('ui'), ...at('api'), ...at('agent'), ...at('web')],
+    'adapters may import protocol, crypto and eip3009 only.',
+  ),
+  zone(
+    ['packages/octroi/**/*.ts'],
+    [
+      '@ethglobal/adapters/live',
+      '@ethglobal/adapters/live/*',
+      ...at('ui'),
+      ...at('api'),
+      ...at('agent'),
+      ...at('web'),
+    ],
+    'octroi may import protocol, crypto and adapters (ports only, never ./live).',
+  ),
+  zone(
+    ['packages/ui/**/*.{ts,tsx}'],
+    [
+      ...at('adapters'),
+      ...at('octroi'),
+      ...at('crypto'),
+      ...at('eip3009'),
+      ...at('api'),
+      ...at('agent'),
+      ...at('web'),
+      '@ethglobal/protocol',
+      '@ethglobal/protocol/*',
+      '!@ethglobal/protocol/units',
+    ],
+    'ui may import @ethglobal/protocol/units (and protocol types) only.',
+    { allowTypeImports: true },
+  ),
+  zone(
+    ['services/api/**/*.ts'],
+    [...at('agent'), ...at('web'), ...at('ui')],
+    'services never import each other, web or ui.',
+  ),
+  zone(
+    ['services/agent/**/*.ts'],
+    [...at('api'), ...at('web'), ...at('ui')],
+    'services never import each other, web or ui.',
+  ),
+  zone(
+    webFiles,
+    [...at('adapters'), ...at('octroi'), ...at('api'), ...at('agent')],
+    'apps/web may import protocol, crypto, eip3009, ui and contracts/abi only.',
+  ),
+];
+
+/** Raw fetch only inside httpJson and the fixture transport (ARCHITECTURE §8 row 2). */
+const bareFetch = {
+  files: ['**/*.{ts,tsx}'],
+  ignores: ['packages/protocol/src/http.ts', 'packages/adapters/src/testing/**'],
+  rules: {
+    'no-restricted-syntax': [
+      'error',
+      {
+        selector: "CallExpression[callee.type='Identifier'][callee.name='fetch']",
+        message:
+          'Use httpJson (@ethglobal/protocol/http) or an injected fetch; bare fetch( is banned.',
+      },
+      {
+        selector:
+          "CallExpression[callee.object.name=/^(globalThis|window|self)$/][callee.property.name='fetch']",
+        message:
+          'Use httpJson (@ethglobal/protocol/http) or an injected fetch; global fetch is banned.',
+      },
+    ],
+  },
+};
+
 export default defineConfig([
   globalIgnores([
     '**/node_modules/',
@@ -96,6 +208,9 @@ export default defineConfig([
       'react/no-unknown-property': ['error', { ignore: ['data-hash', 'data-address'] }],
     },
   },
+
+  ...zones,
+  bareFetch,
 
   // Plain JS (this file, config files): no type information available.
   { files: ['**/*.{js,mjs,cjs}'], extends: [tseslint.configs.disableTypeChecked] },

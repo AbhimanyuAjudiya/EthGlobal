@@ -145,13 +145,22 @@ const DEFAULT_TIMEOUT_MS = 30_000;
  * `settlement`. When `sessionPubKey` is given it is sent as X-Session-Pubkey and the signed EIP-3009 nonce
  * must equal `sessionNonce(sessionPubKey)`.
  */
-export async function fetchWithPayment(input: FetchWithPaymentInput): Promise<FetchWithPaymentResult> {
+export async function fetchWithPayment(
+  input: FetchWithPaymentInput,
+): Promise<FetchWithPaymentResult> {
   const { url, signer, sessionPubKey } = input;
   const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   // Call the injected fetch unbound from `input`: browsers throw "Illegal invocation" on `obj.fetch()`.
   const send = (headers: Headers): Promise<Response> => {
-    const signals = [AbortSignal.timeout(timeoutMs), ...(input.init?.signal ? [input.init.signal] : [])];
-    return input.fetch.call(globalThis, url, { ...input.init, headers, signal: AbortSignal.any(signals) });
+    const signals = [
+      AbortSignal.timeout(timeoutMs),
+      ...(input.init?.signal ? [input.init.signal] : []),
+    ];
+    return input.fetch.call(globalThis, url, {
+      ...input.init,
+      headers,
+      signal: AbortSignal.any(signals),
+    });
   };
   const baseHeaders = (): Headers => {
     const headers = new Headers(input.init?.headers);
@@ -184,7 +193,10 @@ export async function fetchWithPayment(input: FetchWithPaymentInput): Promise<Fe
     now: input.now(),
     ...(nonce === undefined ? {} : { nonce }),
   });
-  if (nonce !== undefined && !(isEvmExact(paid.payload) && paid.payload.authorization.nonce.toLowerCase() === nonce)) {
+  if (
+    nonce !== undefined &&
+    !(isEvmExact(paid.payload) && paid.payload.authorization.nonce.toLowerCase() === nonce)
+  ) {
     throw new RechargeError('invalid_payment', 'signed nonce is not the session nonce (T-32)');
   }
 

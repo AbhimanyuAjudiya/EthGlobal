@@ -45,7 +45,9 @@ echo "dev-chain: anvil on $RPC_URL (chain 31337, mnemonic '$MNEMONIC')"
   cd "$CONTRACTS"
   CHAIN=31337 ANVIL_RPC_URL="$RPC_URL" forge script script/Deploy.s.sol:Deploy \
     --rpc-url "$RPC_URL" --broadcast --private-key "$DEPLOYER_PRIVATE_KEY"
+  # copy the creation tx hashes into deploy/addresses.anvil.json and print it
+  CHAIN=31337 node script/fill-deploy-txs.mjs
 )
-echo "dev-chain: deploy script finished; anvil keeps running (Ctrl-C to stop)"
+echo "dev-chain: deploy script finished; addresses in packages/contracts/deploy/addresses.anvil.json; anvil keeps running (Ctrl-C to stop)"
 
 wait "$ANVIL_PID"

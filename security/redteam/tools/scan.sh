@@ -14,21 +14,22 @@ PATTERNS="${SCAN_PATTERNS:-$HERE/forbidden-patterns.txt}"
 [[ $# -ge 1 ]] || { echo "usage: scan.sh <paths...>" >&2; exit 2; }
 [[ -r "$PATTERNS" ]] || { echo "scan: pattern file $PATTERNS unreadable" >&2; exit 2; }
 
-# full list: every non-comment, non-blank line (a trailing "  # [relaxed-skip]" tag is stripped)
-compile() { # $1 = full|relaxed
-  local mode="$1" line out=""
+# Tags: a rule line may end with "  # [relaxed-skip]" and/or "[docs-ok]". relaxed-skip rules are dropped for mocks/tests/fixtures/
+# red-team docs; docs-ok rules (public Anvil test keys) are also dropped for docs/ and research/. Everything else always applies.
+compile() { # $1 = full|relaxed|docs
+  local mode="$1" line tags out=""
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ "$line" =~ ^[[:space:]]*# || -z "${line//[[:space:]]/}" ]] && continue
-    if [[ "$line" == *"# [relaxed-skip]" ]]; then
-      [[ "$mode" == relaxed ]] && continue
-      line="${line%"# [relaxed-skip]"}"
-    fi
+    tags=""
+    if [[ "$line" == *"  # ["*"]" ]]; then tags="${line##*  # }"; line="${line%  # *}"; fi
+    [[ "$mode" == relaxed && "$tags" == *"[relaxed-skip]"* ]] && continue
+    [[ "$mode" == docs && "$tags" == *"[docs-ok]"* ]] && continue
     line="${line%"${line##*[![:space:]]}"}"          # trim trailing whitespace
     out+="${out:+|}(?:${line})"
   done < "$PATTERNS"
   printf '%s' "$out"
 }
-FULL="$(compile full)"; RELAXED="$(compile relaxed)"
+FULL="$(compile full)"; RELAXED="$(compile relaxed)"; DOCS="$(compile docs)"
 [[ -n "$FULL" ]] || { echo "scan: no patterns compiled" >&2; exit 2; }
 
 # self-check: the compiled expression must be valid PCRE and must fire on a canary
@@ -55,6 +56,7 @@ for target in "$@"; do
     re="$FULL"
     case "$file" in
       */mocks/*|*/test/*|*/fixtures/*|*.test.ts|*.spec.ts|*/security/redteam/*|*/docs/THREAT-MODEL.md|*/scripts/dev-chain.sh|*/.env.example) re="$RELAXED" ;;
+      */docs/*|*/research/*) re="$DOCS" ;;
     esac
     scan_file "$file" "$re"
   done < <(find "$(realpath "$target")" -type f -print0)

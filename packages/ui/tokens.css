@@ -66,6 +66,10 @@
   --series-5: light-dark(#2063b0, #407bc5);
   --series-6: light-dark(#96353b, #b5494e);
 
+  /* ── Object colours: the coupon is a physical object and keeps one palette in both themes ── */
+  --latex: oklch(0.79 0 0); /* #b9b9b9, silver rub-off latex; "rub here" ink on it is 9.2:1 */
+  --ink-spot: oklch(0.52 0.085 195); /* #117878, the one spot colour on the printed card */
+
   /* ── Type scale (§3): 11 / 12 / 13 / 14 / 16 / 20 / 24 / 32 / 44 / 64 ── */
   --text-11: 0.6875rem;
   --text-12: 0.75rem;

@@ -1,0 +1,29 @@
+{
+  "composition": "Short04GiftToName",
+  "source": "marketing/videos/SCRIPTS.md §5 (Video 04) shot list",
+  "durationInFrames": 420,
+  "captions": [
+    {
+      "from": 8,
+      "to": 70,
+      "text": "My friend lands at 06:40.",
+      "style": "hook",
+      "lang": "en",
+      "mono": ["06:40"]
+    },
+    {
+      "from": 100,
+      "to": 170,
+      "text": "No number. No QR. Just the name.",
+      "style": "ui",
+      "lang": "en"
+    },
+    {
+      "from": 300,
+      "to": 365,
+      "text": "Claim with a wallet. Or the PIN.",
+      "style": "ui",
+      "lang": "en"
+    }
+  ]
+}

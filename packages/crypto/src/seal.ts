@@ -62,7 +62,12 @@ function unpack(box: SealedBox): { epk: Uint8Array; nonce: Uint8Array; ct: Uint8
     const epk = hexToBytes(box.epk);
     const nonce = hexToBytes(box.nonce);
     const ct = hexToBytes(box.ct);
-    if (box.v !== 1 || epk.length !== KEY_BYTES || nonce.length !== NONCE_BYTES || ct.length < TAG_BYTES) {
+    if (
+      box.v !== 1 ||
+      epk.length !== KEY_BYTES ||
+      nonce.length !== NONCE_BYTES ||
+      ct.length < TAG_BYTES
+    ) {
       throw new SealError('malformed sealed box');
     }
     return { epk, nonce, ct };

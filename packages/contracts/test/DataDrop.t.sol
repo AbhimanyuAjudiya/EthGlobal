@@ -542,6 +542,8 @@ contract DataDropTest is Test {
     // ───────────────────────────── owner powers / ABI (T-10) ─────────────────────────────
 
     function test_NoTokenMovesOutsideThreeFunctions() public {
+        // the artefact's size depends on build flags (slither adds build-info): keep its parse out of the gas snapshot
+        vm.pauseGasMetering();
         string memory json = vm.readFile(string.concat(vm.projectRoot(), "/out/DataDrop.sol/DataDrop.json"));
         string[9] memory allowed = [
             "createCampaign",
@@ -580,6 +582,7 @@ contract DataDropTest is Test {
         for (uint256 j = 0; j < allowed.length; j++) {
             assertTrue(seen[j], allowed[j]);
         }
+        vm.resumeGasMetering();
 
         // and the six non-moving ones really move no tokens
         vm.chainId(296);

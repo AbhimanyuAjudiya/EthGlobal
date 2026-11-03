@@ -281,7 +281,7 @@ A token-mode `createCampaign` that records a budget without receiving it is **Cr
 `ReentrantToken.transfer` re-enters `claim(ID, otherKey)` as the attestor (the token can `vm.prank`-less re-enter only if the attestor *is* the token — so give the reentrant campaign a `DataDrop` whose attestor is the token contract): expect `ReentrancyGuardReentrantCall`; `spent == PRICE`; the inner key not claimed. Re-enter `refund` from `transfer` during `refund` ⇒ revert, balance conserved. Then:
 
 ```sh
-cd packages/contracts && slither . --foundry-compile-all --config-file ../../security/redteam/tools/slither.config.json
+cd packages/contracts && slither . --config-file ../../security/redteam/tools/slither.config.json
 forge snapshot --check --tolerance 5      # claim ≤ 100 000 gas (brief §6)
 ```
 

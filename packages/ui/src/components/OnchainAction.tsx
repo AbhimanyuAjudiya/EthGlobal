@@ -6,12 +6,15 @@ import { Button } from './Button';
 import { cx } from './format';
 import { Hash } from './Hash';
 import { RuledList, type RuledRow } from './RuledList';
+import { uiStrings, type CouponLang } from './strings';
 
 import type { OnchainActionState } from '../../index';
 
 export interface ReviewRow {
   label: string;
   value: ReactNode;
+  /** Amounts, hashes and times only; sentences stay in the text face (RT design review #6). */
+  mono?: boolean;
 }
 
 interface Common {
@@ -26,6 +29,8 @@ interface Common {
   /** Explorer URL template with a `{hash}` placeholder; omitted → no link (local chain). */
   explorerUrl?: string;
   explorerName?: string;
+  /** Language of the component's own status lines ("Approve in …", "Paid · Final"); the app passes the rest. */
+  lang?: CouponLang;
   className?: string;
 }
 
@@ -135,6 +140,8 @@ function Ring({ elapsedMs, expectedMs }: Timing) {
  */
 export function OnchainAction(props: OnchainActionProps) {
   const { title, review, worstCase, network, explorerUrl, explorerName, className } = props;
+  const lang = props.lang ?? 'en';
+  const s = uiStrings[lang].onchain;
   const headingId = useId();
   const hashOf = (value: string, kind = 'transaction hash') => (
     <Hash
@@ -142,6 +149,7 @@ export function OnchainAction(props: OnchainActionProps) {
       kind={kind}
       {...(explorerUrl ? { explorerHref: explorerUrl.replace('{hash}', value) } : {})}
       {...(explorerName ? { explorerName } : {})}
+      lang={lang}
     />
   );
 
@@ -151,9 +159,7 @@ export function OnchainAction(props: OnchainActionProps) {
 
   switch (props.state) {
     case 'idle': {
-      status = props.declined
-        ? `You declined in ${props.walletName ?? 'your wallet'}. Nothing was sent.`
-        : null;
+      status = props.declined ? s.declined(props.walletName ?? 'your wallet') : null;
       body = props.blocked ? <p className="onchain-action__blocked">{props.blocked}</p> : null;
       actions = (
         <Button block onClick={props.onConfirm} disabled={Boolean(props.blocked)}>
@@ -163,11 +169,11 @@ export function OnchainAction(props: OnchainActionProps) {
       break;
     }
     case 'signing': {
-      status = `Approve in ${props.walletName}…`;
+      status = s.approveIn(props.walletName);
       body = props.simulation ? <p className="onchain-action__note">{props.simulation}</p> : null;
       actions = (
         <Button variant="quiet" onClick={props.onCancel}>
-          Cancel
+          {s.cancel}
         </Button>
       );
       break;
@@ -178,7 +184,7 @@ export function OnchainAction(props: OnchainActionProps) {
       status = (
         <>
           <Ring elapsedMs={props.elapsedMs} expectedMs={props.expectedMs} />
-          <span>{props.state === 'pending' ? 'Sending · seen by the network' : 'Sending'}</span>
+          <span>{props.state === 'pending' ? s.sendingSeen : s.sending}</span>
           <span className="onchain-action__sep"> · </span>
           {hashOf(props.hash)}
           <span className="onchain-action__sep"> · </span>
@@ -188,17 +194,16 @@ export function OnchainAction(props: OnchainActionProps) {
       if (stuck) {
         body = (
           <p className="onchain-action__note">
-            Slower than usual: {seconds(props.elapsedMs)}, usually {seconds(props.expectedMs)}.
-            Speed up, or cancel with a replacement.
+            {s.slower(seconds(props.elapsedMs), seconds(props.expectedMs))}
           </p>
         );
         actions = (
           <>
             <Button variant="secondary" onClick={props.onSpeedUp}>
-              Speed up
+              {s.speedUp}
             </Button>
             <Button variant="quiet" onClick={props.onCancelTx}>
-              Cancel transaction
+              {s.cancelTx}
             </Button>
           </>
         );
@@ -208,7 +213,7 @@ export function OnchainAction(props: OnchainActionProps) {
     case 'confirmed': {
       status = (
         <>
-          <span>Confirmed</span>
+          <span>{s.confirmed}</span>
           {network ? <span>{` · ${network}`}</span> : null}
           <span className="onchain-action__sep"> · </span>
           {hashOf(props.hash)}
@@ -220,13 +225,13 @@ export function OnchainAction(props: OnchainActionProps) {
       body = (
         <>
           <p className="onchain-action__result">
-            {props.result} <span className="onchain-action__tag">settling</span>
+            {props.result} <span className="onchain-action__tag">{s.settling}</span>
           </p>
           {props.balances ? (
             <RuledList
               rows={[
-                { label: 'Available', value: props.balances.available },
-                { label: 'Pending', value: props.balances.pending },
+                { label: s.available, value: props.balances.available, mono: true },
+                { label: s.pending, value: props.balances.pending, mono: true },
               ]}
             />
           ) : null}
@@ -237,7 +242,7 @@ export function OnchainAction(props: OnchainActionProps) {
     case 'finalized': {
       status = (
         <>
-          <span>Paid · Final</span>
+          <span>{s.paidFinal}</span>
           {network ? <span>{` · ${network}`}</span> : null}
           <span className="onchain-action__sep"> · </span>
           {hashOf(props.hash)}
@@ -247,21 +252,16 @@ export function OnchainAction(props: OnchainActionProps) {
       break;
     }
     case 'failed': {
-      const charged = props.feeCharged
-        ? `Nothing left your account except the ${props.feeCharged} network fee.`
-        : 'Nothing left your account.';
-      status = <span className="onchain-action__failed">Didn&apos;t go through</span>;
+      status = <span className="onchain-action__failed">{s.failed}</span>;
       body = (
         <>
-          <p className="onchain-action__note">
-            Didn&apos;t go through: {props.reason}. {charged}
-          </p>
+          <p className="onchain-action__note">{s.failedNote(props.reason, props.feeCharged)}</p>
           {props.hash ? <p className="onchain-action__hashline">{hashOf(props.hash)}</p> : null}
         </>
       );
       actions = (
         <Button variant="secondary" onClick={props.onRetry}>
-          Try again
+          {s.tryAgain}
         </Button>
       );
       break;
@@ -270,21 +270,19 @@ export function OnchainAction(props: OnchainActionProps) {
       const { kind } = props.replacement;
       status = (
         <>
-          <span>{kind === 'cancel' ? 'Cancelled' : 'Replaced'}</span>
+          <span>{kind === 'cancel' ? s.cancelled : s.replaced}</span>
           <span className="onchain-action__sep"> · </span>
           {hashOf(props.hash)}
         </>
       );
       body = (
         <p className="onchain-action__note">
-          {kind === 'cancel'
-            ? `Cancelled with a replacement. ${props.feeCharged ? `Only the ${props.feeCharged} network fee was charged.` : 'Only the network fee was charged.'}`
-            : 'Sped up with a replacement; it continues as '}
+          {kind === 'cancel' ? s.cancelNote(props.feeCharged) : s.spedUp}
           {kind === 'cancel' ? null : hashOf(props.replacement.hash, 'replacement hash')}
           {kind === 'cancel' ? (
             <span className="onchain-action__hashline">
               {' '}
-              Replacement {hashOf(props.replacement.hash, 'replacement hash')}
+              {s.replacement} {hashOf(props.replacement.hash, 'replacement hash')}
             </span>
           ) : null}
         </p>
@@ -293,7 +291,11 @@ export function OnchainAction(props: OnchainActionProps) {
     }
   }
 
-  const rows: RuledRow[] = (review ?? []).map((row) => ({ label: row.label, value: row.value }));
+  const rows: RuledRow[] = (review ?? []).map((row) => ({
+    label: row.label,
+    value: row.value,
+    ...(row.mono ? { mono: true } : {}),
+  }));
 
   return (
     <section

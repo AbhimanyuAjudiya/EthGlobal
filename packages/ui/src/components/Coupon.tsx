@@ -1,5 +1,5 @@
 import { cx, dataAmount, DEFAULT_TIME_ZONE, NBSP, pinGroups } from './format';
-import { couponStrings, SEP, type CouponLang } from './strings';
+import { RUB_HERE_LANGS, SEP, uiStrings, type CouponLang } from './strings';
 import { UsageAsOf } from './UsageAsOf';
 
 import type { ReactNode } from 'react';
@@ -46,6 +46,11 @@ export interface CouponProps {
   pinCover?: ReactNode;
   /** True while the PIN is under latex: it stays rendered but is hidden from assistive tech. */
   pinConcealed?: boolean;
+  /**
+   * The live, unscratched coupon (design-references §1a): the silver latex panel with "rub here · यहाँ रगड़ें"
+   * (Baloo 2) over a ghost 4 × 4 PIN row, before any PIN exists. Nothing under it is a real PIN.
+   */
+  sealed?: boolean;
   className?: string;
   id?: string;
 }
@@ -81,10 +86,11 @@ export function Coupon({
   renderQr,
   pinCover,
   pinConcealed = false,
+  sealed = false,
   className,
   id,
 }: CouponProps) {
-  const strings = couponStrings[lang];
+  const strings = uiStrings[lang];
   const from = sponsor ? strings.from(sponsor) : undefined;
   const label = [`Recharge coupon`, `${dataAmount(mb).value} ${dataAmount(mb).unit}`, from]
     .filter(Boolean)
@@ -125,12 +131,17 @@ export function Coupon({
       aria-label={label}
       id={id}
     >
-      <header className="coupon__head">
-        <span className="coupon__wordmark" lang="en">
-          Recharge
-        </span>
-        {validity ? <span className="coupon__validity">{validity}</span> : null}
-      </header>
+      {variant === 'print' || validity ? (
+        <header className="coupon__head">
+          {/* on screen the app header carries the wordmark; paper needs its own */}
+          {variant === 'print' ? (
+            <span className="coupon__wordmark" lang="en">
+              Recharge
+            </span>
+          ) : null}
+          {validity ? <span className="coupon__validity">{validity}</span> : null}
+        </header>
+      ) : null}
 
       <p className="coupon__headline">
         <Amount mb={mb} />
@@ -142,14 +153,26 @@ export function Coupon({
       </p>
       {variant === 'print' && lang !== 'hi' ? (
         <p className="coupon__line coupon__line--second" lang="hi">
-          {couponStrings.hi.human}
+          {uiStrings.hi.human}
         </p>
       ) : null}
 
-      {status ? <p className="coupon__status">{status}</p> : null}
-
-      {groups || qr ? (
+      {groups || qr || sealed ? (
         <div className="coupon__body">
+          {sealed && !groups ? (
+            <div className="coupon__panel coupon__panel--sealed" data-concealed>
+              <p className="coupon__pin coupon__pin--ghost" data-hash aria-hidden="true">
+                0000 0000 0000 0000
+              </p>
+              <div className="coupon__latex" aria-hidden="true">
+                <span className="coupon__rub">
+                  <span lang="en">{RUB_HERE_LANGS.en}</span>
+                  {SEP}
+                  <span lang="hi">{RUB_HERE_LANGS.hi}</span>
+                </span>
+              </div>
+            </div>
+          ) : null}
           {groups ? (
             <div className="coupon__panel" data-concealed={pinConcealed || undefined}>
               <p className="coupon__pin" data-hash aria-hidden={pinConcealed || undefined}>
@@ -165,6 +188,12 @@ export function Coupon({
             </div>
           ) : null}
         </div>
+      ) : null}
+
+      {status ? (
+        <p className="coupon__status" data-stub={variant === 'screen' || undefined}>
+          {status}
+        </p>
       ) : null}
 
       {usageAsOf !== undefined || serial || expires ? (

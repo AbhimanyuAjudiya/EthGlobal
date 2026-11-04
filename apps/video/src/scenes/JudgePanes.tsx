@@ -4,11 +4,21 @@
  * Sizes are CSS px multiplied by the judge layout scale `s` (JudgeVideo.tsx), so "12 px" stays 12 px of a
  * 960 px-wide laptop viewport at 2×.
  */
-import { AbsoluteFill, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, interpolate, useCurrentFrame } from 'remotion';
 
-import { v } from '../theme';
-import { useEntry } from './Receipt';
+import { ease, frames, v } from '../theme';
 import { Title } from './Title';
+
+/** Pane entry: translateY 24 → 0 plus opacity, 260 ms, standard easing; then still. */
+function useEntry(enterAt = 0): { opacity: number; transform: string } {
+  const frame = useCurrentFrame();
+  const t = interpolate(frame, [enterAt, enterAt + frames.spatialIn], [0, 1], {
+    easing: ease.standard,
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  return { opacity: t, transform: `translateY(${(1 - t) * 24}px)` };
+}
 
 export interface Chapter {
   label: string;

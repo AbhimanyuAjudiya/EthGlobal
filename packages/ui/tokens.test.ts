@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -66,28 +66,21 @@ describe('fonts.css', () => {
     for (const font of fontTokens) expect(block?.[1], `${pairing} ${font}`).toContain(`--${font}:`);
   });
 
-  it('loads every family in one swap-enabled Google Fonts request and sets tabular numerals on html', () => {
-    const imports =
-      fontsCss.match(/@import url\('https:\/\/fonts\.googleapis\.com[^']+'\);/g) ?? [];
-    expect(imports).toHaveLength(1);
-    const url = imports[0] ?? '';
-    expect(url).toContain('display=swap');
-    // Turbopack drops an external @import whose URL holds a literal comma; axes/ranges must use %2C.
-    expect(url).not.toContain(',');
-    for (const family of [
-      'Eczar',
-      'Schibsted+Grotesk',
-      'Mukta',
-      'IBM+Plex+Mono',
-      'IBM+Plex+Sans:',
-      'IBM+Plex+Sans+Devanagari',
-      'Archivo',
-      'Anek+Devanagari',
-      'Chivo+Mono',
-      'Baloo+2',
-    ]) {
-      expect(url, family).toContain(`family=${family}`);
+  it('self-hosts only the bazaar faces, swap-enabled and subset by unicode-range, with tabular numerals on html', () => {
+    // no third-party font request (font-src 'self'; RT design review, performance note)
+    expect(fontsCss).not.toMatch(/fonts\.(googleapis|gstatic)\.com/);
+    expect(fontsCss).not.toMatch(/@import/);
+    const faces = fontsCss.match(/@font-face\s*\{[^}]*\}/g) ?? [];
+    const families = new Set(faces.map((f) => /font-family:\s*'([^']+)'/.exec(f)?.[1]));
+    expect([...families].sort()).toEqual(['Anek Devanagari', 'Baloo 2', 'Bazaar Middot', 'Chivo Mono']);
+    for (const face of faces.filter((f) => f.includes("url('./fonts/"))) {
+      expect(face).toContain('font-display: swap');
+      expect(face).toMatch(/format\('woff2'\)/);
+      const file = /url\('\.\/fonts\/([^']+)'\)/.exec(face)?.[1] ?? '';
+      expect(existsSync(path.join(import.meta.dirname, 'fonts', file)), file).toBe(true);
     }
+    // Latin and Devanagari are separate files: an English page never downloads the Devanagari ones
+    expect(faces.filter((f) => f.includes('U+0900-097F'))).toHaveLength(2);
     expect(fontsCss).toMatch(/html\s*\{[^}]*font-variant-numeric: tabular-nums/);
   });
 });

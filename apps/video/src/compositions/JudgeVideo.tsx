@@ -11,13 +11,17 @@
 import { type ReactNode } from 'react';
 import { AbsoluteFill, Audio, Sequence, staticFile } from 'remotion';
 
-import { Footage } from '../components/Footage';
+import { Footage, type FootageSources, type ScreenUse } from '../components/Footage';
 import { Frame } from '../components/Frame';
 import { Pane } from '../components/pane';
 import { SeedTag } from '../components/SeedTag';
-import { UiScreen } from '../components/UiScreen';
-import { footagePath, type FootageAvailability, type FootageKey } from '../footage/manifest';
-import { BoardingPass } from '../scenes/BoardingPass';
+import {
+  footagePath,
+  type FootageAvailability,
+  type FootageKey,
+  type ScreenAvailability,
+  type ScreenKey,
+} from '../footage/manifest';
 import { EndCardLandscape } from '../scenes/EndCard';
 import {
   ChapterRail,
@@ -59,11 +63,21 @@ export const JUDGE_FOOTAGE: readonly FootageKey[] = [
   'giftSr',
   'receiver',
 ];
+export const JUDGE_SCREENS: readonly ScreenKey[] = [
+  'verify',
+  'pay',
+  'agent',
+  'plan',
+  'sponsor-desktop',
+  'gift',
+  'gift-claim',
+];
 
 // Remotion composition props must be a type alias (an interface does not satisfy Record<string, unknown>).
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 export type JudgeProps = {
   footage: FootageAvailability;
+  screens: ScreenAvailability;
   chapters: Chapter[];
   oneSentence: string;
   mechanism: MechanismPane[];
@@ -73,12 +87,12 @@ export type JudgeProps = {
   threeReads: PaneLine[];
   threeLines: PaneLine[];
   judge: typeof seed.judge;
-  pass: typeof seed.short04.pass;
   theme: 'light' | 'dark';
 };
 
 export const judgeDefaults: JudgeProps = {
   footage: {},
+  screens: {},
   chapters: [
     { label: 'World', time: '0:30', from: 900 },
     { label: 'Hedera', time: '1:00', from: 1800 },
@@ -123,7 +137,6 @@ export const judgeDefaults: JudgeProps = {
     { text: 'Without Arkiv: Postgres and a cron job; audits only we can run.' },
   ],
   judge: seed.judge,
-  pass: seed.short04.pass,
   theme: 'light',
 };
 
@@ -154,15 +167,18 @@ function At({
 function Capture({
   pane,
   clip,
-  footage,
+  screen,
+  sources,
   from,
   to,
   picture,
   ownAudio = false,
 }: {
   pane: 'phone' | 'evidence';
-  clip: FootageKey;
-  footage: FootageAvailability;
+  clip?: FootageKey;
+  /** The headless capture of the same route, used until the human capture exists. */
+  screen?: ScreenUse;
+  sources: FootageSources & { narration: boolean };
   from: number;
   to: number;
   picture: string;
@@ -170,15 +186,16 @@ function Capture({
 }) {
   const box = pane === 'phone' ? PHONE : EVIDENCE;
   return (
-    <At from={from} to={to} name={`${pane}: ${clip}`}>
+    <At from={from} to={to} name={`${pane}: ${clip ?? `screen/${screen?.key ?? ''}`}`}>
       <Pane {...box}>
         <Footage
-          clip={clip}
-          available={footage}
-          muted={!ownAudio || Boolean(footage.narration)}
+          {...(clip ? { clip } : {})}
+          {...(screen ? { screen } : {})}
+          sources={sources}
+          muted={!ownAudio || sources.narration}
           info={{
             shot: `${t(from)}–${t(to)}`,
-            type: pane === 'phone' ? 'REAL SR/OTS' : 'REAL SC',
+            type: clip ? (pane === 'phone' ? 'REAL SR/OTS' : 'REAL SC') : 'SCREEN',
             time: `f${from}–f${to}`,
             picture,
           }}
@@ -189,14 +206,19 @@ function Capture({
 }
 
 export function JudgeVideo(p: JudgeProps) {
-  const f = p.footage;
+  const f = {
+    footage: p.footage,
+    screens: p.screens,
+    theme: p.theme,
+    narration: Boolean(p.footage.narration),
+  };
   return (
     <Frame theme={p.theme}>
       {/* 0:00–0:08 the BOM hero, pillar-boxed; right pane empty paper. */}
       <Capture
         pane="phone"
         clip="arrivals"
-        footage={f}
+        sources={f}
         from={0}
         to={120}
         ownAudio
@@ -205,7 +227,7 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="phone"
         clip="lte"
-        footage={f}
+        sources={f}
         from={120}
         to={240}
         ownAudio
@@ -215,7 +237,7 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="phone"
         clip="lte"
-        footage={f}
+        sources={f}
         from={240}
         to={600}
         picture="The lock-screen push: 300 MB · from <sponsor> · because you're human."
@@ -223,7 +245,7 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="evidence"
         clip="front"
-        footage={f}
+        sources={f}
         from={240}
         to={600}
         picture="The printed card in a hand."
@@ -239,7 +261,8 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="phone"
         clip="verifySr"
-        footage={f}
+        screen={{ key: 'verify', trimBefore: 20 }}
+        sources={f}
         from={900}
         to={1800}
         picture="/verify → World App (a non-team Orb-verified human) → Checking · 2 s."
@@ -247,7 +270,7 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="evidence"
         clip="verifyLog"
-        footage={f}
+        sources={f}
         from={900}
         to={1200}
         picture="API log: POST developer.worldcoin.org/api/v2/verify/<app_id> action=recharge-welcome nullifier=<hashed> level=orb"
@@ -260,7 +283,7 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="evidence"
         clip="claimHashscan"
-        footage={f}
+        sources={f}
         from={1500}
         to={1800}
         picture="HashScan testnet: DataDrop.claim tx with the Claimed event."
@@ -274,7 +297,7 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="evidence"
         clip="curl402"
-        footage={f}
+        sources={f}
         from={1800}
         to={2250}
         picture='curl -i "https://<host>/esim/topup?key=<key>&mb=100" → HTTP/1.1 402, decoded PAYMENT-REQUIRED accepts[]: Base Sepolia · USDC, Hedera testnet · USDC.'
@@ -282,7 +305,8 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="phone"
         clip="paySr"
-        footage={f}
+        screen={{ key: 'pay', trimBefore: 20 }}
+        sources={f}
         from={2250}
         to={2700}
         picture="A judge pays on Hedera from /pay: Add 100 MB · $0.40 → Pay → Approve → Sending → Final. Strip visible."
@@ -290,7 +314,7 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="evidence"
         clip="payHashscan"
-        footage={f}
+        sources={f}
         from={2250}
         to={2700}
         picture="HashScan testnet transaction of that payment."
@@ -298,7 +322,7 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="evidence"
         clip="datadrop"
-        footage={f}
+        sources={f}
         from={2700}
         to={3000}
         picture="DataDrop on Hedera EVM, chain 296: contract page, Claimed events, sponsor USDC per claim."
@@ -311,7 +335,8 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="phone"
         clip="agentSr"
-        footage={f}
+        screen={{ key: 'agent', trimBefore: 20 }}
+        sources={f}
         from={3000}
         to={3300}
         picture="/agent sheet: ≤ $10 / day · Pause."
@@ -319,7 +344,7 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="evidence"
         clip="agentLog"
-        footage={f}
+        sources={f}
         from={3000}
         to={3300}
         picture="services/agent log: ledger.get → shouldTopUp → 402 → sign → 200 → consensus.submit; HashScan topic with the HCS-14 UAID receipt."
@@ -328,10 +353,10 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="evidence"
         clip="arkivExplorer"
-        footage={f}
+        sources={f}
         from={3300}
         to={3450}
-        picture="Arkiv Kaolin explorer: the entitlement entity, expiresAt, attributes."
+        picture="Arkiv rabdi explorer (rabdi.explorer.arkiv.network): the entitlement entity, expiresAt, attributes."
       />
       <At from={3450} to={3750} name="ThreeReads">
         <LinesPane lines={p.threeReads} s={S} size={20} />
@@ -339,7 +364,8 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="phone"
         clip="planSrJudge"
-        footage={f}
+        screen={{ key: 'plan', trimBefore: 150 }}
+        sources={f}
         from={3750}
         to={3900}
         picture="/plan: Expires in 6 d 22 h and the entity-key disclosure."
@@ -347,7 +373,7 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="evidence"
         clip="nonce"
-        footage={f}
+        sources={f}
         from={3900}
         to={4050}
         picture="A 120-second challenge-nonce entity queried, then queried again after expiry (gone)."
@@ -355,7 +381,8 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="evidence"
         clip="sponsorSc"
-        footage={f}
+        screen={{ key: 'sponsor-desktop', trimBefore: 30 }}
+        sources={f}
         from={4050}
         to={4200}
         picture="/sponsor/[id]: 38 plans expire in 24 h, as a query."
@@ -363,7 +390,7 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="evidence"
         clip="docsSc"
-        footage={f}
+        sources={f}
         from={4200}
         to={4350}
         picture="docs/arkiv.schema.json, docs/ARKIV_FEEDBACK.md, docs/SWARM.md."
@@ -372,25 +399,26 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="phone"
         clip="giftSr"
-        footage={f}
+        screen={{ key: 'gift', trimBefore: 75 }}
+        sources={f}
         from={4350}
         to={4560}
         picture="/gift resolve → pay, strip visible."
       />
-      <At from={4560} to={4680} name="BoardingPassCard">
-        <Pane {...PHONE}>
-          <UiScreen>
-            <div style={{ padding: '200px 12px 0' }}>
-              <BoardingPass pass={p.pass} />
-            </div>
-          </UiScreen>
-          <SeedTag />
-        </Pane>
-      </At>
+      {/* SCRIPTS.md §6 drew a RENDERED BoardingPassCard here; it is the real pass /gift issues. */}
+      <Capture
+        pane="phone"
+        screen={{ key: 'gift', trimBefore: 390 }}
+        sources={f}
+        from={4560}
+        to={4680}
+        picture="The BoardingPass /gift issues: TO · FROM · size · VALID UNTIL, the PIN stub and its QR."
+      />
       <Capture
         pane="phone"
         clip="receiver"
-        footage={f}
+        screen={{ key: 'gift-claim', trimBefore: 60 }}
+        sources={f}
         from={4680}
         to={4800}
         picture="The receiver's push and the no-payment claim."
@@ -402,7 +430,7 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="phone"
         clip="macro"
-        footage={f}
+        sources={f}
         from={5100}
         to={5160}
         ownAudio

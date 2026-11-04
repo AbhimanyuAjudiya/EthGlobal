@@ -14,7 +14,7 @@ describe('MbMeter', () => {
     expect(meter.getAttribute('aria-valuemin')).toBe('0');
     expect(meter.getAttribute('aria-valuemax')).toBe('300');
     expect(meter.getAttribute('aria-valuetext')).toBe('212\u00a0MB left of 300\u00a0MB');
-    expect(container.querySelector('.mb-meter__left')?.textContent).toBe('212\u00a0MB left');
+    expect(container.querySelector('.mb-meter__left')?.textContent).toBe('212\u00a0MB left of 300\u00a0MB');
     expect(screen.getByText('usage as of 14:02')).toBeTruthy();
   });
 

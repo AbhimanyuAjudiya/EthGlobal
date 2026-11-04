@@ -60,11 +60,7 @@ export function ShortShell({
   ];
   return (
     <Frame theme={theme}>
-      <ShotTrack
-        shots={all}
-        sources={{ footage, screens, theme }}
-        {...(room ? { room } : {})}
-      />
+      <ShotTrack shots={all} sources={{ footage, screens, theme }} {...(room ? { room } : {})} />
       <CaptionTrack captions={captionFiles[composition].captions} {...(flags ? { flags } : {})} />
     </Frame>
   );

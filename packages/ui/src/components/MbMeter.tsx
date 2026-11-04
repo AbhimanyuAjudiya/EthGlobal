@@ -1,5 +1,5 @@
 import { cx, DEFAULT_TIME_ZONE, formatData } from './format';
-import { type CouponLang } from './strings';
+import { uiStrings, type CouponLang } from './strings';
 import { UsageAsOf } from './UsageAsOf';
 
 export interface MbMeterProps {
@@ -16,6 +16,11 @@ export interface MbMeterProps {
    * --duration-micro). Every later data tick snaps; the bar never animates on usage.
    */
   fillOnce?: boolean;
+  /**
+   * When nothing is used the text twin reads "300 MB · nothing used yet" instead of "300 MB left of 300 MB", so
+   * a screen whose hero already says 300 MB does not say it three times (RT design review #8).
+   */
+  quietWhenFull?: boolean;
   className?: string;
 }
 
@@ -31,8 +36,10 @@ export function MbMeter({
   source,
   lang = 'en',
   fillOnce = false,
+  quietWhenFull = false,
   className,
 }: MbMeterProps) {
+  const s = uiStrings[lang];
   const total = Math.max(0, totalMb);
   const remaining = Math.min(Math.max(0, remainingMb), total);
   const fraction = total === 0 ? 0 : remaining / total;
@@ -43,18 +50,19 @@ export function MbMeter({
   return (
     <div className={cx('mb-meter', className)} data-warning={warning || undefined}>
       <p className="mb-meter__text">
-        <span className="mb-meter__left">{left} left</span>
-        <span className="mb-meter__of"> of {of}</span>
+        <span className="mb-meter__left">
+          {quietWhenFull && remaining === total && total > 0 ? s.unused(of) : s.left(left, of)}
+        </span>
         {source ? <span className="mb-meter__source"> · {source}</span> : null}
       </p>
       <div
         className="mb-meter__track"
         role="meter"
-        aria-label="Data left"
+        aria-label={s.dataLeft}
         aria-valuemin={0}
         aria-valuemax={total}
         aria-valuenow={remaining}
-        aria-valuetext={`${left} left of ${of}`}
+        aria-valuetext={s.left(left, of)}
       >
         <div
           className={cx('mb-meter__fill', fillOnce && 'mb-meter__fill--once')}

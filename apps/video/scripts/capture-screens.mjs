@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global document, window, requestAnimationFrame -- page.evaluate / addInitScript bodies run in the browser */
 /**
  * Headless screen recordings of the real PWA (apps/web) running against the local stack (Anvil + API + seed):
  * every RENDERED look-alike in the videos is replaced by one of these. Playwright at 360 × 780 CSS px, device scale 3
@@ -55,7 +56,11 @@ let ip = 0;
 const SCALES = new WeakMap();
 
 /** One browser profile = one simulated human (VerifySheet keeps the seed per profile). */
-async function newContext(browser, theme, { ua = IPHONE, lang, size = VIEWPORT, mobile = true } = {}) {
+async function newContext(
+  browser,
+  theme,
+  { ua = IPHONE, lang, size = VIEWPORT, mobile = true } = {},
+) {
   const context = await browser.newContext({
     viewport: size,
     deviceScaleFactor: mobile ? SCALE : 1,
@@ -153,7 +158,12 @@ async function screencast(page, clip, theme) {
       writeFileSync(join(dir, 'list.txt'), `${list.join('\n')}\n`);
       execFileSync('ffmpeg', [
         ...['-hide_banner', '-loglevel', 'error', '-y', '-f', 'concat', '-safe', '0'],
-        ...['-i', join(dir, 'list.txt'), '-vf', `scale=${width}:${height}:flags=lanczos,format=yuv420p`],
+        ...[
+          '-i',
+          join(dir, 'list.txt'),
+          '-vf',
+          `scale=${width}:${height}:flags=lanczos,format=yuv420p`,
+        ],
         ...['-fps_mode', 'vfr', '-c:v', 'libvpx-vp9', '-crf', '20', '-b:v', '0', '-row-mt', '1'],
         ...['-deadline', 'good', '-cpu-used', '5', out],
       ]);
@@ -292,11 +302,17 @@ async function captureTheme(browser, theme) {
     await hold(page, 2500);
     const cap = page.getByTestId('agent-cap');
     await cap.getByRole('radio', { name: '≤ $5 / day' }).tap();
-    await page.getByTestId('agent-status').filter({ hasText: /^Saved/ }).waitFor();
+    await page
+      .getByTestId('agent-status')
+      .filter({ hasText: /^Saved/ })
+      .waitFor();
     await hold(page, 1800);
     await cap.getByRole('radio', { name: '≤ $10 / day' }).tap();
     await sentence.filter({ hasText: 'up to $10.00 a day' }).waitFor();
-    await page.getByTestId('agent-status').filter({ hasText: /^Saved/ }).waitFor();
+    await page
+      .getByTestId('agent-status')
+      .filter({ hasText: /^Saved/ })
+      .waitFor();
     await hold(page, 2500);
   });
   // `/gift` — Who gets it? → rahul.eth resolves → 1 GB → the reclaim rule → Pay → the boarding pass.
@@ -361,7 +377,9 @@ async function captureTheme(browser, theme) {
   await android.close();
 
   // `/card/[serial]` — a seeded campaign card, UI in Hindi (the latex reads यहाँ रगड़ें): PIN, scratch ~45 %, Redeem.
-  const cards = JSON.parse(readFileSync(process.env.CARDS_FILE ?? join(ROOT, '.e2e/cards.json'), 'utf8'));
+  const cards = JSON.parse(
+    readFileSync(process.env.CARDS_FILE ?? join(ROOT, '.e2e/cards.json'), 'utf8'),
+  );
   const holder = await newContext(browser, theme, { lang: 'hi' });
   let card;
   for (const c of cards) {
@@ -423,13 +441,21 @@ async function captureTheme(browser, theme) {
     const resume = page.getByRole('button', { name: 'Resume claims' });
     await scrollTo(page, resume, 1200);
     await resume.tap();
-    await page.locator('.pill').filter({ hasText: 'Paused' }).waitFor({ state: 'detached', timeout: 30_000 }).catch(() => undefined);
+    await page
+      .locator('.pill')
+      .filter({ hasText: 'Paused' })
+      .waitFor({ state: 'detached', timeout: 30_000 })
+      .catch(() => undefined);
     await hold(page, 1500);
   });
   await sponsor.close();
   if (theme === 'light') {
     // the judge video's EvidencePane is 1200 × 900: the same route on a laptop viewport
-    const desk = await newContext(browser, theme, { mobile: false, size: { width: 1200, height: 900 }, ua: undefined });
+    const desk = await newContext(browser, theme, {
+      mobile: false,
+      size: { width: 1200, height: 900 },
+      ua: undefined,
+    });
     await rec(desk, 'sponsor-desktop', theme, async (page) => {
       await page.goto(`${WEB}/sponsor/${campaignId}`);
       await page.getByTestId('sponsor-claims').waitFor();

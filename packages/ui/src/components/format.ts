@@ -34,8 +34,17 @@ export const formatData = (mb: number): string => {
 /** India first: clocks default to IST. */
 export const DEFAULT_TIME_ZONE = 'Asia/Kolkata';
 
-function parts(ms: number, timeZone: string, withDate: boolean): Record<string, string> {
-  const formatted = new Intl.DateTimeFormat('en-IN', {
+/** Day and month names in the reader's language; numerals stay Latin (design-references §6). */
+export const dateLocale = (lang: string | undefined): string =>
+  lang === 'hi' || lang === 'mr' ? `${lang}-IN-u-nu-latn` : 'en-IN';
+
+function parts(
+  ms: number,
+  timeZone: string,
+  withDate: boolean,
+  locale = 'en-IN',
+): Record<string, string> {
+  const formatted = new Intl.DateTimeFormat(locale, {
     timeZone,
     hour: '2-digit',
     minute: '2-digit',
@@ -53,22 +62,32 @@ export function clock(ms: number, timeZone = DEFAULT_TIME_ZONE, zone = false): s
   return zone ? `${time} ${p.timeZoneName ?? ''}`.trim() : time;
 }
 
-/** "Sun 15 Nov 09:12 IST". */
-export function dateTime(ms: number, timeZone = DEFAULT_TIME_ZONE): string {
-  const p = parts(ms, timeZone, true);
-  return `${p.weekday ?? ''} ${p.day ?? ''} ${p.month ?? ''} ${clock(ms, timeZone, true)}`;
+/** "Sun 15 Nov 09:12 IST" (`locale` from `dateLocale(lang)`: "रवि 15 नव॰ 09:12 IST"). */
+export function dateTime(ms: number, timeZone = DEFAULT_TIME_ZONE, locale = 'en-IN'): string {
+  const p = parts(ms, timeZone, true, locale);
+  const day = `${p.weekday ?? ''} ${p.day ?? ''} ${p.month ?? ''}`.replace(/,/g, '');
+  return `${day} ${clock(ms, timeZone, true)}`;
 }
 
+export interface DurationUnits {
+  d: string;
+  h: string;
+  m: string;
+  s: string;
+}
+const LATIN_UNITS: DurationUnits = { d: 'd', h: 'h', m: 'm', s: 's' };
+
 /** "6 d 22 h", "3 h 12 m", and seconds only under an hour: "42 m 10 s". Floored; never negative. */
-export function duration(ms: number): string {
+export function duration(ms: number, units: DurationUnits = LATIN_UNITS): string {
   const total = Math.max(0, Math.floor(ms / 1000));
   const d = Math.floor(total / 86_400);
   const h = Math.floor((total % 86_400) / 3_600);
   const m = Math.floor((total % 3_600) / 60);
   const s = total % 60;
-  if (d > 0) return `${d} d ${h} h`;
-  if (h > 0) return `${h} h ${m} m`;
-  return `${m} m ${s} s`;
+  const u = units;
+  if (d > 0) return `${d} ${u.d} ${h} ${u.h}`;
+  if (h > 0) return `${h} ${u.h} ${m} ${u.m}`;
+  return `${m} ${u.m} ${s} ${u.s}`;
 }
 
 const PIN_PATTERN = /^\d{16}$/;

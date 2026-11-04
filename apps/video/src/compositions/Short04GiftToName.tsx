@@ -1,39 +1,25 @@
 /** Video 04 — "Gift to a name" (SCRIPTS.md §5). 14.0 s / 420 frames, 1080 × 1920. */
 import {
-  BoardingPass,
-  SeedTag,
   ShortShell,
-  UiScreen,
   type FootageKey,
+  type ScreenKey,
   type ShortBaseProps,
   type Shot,
 } from '../scenes';
-import { seed, type PassSeed } from '../seed';
+import { seed, type SaturdaySeed } from '../seed';
 
 export const SHORT04_FOOTAGE: readonly FootageKey[] = ['rickshaw', 'giftSr', 'receiver'];
+export const SHORT04_SCREENS: readonly ScreenKey[] = ['gift', 'gift-claim'];
 
-export type Short04Props = ShortBaseProps & { pass: PassSeed };
+export type Short04Props = ShortBaseProps & { pass: SaturdaySeed['short04'] };
 
 export const short04Defaults: Short04Props = {
   footage: {},
-  pass: seed.short04.pass,
+  screens: {},
+  pass: seed.short04,
   endLine: 'Data, addressed to a name.',
   theme: 'light',
 };
-
-/** S3 — RENDERED BoardingPassCard: enters once (translateY 24 → 0, 260 ms), then still. */
-export function BoardingPassCard({ pass }: { pass: PassSeed }) {
-  return (
-    <>
-      <UiScreen>
-        <div style={{ padding: '200px 12px 0' }}>
-          <BoardingPass pass={pass} />
-        </div>
-      </UiScreen>
-      <SeedTag />
-    </>
-  );
-}
 
 export function Short04GiftToName(p: Short04Props) {
   const shots: Shot[] = [
@@ -53,6 +39,7 @@ export function Short04GiftToName(p: Short04Props) {
       to: 200,
       type: 'REAL SR /gift → /pay',
       clip: 'giftSr',
+      screen: { key: 'gift', trimBefore: 75 },
       picture: `Size row; Gift ${p.pass.size} to ${p.pass.to}; Review (Valid … until ${p.pass.validUntil}, Network fee $0.00 — paid by the facilitator); Pay; Approve in MetaMask…; Sending; Final.`,
       mustSee: ['the TESTNET strip', 'the fee line', 'the hash', 'Final'],
     },
@@ -60,9 +47,11 @@ export function Short04GiftToName(p: Short04Props) {
       id: 'S3',
       from: 200,
       to: 290,
-      type: 'RENDERED',
-      name: 'BoardingPassCard',
-      render: <BoardingPassCard pass={p.pass} />,
+      // SCRIPTS.md §5 drew this as a RENDERED BoardingPassCard; it is now the real pass /gift issues.
+      type: 'SCREEN',
+      screen: { key: 'gift', trimBefore: 390 },
+      picture:
+        'The BoardingPass /gift issues: TO · FROM · size · MUMBAI · VALID UNTIL, the PIN stub and its QR.',
     },
     {
       id: 'S4',
@@ -71,6 +60,8 @@ export function Short04GiftToName(p: Short04Props) {
       type: 'REAL OTS, receiver',
       clip: 'receiver',
       ownAudio: true,
+      // The push needs the camera; the claim itself is the real /gift/claim page.
+      screen: { key: 'gift-claim', trimBefore: 60 },
       picture: `The receiver's phone at the venue: push ${p.pass.from} sent you ${p.pass.size}; tap; Approve in your wallet to claim — no payment; /plan reads ${p.pass.size}.`,
       mustSee: ['the push text', 'the no payment claim line', 'the resulting plan'],
     },

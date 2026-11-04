@@ -21,6 +21,7 @@
     "src",
     "tokens.css",
     "fonts.css",
+    "fonts",
     "tailwind.css",
     "print.css"
   ],

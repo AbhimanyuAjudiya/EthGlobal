@@ -22,7 +22,9 @@ export interface SaturdaySeed {
 
 function load(raw: typeof saturday): SaturdaySeed {
   if (raw.provenance !== 'local-stack' && raw.provenance !== 'rehearsal') {
-    throw new Error(`seed/saturday.json: provenance must be local-stack or rehearsal, not ${raw.provenance}`);
+    throw new Error(
+      `seed/saturday.json: provenance must be local-stack or rehearsal, not ${raw.provenance}`,
+    );
   }
   return { ...raw, provenance: raw.provenance };
 }

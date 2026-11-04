@@ -1,33 +1,31 @@
 /** Video 01 — "No Service → LTE" (SCRIPTS.md §2). 20.0 s / 600 frames, 1080 × 1920. */
 import {
-  IssuingSequence,
-  NotificationCard,
-  SeedTag,
   ShortShell,
-  UiScreen,
   type FootageKey,
+  type ScreenKey,
   type ShortBaseProps,
   type Shot,
 } from '../scenes';
 import { seed } from '../seed';
 
 export const SHORT01_FOOTAGE: readonly FootageKey[] = ['arrivals', 'screen01', 'lte', 'room01'];
+export const SHORT01_SCREENS: readonly ScreenKey[] = ['landing', 'verify', 'install-ios'];
 
 export type Short01Props = ShortBaseProps & {
   /** S6 was cut S6a → S6b: show the Chivo Mono elapsed note (SCRIPTS.md §2 S6). */
   s6Cut: boolean;
   /** In-points (frames) of S2–S5 inside the one subject-phone screen recording. */
   screenIn: { s2: number; s3: number; s4: number; s5: number };
-  seed: typeof seed.short01;
-  sponsorName: string;
+  /** In-points (frames) of S2–S5 inside the headless captures (landing, verify, verify, install-ios). */
+  headlessIn: { s2: number; s3: number; s4: number; s5: number };
 };
 
 export const short01Defaults: Short01Props = {
   footage: {},
   s6Cut: false,
+  screens: {},
   screenIn: { s2: 0, s3: 70, s4: 180, s5: 285 },
-  seed: seed.short01,
-  sponsorName: seed.sponsorName,
+  headlessIn: { s2: 75, s3: 30, s4: 140, s5: 15 },
   endLine: "300 MB · because you're human",
   theme: 'light',
 };
@@ -52,6 +50,7 @@ export function Short01NoService(p: Short01Props) {
       type: 'REAL SR /',
       clip: 'screen01',
       trimBefore: p.screenIn.s2,
+      screen: { key: 'landing', trimBefore: p.headlessIn.s2 },
       picture:
         "H1 Landing in Mumbai without data?, the unscratched Coupon with 300 MB, pre-flight iPhone · iOS 18 · eSIM ready; thumb taps Prove I'm human → 300 MB.",
       mustSee: ['the live sponsor-bundles line, or no line'],
@@ -63,6 +62,8 @@ export function Short01NoService(p: Short01Props) {
       type: 'REAL SR /verify → World App',
       clip: 'screen01',
       trimBefore: p.screenIn.s3,
+      // Headless: the product's local-mode "Simulated World ID" stands where World App's own sheet will be.
+      screen: { key: 'verify', trimBefore: p.headlessIn.s3 },
       picture:
         "Sheet Prove you're one human; tier ledger; Open World App; World App's own verify sheet; return; Checking · 2 s.",
       mustSee: ["World App's real sheet"],
@@ -74,20 +75,10 @@ export function Short01NoService(p: Short01Props) {
       type: 'REAL SR /plan/[key]',
       clip: 'screen01',
       trimBefore: p.screenIn.s4,
+      // SCRIPTS.md §2 allowed a RENDERED IssuingSequence here; the real /plan issuing rows replace it.
+      screen: { key: 'verify', trimBefore: p.headlessIn.s4 },
       picture: 'Issuing rows, odometer 0 → 300, usage as of, Expires in … IST.',
-      // SCRIPTS.md §2: the one REAL shot with a RENDERED fallback (IssuingSequence).
-      fallback: (
-        <>
-          <UiScreen theme={p.theme}>
-            <IssuingSequence
-              entitlement={p.seed.entitlement}
-              claimTx={p.seed.claimTx}
-              sponsorName={p.sponsorName}
-            />
-          </UiScreen>
-          <SeedTag />
-        </>
-      ),
+      mustSee: ['the HashScan hash row', 'the Arkiv ent:… row', 'usage as of HH:MM'],
     },
     {
       id: 'S5',
@@ -96,6 +87,7 @@ export function Short01NoService(p: Short01Props) {
       type: 'REAL SR /install → iOS Settings',
       clip: 'screen01',
       trimBefore: p.screenIn.s5,
+      screen: { key: 'install-ios', trimBefore: p.headlessIn.s5 },
       picture:
         'Tap Install eSIM · 2 min; the system cellular sheet; Continue; back to the /install pill Searching… with the determinate ring.',
       mustSee: ['the system cellular sheet'],
@@ -112,14 +104,9 @@ export function Short01NoService(p: Short01Props) {
       mustSee: [
         'LTE / 5G',
         'the carrier name',
-        'the push text',
+        `the push text (${seed.short01.push})`,
         'the clock on both sides of any cut',
       ],
-      reference: (
-        <div style={{ width: 360, transform: 'scale(2)', transformOrigin: 'top left' }}>
-          <NotificationCard {...p.seed.push} />
-        </div>
-      ),
     },
   ];
   return (

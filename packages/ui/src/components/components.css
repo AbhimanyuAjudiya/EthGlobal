@@ -146,13 +146,16 @@
 .hash__value {
   color: var(--text-primary);
 }
+/* A 44 × 44 box (WCAG 2.5.5, RT-W-07) around the 16 px icon; negative margins keep the line of text tight. */
 .hash__copy {
   position: relative;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.25rem;
-  min-width: 1.75rem;
-  height: 1.75rem;
+  min-width: 44px;
+  height: 44px;
+  margin: -8px -6px;
   padding: 0 0.25rem;
   border: 0;
   border-radius: var(--radius-control);
@@ -161,12 +164,6 @@
   font: inherit;
   font-size: var(--text-12);
   cursor: pointer;
-}
-/* 48 px hit area around a 28 px control that sits inside a line of text. */
-.hash__copy::after {
-  content: '';
-  position: absolute;
-  inset: -10px;
 }
 .hash__copy:hover {
   color: var(--text-primary);
@@ -183,7 +180,9 @@
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.25rem;
+  min-height: 44px;
+  margin: -8px 0;
+  padding: 0 0.25rem;
   border-radius: var(--radius-control);
   color: var(--accent);
   text-decoration: none;
@@ -213,12 +212,21 @@
 .ruled__label {
   color: var(--text-secondary);
 }
+/* Values are prose by default (left-aligned under a narrow label column, so a sentence never wraps ragged-right);
+   figures opt into tabular mono, right-aligned (RT design review #6). */
 .ruled__value {
   margin: 0;
+  min-width: 0;
   color: var(--text-primary);
+  font-family: var(--font-text);
+  text-align: right;
+}
+.ruled__value--mono {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums slashed-zero;
-  text-align: right;
+}
+:where(:lang(hi), :lang(mr)) .ruled__value {
+  font-family: var(--font-text);
 }
 .ruled__row[data-tone='negative'] .ruled__value {
   color: var(--negative);
@@ -246,7 +254,8 @@
   color: var(--text-tertiary);
 }
 /* Devanagari: Anek, 14 px floor, leading 1.6; the clock digits stay Latin. */
-.usage-as-of:lang(hi) {
+.usage-as-of:lang(hi),
+.usage-as-of:lang(mr) {
   font-family: var(--font-text);
   font-size: var(--text-14);
 }
@@ -364,7 +373,9 @@
   color: var(--text-secondary);
 }
 .coupon__line:lang(hi),
-.coupon__status:lang(hi) {
+.coupon__line:lang(mr),
+.coupon__status:lang(hi),
+.coupon__status:lang(mr) {
   line-height: var(--leading-devanagari);
 }
 .coupon__status {
@@ -395,6 +406,62 @@
   word-spacing: 0.35em;
   white-space: nowrap;
 }
+/* The unscratched coupon: silver latex (procedural foil grain, no gradient) over a ghost PIN row. */
+.coupon__panel--sealed {
+  flex: 1 1 14rem;
+  min-height: 4rem;
+  border-style: solid;
+  border-color: transparent;
+}
+.coupon__pin--ghost {
+  color: var(--text-disabled);
+}
+.coupon__latex {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--latex) url('./latex-grain.svg');
+  background-size: 180px 72px;
+}
+.coupon__rub {
+  font-family: var(--font-scratch);
+  font-size: var(--text-14);
+  font-weight: 600;
+  line-height: var(--leading-devanagari);
+  color: var(--text-primary);
+}
+/* The perforated stub under the screen coupon: a dashed tear line with two notches, the live count below it. */
+.coupon__status[data-stub] {
+  position: relative;
+  margin: 0.25rem -1.25rem -0.25rem;
+  padding: 0.75rem 1.25rem 0;
+  border-top: 2px dashed var(--border-strong);
+  font-size: var(--text-13);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.coupon__status[data-stub]::before,
+.coupon__status[data-stub]::after {
+  content: '';
+  position: absolute;
+  top: -0.6875rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 50%;
+  background: var(--notch, var(--bg-canvas));
+}
+.coupon__status[data-stub]::before {
+  left: -0.6875rem;
+}
+.coupon__status[data-stub]::after {
+  right: -0.6875rem;
+}
+.coupon {
+  overflow: hidden;
+}
+
 .coupon__qr {
   flex: none;
   width: 5.5rem;

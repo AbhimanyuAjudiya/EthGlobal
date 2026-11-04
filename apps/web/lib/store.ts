@@ -75,7 +75,19 @@ export async function dump(): Promise<Record<string, unknown>> {
   }
 }
 
+/** Every stored key (IndexedDB or the in-memory fallback). */
+async function allKeys(): Promise<string[]> {
+  try {
+    return (await run<IDBValidKey[]>('readonly', (s) => s.getAllKeys())).filter(
+      (k): k is string => typeof k === 'string',
+    );
+  } catch {
+    return [...memory.keys()];
+  }
+}
+
 const KEYS = 'entitlementKeys';
+const LPA = 'lpa:';
 
 export const plans = {
   async keys(): Promise<string[]> {
@@ -86,12 +98,38 @@ export const plans = {
     if (!keys.includes(key)) await set(KEYS, [key, ...keys].slice(0, 20));
   },
   async latest(): Promise<string | undefined> {
-    return (await get<string>('currentKey')) ?? (await plans.keys())[0];
+    const keys = await plans.keys();
+    const current = await get<string>('currentKey');
+    // the pointer only ever names a plan this device holds (RT-W-03); a stale or planted value is ignored
+    return current && keys.includes(current) ? current : keys[0];
   },
-  /** The plan last opened on /plan/[key]; /install and /agent act on it (they take no URL parameter). */
-  setCurrent: (key: string) => set('currentKey', key),
-  lpa: (key: string) => get<string>(`lpa:${key}`),
-  saveLpa: (key: string, lpa: string) => set(`lpa:${key}`, lpa),
+  /** True when this device claimed, bought or was explicitly given the plan (never from a bare URL visit). */
+  owns: async (key: string): Promise<boolean> => (await plans.keys()).includes(key),
+  /**
+   * The plan /install, /agent and the tabs act on. Only a key this device holds can become current (RT-W-03,
+   * T-73): a crafted /plan/<key> link never re-points it; adopting a foreign plan is the explicit `adopt`.
+   */
+  async setCurrent(key: string): Promise<boolean> {
+    if (!(await plans.owns(key))) return false;
+    await set('currentKey', key);
+    return true;
+  },
+  /** The person tapped "Keep this plan on this phone": the key joins this device's plans and becomes current. */
+  async adopt(key: string): Promise<void> {
+    await plans.add(key);
+    await set('currentKey', key);
+  },
+  lpa: (key: string) => get<string>(`${LPA}${key}`),
+  /**
+   * One opened LPA at a time (THREAT-MODEL §8, T-76, RT-W-01): saving a new one deletes every other `lpa:*`.
+   * The LPA is a bearer secret; an older plan's code is gone once a newer one arrives on this device.
+   */
+  async saveLpa(key: string, lpa: string): Promise<void> {
+    for (const k of await allKeys()) if (k.startsWith(LPA) && k !== `${LPA}${key}`) await del(k);
+    await set(`${LPA}${key}`, lpa);
+  },
+  /** The eSIM is installed: the activation code has done its job and leaves this device (T-76, RT-W-01). */
+  forgetLpa: (key: string) => del(`${LPA}${key}`),
   snapshot: (key: string) => get<{ at: number; me: MeResponse }>(`me:${key}`),
   saveSnapshot: (key: string, me: MeResponse) => set(`me:${key}`, { at: Date.now(), me }),
   /** The claiming session's public key (A-35): sent with the first PUT /agent/policy of a free entitlement. */

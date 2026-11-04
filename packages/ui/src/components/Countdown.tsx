@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { dateTime, DEFAULT_TIME_ZONE, duration } from './format';
+import { dateTime, DEFAULT_TIME_ZONE, duration, type DurationUnits } from './format';
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -29,10 +29,17 @@ export interface CountdownProps {
   until: number;
   now?: number;
   timeZone?: string;
-  /** "Claim within" → "Claim within 6 d 22 h · until Sun 15 Nov 09:12 IST". */
+  /** "Expires in" → "Expires in 6 d 22 h · Sun 15 Nov 09:12 IST". */
   lead: string;
   /** Shown once the deadline has passed: "Claim window closed". */
   ended: string;
+  /** Sentence order for other languages: (left, at) → "6 दिन 22 घंटे में समाप्त · रवि 15 नव॰ 09:12 IST". */
+  template?: (left: string, at: string) => string;
+  /** Unit words for the relative part ("दिन", "घंटे"); Latin d / h / m / s by default. */
+  units?: DurationUnits;
+  /** Intl locale for day and month names (`dateLocale(lang)`); en-IN by default. */
+  locale?: string;
+  lang?: string;
   className?: string;
 }
 
@@ -43,20 +50,30 @@ export function Countdown({
   timeZone = DEFAULT_TIME_ZONE,
   lead,
   ended,
+  template,
+  units,
+  locale,
+  lang,
   className,
 }: CountdownProps) {
   const current = useNow(until, now);
   const left = until - current;
-  const absolute = dateTime(until, timeZone);
+  const absolute = dateTime(until, timeZone, locale);
+  const relative = duration(left, units);
   return (
     <time
       className={className}
+      lang={lang}
       dateTime={new Date(until).toISOString()}
       aria-live="off"
       data-ended={left <= 0 ? true : undefined}
       suppressHydrationWarning
     >
-      {left > 0 ? `${lead} ${duration(left)} · until ${absolute}` : `${ended} · ${absolute}`}
+      {left > 0
+        ? template
+          ? template(relative, absolute)
+          : `${lead} ${relative} · ${absolute}`
+        : `${ended} · ${absolute}`}
     </time>
   );
 }

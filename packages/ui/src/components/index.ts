@@ -11,6 +11,7 @@ export { Field, type FieldProps } from './Field';
 export {
   clock,
   dataAmount,
+  dateLocale,
   dateTime,
   DEFAULT_TIME_ZONE,
   duration,
@@ -18,6 +19,7 @@ export {
   pinGroups,
   shortHex,
   type DataAmount,
+  type DurationUnits,
 } from './format';
 export { Hash, type HashProps } from './Hash';
 export { Icon, type IconProps } from './icons';

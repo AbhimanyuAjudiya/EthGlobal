@@ -1,7 +1,7 @@
 /**
- * Composition registry (SCRIPTS.md §8 "Compositions"). Every video probes footage/ in calculateMetadata, so
- * a missing capture renders as a labelled placeholder slate rather than failing. Scenes/ holds each RENDERED
- * shot as its own still-able composition; QA/ holds the font probe.
+ * Composition registry (SCRIPTS.md §8 "Compositions"). Every video probes footage/ (human captures) and
+ * footage/screen/ (headless captures of the PWA) in calculateMetadata, so a missing capture renders as a
+ * labelled placeholder slate rather than failing. Scenes/ holds the end card; QA/ holds the font probe.
  */
 import { Composition, Folder, Still } from 'remotion';
 
@@ -12,38 +12,40 @@ import { FontProbe } from './compositions/FontProbe';
 import {
   JUDGE_FOOTAGE,
   JUDGE_FRAMES,
+  JUDGE_SCREENS,
   JudgeVideo,
   judgeDefaults,
   type JudgeProps,
 } from './compositions/JudgeVideo';
 import {
   SHORT01_FOOTAGE,
+  SHORT01_SCREENS,
   Short01NoService,
   short01Defaults,
   type Short01Props,
 } from './compositions/Short01NoService';
 import {
   SHORT02_FOOTAGE,
+  SHORT02_SCREENS,
   Short02Scratch,
   short02Defaults,
   type Short02Props,
 } from './compositions/Short02Scratch';
 import {
-  ReceiptThreeLine,
   SHORT03_FOOTAGE,
+  SHORT03_SCREENS,
   Short03AgentPaid,
   short03Defaults,
   type Short03Props,
 } from './compositions/Short03AgentPaid';
 import {
-  BoardingPassCard,
   SHORT04_FOOTAGE,
+  SHORT04_SCREENS,
   Short04GiftToName,
   short04Defaults,
   type Short04Props,
 } from './compositions/Short04GiftToName';
-import { CouponScreen, EndCard, IssuingSequence, NotificationCard, UiScreen } from './scenes';
-import { seed } from './seed';
+import { EndCard } from './scenes';
 import { FPS } from './theme';
 
 const PORTRAIT = { width: 1080, height: 1920, fps: FPS } as const;
@@ -57,7 +59,7 @@ export function RemotionRoot() {
         durationInFrames={captionFiles.Short01NoService.durationInFrames}
         {...PORTRAIT}
         defaultProps={short01Defaults}
-        calculateMetadata={withFootage<Short01Props>(SHORT01_FOOTAGE)}
+        calculateMetadata={withFootage<Short01Props>(SHORT01_FOOTAGE, SHORT01_SCREENS)}
       />
       <Composition
         id="Short02Scratch"
@@ -65,7 +67,7 @@ export function RemotionRoot() {
         durationInFrames={captionFiles.Short02Scratch.durationInFrames}
         {...PORTRAIT}
         defaultProps={short02Defaults}
-        calculateMetadata={withFootage<Short02Props>(SHORT02_FOOTAGE)}
+        calculateMetadata={withFootage<Short02Props>(SHORT02_FOOTAGE, SHORT02_SCREENS)}
       />
       <Composition
         id="Short03AgentPaid"
@@ -73,7 +75,7 @@ export function RemotionRoot() {
         durationInFrames={captionFiles.Short03AgentPaid.durationInFrames}
         {...PORTRAIT}
         defaultProps={short03Defaults}
-        calculateMetadata={withFootage<Short03Props>(SHORT03_FOOTAGE)}
+        calculateMetadata={withFootage<Short03Props>(SHORT03_FOOTAGE, SHORT03_SCREENS)}
       />
       <Composition
         id="Short04GiftToName"
@@ -81,7 +83,7 @@ export function RemotionRoot() {
         durationInFrames={captionFiles.Short04GiftToName.durationInFrames}
         {...PORTRAIT}
         defaultProps={short04Defaults}
-        calculateMetadata={withFootage<Short04Props>(SHORT04_FOOTAGE)}
+        calculateMetadata={withFootage<Short04Props>(SHORT04_FOOTAGE, SHORT04_SCREENS)}
       />
       <Composition
         id="JudgeVideo"
@@ -91,7 +93,7 @@ export function RemotionRoot() {
         height={1080}
         fps={FPS}
         defaultProps={judgeDefaults}
-        calculateMetadata={withFootage<JudgeProps>(JUDGE_FOOTAGE)}
+        calculateMetadata={withFootage<JudgeProps>(JUDGE_FOOTAGE, JUDGE_SCREENS)}
       />
       <Folder name="Scenes">
         <Composition
@@ -104,73 +106,6 @@ export function RemotionRoot() {
           durationInFrames={60}
           {...PORTRAIT}
           defaultProps={{ line: "300 MB · because you're human" }}
-        />
-        <Composition
-          id="IssuingSequence"
-          component={(p: typeof seed.short01 & { sponsorName: string }) => (
-            <Frame>
-              <UiScreen>
-                <IssuingSequence
-                  entitlement={p.entitlement}
-                  claimTx={p.claimTx}
-                  sponsorName={p.sponsorName}
-                />
-              </UiScreen>
-            </Frame>
-          )}
-          durationInFrames={105}
-          {...PORTRAIT}
-          defaultProps={{ ...seed.short01, sponsorName: seed.sponsorName }}
-        />
-        <Composition
-          id="ReceiptThreeLine"
-          component={(p: { receipt: typeof seed.short03.receipt }) => (
-            <Frame>
-              <ReceiptThreeLine receipt={p.receipt} />
-            </Frame>
-          )}
-          durationInFrames={90}
-          {...PORTRAIT}
-          defaultProps={{ receipt: seed.short03.receipt }}
-        />
-        <Composition
-          id="BoardingPassCard"
-          component={(p: { pass: typeof seed.short04.pass }) => (
-            <Frame>
-              <BoardingPassCard pass={p.pass} />
-            </Frame>
-          )}
-          durationInFrames={90}
-          {...PORTRAIT}
-          defaultProps={{ pass: seed.short04.pass }}
-        />
-        <Still
-          id="AgentPushCard"
-          component={(p: typeof seed.short03.push) => (
-            <Frame>
-              <UiScreen>
-                <div style={{ padding: '200px 12px 0' }}>
-                  <NotificationCard {...p} />
-                </div>
-              </UiScreen>
-            </Frame>
-          )}
-          {...PORTRAIT}
-          defaultProps={seed.short03.push}
-        />
-        <Still
-          id="CouponScreen"
-          component={(p: { state: 'sealed' | 'revealed'; lang: 'en' | 'hi' }) => (
-            <Frame>
-              <UiScreen>
-                <div style={{ padding: '120px 16px 0' }}>
-                  <CouponScreen coupon={seed.short02.coupon} state={p.state} lang={p.lang} />
-                </div>
-              </UiScreen>
-            </Frame>
-          )}
-          {...PORTRAIT}
-          defaultProps={{ state: 'revealed', lang: 'en' }}
         />
       </Folder>
       <Folder name="QA">

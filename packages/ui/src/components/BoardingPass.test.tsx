@@ -23,7 +23,7 @@ describe('BoardingPass', () => {
   it('counts down as text in a <time> that is not re-announced, never a spinner', () => {
     const { container } = render(<BoardingPass {...base} now={NOW} />);
     const time = container.querySelector('time');
-    expect(time?.textContent).toBe('Claim within 6 d 19 h · until Sun 15 Nov 09:12 IST');
+    expect(time?.textContent).toBe('Claim within 6 d 19 h · Sun 15 Nov 09:12 IST');
     expect(time?.getAttribute('aria-live')).toBe('off');
     expect(time?.getAttribute('datetime')).toBe(new Date(CLAIM_BY).toISOString());
     expect(screen.queryByRole('progressbar')).toBeNull();

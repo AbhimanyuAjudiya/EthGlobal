@@ -1,5 +1,6 @@
 import { cx } from './format';
 import { RuledList } from './RuledList';
+import { uiStrings, type CouponLang } from './strings';
 
 import type { ReactNode } from 'react';
 
@@ -16,6 +17,7 @@ export interface ReceiptProps {
   labels?: { you?: string; sponsor?: string; networkFee?: string };
   /** The failed-payment case: only the amount turns --negative. */
   failed?: boolean;
+  lang?: CouponLang;
   className?: string;
 }
 
@@ -27,16 +29,23 @@ export function Receipt({
   networkFee,
   labels,
   failed = false,
+  lang = 'en',
   className,
 }: ReceiptProps) {
+  const s = uiStrings[lang].receipt;
   return (
-    <section className={cx('receipt', className)} aria-label="Receipt">
+    <section className={cx('receipt', className)} aria-label={s.label}>
       {heading ? <p className="receipt__heading">{heading}</p> : null}
       <RuledList
         rows={[
-          { label: labels?.you ?? 'You', value: you, tone: failed ? 'negative' : 'default' },
-          { label: labels?.sponsor ?? 'Sponsor', value: sponsor },
-          { label: labels?.networkFee ?? 'Network fee', value: networkFee },
+          {
+            label: labels?.you ?? s.you,
+            value: you,
+            tone: failed ? 'negative' : 'default',
+            mono: true,
+          },
+          { label: labels?.sponsor ?? s.sponsor, value: sponsor, mono: true },
+          { label: labels?.networkFee ?? s.networkFee, value: networkFee, mono: true },
         ]}
       />
     </section>

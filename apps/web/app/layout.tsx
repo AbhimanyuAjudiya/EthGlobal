@@ -21,6 +21,9 @@ export const metadata: Metadata = {
   formatDetection: { telephone: false },
 };
 
+// Every document renders per request so it can carry the request's CSP nonce (proxy.ts, lib/csp.ts, RT-W-02).
+export const dynamic = 'force-dynamic';
+
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,

@@ -1,3 +1,4 @@
-# Renders are large binaries and are never committed (see apps/video/scripts/render.sh).
+# Renders are large binaries and are never committed (see apps/video/scripts/render.sh); only the index is.
 *
 !.gitignore
+!index.json

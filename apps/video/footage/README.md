@@ -1,6 +1,6 @@
 # footage/ — where the real captures go
 
-Drop conformed captures here under the exact names below. `scripts/render.sh` (and `pnpm studio`) index this folder; a composition uses a file when it is present and otherwise renders a clearly labelled **PLACEHOLDER · REAL capture missing** slate, so a render never fails for want of footage. Nothing in this folder except this README is committed (`.gitignore`).
+Drop conformed captures here under the exact names below. `scripts/render.sh` (and `pnpm studio`) index this folder and `screen/`; for every shot a composition uses, in order: the human capture when it is present, else the headless capture of the same route in `screen/` (below), else a clearly labelled **PLACEHOLDER · REAL capture missing** slate, so a render never fails for want of footage. Nothing in this folder except this README is committed (`.gitignore`).
 
 Conform every camera file first (HEVC/VFR/HDR → H.264 CFR 30 SDR):
 
@@ -14,6 +14,37 @@ bash apps/video/scripts/conform.sh --audio room.m4a 01-room.wav                 
 Room sound: when `NN-room.wav` exists it runs under the whole short and every clip is muted; otherwise each OTS/macro clip plays its own camera-phone audio and screen recordings stay silent. Screen recordings are always captured with **Microphone off**.
 
 Path note: SCRIPTS.md §2–§5 "Aftercare" says `apps/video/public/capture/NN/`; the pipeline reads this folder instead (served to the bundle as `public/footage/` through a symlink). Keep writing `notes.md` per video here (`NN-notes.md`) with the HashScan URL, the Arkiv entity key, the HCS sequence and the times; they replace the placeholder values in `src/seed/index.ts`.
+
+## Headless captures of the real PWA (`screen/`)
+
+`scripts/capture-screens.mjs` drives the production build of `apps/web` against the local stack with Playwright (Chromium, 360 × 780 CSS px, device scale 3, `isMobile`/`hasTouch`, iPhone UA; light and dark) and records each route from Chrome's screencast at 1080 × 2340 device pixels into `screen/<clip>-<theme>.webm`; `scripts/conform-screens.sh` runs each through `conform.sh` (`sr`; `sc` for the laptop-viewport clip) to `screen/<clip>-<theme>.mp4` and re-indexes. They replace every RENDERED look-alike (IssuingSequence, ReceiptThreeLine, BoardingPassCard, CouponScreen) and stand in for each subject-phone screen recording until the real one exists. Everything on them is a local-stack value (Anvil 31337, simulated World ID, demo wallet, simulated usage — all labelled by the product itself), so frames that show hashes, keys, addresses or PINs carry **SEED DATA · not a real record** until `src/seed/saturday.json` says `"provenance": "rehearsal"`.
+
+```sh
+bash scripts/e2e-local.sh --keep &                 # Anvil :8546, API :8788, demo seed
+(cd apps/web && bash e2e/serve.sh) &               # production build on :3000, demo wallet on
+node apps/video/scripts/capture-screens.mjs        # every clip, light + dark (≈ 10 min); --only plan,pay --themes light
+bash apps/video/scripts/conform-screens.sh         # webm → CFR 30 mp4 + footage/index.json
+```
+
+| Clip              | Route            | Seed label | What                                                                                |
+| ----------------- | ---------------- | ---------- | ----------------------------------------------------------------------------------- |
+| `landing`         | `/`              | no         | Live coupon and both paths; tap Prove I'm human → the /verify sheet                 |
+| `landing-pay`     | `/`              | no         | Tap I'll pay · $0.40 per 100 MB → the 402 Review sheet                              |
+| `verify`          | `/verify`        | yes        | Simulated World ID → Checking → bundle issued, IssuingRows, the lock-screen line    |
+| `plan`            | `/plan/[key]`    | yes        | Meter, usage as of, Expires in, Why it expires by itself opened to the Arkiv key    |
+| `install-ios`     | `/install`       | no         | iOS 17.4+ universal link state, Didn't open? Tap again, the steps                   |
+| `install-android` | `/install`       | no         | Android: Copy activation code → Copied, the Settings steps                          |
+| `pay`             | `/pay?key=`      | yes        | Review → demo wallet signs → Sending · hash → Confirmed → Final (the 8-state sheet) |
+| `plan-topped`     | `/plan/[key]`    | yes        | After the top-up: the meter extended once, 400 MB                                   |
+| `agent`           | `/agent`         | yes        | Policy sentence, cap ≤ $5 → Saved · signed, back to ≤ $10 / day → Saved             |
+| `gift`            | `/gift`          | yes        | rahul.eth resolves, 1 GB, the reclaim rule, Pay → the boarding pass                 |
+| `gift-claim`      | `/gift/claim`    | yes        | Recipient (demo wallet · Anvil #9) claims by signature, no payment → /plan          |
+| `card`            | `/card/[serial]` | yes        | Hindi UI: PIN typed, latex scratched to ≈ 45 %, the rest fades, Redeem → /plan      |
+| `sponsor`         | `/sponsor/[id]`  | yes        | Claims, tables, slide-to-confirm pause → Paused, then Resume claims                 |
+| `sponsor-desktop` | `/sponsor/[id]`  | yes        | Laptop viewport (1200 × 900, light only) for the judge video's evidence pane        |
+| `receipts`        | `/receipts`      | yes        | Per-day three-line receipts: the claim, the top-up, the gift                        |
+
+Still camera-only (slates until shot): the arrivals hall and its status bar (01 S1), No Service → LTE with the carrier and the push (01 S6), World App's own sheet and the iOS cellular sheet (01 S3/S5, the headless clips show the product's side), the macro scratch, card front and back (02 S1, S2, S5), the 03:12 tabletop and the HashScan pages (03 S1, S3), the rickshaw and the receiver's push (04 S1, S4), and every judge-video SC row (logs, curl, HashScan, DataDrop, Arkiv explorer, nonce, docs) plus the narration.
 
 ## Files
 
@@ -45,7 +76,7 @@ Path note: SCRIPTS.md §2–§5 "Aftercare" says `apps/video/public/capture/NN/`
 | `judge-pay-hashscan.mp4`   | judge | SC    | HashScan testnet transaction of the human payment                          |
 | `judge-datadrop.mp4`       | judge | SC    | DataDrop on Hedera EVM chain 296, Claimed events                           |
 | `judge-agent-log.mp4`      | judge | SC    | services/agent log and the HashScan topic page with the HCS-14 UAID        |
-| `judge-arkiv-explorer.mp4` | judge | SC    | Arkiv Kaolin explorer page for the entitlement entity                      |
+| `judge-arkiv-explorer.mp4` | judge | SC    | Arkiv rabdi explorer page for the entitlement entity                       |
 | `judge-plan-sr.mp4`        | judge | SR    | /plan Expires in 6 d 22 h and the entity-key disclosure                    |
 | `judge-nonce.mp4`          | judge | SC    | 120-second challenge-nonce entity queried before and after expiry          |
 | `judge-sponsor.mp4`        | judge | SC    | /sponsor/[id] with 38 plans expire in 24 h as a query                      |

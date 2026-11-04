@@ -7,6 +7,8 @@
 import { type ReactNode } from 'react';
 import { AbsoluteFill, OffthreadVideo, staticFile } from 'remotion';
 
+import { PlaceholderSlate, type SlateInfo } from './PlaceholderSlate';
+import { SeedTag } from './SeedTag';
 import {
   FOOTAGE,
   footagePath,
@@ -19,8 +21,6 @@ import {
   type ScreenKey,
   type ScreenTheme,
 } from '../footage/manifest';
-import { PlaceholderSlate, type SlateInfo } from './PlaceholderSlate';
-import { SeedTag } from './SeedTag';
 
 export interface ScreenUse {
   key: ScreenKey;

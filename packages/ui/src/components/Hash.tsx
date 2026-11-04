@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 import { cx, shortHex } from './format';
 import { Icon } from './icons';
+import { uiStrings, type CouponLang } from './strings';
 
 export interface HashProps {
   /** The full 0x value (transaction hash, address, key). Always shown short, always copyable. */
@@ -14,13 +15,21 @@ export interface HashProps {
   explorerHref?: string;
   /** Explorer name shown beside the link icon: "HashScan", "Basescan". */
   explorerName?: string;
+  lang?: CouponLang;
   className?: string;
 }
 
 type CopyState = 'idle' | 'copied' | 'failed';
 
 /** `0x1a2b…9f3e` in Chivo Mono with slashed zero, a copy button and, when given, an explorer link. */
-export function Hash({ value, kind = 'hash', explorerHref, explorerName, className }: HashProps) {
+export function Hash({
+  value,
+  kind = 'hash',
+  explorerHref,
+  explorerName,
+  lang = 'en',
+  className,
+}: HashProps) {
   const [copy, setCopy] = useState<CopyState>('idle');
 
   useEffect(() => {
@@ -43,7 +52,7 @@ export function Hash({ value, kind = 'hash', explorerHref, explorerName, classNa
 
   return (
     <span className={cx('hash', className)}>
-      <span className="hash__value" data-hash title={value}>
+      <span className="hash__value" data-hash title={value} lang="en">
         {shortHex(value)}
       </span>
       <button
@@ -55,7 +64,11 @@ export function Hash({ value, kind = 'hash', explorerHref, explorerName, classNa
       >
         <Icon name={copy === 'copied' ? 'check' : 'copy'} />
         <span className="hash__copy-text" aria-live="polite">
-          {copy === 'copied' ? 'Copied' : copy === 'failed' ? 'Select to copy' : ''}
+          {copy === 'copied'
+            ? uiStrings[lang].copied
+            : copy === 'failed'
+              ? uiStrings[lang].selectToCopy
+              : ''}
         </span>
       </button>
       {explorerHref ? (

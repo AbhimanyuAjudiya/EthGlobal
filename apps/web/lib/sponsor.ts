@@ -73,7 +73,7 @@ export async function sponsorLogin(wallet: Wallet, campaignId: Hex) {
     types: SPONSOR_LOGIN_TYPES,
     primaryType: 'SponsorLogin',
     message: { campaignId, sponsor: wallet.address, issuedAt: BigInt(issuedAt) },
-  } as never);
+  });
   return { sponsor: wallet.address, issuedAt, signature };
 }
 

@@ -8,9 +8,6 @@
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-import { useLang } from '../i18n/lang';
-import { planHref } from '../lib/deliver';
-import { plans } from '../lib/store';
 
 import { ClaimGift, ReclaimGift } from './ClaimGift';
 import { GiftForm } from './GiftForm';
@@ -20,6 +17,9 @@ import { ReceiptList } from './ReceiptList';
 import { ScratchRedeem } from './ScratchRedeem';
 import { AppHeader, Screen, TabBar } from './Shell';
 import { SponsorTable } from './SponsorTable';
+import { useLang } from '../i18n/lang';
+import { planHref } from '../lib/deliver';
+import { plans } from '../lib/store';
 
 const param = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
 

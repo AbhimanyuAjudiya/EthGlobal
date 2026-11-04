@@ -11,10 +11,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 
-import { E2E_DIR, ROOT, startApi, startChain, startWeb, stopAll } from './lib/harness.js';
+import { cliArgs, E2E_DIR, ROOT, startApi, startChain, startWeb, stopAll } from './lib/harness.js';
 import { anvilAddresses } from './lib/stack.js';
 
 const { values: flags } = parseArgs({
+  args: cliArgs(),
   options: {
     web: { type: 'boolean', default: false },
     agent: { type: 'boolean', default: false },

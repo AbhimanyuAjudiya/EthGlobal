@@ -1,8 +1,9 @@
+import { ServiceWorker } from '../components/ServiceWorker';
+import { LangProvider } from '../i18n/lang';
+
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 
-import { ServiceWorker } from '../components/ServiceWorker';
-import { LangProvider } from '../i18n/lang';
 
 import './globals.css';
 

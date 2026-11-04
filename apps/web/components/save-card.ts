@@ -5,9 +5,9 @@
  */
 import { encode } from 'uqr';
 
+import type { GiftResponse } from '@ethglobal/protocol/schemas';
 import { dateTime, formatData, pinGroups } from '@ethglobal/ui/components';
 
-import type { GiftResponse } from '@ethglobal/protocol/schemas';
 
 const W = 1080;
 const H = 1920;

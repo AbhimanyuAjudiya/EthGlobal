@@ -72,7 +72,7 @@ describe('attack: reclaim (AP11)', () => {
     const gift = await buyGift(h, 'bob.eth', 100);
     h.clock.advance(31 * DAY);
     const res = await reclaimGift(h, gift.giftId);
-    expect(res.status).toBe(200);
+    expect(await reasonOf(res)).toEqual([200, undefined]);
   });
 
   it('a Hedera-account payer cannot sign GiftReclaim{payer: address} ⇒ 400 (documented: Hedera-paid gifts are not reclaimable)', async () => {

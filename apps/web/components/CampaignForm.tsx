@@ -5,6 +5,8 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { Button, Field, Hash } from '@ethglobal/ui/components';
 
+import { ActionView } from './ActionView';
+import { DemoWalletPanel } from './Shell';
 import { api, ApiError } from '../lib/api';
 import { networkName } from '../lib/env';
 import { useWallet } from '../lib/hooks';
@@ -12,8 +14,6 @@ import { approveCall, createCampaignCall, dataDropAddress, myCampaigns, scopedCa
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
 import { isUserRejection, type Wallet } from '../lib/wallet';
 
-import { ActionView } from './ActionView';
-import { DemoWalletPanel } from './Shell';
 
 import type { ActionEvent } from '../lib/onchain-action';
 

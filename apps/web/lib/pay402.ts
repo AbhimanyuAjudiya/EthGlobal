@@ -94,7 +94,7 @@ export class EvmWalletSigner implements PaymentSigner {
       typedDataTransferWithAuthorization(
         domainFromRequirements(req),
         fromPaymentAuthorization(authorization),
-      ) as never,
+      ),
     );
     return { x402Version: 2, accepted: req, payload: { signature, authorization } };
   }
@@ -217,20 +217,14 @@ export function paymentFailureReason(error: ApiError | undefined): string {
   if (detail.includes('nonce')) return 'this approval was already used';
   if (detail.includes('balance') || detail.includes('insufficient'))
     return 'the account does not hold enough USDC';
-  switch (error?.code) {
-    case 'invalid_payment':
-      return 'the facilitator rejected the signature';
-    case 'settlement_failed':
-      return 'settlement failed on the network';
-    case 'daily_cap':
-      return 'the daily top-up limit for this plan is reached';
-    case 'expired':
-      return 'this plan has expired';
-    case 'facilitator_unavailable':
-      return 'the facilitator is not answering';
-    case 'network':
-      return 'the API could not be reached';
-    default:
-      return 'the payment was not accepted';
-  }
+  return (error && FAILURE_WORDS[error.code]) ?? 'the payment was not accepted';
 }
+
+const FAILURE_WORDS: Partial<Record<ApiError['code'], string>> = {
+  invalid_payment: 'the facilitator rejected the signature',
+  settlement_failed: 'settlement failed on the network',
+  daily_cap: 'the daily top-up limit for this plan is reached',
+  expired: 'this plan has expired',
+  facilitator_unavailable: 'the facilitator is not answering',
+  network: 'the API could not be reached',
+};

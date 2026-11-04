@@ -1,11 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { formatEther, type PublicClient } from 'viem';
 
 import { type ActionEvent, type ActionRow, initialRow, reducer } from './onchain-action';
 import { pending } from './store';
 
-import { formatEther, type PublicClient } from 'viem';
 
 /** Typical time to the next state per network (ring size; stuck = 2×). */
 export function expectedMsFor(network: string | undefined): number {

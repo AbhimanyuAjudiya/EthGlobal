@@ -8,6 +8,9 @@ import type { Hex } from '@ethglobal/protocol/ids';
 import type { ChallengeWire, EntitledResponse } from '@ethglobal/protocol/schemas';
 import { Button, Coupon } from '@ethglobal/ui/components';
 
+import { QrCode } from './QrCode';
+import { AppHeader, Screen } from './Shell';
+import { TierLedger } from './TierLedger';
 import { useLang } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
@@ -17,9 +20,6 @@ import { formatMb, mmss, money, priceFor } from '../lib/format';
 import { useClock, usePlans } from '../lib/hooks';
 import { beginSession } from '../lib/session-key';
 
-import { QrCode } from './QrCode';
-import { AppHeader, Screen } from './Shell';
-import { TierLedger } from './TierLedger';
 
 type Phase =
   | { kind: 'preparing' }
@@ -66,7 +66,7 @@ async function openIdkit(
     rp_context: rp,
     allow_legacy_proofs: true,
     environment: config.worldEnvironment,
-  } as never).preset(idkit.documentLegacy({ signal: challenge.signal }) as never);
+  }).preset(idkit.documentLegacy({ signal: challenge.signal }));
   const req = request as unknown as {
     connectorURI?: string;
     pollUntilCompletion(o: { pollInterval: number; timeout: number }): Promise<IdkitCompletion>;
@@ -147,7 +147,7 @@ export function VerifySheet() {
           challenge: s.challenge,
           sessionPubKey: s.spk,
         });
-        const key = await deliver(res.data as EntitledResponse, s.challenge.nonce as Hex, {
+        const key = await deliver(res.data, s.challenge.nonce as Hex, {
           network: campaign.network,
           you: '$0.00',
           sponsor: campaign.name,

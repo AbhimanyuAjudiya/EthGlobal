@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 
 import type { PlansResponse } from '@ethglobal/protocol/schemas';
 
@@ -68,11 +68,29 @@ export function useWallet(role: DemoRole = 'human') {
   }, []);
 
   useEffect(() => {
-    if (IS_LOCAL) void pickDemo();
-  }, [pickDemo]);
+    if (!IS_LOCAL) return;
+    let alive = true;
+    connectDemo(role).then(
+      (w) => alive && setWallet(w),
+      (e: unknown) => alive && setError(e instanceof Error ? e.message : String(e)),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [role]);
 
   return { wallet, error, busy, pickDemo, pickInjected };
 }
+
+const noopSubscribe = () => () => undefined;
+
+/** false on the server and during hydration, true after: gates reads of navigator/window in render. */
+export const useHydrated = (): boolean =>
+  useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false,
+  );
 
 /** A clock for countdown text that re-renders every `stepMs`. */
 export function useClock(stepMs = 1000) {

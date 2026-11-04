@@ -6,6 +6,9 @@ import type { Hex } from '@ethglobal/protocol/ids';
 import type { SponsorView } from '@ethglobal/protocol/schemas';
 import { Hash } from '@ethglobal/ui/components';
 
+import { ActionView } from './ActionView';
+import { DemoWalletPanel } from './Shell';
+import { SlideToConfirm } from './SlideToConfirm';
 import { api, ApiError } from '../lib/api';
 import { explorerName, explorerTemplate, networkName } from '../lib/env';
 import { clockIst, dayLabel, formatMb, money } from '../lib/format';
@@ -14,9 +17,6 @@ import { pauseCall, refundCall, sponsorLogin } from '../lib/sponsor';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
 import { isUserRejection } from '../lib/wallet';
 
-import { ActionView } from './ActionView';
-import { DemoWalletPanel } from './Shell';
-import { SlideToConfirm } from './SlideToConfirm';
 
 const enIN = new Intl.NumberFormat('en-IN');
 const TIERS = ['orb', 'document', 'device'] as const;

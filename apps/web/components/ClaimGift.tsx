@@ -8,6 +8,8 @@ import { isValidPin } from '@ethglobal/protocol/pin';
 import type { GiftReclaimResponse } from '@ethglobal/protocol/schemas';
 import { Button, Field, Hash, Receipt } from '@ethglobal/ui/components';
 
+import { sentGifts, type SentGift } from './GiftForm';
+import { WalletButton } from './Shell';
 import { useLang } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { ApiError } from '../lib/api';
@@ -17,8 +19,6 @@ import { useClock, useWallet } from '../lib/hooks';
 import { claimGiftBySignature, reclaimGift, redeemPin } from '../lib/redeem';
 import { isUserRejection } from '../lib/wallet';
 
-import { sentGifts, type SentGift } from './GiftForm';
-import { WalletButton } from './Shell';
 
 const errText = (t: ReturnType<typeof useLang>['t'], e: unknown) =>
   t(errorKey(e instanceof ApiError ? e.code : 'network'));

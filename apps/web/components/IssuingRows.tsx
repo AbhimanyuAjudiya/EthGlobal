@@ -61,24 +61,19 @@ export const shortKey = (key: string) => (key.length > 18 ? `${key.slice(0, 12)}
  */
 export function useOdometer(target: number, run: boolean): { value: number; done: boolean } {
   const reduced = usePrefersReducedMotion();
-  const [value, setValue] = useState(run && !reduced ? 0 : target);
-  const [done, setDone] = useState(!run || reduced);
+  const animate = run && !reduced;
+  const [frame, setFrame] = useState({ value: 0, done: false });
   useEffect(() => {
-    if (!run || reduced) {
-      setValue(target);
-      setDone(true);
-      return;
-    }
+    if (!animate) return;
     const start = performance.now();
-    let frame = 0;
+    let id = 0;
     const step = (now: number) => {
       const p = Math.min(1, (now - start) / 400);
-      setValue(Math.round(target * (1 - (1 - p) * (1 - p))));
-      if (p < 1) frame = requestAnimationFrame(step);
-      else setDone(true);
+      setFrame({ value: Math.round(target * (1 - (1 - p) * (1 - p))), done: p >= 1 });
+      if (p < 1) id = requestAnimationFrame(step);
     };
-    frame = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(frame);
-  }, [run, reduced, target]);
-  return { value, done };
+    id = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(id);
+  }, [animate, target]);
+  return animate ? frame : { value: target, done: true };
 }

@@ -14,6 +14,12 @@ export const E2E_DIR = join(ROOT, '.e2e');
 
 const children: ChildProcess[] = [];
 
+/** argv for parseArgs, without the `--` that `pnpm <script> -- --flag` forwards verbatim. */
+export const cliArgs = (): string[] => {
+  const args = process.argv.slice(2);
+  return args[0] === '--' ? args.slice(1) : args;
+};
+
 export interface WaitOptions {
   timeoutMs?: number;
   everyMs?: number;

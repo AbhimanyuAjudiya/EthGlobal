@@ -8,6 +8,7 @@ import type { AgentPolicyView, MeResponse, ReceiptPublic, TopUpPolicyWire } from
 import { AGENT_POLICY_TYPES, canonicalJson, rechargeDomain } from '@ethglobal/protocol/typed-data';
 import { Button, Hash } from '@ethglobal/ui/components';
 
+import { AppHeader, Screen, TabBar, WalletButton } from './Shell';
 import { useLang } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
@@ -17,7 +18,6 @@ import { usePlans, useWallet } from '../lib/hooks';
 import { plans as store } from '../lib/store';
 import { isUserRejection } from '../lib/wallet';
 
-import { AppHeader, Screen, TabBar, WalletButton } from './Shell';
 
 const CAPS_USD = [1, 5, 10, 25];
 const USD6 = 1_000_000;
@@ -73,7 +73,7 @@ export function AgentSheet() {
           types: AGENT_POLICY_TYPES,
           primaryType: 'AgentPolicy',
           message: { entitlementKey: key, owner: wallet.address, policyHash, issuedAt: BigInt(issuedAt) },
-        } as never);
+        });
         setStatus('saving');
         const saved = await api.putAgentPolicy({
           entitlementKey: key,

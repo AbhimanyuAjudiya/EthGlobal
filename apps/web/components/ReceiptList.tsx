@@ -5,13 +5,13 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ReceiptPublic } from '@ethglobal/protocol/schemas';
 import { Hash, Receipt } from '@ethglobal/ui/components';
 
+import { AppHeader, Screen, TabBar } from './Shell';
 import { useLang } from '../i18n/lang';
 import { api } from '../lib/api';
 import { explorerName, explorerTemplate, networkName } from '../lib/env';
 import { clockIst, dayLabel, formatMb, money } from '../lib/format';
 import { plans } from '../lib/store';
 
-import { AppHeader, Screen, TabBar } from './Shell';
 
 const SPONSORED = new Set(['claim', 'card-redeem']);
 

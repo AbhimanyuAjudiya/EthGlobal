@@ -114,7 +114,7 @@ export async function connect(
     address,
     chainId,
     network: caip2(chainId),
-    signTypedData: (td) => client.signTypedData({ ...td, account: address } as never),
+    signTypedData: (td) => client.signTypedData({ ...td, account: address }),
     sendTransaction: ({ to, data }) =>
       client.sendTransaction({ account: address, to, data, chain: null } as never),
     reader: readerFor(provider),

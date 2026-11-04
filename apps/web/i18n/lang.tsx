@@ -50,7 +50,7 @@ const LangContext = createContext<LangValue>({
 });
 
 export function LangProvider({ children }: { children: ReactNode }) {
-  const lang = useSyncExternalStore(subscribe, readLang, () => 'en' as Lang);
+  const lang = useSyncExternalStore(subscribe, readLang, () => 'en');
   const translate = useCallback((key: StringKey, params?: Params) => t(key, params, lang), [lang]);
   const value = useMemo(() => ({ lang, setLang: writeLang, t: translate }), [lang, translate]);
   return <LangContext.Provider value={value}>{children}</LangContext.Provider>;

@@ -6,14 +6,14 @@ import { useEffect, useState } from 'react';
 import type { PlansResponse } from '@ethglobal/protocol/schemas';
 import { Coupon } from '@ethglobal/ui/components';
 
+import { captureInstallPrompt } from './AddToHomeScreen';
+import { AppHeader } from './Shell';
 import { useLang } from '../i18n/lang';
 import { parseDevice } from '../lib/device';
 import { clockIst, formatMb, money, priceFor } from '../lib/format';
 import { usePlans } from '../lib/hooks';
 import { get, set } from '../lib/store';
 
-import { captureInstallPrompt } from './AddToHomeScreen';
-import { AppHeader } from './Shell';
 
 const enIN = new Intl.NumberFormat('en-IN');
 

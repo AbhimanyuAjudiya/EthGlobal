@@ -39,6 +39,7 @@ import { isValidPin } from '@ethglobal/protocol/pin';
 import type { EntitledResponse, GiftResponse, TopUpPolicyWire } from '@ethglobal/protocol/schemas';
 import { SESSION_PUBKEY_HEADER } from '@ethglobal/protocol/x402';
 
+import { cliArgs } from './lib/harness.js';
 import {
   anvilAddresses,
   apiClient,
@@ -101,6 +102,7 @@ export interface SeedState {
 }
 
 const { values: flags } = parseArgs({
+  args: cliArgs(),
   options: {
     reset: { type: 'boolean', default: false },
     fixtures: { type: 'boolean', default: false },

@@ -18,7 +18,7 @@ function enabled(): string | undefined {
   return mnemonic && mnemonic.split(' ').length >= 12 ? mnemonic : undefined;
 }
 
-type Field = { name: string; type: string };
+interface Field { name: string; type: string }
 
 /** JSON typed data → viem values: (u)int fields back to bigint, recursively through struct types. */
 function revive(types: Record<string, Field[]>, type: string, value: unknown): unknown {
@@ -46,7 +46,8 @@ export async function POST(request: Request) {
   const transport = http(rpc);
   const params = Array.isArray(body.params) ? body.params : [];
   try {
-    switch (body.method) {
+    const method = body.method ?? '';
+    switch (method) {
       case 'eth_requestAccounts':
       case 'eth_accounts':
         return Response.json({ result: [account.address] });
@@ -59,13 +60,13 @@ export async function POST(request: Request) {
         if (from.toLowerCase() !== account.address.toLowerCase()) throw new Error('wrong account');
         const typed = JSON.parse(json) as TypedDataDefinition & { types: Record<string, Field[]> };
         const { EIP712Domain: _domain, ...types } = typed.types;
-        const message = revive(types, typed.primaryType as string, typed.message);
+        const message = revive(types, typed.primaryType, typed.message);
         const signature = await account.signTypedData({
           domain: typed.domain ?? {},
           types,
-          primaryType: typed.primaryType as string,
+          primaryType: typed.primaryType,
           message: message as Record<string, unknown>,
-        } as never);
+        });
         return Response.json({ result: signature });
       }
       case 'eth_sendTransaction': {
@@ -83,7 +84,7 @@ export async function POST(request: Request) {
       default: {
         // reads go straight to the local node
         const result = await createPublicClient({ transport }).request({
-          method: body.method as never,
+          method: method as never,
           params: params as never,
         });
         return Response.json({ result });

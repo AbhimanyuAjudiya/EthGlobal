@@ -67,7 +67,9 @@ export async function dump(): Promise<Record<string, unknown>> {
   try {
     const keys = await run<IDBValidKey[]>('readonly', (s) => s.getAllKeys());
     const values = await run<unknown[]>('readonly', (s) => s.getAll());
-    return Object.fromEntries(keys.map((k, i) => [String(k), values[i]]));
+    return Object.fromEntries(
+      keys.map((k, i) => [typeof k === 'string' ? k : JSON.stringify(k), values[i]]),
+    );
   } catch {
     return Object.fromEntries(memory);
   }

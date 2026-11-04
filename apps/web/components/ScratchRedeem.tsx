@@ -7,6 +7,8 @@ import { isValidPin } from '@ethglobal/protocol/pin';
 import type { CardPreview } from '@ethglobal/protocol/schemas';
 import { Button, Coupon, Field, ScratchCard } from '@ethglobal/ui/components';
 
+import { renderQr } from './QrCode';
+import { AppHeader, Screen } from './Shell';
 import { useLang } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
@@ -14,8 +16,6 @@ import { planHref } from '../lib/deliver';
 import { dayLabel, formatMb } from '../lib/format';
 import { redeemPin } from '../lib/redeem';
 
-import { renderQr } from './QrCode';
-import { AppHeader, Screen } from './Shell';
 
 /**
  * `/card/[serial]` (and `/card`): preview (GET is read-only, T-47) → type the PIN from under the latex →

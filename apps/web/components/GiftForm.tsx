@@ -7,6 +7,10 @@ import { GIFT_RECLAIM_WINDOW_S } from '@ethglobal/protocol/ids';
 import type { GiftResponse } from '@ethglobal/protocol/schemas';
 import { BoardingPass, Button, Field, Hash } from '@ethglobal/ui/components';
 
+import { ActionView } from './ActionView';
+import { renderQr } from './QrCode';
+import { saveCardPng } from './save-card';
+import { WalletButton } from './Shell';
 import { useLang } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
@@ -18,10 +22,6 @@ import { get, set } from '../lib/store';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
 import { isUserRejection } from '../lib/wallet';
 
-import { ActionView } from './ActionView';
-import { renderQr } from './QrCode';
-import { saveCardPng } from './save-card';
-import { WalletButton } from './Shell';
 
 const SIZES_MB = [300, 1000, 3000];
 type Resolution = 'idle' | 'resolving' | 'resolves' | 'unresolved' | 'error';

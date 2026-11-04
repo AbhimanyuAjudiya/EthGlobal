@@ -27,7 +27,7 @@ import { encode } from 'uqr';
 import { randomBytes } from '@ethglobal/crypto';
 import { generatePin } from '@ethglobal/protocol/pin';
 
-import { answers, ROOT, startWeb, stopAll } from './lib/harness.js';
+import { answers, cliArgs, ROOT, startWeb, stopAll } from './lib/harness.js';
 
 interface Card {
   serial: string;
@@ -37,6 +37,7 @@ interface Card {
 
 const FALLBACK_MAX = 20;
 const { values: flags } = parseArgs({
+  args: cliArgs(),
   options: {
     input: { type: 'string' },
     count: { type: 'string' },

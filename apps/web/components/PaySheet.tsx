@@ -17,6 +17,8 @@ import { formatUsd6 } from '@ethglobal/protocol/units';
 import { sessionNonce } from '@ethglobal/protocol/x402';
 import { MbMeter, RuledList } from '@ethglobal/ui/components';
 
+import { ActionView } from './ActionView';
+import { AppHeader, Screen, TabBar, WalletButton } from './Shell';
 import { useLang } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
@@ -37,8 +39,6 @@ import { beginSession } from '../lib/session-key';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
 import { isUserRejection } from '../lib/wallet';
 
-import { ActionView } from './ActionView';
-import { AppHeader, Screen, TabBar, WalletButton } from './Shell';
 
 const BALANCE_ABI = parseAbi(['function balanceOf(address) view returns (uint256)']);
 const SIZES = [100, 200, 300];

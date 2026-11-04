@@ -5,16 +5,16 @@ import { useCallback, useEffect, useState } from 'react';
 import type { MeResponse } from '@ethglobal/protocol/schemas';
 import { Button, Icon } from '@ethglobal/ui/components';
 
+import { QrCode } from './QrCode';
+import { AppHeader, Screen, TabBar } from './Shell';
 import { useLang } from '../i18n/lang';
 import { api } from '../lib/api';
-import { config } from '../lib/env';
 import { parseDevice, type DeviceInfo } from '../lib/device';
+import { config } from '../lib/env';
 import { formatMb } from '../lib/format';
 import { ANDROID_EUICC_INTENT, iosUniversalLink, isLpa, splitLpa } from '../lib/lpa-links';
 import { plans } from '../lib/store';
 
-import { QrCode } from './QrCode';
-import { AppHeader, Screen, TabBar } from './Shell';
 
 const SECOND_DEVICE_MS = 60_000;
 const TROUBLE_AFTER_MS = 3 * 60_000;

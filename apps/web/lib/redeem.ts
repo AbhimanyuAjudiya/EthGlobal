@@ -6,7 +6,6 @@
 import { namehash, type Address } from 'viem';
 
 import type { Hex } from '@ethglobal/protocol/ids';
-import type { EntitledResponse } from '@ethglobal/protocol/schemas';
 import { GIFT_CLAIM_TYPES, GIFT_RECLAIM_TYPES, rechargeDomain } from '@ethglobal/protocol/typed-data';
 
 import { api } from './api';
@@ -23,7 +22,7 @@ export async function redeemPin(pin: string, route: '/card/redeem' | '/gift/clai
     route === '/card/redeem'
       ? await api.redeemCard({ pin, challenge, sessionPubKey: spk })
       : await api.giftClaim({ pin, challenge, sessionPubKey: spk });
-  return deliver(res.data as EntitledResponse, challenge.nonce as Hex, { you: '$0.00' });
+  return deliver(res.data, challenge.nonce as Hex, { you: '$0.00' });
 }
 
 export async function claimGiftBySignature(wallet: Wallet, giftId: Hex, name: string): Promise<string> {
@@ -38,9 +37,9 @@ export async function claimGiftBySignature(wallet: Wallet, giftId: Hex, name: st
       namehash: namehash(name),
       recipient: wallet.address,
       audience: 'recharge',
-      nonce: challenge.nonce as Hex,
+      nonce: challenge.nonce,
     },
-  } as never);
+  });
   const res = await api.giftClaim({
     giftId,
     signature,
@@ -48,7 +47,7 @@ export async function claimGiftBySignature(wallet: Wallet, giftId: Hex, name: st
     challenge,
     sessionPubKey: spk,
   });
-  return deliver(res.data as EntitledResponse, challenge.nonce as Hex, { you: '$0.00' });
+  return deliver(res.data, challenge.nonce as Hex, { you: '$0.00' });
 }
 
 /** The /gift/reclaim challenge "session key" is the payer address left-padded to 32 bytes (api README #4). */
@@ -61,7 +60,7 @@ export async function reclaimGift(wallet: Wallet, giftId: Hex) {
     domain: rechargeDomain(config.chainId),
     types: GIFT_RECLAIM_TYPES,
     primaryType: 'GiftReclaim',
-    message: { giftId, payer: wallet.address, nonce: challenge.nonce as Hex },
-  } as never);
+    message: { giftId, payer: wallet.address, nonce: challenge.nonce },
+  });
   return (await api.giftReclaim({ giftId, payer: wallet.address, signature, challenge })).data;
 }

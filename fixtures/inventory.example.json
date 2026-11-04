@@ -1,0 +1,31 @@
+{
+  "name": "inventory example (plaintext shape of fixtures/inventory.enc)",
+  "source": "docs",
+  "note": "fixtures/inventory.enc = sealInventory(entries, INVENTORY_SEAL_KEY) — sealToServer(key, JSON.stringify(entries), 'recharge/inventory/v1'). The real file is git-ignored and never holds an LPA in clear; this example uses LPA:1$local.test$… only. planId is the primary reseller's packageCode (FallbackReseller).",
+  "entries": [
+    {
+      "iccid": "8991000000000000001",
+      "lpa": "LPA:1$local.test$INVENTORY0001",
+      "planId": "P-IN-1G-7D",
+      "dataMb": 1073,
+      "validityDays": 7,
+      "wholesaleUsd6": "1140000"
+    },
+    {
+      "iccid": "8991000000000000002",
+      "lpa": "LPA:1$local.test$INVENTORY0002",
+      "planId": "P-IN-1G-7D",
+      "dataMb": 1073,
+      "validityDays": 7,
+      "wholesaleUsd6": "1140000"
+    },
+    {
+      "iccid": "8991000000000000003",
+      "lpa": "LPA:1$local.test$INVENTORY0003",
+      "planId": "P-IN-3G-30D",
+      "dataMb": 3221,
+      "validityDays": 30,
+      "wholesaleUsd6": "2700000"
+    }
+  ]
+}

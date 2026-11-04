@@ -3,8 +3,9 @@
  * with `fixtureProof(level, SUITE_SIGNAL, seed)` for the seeds below; the live subject replays a recording of
  * exactly those proofs (fixtures/world/contract-suite.json).
  */
-import { WORLD_ACTION } from '@ethglobal/protocol/ids';
 import { describe, expect, it } from 'vitest';
+
+import { WORLD_ACTION } from '@ethglobal/protocol/ids';
 
 import { fixtureProof } from '../builders.js';
 
@@ -18,7 +19,10 @@ export const suiteProofs = {
   document: fixtureProof('document', SUITE_SIGNAL, 'suite-document'),
   device: fixtureProof('device', SUITE_SIGNAL, 'suite-device'),
   otherSignal: fixtureProof('orb', OTHER_SIGNAL, 'suite-other-signal'),
-  staging: { ...fixtureProof('orb', SUITE_SIGNAL, 'suite-staging'), environment: 'staging' } as PersonhoodProof,
+  staging: {
+    ...fixtureProof('orb', SUITE_SIGNAL, 'suite-staging'),
+    environment: 'staging',
+  } as PersonhoodProof,
 } as const;
 
 export function describePersonhood(name: string, make: () => Promise<Personhood>): void {
@@ -30,7 +34,9 @@ export function describePersonhood(name: string, make: () => Promise<Personhood>
       const result = await personhood.verify(suiteProofs.orb, context);
       expect(result.level).toBe('orb');
       expect(result.nullifierHash).toMatch(/^0x[0-9a-f]{64}$/);
-      await expect(personhood.verify(suiteProofs.orb, context)).rejects.toMatchObject({ code: 'already_verified' });
+      await expect(personhood.verify(suiteProofs.orb, context)).rejects.toMatchObject({
+        code: 'already_verified',
+      });
     });
 
     it('document (passport) and legacy device credentials map through the one identifier table', async () => {
@@ -38,7 +44,9 @@ export function describePersonhood(name: string, make: () => Promise<Personhood>
       await expect(personhood.verify(suiteProofs.document, context)).resolves.toMatchObject({
         level: 'secure_document',
       });
-      await expect(personhood.verify(suiteProofs.device, context)).resolves.toMatchObject({ level: 'device' });
+      await expect(personhood.verify(suiteProofs.device, context)).resolves.toMatchObject({
+        level: 'device',
+      });
     });
 
     it('a proof bound to another signal is rejected (O2, T-19)', async () => {
@@ -50,7 +58,9 @@ export function describePersonhood(name: string, make: () => Promise<Personhood>
 
     it('a staging (simulator) proof is rejected in production (T-80)', async () => {
       const personhood = await make();
-      await expect(personhood.verify(suiteProofs.staging, context)).rejects.toMatchObject({ code: 'invalid_proof' });
+      await expect(personhood.verify(suiteProofs.staging, context)).rejects.toMatchObject({
+        code: 'invalid_proof',
+      });
     });
 
     it('malformed input and a session result never reach success', async () => {
@@ -62,7 +72,9 @@ export function describePersonhood(name: string, make: () => Promise<Personhood>
         { ...suiteProofs.orb, protocol_version: '2.0' },
       ] as unknown as PersonhoodProof[];
       for (const proof of bad) {
-        await expect(personhood.verify(proof, context)).rejects.toMatchObject({ code: 'invalid_proof' });
+        await expect(personhood.verify(proof, context)).rejects.toMatchObject({
+          code: 'invalid_proof',
+        });
       }
     });
   });

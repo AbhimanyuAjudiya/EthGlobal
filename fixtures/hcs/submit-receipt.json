@@ -1,0 +1,15 @@
+{
+  "name": "TopicMessageSubmitTransaction receipt + record",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "note": "[verify Wed] authored from hedera-docs@836b856 openapi.yaml (topics/{id}/messages) and @hiero-ledger/sdk 2.90.1 TransactionReceipt; re-record against HCS_TOPIC_ID.",
+  "receipt": {
+    "status": "SUCCESS",
+    "topicSequenceNumber": "3",
+    "topicRunningHashVersion": "3"
+  },
+  "record": {
+    "consensusTimestamp": "1793707203.000000003"
+  },
+  "transactionId": "0.0.6006@1793707195.000000000"
+}

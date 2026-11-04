@@ -1,0 +1,5039 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Recharge API",
+    "version": "0.0.0",
+    "description": "services/api — INTERFACES §7. Generated from @ethglobal/protocol/schemas."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8787"
+    }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "Liveness and chain id",
+        "operationId": "getHealthz",
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": ["local", "live"]
+                    },
+                    "chainId": {
+                      "type": "number"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["ok", "mode"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "503",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": ["local", "live"]
+                    },
+                    "chainId": {
+                      "type": "number"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["ok", "mode"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/plans": {
+      "get": {
+        "summary": "Campaign, paid terms and gift sizes (cached 60 s)",
+        "operationId": "getPlans",
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mode": {
+                      "type": "string",
+                      "enum": ["local", "live"]
+                    },
+                    "campaign": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "pattern": "^0x[0-9a-fA-F]{64}$"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "sponsor": {
+                              "type": "string",
+                              "pattern": "^0x[0-9a-fA-F]{40}$"
+                            },
+                            "bundleMb": {
+                              "type": "object",
+                              "properties": {
+                                "orb": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 1000000
+                                },
+                                "document": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 1000000
+                                },
+                                "device": {
+                                  "type": "number",
+                                  "const": 0
+                                }
+                              },
+                              "required": ["orb", "document", "device"],
+                              "additionalProperties": false
+                            },
+                            "remainingClaims": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "maxClaims": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            "paused": {
+                              "type": "boolean"
+                            },
+                            "expiresAt": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "network": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "sponsor",
+                            "bundleMb",
+                            "remainingClaims",
+                            "maxClaims",
+                            "paused",
+                            "expiresAt",
+                            "network"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "paid": {
+                      "type": "object",
+                      "properties": {
+                        "stepMb": {
+                          "type": "number",
+                          "const": 100
+                        },
+                        "priceUsd6PerStep": {
+                          "type": "string",
+                          "pattern": "^\\d{1,30}$"
+                        },
+                        "validityDays": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "accepts": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "scheme": {
+                                "type": "string",
+                                "const": "exact"
+                              },
+                              "network": {
+                                "type": "string",
+                                "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                              },
+                              "asset": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 64
+                              },
+                              "payTo": {
+                                "type": "string",
+                                "maxLength": 64
+                              },
+                              "maxTimeoutSeconds": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0,
+                                "maximum": 3600
+                              },
+                              "extra": {
+                                "type": "object",
+                                "propertyNames": {
+                                  "type": "string"
+                                },
+                                "additionalProperties": {}
+                              }
+                            },
+                            "required": [
+                              "scheme",
+                              "network",
+                              "asset",
+                              "payTo",
+                              "maxTimeoutSeconds"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": ["stepMb", "priceUsd6PerStep", "validityDays", "accepts"],
+                      "additionalProperties": false
+                    },
+                    "gift": {
+                      "type": "object",
+                      "properties": {
+                        "sizesMb": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1000000
+                          }
+                        },
+                        "claimWindowS": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": ["sizesMb", "claimWindowS"],
+                      "additionalProperties": false
+                    },
+                    "simulated": {
+                      "type": "object",
+                      "properties": {
+                        "usage": {
+                          "type": "boolean"
+                        },
+                        "personhood": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": ["usage", "personhood"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["mode", "campaign", "paid", "gift", "simulated"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/challenge": {
+      "post": {
+        "summary": "MAC-bound one-shot challenge (no ledger write)",
+        "operationId": "postChallenge",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "audience": {
+                    "type": "string",
+                    "const": "recharge"
+                  },
+                  "path": {
+                    "type": "string",
+                    "enum": ["/claim", "/gift/claim", "/gift/reclaim", "/card/redeem"]
+                  },
+                  "sessionPubKey": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{64}$"
+                  }
+                },
+                "required": ["audience", "path", "sessionPubKey"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "nonce": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-fA-F]{64}$"
+                    },
+                    "audience": {
+                      "type": "string",
+                      "const": "recharge"
+                    },
+                    "path": {
+                      "type": "string",
+                      "enum": ["/claim", "/gift/claim", "/gift/reclaim", "/card/redeem"]
+                    },
+                    "exp": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "signal": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-fA-F]{64}$"
+                    }
+                  },
+                  "required": ["nonce", "audience", "path", "exp", "signal"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/world/rp-context": {
+      "post": {
+        "summary": "Backend-signed IDKit 4 rp_context",
+        "operationId": "postWorldRpContext",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "audience": {
+                    "type": "string",
+                    "const": "recharge"
+                  },
+                  "path": {
+                    "type": "string",
+                    "enum": ["/claim", "/gift/claim", "/gift/reclaim", "/card/redeem"]
+                  }
+                },
+                "required": ["audience", "path"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rp_id": {
+                      "type": "string",
+                      "pattern": "^(rp|app)_[A-Za-z0-9]{1,64}$"
+                    },
+                    "nonce": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-fA-F]*$"
+                    },
+                    "created_at": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "expires_at": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "signature": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-fA-F]*$"
+                    },
+                    "app_id": {
+                      "type": "string",
+                      "maxLength": 80
+                    },
+                    "action": {
+                      "type": "string",
+                      "maxLength": 64
+                    },
+                    "environment": {
+                      "type": "string",
+                      "enum": ["production", "staging"]
+                    }
+                  },
+                  "required": [
+                    "rp_id",
+                    "nonce",
+                    "created_at",
+                    "expires_at",
+                    "signature",
+                    "app_id",
+                    "action",
+                    "environment"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/claim": {
+      "post": {
+        "summary": "Free welcome bundle for a verified human",
+        "operationId": "postClaim",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "proof": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "protocol_version": {
+                            "type": "string",
+                            "const": "4.0"
+                          },
+                          "nonce": {
+                            "type": "string",
+                            "maxLength": 80
+                          },
+                          "action": {
+                            "type": "string",
+                            "maxLength": 64
+                          },
+                          "environment": {
+                            "type": "string",
+                            "maxLength": 16
+                          },
+                          "responses": {
+                            "minItems": 1,
+                            "maxItems": 4,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "identifier": {
+                                  "type": "string",
+                                  "maxLength": 32
+                                },
+                                "issuer_schema_id": {
+                                  "type": "integer",
+                                  "minimum": -9007199254740991,
+                                  "maximum": 9007199254740991
+                                },
+                                "nullifier": {
+                                  "type": "string",
+                                  "pattern": "^\\d{1,78}$"
+                                },
+                                "expires_at_min": {
+                                  "type": "integer",
+                                  "minimum": -9007199254740991,
+                                  "maximum": 9007199254740991
+                                },
+                                "proof": {
+                                  "minItems": 5,
+                                  "maxItems": 5,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "pattern": "^(0x[0-9a-fA-F]{1,64}|\\d{1,78})$"
+                                  }
+                                },
+                                "signal_hash": {
+                                  "type": "string",
+                                  "pattern": "^0x[0-9a-fA-F]*$"
+                                },
+                                "sybil_score": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": ["identifier", "nullifier", "proof", "signal_hash"],
+                              "additionalProperties": {}
+                            }
+                          }
+                        },
+                        "required": ["protocol_version", "nonce", "action", "responses"],
+                        "additionalProperties": {}
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "protocol_version": {
+                            "type": "string",
+                            "const": "3.0"
+                          },
+                          "nonce": {
+                            "type": "string",
+                            "maxLength": 80
+                          },
+                          "action": {
+                            "type": "string",
+                            "maxLength": 64
+                          },
+                          "responses": {
+                            "minItems": 1,
+                            "maxItems": 4,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "identifier": {
+                                  "type": "string",
+                                  "maxLength": 32
+                                },
+                                "merkle_root": {
+                                  "type": "string",
+                                  "pattern": "^0x[0-9a-fA-F]*$"
+                                },
+                                "nullifier": {
+                                  "type": "string",
+                                  "maxLength": 80
+                                },
+                                "proof": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "pattern": "^0x[0-9a-fA-F]*$"
+                                    },
+                                    {
+                                      "maxItems": 8,
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string",
+                                        "pattern": "^0x[0-9a-fA-F]*$"
+                                      }
+                                    }
+                                  ]
+                                },
+                                "signal_hash": {
+                                  "type": "string",
+                                  "pattern": "^0x[0-9a-fA-F]*$"
+                                },
+                                "max_age": {
+                                  "type": "integer",
+                                  "minimum": -9007199254740991,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "identifier",
+                                "merkle_root",
+                                "nullifier",
+                                "proof",
+                                "signal_hash"
+                              ],
+                              "additionalProperties": {}
+                            }
+                          }
+                        },
+                        "required": ["protocol_version", "nonce", "action", "responses"],
+                        "additionalProperties": {}
+                      }
+                    ]
+                  },
+                  "campaignId": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{64}$"
+                  },
+                  "challenge": {
+                    "type": "object",
+                    "properties": {
+                      "nonce": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{64}$"
+                      },
+                      "audience": {
+                        "type": "string",
+                        "const": "recharge"
+                      },
+                      "path": {
+                        "type": "string",
+                        "enum": ["/claim", "/gift/claim", "/gift/reclaim", "/card/redeem"]
+                      },
+                      "exp": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "signal": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{64}$"
+                      }
+                    },
+                    "required": ["nonce", "audience", "path", "exp", "signal"]
+                  },
+                  "sessionPubKey": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{64}$"
+                  }
+                },
+                "required": ["proof", "campaignId", "challenge", "sessionPubKey"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "201",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entitlementKey": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": ["free", "paid", "gift", "card"]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["pending-profile", "ready", "installed", "active"]
+                    },
+                    "tier": {
+                      "type": "string",
+                      "enum": ["orb", "document", "device", "none"]
+                    },
+                    "mbTotal": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1000000
+                    },
+                    "expiresAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "validityDays": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "sealedLpa": {
+                      "type": "object",
+                      "properties": {
+                        "v": {
+                          "type": "number",
+                          "const": 1
+                        },
+                        "epk": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]{64}$"
+                        },
+                        "nonce": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]{48}$"
+                        },
+                        "ct": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]*$"
+                        }
+                      },
+                      "required": ["v", "epk", "nonce", "ct"],
+                      "additionalProperties": false
+                    },
+                    "claimTx": {
+                      "type": "string"
+                    },
+                    "settlement": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "success": {
+                              "type": "boolean",
+                              "const": true
+                            },
+                            "transaction": {
+                              "type": "string",
+                              "minLength": 10,
+                              "maxLength": 128
+                            },
+                            "network": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                            },
+                            "payer": {
+                              "type": "string",
+                              "maxLength": 64
+                            }
+                          },
+                          "required": ["success", "transaction", "network", "payer"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "success": {
+                              "type": "boolean",
+                              "const": false
+                            },
+                            "errorReason": {
+                              "type": "string",
+                              "maxLength": 80
+                            },
+                            "network": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                            },
+                            "transaction": {
+                              "type": "string",
+                              "maxLength": 128
+                            },
+                            "payer": {
+                              "type": "string",
+                              "maxLength": 64
+                            }
+                          },
+                          "required": ["success", "errorReason", "network"],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "receipt": {
+                      "type": "object",
+                      "properties": {
+                        "arkivKey": {
+                          "type": "string"
+                        },
+                        "hcs": {
+                          "type": "object",
+                          "properties": {
+                            "topic": {
+                              "type": "string"
+                            },
+                            "sequence": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": ["topic", "sequence"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": ["arkivKey"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "entitlementKey",
+                    "kind",
+                    "status",
+                    "tier",
+                    "mbTotal",
+                    "expiresAt",
+                    "validityDays",
+                    "receipt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "202",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entitlementKey": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": ["free", "paid", "gift", "card"]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["pending-profile", "ready", "installed", "active"]
+                    },
+                    "tier": {
+                      "type": "string",
+                      "enum": ["orb", "document", "device", "none"]
+                    },
+                    "mbTotal": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1000000
+                    },
+                    "expiresAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "validityDays": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "sealedLpa": {
+                      "type": "object",
+                      "properties": {
+                        "v": {
+                          "type": "number",
+                          "const": 1
+                        },
+                        "epk": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]{64}$"
+                        },
+                        "nonce": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]{48}$"
+                        },
+                        "ct": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]*$"
+                        }
+                      },
+                      "required": ["v", "epk", "nonce", "ct"],
+                      "additionalProperties": false
+                    },
+                    "claimTx": {
+                      "type": "string"
+                    },
+                    "settlement": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "success": {
+                              "type": "boolean",
+                              "const": true
+                            },
+                            "transaction": {
+                              "type": "string",
+                              "minLength": 10,
+                              "maxLength": 128
+                            },
+                            "network": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                            },
+                            "payer": {
+                              "type": "string",
+                              "maxLength": 64
+                            }
+                          },
+                          "required": ["success", "transaction", "network", "payer"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "success": {
+                              "type": "boolean",
+                              "const": false
+                            },
+                            "errorReason": {
+                              "type": "string",
+                              "maxLength": 80
+                            },
+                            "network": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                            },
+                            "transaction": {
+                              "type": "string",
+                              "maxLength": 128
+                            },
+                            "payer": {
+                              "type": "string",
+                              "maxLength": 64
+                            }
+                          },
+                          "required": ["success", "errorReason", "network"],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "receipt": {
+                      "type": "object",
+                      "properties": {
+                        "arkivKey": {
+                          "type": "string"
+                        },
+                        "hcs": {
+                          "type": "object",
+                          "properties": {
+                            "topic": {
+                              "type": "string"
+                            },
+                            "sequence": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": ["topic", "sequence"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": ["arkivKey"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "entitlementKey",
+                    "kind",
+                    "status",
+                    "tier",
+                    "mbTotal",
+                    "expiresAt",
+                    "validityDays",
+                    "receipt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "402",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "x402Version": {
+                      "type": "number",
+                      "const": 2
+                    },
+                    "resource": {
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "description": {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        "mimeType": {
+                          "type": "string",
+                          "maxLength": 80
+                        }
+                      },
+                      "required": ["url", "description", "mimeType"],
+                      "additionalProperties": false
+                    },
+                    "accepts": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "scheme": {
+                            "type": "string",
+                            "const": "exact"
+                          },
+                          "network": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                          },
+                          "asset": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "amount": {
+                            "type": "string",
+                            "pattern": "^\\d{1,30}$"
+                          },
+                          "payTo": {
+                            "type": "string",
+                            "maxLength": 64
+                          },
+                          "maxTimeoutSeconds": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 3600
+                          },
+                          "extra": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        },
+                        "required": [
+                          "scheme",
+                          "network",
+                          "asset",
+                          "amount",
+                          "payTo",
+                          "maxTimeoutSeconds"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "error": {
+                      "type": "string",
+                      "maxLength": 200
+                    },
+                    "extensions": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": ["x402Version", "resource", "accepts"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "409",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "423": {
+            "description": "423",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "503",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/esim/provision": {
+      "get": {
+        "summary": "Paid eSIM bundle (x402); EIP-3009 nonce = keccak256(X-Session-Pubkey)",
+        "operationId": "getEsimProvision",
+        "parameters": [
+          {
+            "name": "mb",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "planId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "PAYMENT-SIGNATURE",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Session-Pubkey",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "201",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entitlementKey": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": ["free", "paid", "gift", "card"]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["pending-profile", "ready", "installed", "active"]
+                    },
+                    "tier": {
+                      "type": "string",
+                      "enum": ["orb", "document", "device", "none"]
+                    },
+                    "mbTotal": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1000000
+                    },
+                    "expiresAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "validityDays": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "sealedLpa": {
+                      "type": "object",
+                      "properties": {
+                        "v": {
+                          "type": "number",
+                          "const": 1
+                        },
+                        "epk": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]{64}$"
+                        },
+                        "nonce": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]{48}$"
+                        },
+                        "ct": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]*$"
+                        }
+                      },
+                      "required": ["v", "epk", "nonce", "ct"],
+                      "additionalProperties": false
+                    },
+                    "claimTx": {
+                      "type": "string"
+                    },
+                    "settlement": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "success": {
+                              "type": "boolean",
+                              "const": true
+                            },
+                            "transaction": {
+                              "type": "string",
+                              "minLength": 10,
+                              "maxLength": 128
+                            },
+                            "network": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                            },
+                            "payer": {
+                              "type": "string",
+                              "maxLength": 64
+                            }
+                          },
+                          "required": ["success", "transaction", "network", "payer"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "success": {
+                              "type": "boolean",
+                              "const": false
+                            },
+                            "errorReason": {
+                              "type": "string",
+                              "maxLength": 80
+                            },
+                            "network": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                            },
+                            "transaction": {
+                              "type": "string",
+                              "maxLength": 128
+                            },
+                            "payer": {
+                              "type": "string",
+                              "maxLength": 64
+                            }
+                          },
+                          "required": ["success", "errorReason", "network"],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "receipt": {
+                      "type": "object",
+                      "properties": {
+                        "arkivKey": {
+                          "type": "string"
+                        },
+                        "hcs": {
+                          "type": "object",
+                          "properties": {
+                            "topic": {
+                              "type": "string"
+                            },
+                            "sequence": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": ["topic", "sequence"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": ["arkivKey"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "entitlementKey",
+                    "kind",
+                    "status",
+                    "tier",
+                    "mbTotal",
+                    "expiresAt",
+                    "validityDays",
+                    "receipt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "402",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "x402Version": {
+                      "type": "number",
+                      "const": 2
+                    },
+                    "resource": {
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "description": {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        "mimeType": {
+                          "type": "string",
+                          "maxLength": 80
+                        }
+                      },
+                      "required": ["url", "description", "mimeType"],
+                      "additionalProperties": false
+                    },
+                    "accepts": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "scheme": {
+                            "type": "string",
+                            "const": "exact"
+                          },
+                          "network": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                          },
+                          "asset": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "amount": {
+                            "type": "string",
+                            "pattern": "^\\d{1,30}$"
+                          },
+                          "payTo": {
+                            "type": "string",
+                            "maxLength": 64
+                          },
+                          "maxTimeoutSeconds": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 3600
+                          },
+                          "extra": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        },
+                        "required": [
+                          "scheme",
+                          "network",
+                          "asset",
+                          "amount",
+                          "payTo",
+                          "maxTimeoutSeconds"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "error": {
+                      "type": "string",
+                      "maxLength": 200
+                    },
+                    "extensions": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": ["x402Version", "resource", "accepts"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/esim/topup": {
+      "get": {
+        "summary": "Paid top-up of a live entitlement (x402)",
+        "operationId": "getEsimTopup",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "mb",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "PAYMENT-SIGNATURE",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Agent-Uaid",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entitlementKey": {
+                      "type": "string"
+                    },
+                    "mbTotal": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1000000
+                    },
+                    "mbUsed": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1000000
+                    },
+                    "expiresAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "settlement": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "success": {
+                              "type": "boolean",
+                              "const": true
+                            },
+                            "transaction": {
+                              "type": "string",
+                              "minLength": 10,
+                              "maxLength": 128
+                            },
+                            "network": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                            },
+                            "payer": {
+                              "type": "string",
+                              "maxLength": 64
+                            }
+                          },
+                          "required": ["success", "transaction", "network", "payer"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "success": {
+                              "type": "boolean",
+                              "const": false
+                            },
+                            "errorReason": {
+                              "type": "string",
+                              "maxLength": 80
+                            },
+                            "network": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                            },
+                            "transaction": {
+                              "type": "string",
+                              "maxLength": 128
+                            },
+                            "payer": {
+                              "type": "string",
+                              "maxLength": 64
+                            }
+                          },
+                          "required": ["success", "errorReason", "network"],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "receipt": {
+                      "type": "object",
+                      "properties": {
+                        "arkivKey": {
+                          "type": "string"
+                        },
+                        "hcs": {
+                          "type": "object",
+                          "properties": {
+                            "topic": {
+                              "type": "string"
+                            },
+                            "sequence": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": ["topic", "sequence"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": ["arkivKey"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "entitlementKey",
+                    "mbTotal",
+                    "mbUsed",
+                    "expiresAt",
+                    "settlement",
+                    "receipt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "402",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "x402Version": {
+                      "type": "number",
+                      "const": 2
+                    },
+                    "resource": {
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "description": {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        "mimeType": {
+                          "type": "string",
+                          "maxLength": 80
+                        }
+                      },
+                      "required": ["url", "description", "mimeType"],
+                      "additionalProperties": false
+                    },
+                    "accepts": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "scheme": {
+                            "type": "string",
+                            "const": "exact"
+                          },
+                          "network": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                          },
+                          "asset": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "amount": {
+                            "type": "string",
+                            "pattern": "^\\d{1,30}$"
+                          },
+                          "payTo": {
+                            "type": "string",
+                            "maxLength": 64
+                          },
+                          "maxTimeoutSeconds": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 3600
+                          },
+                          "extra": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        },
+                        "required": [
+                          "scheme",
+                          "network",
+                          "asset",
+                          "amount",
+                          "payTo",
+                          "maxTimeoutSeconds"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "error": {
+                      "type": "string",
+                      "maxLength": 200
+                    },
+                    "extensions": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": ["x402Version", "resource", "accepts"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "410",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gift": {
+      "post": {
+        "summary": "Gift data to an ENS name (x402; the name resolves before any 402)",
+        "operationId": "postGift",
+        "parameters": [
+          {
+            "name": "PAYMENT-SIGNATURE",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 255
+                  },
+                  "mb": {
+                    "type": "integer",
+                    "minimum": 100,
+                    "maximum": 3000,
+                    "multipleOf": 100
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80,
+                    "pattern": "^[\\x20-\\x7Eऀ-ॿ]+$"
+                  }
+                },
+                "required": ["name", "mb"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "201",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "giftId": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-fA-F]{64}$"
+                    },
+                    "serial": {
+                      "type": "string"
+                    },
+                    "pin": {
+                      "type": "string",
+                      "pattern": "^\\d{16}$"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-fA-F]{40}$"
+                    },
+                    "mb": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1000000
+                    },
+                    "claimBy": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "settlement": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "success": {
+                              "type": "boolean",
+                              "const": true
+                            },
+                            "transaction": {
+                              "type": "string",
+                              "minLength": 10,
+                              "maxLength": 128
+                            },
+                            "network": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                            },
+                            "payer": {
+                              "type": "string",
+                              "maxLength": 64
+                            }
+                          },
+                          "required": ["success", "transaction", "network", "payer"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "success": {
+                              "type": "boolean",
+                              "const": false
+                            },
+                            "errorReason": {
+                              "type": "string",
+                              "maxLength": 80
+                            },
+                            "network": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                            },
+                            "transaction": {
+                              "type": "string",
+                              "maxLength": 128
+                            },
+                            "payer": {
+                              "type": "string",
+                              "maxLength": 64
+                            }
+                          },
+                          "required": ["success", "errorReason", "network"],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "receipt": {
+                      "type": "object",
+                      "properties": {
+                        "arkivKey": {
+                          "type": "string"
+                        },
+                        "hcs": {
+                          "type": "object",
+                          "properties": {
+                            "topic": {
+                              "type": "string"
+                            },
+                            "sequence": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": ["topic", "sequence"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": ["arkivKey"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "giftId",
+                    "serial",
+                    "pin",
+                    "name",
+                    "to",
+                    "mb",
+                    "claimBy",
+                    "settlement",
+                    "receipt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "402",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "x402Version": {
+                      "type": "number",
+                      "const": 2
+                    },
+                    "resource": {
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "description": {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        "mimeType": {
+                          "type": "string",
+                          "maxLength": 80
+                        }
+                      },
+                      "required": ["url", "description", "mimeType"],
+                      "additionalProperties": false
+                    },
+                    "accepts": {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "scheme": {
+                            "type": "string",
+                            "const": "exact"
+                          },
+                          "network": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                          },
+                          "asset": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "amount": {
+                            "type": "string",
+                            "pattern": "^\\d{1,30}$"
+                          },
+                          "payTo": {
+                            "type": "string",
+                            "maxLength": 64
+                          },
+                          "maxTimeoutSeconds": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 3600
+                          },
+                          "extra": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        },
+                        "required": [
+                          "scheme",
+                          "network",
+                          "asset",
+                          "amount",
+                          "payTo",
+                          "maxTimeoutSeconds"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "error": {
+                      "type": "string",
+                      "maxLength": 200
+                    },
+                    "extensions": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": ["x402Version", "resource", "accepts"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gift/claim": {
+      "post": {
+        "summary": "Claim a gift by EIP-712 GiftClaim or PIN",
+        "operationId": "postGiftClaim",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "giftId": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{64}$"
+                      },
+                      "signature": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]*$"
+                      },
+                      "recipient": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{40}$"
+                      },
+                      "challenge": {
+                        "type": "object",
+                        "properties": {
+                          "nonce": {
+                            "type": "string",
+                            "pattern": "^0x[0-9a-fA-F]{64}$"
+                          },
+                          "audience": {
+                            "type": "string",
+                            "const": "recharge"
+                          },
+                          "path": {
+                            "type": "string",
+                            "enum": ["/claim", "/gift/claim", "/gift/reclaim", "/card/redeem"]
+                          },
+                          "exp": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "signal": {
+                            "type": "string",
+                            "pattern": "^0x[0-9a-fA-F]{64}$"
+                          }
+                        },
+                        "required": ["nonce", "audience", "path", "exp", "signal"]
+                      },
+                      "sessionPubKey": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{64}$"
+                      }
+                    },
+                    "required": ["giftId", "signature", "recipient", "challenge", "sessionPubKey"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "pin": {
+                        "type": "string",
+                        "pattern": "^\\d{16}$"
+                      },
+                      "challenge": {
+                        "type": "object",
+                        "properties": {
+                          "nonce": {
+                            "type": "string",
+                            "pattern": "^0x[0-9a-fA-F]{64}$"
+                          },
+                          "audience": {
+                            "type": "string",
+                            "const": "recharge"
+                          },
+                          "path": {
+                            "type": "string",
+                            "enum": ["/claim", "/gift/claim", "/gift/reclaim", "/card/redeem"]
+                          },
+                          "exp": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "signal": {
+                            "type": "string",
+                            "pattern": "^0x[0-9a-fA-F]{64}$"
+                          }
+                        },
+                        "required": ["nonce", "audience", "path", "exp", "signal"]
+                      },
+                      "sessionPubKey": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{64}$"
+                      }
+                    },
+                    "required": ["pin", "challenge", "sessionPubKey"]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "201",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entitlementKey": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": ["free", "paid", "gift", "card"]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["pending-profile", "ready", "installed", "active"]
+                    },
+                    "tier": {
+                      "type": "string",
+                      "enum": ["orb", "document", "device", "none"]
+                    },
+                    "mbTotal": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1000000
+                    },
+                    "expiresAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "validityDays": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "sealedLpa": {
+                      "type": "object",
+                      "properties": {
+                        "v": {
+                          "type": "number",
+                          "const": 1
+                        },
+                        "epk": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]{64}$"
+                        },
+                        "nonce": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]{48}$"
+                        },
+                        "ct": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]*$"
+                        }
+                      },
+                      "required": ["v", "epk", "nonce", "ct"],
+                      "additionalProperties": false
+                    },
+                    "claimTx": {
+                      "type": "string"
+                    },
+                    "settlement": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "success": {
+                              "type": "boolean",
+                              "const": true
+                            },
+                            "transaction": {
+                              "type": "string",
+                              "minLength": 10,
+                              "maxLength": 128
+                            },
+                            "network": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                            },
+                            "payer": {
+                              "type": "string",
+                              "maxLength": 64
+                            }
+                          },
+                          "required": ["success", "transaction", "network", "payer"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "success": {
+                              "type": "boolean",
+                              "const": false
+                            },
+                            "errorReason": {
+                              "type": "string",
+                              "maxLength": 80
+                            },
+                            "network": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                            },
+                            "transaction": {
+                              "type": "string",
+                              "maxLength": 128
+                            },
+                            "payer": {
+                              "type": "string",
+                              "maxLength": 64
+                            }
+                          },
+                          "required": ["success", "errorReason", "network"],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "receipt": {
+                      "type": "object",
+                      "properties": {
+                        "arkivKey": {
+                          "type": "string"
+                        },
+                        "hcs": {
+                          "type": "object",
+                          "properties": {
+                            "topic": {
+                              "type": "string"
+                            },
+                            "sequence": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": ["topic", "sequence"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": ["arkivKey"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "entitlementKey",
+                    "kind",
+                    "status",
+                    "tier",
+                    "mbTotal",
+                    "expiresAt",
+                    "validityDays",
+                    "receipt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "409",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "410",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gift/reclaim": {
+      "post": {
+        "summary": "Reclaim a lapsed gift (EIP-712 GiftReclaim by the payer)",
+        "operationId": "postGiftReclaim",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "giftId": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{64}$"
+                  },
+                  "payer": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{40}$"
+                  },
+                  "signature": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]*$"
+                  },
+                  "challenge": {
+                    "type": "object",
+                    "properties": {
+                      "nonce": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{64}$"
+                      },
+                      "audience": {
+                        "type": "string",
+                        "const": "recharge"
+                      },
+                      "path": {
+                        "type": "string",
+                        "enum": ["/claim", "/gift/claim", "/gift/reclaim", "/card/redeem"]
+                      },
+                      "exp": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "signal": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{64}$"
+                      }
+                    },
+                    "required": ["nonce", "audience", "path", "exp", "signal"]
+                  }
+                },
+                "required": ["giftId", "payer", "signature", "challenge"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "giftId": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-fA-F]{64}$"
+                    },
+                    "refundedUsd6": {
+                      "type": "string",
+                      "pattern": "^\\d{1,30}$"
+                    },
+                    "feeUsd6": {
+                      "type": "string",
+                      "pattern": "^\\d{1,30}$"
+                    },
+                    "network": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                    },
+                    "tx": {
+                      "type": "string"
+                    },
+                    "receipt": {
+                      "type": "object",
+                      "properties": {
+                        "arkivKey": {
+                          "type": "string"
+                        },
+                        "hcs": {
+                          "type": "object",
+                          "properties": {
+                            "topic": {
+                              "type": "string"
+                            },
+                            "sequence": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": ["topic", "sequence"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": ["arkivKey"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["giftId", "refundedUsd6", "feeUsd6", "network", "tx", "receipt"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "409",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "410",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "503",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/card/{serial}": {
+      "get": {
+        "summary": "Scratch-card preview (read-only)",
+        "operationId": "getCardSerial",
+        "parameters": [
+          {
+            "name": "serial",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "serial": {
+                      "type": "string"
+                    },
+                    "mb": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1000000
+                    },
+                    "sponsorName": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": ["open", "claimed", "expired"]
+                    },
+                    "claimBy": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["serial", "mb", "state", "claimBy"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/card/redeem": {
+      "post": {
+        "summary": "Redeem a scratch card by PIN",
+        "operationId": "postCardRedeem",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pin": {
+                    "type": "string",
+                    "pattern": "^\\d{16}$"
+                  },
+                  "challenge": {
+                    "type": "object",
+                    "properties": {
+                      "nonce": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{64}$"
+                      },
+                      "audience": {
+                        "type": "string",
+                        "const": "recharge"
+                      },
+                      "path": {
+                        "type": "string",
+                        "enum": ["/claim", "/gift/claim", "/gift/reclaim", "/card/redeem"]
+                      },
+                      "exp": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "signal": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{64}$"
+                      }
+                    },
+                    "required": ["nonce", "audience", "path", "exp", "signal"]
+                  },
+                  "sessionPubKey": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{64}$"
+                  }
+                },
+                "required": ["pin", "challenge", "sessionPubKey"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "201",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entitlementKey": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": ["free", "paid", "gift", "card"]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["pending-profile", "ready", "installed", "active"]
+                    },
+                    "tier": {
+                      "type": "string",
+                      "enum": ["orb", "document", "device", "none"]
+                    },
+                    "mbTotal": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1000000
+                    },
+                    "expiresAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "validityDays": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "sealedLpa": {
+                      "type": "object",
+                      "properties": {
+                        "v": {
+                          "type": "number",
+                          "const": 1
+                        },
+                        "epk": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]{64}$"
+                        },
+                        "nonce": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]{48}$"
+                        },
+                        "ct": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]*$"
+                        }
+                      },
+                      "required": ["v", "epk", "nonce", "ct"],
+                      "additionalProperties": false
+                    },
+                    "claimTx": {
+                      "type": "string"
+                    },
+                    "settlement": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "success": {
+                              "type": "boolean",
+                              "const": true
+                            },
+                            "transaction": {
+                              "type": "string",
+                              "minLength": 10,
+                              "maxLength": 128
+                            },
+                            "network": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                            },
+                            "payer": {
+                              "type": "string",
+                              "maxLength": 64
+                            }
+                          },
+                          "required": ["success", "transaction", "network", "payer"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "success": {
+                              "type": "boolean",
+                              "const": false
+                            },
+                            "errorReason": {
+                              "type": "string",
+                              "maxLength": 80
+                            },
+                            "network": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                            },
+                            "transaction": {
+                              "type": "string",
+                              "maxLength": 128
+                            },
+                            "payer": {
+                              "type": "string",
+                              "maxLength": 64
+                            }
+                          },
+                          "required": ["success", "errorReason", "network"],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "receipt": {
+                      "type": "object",
+                      "properties": {
+                        "arkivKey": {
+                          "type": "string"
+                        },
+                        "hcs": {
+                          "type": "object",
+                          "properties": {
+                            "topic": {
+                              "type": "string"
+                            },
+                            "sequence": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": ["topic", "sequence"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": ["arkivKey"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "entitlementKey",
+                    "kind",
+                    "status",
+                    "tier",
+                    "mbTotal",
+                    "expiresAt",
+                    "validityDays",
+                    "receipt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "410",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/reseller/{provider}": {
+      "post": {
+        "summary": "Reseller usage webhook (raw body; mock HMAC or eSIM Access URL token)",
+        "operationId": "postWebhooksResellerProvider",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "204"
+          },
+          "400": {
+            "description": "400",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "409",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/{key}": {
+      "get": {
+        "summary": "Entitlement (60-s cache; ?refresh=1 polls usage)",
+        "operationId": "getMeKey",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entitlementKey": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": ["free", "paid", "gift", "card"]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["pending-profile", "ready", "installed", "active"]
+                    },
+                    "tier": {
+                      "type": "string",
+                      "enum": ["orb", "document", "device", "none"]
+                    },
+                    "campaignId": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-fA-F]{64}$"
+                    },
+                    "sponsorName": {
+                      "type": "string"
+                    },
+                    "mbTotal": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1000000
+                    },
+                    "mbUsed": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1000000
+                    },
+                    "remainingMb": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1000000
+                    },
+                    "usageAsOf": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "usageSource": {
+                      "type": "string",
+                      "enum": ["none", "webhook", "poll", "simulated"]
+                    },
+                    "expiresAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "arkivKey": {
+                      "type": "string"
+                    },
+                    "ledgerReadAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "cached": {
+                      "type": "boolean"
+                    },
+                    "degraded": {
+                      "type": "boolean"
+                    },
+                    "network": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                    }
+                  },
+                  "required": [
+                    "entitlementKey",
+                    "kind",
+                    "status",
+                    "tier",
+                    "mbTotal",
+                    "mbUsed",
+                    "remainingMb",
+                    "usageAsOf",
+                    "usageSource",
+                    "expiresAt",
+                    "arkivKey",
+                    "ledgerReadAt",
+                    "cached",
+                    "degraded"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "410",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/{key}/receipts": {
+      "get": {
+        "summary": "Receipts of an entitlement",
+        "operationId": "getMeKeyReceipts",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "receipts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "v": {
+                            "type": "number",
+                            "const": 1
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "claim",
+                              "provision",
+                              "topup",
+                              "agent-topup",
+                              "gift",
+                              "gift-claim",
+                              "gift-reclaim",
+                              "card-redeem"
+                            ]
+                          },
+                          "campaignId": {
+                            "type": "string",
+                            "pattern": "^0x[0-9a-fA-F]{64}$"
+                          },
+                          "mb": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1000000
+                          },
+                          "usd6": {
+                            "type": "string",
+                            "pattern": "^\\d{1,30}$"
+                          },
+                          "network": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                          },
+                          "tx": {
+                            "type": "string",
+                            "maxLength": 128
+                          },
+                          "payer": {
+                            "type": "string",
+                            "maxLength": 64
+                          },
+                          "uaid": {
+                            "type": "string",
+                            "maxLength": 200
+                          },
+                          "hcs": {
+                            "type": "object",
+                            "properties": {
+                              "topic": {
+                                "type": "string"
+                              },
+                              "sequence": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": ["topic", "sequence"],
+                            "additionalProperties": false
+                          },
+                          "at": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": ["v", "kind", "at"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["receipts"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sponsor": {
+      "post": {
+        "summary": "Register a campaign (EIP-712 SponsorLogin)",
+        "operationId": "postSponsor",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "campaign": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{64}$"
+                      },
+                      "sponsor": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{40}$"
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "pattern": "^[\\x20-\\x7Eऀ-ॿ]+$"
+                      },
+                      "bundleMb": {
+                        "type": "object",
+                        "properties": {
+                          "orb": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 300
+                          },
+                          "document": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 300
+                          },
+                          "device": {
+                            "type": "number",
+                            "const": 0
+                          }
+                        },
+                        "required": ["orb", "document", "device"]
+                      },
+                      "pricePerClaimUsd6": {
+                        "type": "string",
+                        "pattern": "^\\d{1,30}$"
+                      },
+                      "maxClaims": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "claimsPerHour": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "validityDays": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 30
+                      },
+                      "wholesaleUsd6PerGb": {
+                        "type": "string",
+                        "pattern": "^\\d{1,30}$"
+                      },
+                      "idResaleUsd6": {
+                        "type": "string",
+                        "pattern": "^\\d{1,30}$"
+                      },
+                      "planId": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "network": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                      },
+                      "contract": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{40}$"
+                      },
+                      "expiresAt": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "sponsor",
+                      "name",
+                      "bundleMb",
+                      "pricePerClaimUsd6",
+                      "maxClaims",
+                      "claimsPerHour",
+                      "validityDays",
+                      "wholesaleUsd6PerGb",
+                      "idResaleUsd6",
+                      "planId",
+                      "network",
+                      "contract",
+                      "expiresAt"
+                    ]
+                  },
+                  "auth": {
+                    "type": "object",
+                    "properties": {
+                      "issuedAt": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "signature": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]*$"
+                      }
+                    },
+                    "required": ["issuedAt", "signature"]
+                  }
+                },
+                "required": ["campaign", "auth"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "201",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "auditKey": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["id", "auditKey"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sponsor/{id}": {
+      "get": {
+        "summary": "Sponsor dashboard (Authorization: Recharge-Sponsor …)",
+        "operationId": "getSponsorId",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "campaign": {
+                      "type": "object",
+                      "properties": {
+                        "v": {
+                          "type": "number",
+                          "const": 1
+                        },
+                        "id": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]{64}$"
+                        },
+                        "sponsor": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]{40}$"
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64,
+                          "pattern": "^[\\x20-\\x7Eऀ-ॿ]+$"
+                        },
+                        "bundleMb": {
+                          "type": "object",
+                          "properties": {
+                            "orb": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 300
+                            },
+                            "document": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 300
+                            },
+                            "device": {
+                              "type": "number",
+                              "const": 0
+                            }
+                          },
+                          "required": ["orb", "document", "device"],
+                          "additionalProperties": false
+                        },
+                        "pricePerClaimUsd6": {
+                          "type": "string",
+                          "pattern": "^\\d{1,30}$"
+                        },
+                        "maxClaims": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "claimsPerHour": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "validityDays": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 30
+                        },
+                        "wholesaleUsd6PerGb": {
+                          "type": "string",
+                          "pattern": "^\\d{1,30}$"
+                        },
+                        "idResaleUsd6": {
+                          "type": "string",
+                          "pattern": "^\\d{1,30}$"
+                        },
+                        "planId": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "network": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                        },
+                        "contract": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]{40}$"
+                        },
+                        "createdAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "expiresAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "v",
+                        "id",
+                        "sponsor",
+                        "name",
+                        "bundleMb",
+                        "pricePerClaimUsd6",
+                        "maxClaims",
+                        "claimsPerHour",
+                        "validityDays",
+                        "wholesaleUsd6PerGb",
+                        "idResaleUsd6",
+                        "planId",
+                        "network",
+                        "contract",
+                        "createdAt",
+                        "expiresAt"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "chain": {
+                      "type": "object",
+                      "properties": {
+                        "budgetUsd6": {
+                          "type": "string",
+                          "pattern": "^\\d{1,30}$"
+                        },
+                        "spentUsd6": {
+                          "type": "string",
+                          "pattern": "^\\d{1,30}$"
+                        },
+                        "paused": {
+                          "type": "boolean"
+                        },
+                        "claims": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "claimsThisHour": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "hourBucket": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "budgetUsd6",
+                        "spentUsd6",
+                        "paused",
+                        "claims",
+                        "claimsThisHour",
+                        "hourBucket"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "claims": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "at": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "campaignClaimKey": {
+                            "type": "string",
+                            "pattern": "^0x[0-9a-fA-F]{64}$"
+                          },
+                          "tier": {
+                            "type": "string",
+                            "enum": ["orb", "document", "device", "none"]
+                          },
+                          "mb": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1000000
+                          },
+                          "usd6": {
+                            "type": "string",
+                            "pattern": "^\\d{1,30}$"
+                          },
+                          "tx": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["at", "campaignClaimKey", "tier", "mb", "usd6", "status"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "expiring": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "arkivKey": {
+                            "type": "string"
+                          },
+                          "remainingMb": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1000000
+                          },
+                          "expiresAt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "tier": {
+                            "type": "string",
+                            "enum": ["orb", "document", "device", "none"]
+                          }
+                        },
+                        "required": ["arkivKey", "remainingMb", "expiresAt", "tier"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "auditKey": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-fA-F]{64}$"
+                    }
+                  },
+                  "required": ["campaign", "chain", "claims", "expiring"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/policy": {
+      "put": {
+        "summary": "Set the agent top-up policy (EIP-712 AgentPolicy)",
+        "operationId": "putAgentPolicy",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "entitlementKey": {
+                    "type": "string"
+                  },
+                  "owner": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{40}$"
+                  },
+                  "policy": {
+                    "type": "object",
+                    "properties": {
+                      "maxUsd6PerDay": {
+                        "type": "string",
+                        "pattern": "^\\d{1,30}$"
+                      },
+                      "thresholdMb": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1000000
+                      },
+                      "stepMb": {
+                        "type": "integer",
+                        "minimum": 100,
+                        "maximum": 300,
+                        "multipleOf": 100
+                      },
+                      "paused": {
+                        "type": "boolean"
+                      },
+                      "topUpOnExpiry": {
+                        "type": "boolean"
+                      },
+                      "expiryLeadS": {
+                        "type": "integer",
+                        "minimum": 60,
+                        "maximum": 86400
+                      }
+                    },
+                    "required": [
+                      "maxUsd6PerDay",
+                      "thresholdMb",
+                      "stepMb",
+                      "paused",
+                      "topUpOnExpiry",
+                      "expiryLeadS"
+                    ]
+                  },
+                  "issuedAt": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "signature": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]*$"
+                  }
+                },
+                "required": ["entitlementKey", "owner", "policy", "issuedAt", "signature"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "policy": {
+                      "type": "object",
+                      "properties": {
+                        "maxUsd6PerDay": {
+                          "type": "string",
+                          "pattern": "^\\d{1,30}$"
+                        },
+                        "thresholdMb": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 1000000
+                        },
+                        "stepMb": {
+                          "type": "integer",
+                          "minimum": 100,
+                          "maximum": 300,
+                          "multipleOf": 100
+                        },
+                        "paused": {
+                          "type": "boolean"
+                        },
+                        "topUpOnExpiry": {
+                          "type": "boolean"
+                        },
+                        "expiryLeadS": {
+                          "type": "integer",
+                          "minimum": 60,
+                          "maximum": 86400
+                        }
+                      },
+                      "required": [
+                        "maxUsd6PerDay",
+                        "thresholdMb",
+                        "stepMb",
+                        "paused",
+                        "topUpOnExpiry",
+                        "expiryLeadS"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "owner": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-fA-F]{40}$"
+                    },
+                    "spentTodayUsd6": {
+                      "type": "string",
+                      "pattern": "^\\d{1,30}$"
+                    },
+                    "updatedAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "lastTickAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["policy", "owner", "spentTodayUsd6", "updatedAt"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "409",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/policy/{key}": {
+      "get": {
+        "summary": "Read the agent policy",
+        "operationId": "getAgentPolicyKey",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "policy": {
+                      "type": "object",
+                      "properties": {
+                        "maxUsd6PerDay": {
+                          "type": "string",
+                          "pattern": "^\\d{1,30}$"
+                        },
+                        "thresholdMb": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 1000000
+                        },
+                        "stepMb": {
+                          "type": "integer",
+                          "minimum": 100,
+                          "maximum": 300,
+                          "multipleOf": 100
+                        },
+                        "paused": {
+                          "type": "boolean"
+                        },
+                        "topUpOnExpiry": {
+                          "type": "boolean"
+                        },
+                        "expiryLeadS": {
+                          "type": "integer",
+                          "minimum": 60,
+                          "maximum": 86400
+                        }
+                      },
+                      "required": [
+                        "maxUsd6PerDay",
+                        "thresholdMb",
+                        "stepMb",
+                        "paused",
+                        "topUpOnExpiry",
+                        "expiryLeadS"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "owner": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-fA-F]{40}$"
+                    },
+                    "spentTodayUsd6": {
+                      "type": "string",
+                      "pattern": "^\\d{1,30}$"
+                    },
+                    "updatedAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "lastTickAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["policy", "owner", "spentTodayUsd6", "updatedAt"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/facilitator/supported": {
+      "get": {
+        "summary": "x402 facilitator kinds (self-run, EVM exact)",
+        "operationId": "getFacilitatorSupported",
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "kinds": {
+                      "maxItems": 64,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "x402Version": {
+                            "type": "number",
+                            "const": 2
+                          },
+                          "scheme": {
+                            "type": "string",
+                            "maxLength": 32
+                          },
+                          "network": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                          },
+                          "extra": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        },
+                        "required": ["x402Version", "scheme", "network"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "extensions": {
+                      "maxItems": 32,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 64
+                      }
+                    },
+                    "signers": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "maxItems": 16,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 128
+                        }
+                      }
+                    }
+                  },
+                  "required": ["kinds"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/facilitator/verify": {
+      "post": {
+        "summary": "x402 facilitator verify",
+        "operationId": "postFacilitatorVerify",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "x402Version": {
+                    "type": "number",
+                    "const": 2
+                  },
+                  "paymentPayload": {
+                    "type": "object",
+                    "properties": {
+                      "x402Version": {
+                        "type": "number",
+                        "const": 2
+                      },
+                      "resource": {
+                        "type": "object",
+                        "properties": {
+                          "url": {
+                            "type": "string",
+                            "format": "uri"
+                          },
+                          "description": {
+                            "type": "string",
+                            "maxLength": 200
+                          },
+                          "mimeType": {
+                            "type": "string",
+                            "maxLength": 80
+                          }
+                        },
+                        "required": ["url", "description", "mimeType"]
+                      },
+                      "accepted": {
+                        "type": "object",
+                        "properties": {
+                          "scheme": {
+                            "type": "string",
+                            "const": "exact"
+                          },
+                          "network": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                          },
+                          "asset": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "amount": {
+                            "type": "string",
+                            "pattern": "^\\d{1,30}$"
+                          },
+                          "payTo": {
+                            "type": "string",
+                            "maxLength": 64
+                          },
+                          "maxTimeoutSeconds": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 3600
+                          },
+                          "extra": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        },
+                        "required": [
+                          "scheme",
+                          "network",
+                          "asset",
+                          "amount",
+                          "payTo",
+                          "maxTimeoutSeconds"
+                        ]
+                      },
+                      "payload": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "signature": {
+                                "type": "string",
+                                "pattern": "^0x[0-9a-fA-F]*$"
+                              },
+                              "authorization": {
+                                "type": "object",
+                                "properties": {
+                                  "from": {
+                                    "type": "string",
+                                    "pattern": "^0x[0-9a-fA-F]{40}$"
+                                  },
+                                  "to": {
+                                    "type": "string",
+                                    "pattern": "^0x[0-9a-fA-F]{40}$"
+                                  },
+                                  "value": {
+                                    "type": "string",
+                                    "pattern": "^\\d{1,30}$"
+                                  },
+                                  "validAfter": {
+                                    "type": "string",
+                                    "pattern": "^\\d{1,30}$"
+                                  },
+                                  "validBefore": {
+                                    "type": "string",
+                                    "pattern": "^\\d{1,30}$"
+                                  },
+                                  "nonce": {
+                                    "type": "string",
+                                    "pattern": "^0x[0-9a-fA-F]{64}$"
+                                  }
+                                },
+                                "required": [
+                                  "from",
+                                  "to",
+                                  "value",
+                                  "validAfter",
+                                  "validBefore",
+                                  "nonce"
+                                ]
+                              }
+                            },
+                            "required": ["signature", "authorization"]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "transaction": {
+                                "type": "string",
+                                "maxLength": 8192,
+                                "format": "base64",
+                                "contentEncoding": "base64",
+                                "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$"
+                              }
+                            },
+                            "required": ["transaction"]
+                          }
+                        ]
+                      },
+                      "extensions": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    },
+                    "required": ["x402Version", "accepted", "payload"]
+                  },
+                  "paymentRequirements": {
+                    "type": "object",
+                    "properties": {
+                      "scheme": {
+                        "type": "string",
+                        "const": "exact"
+                      },
+                      "network": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                      },
+                      "asset": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "amount": {
+                        "type": "string",
+                        "pattern": "^\\d{1,30}$"
+                      },
+                      "payTo": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "maxTimeoutSeconds": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 3600
+                      },
+                      "extra": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    },
+                    "required": [
+                      "scheme",
+                      "network",
+                      "asset",
+                      "amount",
+                      "payTo",
+                      "maxTimeoutSeconds"
+                    ]
+                  }
+                },
+                "required": ["x402Version", "paymentPayload", "paymentRequirements"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "isValid": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "payer": {
+                          "type": "string",
+                          "maxLength": 64
+                        }
+                      },
+                      "required": ["isValid", "payer"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "isValid": {
+                          "type": "boolean",
+                          "const": false
+                        },
+                        "invalidReason": {
+                          "type": "string",
+                          "maxLength": 80
+                        },
+                        "payer": {
+                          "type": "string",
+                          "maxLength": 64
+                        }
+                      },
+                      "required": ["isValid", "invalidReason"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/facilitator/settle": {
+      "post": {
+        "summary": "x402 facilitator settle",
+        "operationId": "postFacilitatorSettle",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "x402Version": {
+                    "type": "number",
+                    "const": 2
+                  },
+                  "paymentPayload": {
+                    "type": "object",
+                    "properties": {
+                      "x402Version": {
+                        "type": "number",
+                        "const": 2
+                      },
+                      "resource": {
+                        "type": "object",
+                        "properties": {
+                          "url": {
+                            "type": "string",
+                            "format": "uri"
+                          },
+                          "description": {
+                            "type": "string",
+                            "maxLength": 200
+                          },
+                          "mimeType": {
+                            "type": "string",
+                            "maxLength": 80
+                          }
+                        },
+                        "required": ["url", "description", "mimeType"]
+                      },
+                      "accepted": {
+                        "type": "object",
+                        "properties": {
+                          "scheme": {
+                            "type": "string",
+                            "const": "exact"
+                          },
+                          "network": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                          },
+                          "asset": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "amount": {
+                            "type": "string",
+                            "pattern": "^\\d{1,30}$"
+                          },
+                          "payTo": {
+                            "type": "string",
+                            "maxLength": 64
+                          },
+                          "maxTimeoutSeconds": {
+                            "type": "integer",
+                            "exclusiveMinimum": 0,
+                            "maximum": 3600
+                          },
+                          "extra": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {}
+                          }
+                        },
+                        "required": [
+                          "scheme",
+                          "network",
+                          "asset",
+                          "amount",
+                          "payTo",
+                          "maxTimeoutSeconds"
+                        ]
+                      },
+                      "payload": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "signature": {
+                                "type": "string",
+                                "pattern": "^0x[0-9a-fA-F]*$"
+                              },
+                              "authorization": {
+                                "type": "object",
+                                "properties": {
+                                  "from": {
+                                    "type": "string",
+                                    "pattern": "^0x[0-9a-fA-F]{40}$"
+                                  },
+                                  "to": {
+                                    "type": "string",
+                                    "pattern": "^0x[0-9a-fA-F]{40}$"
+                                  },
+                                  "value": {
+                                    "type": "string",
+                                    "pattern": "^\\d{1,30}$"
+                                  },
+                                  "validAfter": {
+                                    "type": "string",
+                                    "pattern": "^\\d{1,30}$"
+                                  },
+                                  "validBefore": {
+                                    "type": "string",
+                                    "pattern": "^\\d{1,30}$"
+                                  },
+                                  "nonce": {
+                                    "type": "string",
+                                    "pattern": "^0x[0-9a-fA-F]{64}$"
+                                  }
+                                },
+                                "required": [
+                                  "from",
+                                  "to",
+                                  "value",
+                                  "validAfter",
+                                  "validBefore",
+                                  "nonce"
+                                ]
+                              }
+                            },
+                            "required": ["signature", "authorization"]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "transaction": {
+                                "type": "string",
+                                "maxLength": 8192,
+                                "format": "base64",
+                                "contentEncoding": "base64",
+                                "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$"
+                              }
+                            },
+                            "required": ["transaction"]
+                          }
+                        ]
+                      },
+                      "extensions": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    },
+                    "required": ["x402Version", "accepted", "payload"]
+                  },
+                  "paymentRequirements": {
+                    "type": "object",
+                    "properties": {
+                      "scheme": {
+                        "type": "string",
+                        "const": "exact"
+                      },
+                      "network": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                      },
+                      "asset": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "amount": {
+                        "type": "string",
+                        "pattern": "^\\d{1,30}$"
+                      },
+                      "payTo": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "maxTimeoutSeconds": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 3600
+                      },
+                      "extra": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    },
+                    "required": [
+                      "scheme",
+                      "network",
+                      "asset",
+                      "amount",
+                      "payTo",
+                      "maxTimeoutSeconds"
+                    ]
+                  }
+                },
+                "required": ["x402Version", "paymentPayload", "paymentRequirements"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "transaction": {
+                          "type": "string",
+                          "minLength": 10,
+                          "maxLength": 128
+                        },
+                        "network": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                        },
+                        "payer": {
+                          "type": "string",
+                          "maxLength": 64
+                        }
+                      },
+                      "required": ["success", "transaction", "network", "payer"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "const": false
+                        },
+                        "errorReason": {
+                          "type": "string",
+                          "maxLength": 80
+                        },
+                        "network": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                        },
+                        "transaction": {
+                          "type": "string",
+                          "maxLength": 128
+                        },
+                        "payer": {
+                          "type": "string",
+                          "maxLength": 64
+                        }
+                      },
+                      "required": ["success", "errorReason", "network"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "summary": "This document",
+        "operationId": "getOpenapiJson",
+        "responses": {
+          "200": {
+            "description": "200"
+          }
+        }
+      }
+    }
+  }
+}

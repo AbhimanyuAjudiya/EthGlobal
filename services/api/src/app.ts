@@ -1,49 +1,115 @@
+/**
+ * createApp(deps): the middleware chain in the fixed order of INTERFACES §7 — requestId → logger → securityHeaders
+ * → cors → rateLimit → bodyLimit → idempotency → (per route) validate → x402 → octroi → handler — and the one error
+ * mapper (errors.ts) behind every failure.
+ */
 import { Hono } from 'hono';
+import { createMiddleware } from 'hono/factory';
 
-import type { ChainIdResolver } from './chain.js';
-import type { Env } from './env.js';
-import type { Logger } from './logger.js';
+import { fail, respondError } from './errors.js';
+import { accessLog, bodyLimit, cors, requestId, securityHeaders } from './middleware/basics.js';
+import { idempotency } from './middleware/idempotency.js';
+import { rateLimit } from './middleware/rate-limit.js';
+import { openApiDocument } from './openapi.js';
+import { registerAgentPolicy } from './routes/agent-policy.js';
+import { registerClaim } from './routes/claim.js';
+import { registerFacilitator } from './routes/facilitator.js';
+import { registerGift } from './routes/gift.js';
+import { registerMe } from './routes/me.js';
+import { registerPublic } from './routes/public.js';
+import { registerSponsor } from './routes/sponsor.js';
+import { registerWebhooks } from './routes/webhooks.js';
 
-export interface AppDependencies {
-  env: Pick<Env, 'MODE'>;
-  logger: Logger;
-  getChainId: ChainIdResolver;
+import type { AppEnv } from './context.js';
+import type { Deps } from './deps.js';
+import type { LocalClock } from './seed.js';
+
+/** POST routes the Idempotency-Key middleware covers (brief §3). */
+export const IDEMPOTENT_ROUTES = [
+  '/gift',
+  '/gift/claim',
+  '/gift/reclaim',
+  '/card/redeem',
+  '/sponsor',
+];
+/** Writes that fail closed while the ledger is degraded (T-51); webhooks check inside their route. */
+const LEDGER_WRITES = [
+  '/claim',
+  '/gift',
+  '/gift/claim',
+  '/gift/reclaim',
+  '/card/redeem',
+  '/sponsor',
+  '/agent/policy',
+];
+
+export interface AppOptions {
+  /** MODE=local only: POST /__local/clock moves this clock (e2e time travel). */
+  localClock?: LocalClock;
 }
 
-export function createApp({ env, logger, getChainId }: AppDependencies) {
-  const app = new Hono();
-
-  app.use('*', async (c, next) => {
-    const started = performance.now();
-    await next();
-    logger.info(
-      {
-        method: c.req.method,
-        path: c.req.path,
-        status: c.res.status,
-        durationMs: Math.round(performance.now() - started),
-      },
-      'request',
-    );
+export function createApp(deps: Deps, options: AppOptions = {}) {
+  const app = new Hono<AppEnv>();
+  app.use('*', requestId(deps));
+  app.use('*', accessLog);
+  app.use('*', securityHeaders);
+  app.use('*', cors(deps.env.CORS_ORIGINS));
+  app.use('*', rateLimit(deps.now));
+  app.use('*', bodyLimit);
+  const idem = idempotency(deps.now);
+  for (const route of IDEMPOTENT_ROUTES) app.use(route, idem);
+  const degradedGuard = createMiddleware<AppEnv>(async (c, next) => {
+    if (c.req.method !== 'GET' && deps.health.degraded)
+      throw fail('ledger_unavailable', { detail: 'degraded' });
+    return next();
   });
+  for (const route of LEDGER_WRITES) app.use(route, degradedGuard);
 
-  app.get('/healthz', async (c) => {
-    try {
-      const chainId = await getChainId();
-      return c.json({ ok: true, mode: env.MODE, chainId });
-    } catch (error) {
-      logger.error({ err: error }, 'healthz: chain unreachable');
-      return c.json({ ok: false, mode: env.MODE, error: 'chain_unreachable' }, 503);
-    }
-  });
+  registerPublic(app, deps);
+  registerClaim(app, deps);
+  registerGift(app, deps);
+  registerWebhooks(app, deps);
+  registerMe(app, deps);
+  registerSponsor(app, deps);
+  registerAgentPolicy(app, deps);
+  registerFacilitator(app, deps);
+  const document = openApiDocument();
+  app.get('/openapi.json', (c) => c.json(document));
 
-  app.notFound((c) => c.json({ error: 'not_found' }, 404));
+  const clock = options.localClock;
+  if (deps.env.MODE === 'local' && clock) {
+    app.post('/__local/clock', async (c) => {
+      const body = (await c.req.json().catch(() => ({}))) as { advanceMs?: unknown };
+      const ms = body.advanceMs;
+      if (typeof ms !== 'number' || !Number.isSafeInteger(ms) || ms < 0 || ms > 60 * 86_400_000)
+        throw fail('invalid_request');
+      clock.advance(ms);
+      c.get('log').warn(
+        { event: 'seed-hook', hook: 'clock', advanceMs: ms },
+        'local clock advanced',
+      );
+      return c.json({ now: deps.now() });
+    });
+  }
+
+  app.notFound((c) => respondError(c, fail('not_found'), c.get('requestId')));
   app.onError((error, c) => {
-    logger.error({ err: error }, 'unhandled error');
-    return c.json({ error: 'internal_error' }, 500);
+    const status = errorStatusForLog(error);
+    const log = c.get('log') ?? deps.logger;
+    // name and code only: messages of chain/vendor errors can carry URLs with access keys (T-50)
+    if (status >= 500)
+      log.error(
+        { event: 'request', err: { name: error.name, code: (error as { code?: unknown }).code } },
+        'request failed',
+      );
+    return respondError(c, error, c.get('requestId'));
   });
-
   return app;
+}
+
+function errorStatusForLog(error: Error): number {
+  const status = (error as { status?: unknown }).status;
+  return typeof status === 'number' ? status : 500;
 }
 
 export type App = ReturnType<typeof createApp>;

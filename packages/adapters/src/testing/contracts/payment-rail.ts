@@ -26,9 +26,13 @@ export function describePaymentRail(name: string, make: () => Promise<PaymentRai
   describe(`PaymentRail contract: ${name}`, () => {
     async function setup() {
       const subject = await make();
-      const requirements: PaymentRequirements = subject.rail.createPaymentRequirement(requirementInput()).accepts[0]!;
+      const requirements: PaymentRequirements =
+        subject.rail.createPaymentRequirement(requirementInput()).accepts[0]!;
       let nonceSeq = 0;
-      const pay = async (overrides: Partial<PaymentAuthorization> = {}, sign = subject.signer): Promise<PaymentPayload> => {
+      const pay = async (
+        overrides: Partial<PaymentAuthorization> = {},
+        sign = subject.signer,
+      ): Promise<PaymentPayload> => {
         nonceSeq += 1;
         const draft = paymentPayload(requirements, {
           nonce: `0x${nonceSeq.toString(16).padStart(64, '0')}`,
@@ -69,7 +73,9 @@ export function describePaymentRail(name: string, make: () => Promise<PaymentRai
       const { rail, requirements, pay } = await setup();
       const payload = await pay();
       const other = { ...requirements, payTo: '0x0000000000000000000000000000000000000002' };
-      await expect(rail.verify({ ...payload, accepted: other }, requirements)).resolves.toMatchObject({
+      await expect(
+        rail.verify({ ...payload, accepted: other }, requirements),
+      ).resolves.toMatchObject({
         isValid: false,
         invalidReason: 'requirements_mismatch',
       });

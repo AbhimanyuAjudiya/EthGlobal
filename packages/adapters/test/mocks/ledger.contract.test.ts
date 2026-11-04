@@ -15,7 +15,11 @@ describe('InMemoryLedger specifics', () => {
     const { key } = await ledger.put({ payload: 'a', expiresIn: 10 });
     clock.advance(5_000);
     await ledger.update(key, { annotations: { type: 'x' } }, 100);
-    expect(await ledger.get(key)).toMatchObject({ createdAt: T0, expiresAt: T0 + 5_000 + 100_000, payload: 'a' });
+    expect(await ledger.get(key)).toMatchObject({
+      createdAt: T0,
+      expiresAt: T0 + 5_000 + 100_000,
+      payload: 'a',
+    });
   });
 
   it('a look-alike entity written by another account is invisible (L16, T-79)', async () => {
@@ -23,13 +27,25 @@ describe('InMemoryLedger specifics', () => {
     const ours = new InMemoryLedger({ now: clock.now, writer: anvilAccounts[2] });
     const evil = ours.asWriter(anvilAccounts[7]);
     const k = `ent:v1:${'a'.repeat(64)}`;
-    const mine = await ours.put({ payload: 'real', annotations: { type: 'entitlement', key: k }, expiresIn: 60 });
-    const forged = await evil.put({ payload: 'forged', annotations: { type: 'entitlement', key: k }, expiresIn: 60 });
+    const mine = await ours.put({
+      payload: 'real',
+      annotations: { type: 'entitlement', key: k },
+      expiresIn: 60,
+    });
+    const forged = await evil.put({
+      payload: 'forged',
+      annotations: { type: 'entitlement', key: k },
+      expiresIn: 60,
+    });
     expect((await ours.query({ annotations: { key: k } })).map((e) => e.payload)).toEqual(['real']);
     expect(await ours.get(forged.key)).toBeNull();
-    await expect(ours.update(forged.key, { payload: 'x' })).rejects.toMatchObject({ code: 'not_found' });
+    await expect(ours.update(forged.key, { payload: 'x' })).rejects.toMatchObject({
+      code: 'not_found',
+    });
     expect(await evil.get(mine.key)).toBeNull();
-    expect((await evil.query({ annotations: { key: k } })).map((e) => e.payload)).toEqual(['forged']);
+    expect((await evil.query({ annotations: { key: k } })).map((e) => e.payload)).toEqual([
+      'forged',
+    ]);
   });
 
   it('a no-expiry entity has expiresAt null; a negative limit is invalid', async () => {

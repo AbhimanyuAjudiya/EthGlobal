@@ -1,0 +1,7 @@
+{
+  "name": "eSIM Access DATA_USAGE webhook",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "note": "[verify Wed] the docs show no webhook JSON schema and no signature (A-27): these bodies are guesses from the notifyType list; capture a real delivery of each type.",
+  "rawBody": "{\"notifyType\":\"DATA_USAGE\",\"content\":{\"orderNo\":\"B26110300001\",\"transactionId\":\"1685bcc729da34d630dd7879f1ad6dc0\",\"esimTranNo\":\"ESIM-TRAN-1\",\"iccid\":\"89852240000000000001\",\"totalVolume\":1073741824,\"orderUsage\":999000000,\"remain\":74741824,\"lastUpdateTime\":\"2026-11-03T12:00:00+0000\"}}"
+}

@@ -3,8 +3,9 @@
  * The SDK surface is isolated behind ArkivClientLike (arkiv-sdk.ts binds it to @arkiv-network/sdk), so this file
  * holds only the mapping rules and is tested over a fake client and ArkivClientLike-level fixtures.
  */
-import { ANN, ENTITY_TYPES, type EntityType } from '@ethglobal/protocol/ids';
 import { getAddress, isAddress, type Address, type Hex } from 'viem';
+
+import { ANN, ENTITY_TYPES, type EntityType } from '@ethglobal/protocol/ids';
 
 import { AdapterError } from '../errors.js';
 import {
@@ -34,13 +35,25 @@ export const ARKIV_MAX_QUERY_ROWS = 1_000;
 /** Annotation names stored as indexed u64 attributes; every other ANN name is an indexed str. */
 export const NUMERIC_ANNOTATIONS: ReadonlySet<string> = new Set([ANN.expiresAt, ANN.day]);
 const ANNOTATION_NAMES: ReadonlySet<string> = new Set(Object.values(ANN));
+/**
+ * Annotation → Arkiv attribute name. `key` is a reserved word of Arkiv's query language (a type tag), so the
+ * logical key is stored as `logicalKey` (found by running the real SDK's schema validation).
+ */
+const TO_ATTRIBUTE: Readonly<Record<string, string>> = { [ANN.key]: 'logicalKey' };
+const FROM_ATTRIBUTE: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(TO_ATTRIBUTE).map(([a, b]) => [b, a]),
+);
+export const arkivAttribute = (annotation: string): string =>
+  TO_ATTRIBUTE[annotation] ?? annotation;
+const annotationOf = (attribute: string): string => FROM_ATTRIBUTE[attribute] ?? attribute;
 
 export type ArkivAttribute = string | bigint;
 /** One schema per entity type, `recharge.<name>.v1`, plus `untyped` for entities without a type annotation. */
 export type ArkivSchemaName = EntityType | 'untyped';
 export const ARKIV_SCHEMA_NAMES: readonly ArkivSchemaName[] = [...ENTITY_TYPES, 'untyped'];
 /** What the SDK's ExpirationTime builds: a whole number of 2-s blocks, or an absolute block (A-24). */
-export type ArkivExpiration = { kind: 'seconds'; seconds: number } | { kind: 'atBlock'; block: bigint };
+export type ArkivExpiration =
+  { kind: 'seconds'; seconds: number } | { kind: 'atBlock'; block: bigint };
 
 export interface ArkivRow {
   key: Hex;
@@ -95,7 +108,8 @@ export interface ArkivLedgerOptions {
 const HEX32 = /^0x[0-9a-fA-F]{64}$/;
 const HOUR_MS = 3_600_000;
 
-const invalid = (message: string): AdapterError => new AdapterError('ledger', 'invalid_request', message);
+const invalid = (message: string): AdapterError =>
+  new AdapterError('ledger', 'invalid_request', message);
 
 export class ArkivLedger implements Ledger {
   readonly #client: ArkivClientLike;
@@ -128,8 +142,10 @@ export class ArkivLedger implements Ledger {
     assertExpiresIn(input.expiresIn);
     const type = typeOf(input.annotations);
     const values = encodeValues(input.payload, input.annotations ?? {}, this.#now());
-    const blocks = input.expiresIn === undefined ? ARKIV_MAX_LIFETIME_BLOCKS : this.blocksFor(input.expiresIn);
-    if (blocks > ARKIV_MAX_LIFETIME_BLOCKS) throw invalid('expiresIn exceeds the Arkiv maximum lifetime');
+    const blocks =
+      input.expiresIn === undefined ? ARKIV_MAX_LIFETIME_BLOCKS : this.blocksFor(input.expiresIn);
+    if (blocks > ARKIV_MAX_LIFETIME_BLOCKS)
+      throw invalid('expiresIn exceeds the Arkiv maximum lifetime');
     return guard('ledger', async () => {
       const expiration = await this.#expiration(blocks);
       const created = await this.#client.createEntity(type, values, { expiration });
@@ -142,7 +158,10 @@ export class ArkivLedger implements Ledger {
   async get(key: string): Promise<LedgerEntity | null> {
     if (!HEX32.test(key)) return null; // not an Arkiv entity key (e.g. a logical key): nothing to fetch
     return guard('ledger', async () => {
-      const [row, head] = await Promise.all([this.#client.getEntity(key as Hex), this.#client.blockNumber()]);
+      const [row, head] = await Promise.all([
+        this.#client.getEntity(key as Hex),
+        this.#client.blockNumber(),
+      ]);
       return row ? this.#visible(row, head) : null;
     });
   }
@@ -152,7 +171,8 @@ export class ArkivLedger implements Ledger {
     const wanted = query.annotations ?? {};
     const eq = encodeFilter(wanted);
     if (eq === null) return []; // a name or a type no stored entity can carry: nothing matches (no coercion)
-    const type = typeof wanted[ANN.type] === 'string' ? (wanted[ANN.type] as EntityType) : undefined;
+    const type =
+      typeof wanted[ANN.type] === 'string' ? (wanted[ANN.type] as EntityType) : undefined;
     if (type !== undefined && !(ENTITY_TYPES as readonly string[]).includes(type)) return [];
     const max = Math.min(query.limit ?? ARKIV_MAX_QUERY_ROWS, ARKIV_MAX_QUERY_ROWS);
     if (max === 0) return [];
@@ -163,13 +183,15 @@ export class ArkivLedger implements Ledger {
       for (;;) {
         const where: ArkivWhere = { creator: this.#writer, eq, ...(afterKey ? { afterKey } : {}) };
         const page = await this.#client.select(type, where, { limit: ARKIV_PAGE_SIZE });
-        if (page.skipped > 0) this.#logger?.warn(`arkiv: ${page.skipped} entities did not fit the schema`);
+        if (page.skipped > 0)
+          this.#logger?.warn(`arkiv: ${page.skipped} entities did not fit the schema`);
         for (const row of page.entities) {
           const entity = this.#visible(row, head);
           if (entity && matchesAnnotations(entity, wanted)) found.push(entity);
         }
         const last = page.entities.at(-1);
-        if (found.length >= max || !last || page.entities.length + page.skipped < ARKIV_PAGE_SIZE) break;
+        if (found.length >= max || !last || page.entities.length + page.skipped < ARKIV_PAGE_SIZE)
+          break;
         afterKey = last.key;
       }
       return found
@@ -192,7 +214,9 @@ export class ArkivLedger implements Ledger {
       throw invalid('update cannot change the entity type (its schema)');
     }
     const next = encodeValues(patch.payload ?? current.payload, annotations, current.createdAt);
-    const unset = Object.keys(current.annotations).filter((name) => !(name in annotations));
+    const unset = Object.keys(current.annotations)
+      .filter((name) => !(name in annotations))
+      .map(arkivAttribute);
     const blocks = expiresIn === undefined ? undefined : this.blocksFor(expiresIn);
     return guard('ledger', async () => {
       await this.#client.patchEntity(type, key as Hex, { set: next, unset });
@@ -202,11 +226,16 @@ export class ArkivLedger implements Ledger {
         // The engine refuses to move an expiry earlier; a shorter request keeps the current expiry, and the
         // `expiresAt` annotation (min of two clocks, T-35) still ends the entity on time.
         if (head + blocks > expiresAtBlock) {
-          const extended = await this.#client.extendEntity(key as Hex, await this.#expiration(blocks, head));
+          const extended = await this.#client.extendEntity(
+            key as Hex,
+            await this.#expiration(blocks, head),
+          );
           expiresAtBlock = extended.expiresAt;
           this.#logDrift(expiresIn!, blocks);
         } else {
-          this.#logger?.warn('arkiv: update asked for a shorter lifetime; the ledger keeps the longer one');
+          this.#logger?.warn(
+            'arkiv: update asked for a shorter lifetime; the ledger keeps the longer one',
+          );
         }
       }
       return { key, expiresAt: this.#msAt(expiresAtBlock, head) };
@@ -224,7 +253,10 @@ export class ArkivLedger implements Ledger {
   }
 
   #blockAt(entity: LedgerEntity, head: bigint): bigint {
-    return head + BigInt(Math.ceil(((entity.expiresAt ?? this.#now()) - this.#now()) / this.#blockTimeMs));
+    return (
+      head +
+      BigInt(Math.ceil(((entity.expiresAt ?? this.#now()) - this.#now()) / this.#blockTimeMs))
+    );
   }
 
   #visible(row: ArkivRow, head: bigint): LedgerEntity | null {
@@ -239,7 +271,9 @@ export class ArkivLedger implements Ledger {
     if (now - this.#lastDriftLog < HOUR_MS) return;
     this.#lastDriftLog = now;
     const impliedDriftSec = Math.abs(Number(blocks) * (this.#blockTimeMs / 1000) - expiresIn);
-    this.#logger?.info(`arkiv: expiresIn ${expiresIn}s → ${blocks} blocks (impliedDriftSec ${impliedDriftSec})`);
+    this.#logger?.info(
+      `arkiv: expiresIn ${expiresIn}s → ${blocks} blocks (impliedDriftSec ${impliedDriftSec})`,
+    );
   }
 }
 
@@ -254,7 +288,8 @@ function typeOf(annotations: Annotations | undefined): ArkivSchemaName {
 }
 
 function encodeValue(name: string, value: string | number): ArkivAttribute {
-  if (!ANNOTATION_NAMES.has(name)) throw invalid(`annotation ${name} is not in the allow-list (T-37)`);
+  if (!ANNOTATION_NAMES.has(name))
+    throw invalid(`annotation ${name} is not in the allow-list (T-37)`);
   if (NUMERIC_ANNOTATIONS.has(name)) {
     if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
       throw invalid(`annotation ${name} must be a non-negative integer`);
@@ -272,10 +307,18 @@ function encodeValues(
 ): Record<string, ArkivAttribute | Uint8Array> {
   const bytes = new TextEncoder().encode(payload);
   if (bytes.length > ARKIV_MAX_PAYLOAD_BYTES) {
-    throw new AdapterError('ledger', 'too_large', `payload exceeds ${ARKIV_MAX_PAYLOAD_BYTES} bytes`);
+    throw new AdapterError(
+      'ledger',
+      'too_large',
+      `payload exceeds ${ARKIV_MAX_PAYLOAD_BYTES} bytes`,
+    );
   }
-  const values: Record<string, ArkivAttribute | Uint8Array> = { payload: bytes, createdAtMs: BigInt(createdAt) };
-  for (const [name, value] of Object.entries(annotations)) values[name] = encodeValue(name, value);
+  const values: Record<string, ArkivAttribute | Uint8Array> = {
+    payload: bytes,
+    createdAtMs: BigInt(createdAt),
+  };
+  for (const [name, value] of Object.entries(annotations))
+    values[arkivAttribute(name)] = encodeValue(name, value);
   return values;
 }
 
@@ -287,7 +330,7 @@ function encodeFilter(wanted: Annotations): Record<string, ArkivAttribute> | nul
     const numeric = NUMERIC_ANNOTATIONS.has(name);
     if (numeric !== (typeof value === 'number')) return null;
     if (numeric && !(Number.isSafeInteger(value) && (value as number) >= 0)) return null;
-    eq[name] = numeric ? BigInt(value) : (value as string);
+    eq[arkivAttribute(name)] = numeric ? BigInt(value) : (value as string);
   }
   return eq;
 }
@@ -296,7 +339,8 @@ function decodeRow(row: ArkivRow, expiresAt: number): LedgerEntity | null {
   const { payload, createdAtMs, ...rest } = row.values;
   if (!(payload instanceof Uint8Array) || typeof createdAtMs !== 'bigint') return null;
   const annotations: Annotations = {};
-  for (const [name, value] of Object.entries(rest)) {
+  for (const [attribute, value] of Object.entries(rest)) {
+    const name = annotationOf(attribute);
     if (!ANNOTATION_NAMES.has(name)) continue;
     if (typeof value === 'bigint') annotations[name] = Number(value);
     else if (typeof value === 'string') annotations[name] = value;

@@ -1,6 +1,7 @@
 /** describeReseller: the eSIM reseller port contract (L7, L8; T-34, T-39, T-40). */
-import { LPA_PATTERN } from '@ethglobal/protocol/schemas';
 import { describe, expect, it } from 'vitest';
+
+import { LPA_PATTERN } from '@ethglobal/protocol/schemas';
 
 import type { Reseller } from '../../types.js';
 
@@ -8,8 +9,10 @@ export interface ResellerSubject {
   reseller: Reseller;
   /** The subject's clock (ms). */
   now: () => number;
-  /** A fresh, valid webhook delivery about `iccid` as the provider sends it (body + the headers the route sets). */
-  deliver(iccid: string, now: number): { body: string; headers: Record<string, string> };
+  /** A fresh, valid webhook delivery about `iccid` as the provider sends it; absent for providers without webhooks. */
+  deliver?: (iccid: string, now: number) => { body: string; headers: Record<string, string> };
+  /** false for providers that cannot top up (inventory). Default true. */
+  topUps?: boolean;
   /** Signed providers reject a skewed timestamp; unsigned ones (eSIM Access, A-27) carry none. */
   timestamped: boolean;
   /** Signed providers detect a tampered body; unsigned ones only dedupe by body hash (the body is a hint). */
@@ -67,15 +70,21 @@ export function describeReseller(name: string, make: () => Promise<ResellerSubje
       expect(b.usedMb).toBeGreaterThanOrEqual(a.usedMb);
     });
 
-    it('topUp twice with one key is one top-up', async () => {
-      const { reseller, profile } = await ordered();
-      const first = await reseller.topUp(profile.iccid, 1000, { idempotencyKey: 'suite-topup-1' });
-      const second = await reseller.topUp(profile.iccid, 1000, { idempotencyKey: 'suite-topup-1' });
+    it('topUp twice with one key is one top-up', async (ctx) => {
+      const { reseller, profile, plan, topUps } = await ordered();
+      if (topUps === false) return ctx.skip();
+      const first = await reseller.topUp(profile.iccid, plan.dataMb, {
+        idempotencyKey: 'suite-topup-1',
+      });
+      const second = await reseller.topUp(profile.iccid, plan.dataMb, {
+        idempotencyKey: 'suite-topup-1',
+      });
       expect(second).toEqual(first);
     });
 
-    it('verifyWebhook accepts a fresh delivery once, then reports replay; never throws (T-34)', async () => {
+    it('verifyWebhook accepts a fresh delivery once, then reports replay; never throws (T-34)', async (ctx) => {
       const { reseller, profile, deliver, now } = await ordered();
+      if (!deliver) return ctx.skip();
       const { body, headers } = deliver(profile.iccid, now());
       const verdict = reseller.verifyWebhook(body, headers, now());
       expect(verdict).toMatchObject({ ok: true });
@@ -86,14 +95,17 @@ export function describeReseller(name: string, make: () => Promise<ResellerSubje
 
     it('a skewed timestamp is rejected (signed providers)', async (ctx) => {
       const { reseller, profile, deliver, now, timestamped } = await ordered();
-      if (!timestamped) return ctx.skip();
+      if (!timestamped || !deliver) return ctx.skip();
       const late = deliver(profile.iccid, now() - 301_000);
-      expect(reseller.verifyWebhook(late.body, late.headers, now())).toEqual({ ok: false, reason: 'skew' });
+      expect(reseller.verifyWebhook(late.body, late.headers, now())).toEqual({
+        ok: false,
+        reason: 'skew',
+      });
     });
 
     it('a tampered body is rejected (signed providers)', async (ctx) => {
       const { reseller, profile, deliver, now, bodyBound } = await ordered();
-      if (!bodyBound) return ctx.skip();
+      if (!bodyBound || !deliver) return ctx.skip();
       const { body, headers } = deliver(profile.iccid, now());
       expect(reseller.verifyWebhook(body.replace(/\d(?=\D*$)/, '9'), headers, now())).toEqual({
         ok: false,
@@ -101,8 +113,9 @@ export function describeReseller(name: string, make: () => Promise<ResellerSubje
       });
     });
 
-    it('parseWebhook yields usage events for the ICCID (or hints only), rejects garbage', async () => {
+    it('parseWebhook yields usage events for the ICCID (or hints only), rejects garbage', async (ctx) => {
       const { reseller, profile, deliver, now } = await ordered();
+      if (!deliver) return ctx.skip();
       const events = reseller.parseWebhook(deliver(profile.iccid, now()).body);
       expect(events.length).toBeGreaterThan(0);
       for (const e of events) {
@@ -110,7 +123,9 @@ export function describeReseller(name: string, make: () => Promise<ResellerSubje
         expect(e.provider).toBe(reseller.name);
         expect(e.usedMb).toBeLessThanOrEqual(e.totalMb);
       }
-      expect(() => reseller.parseWebhook('not json')).toThrow(expect.objectContaining({ code: 'invalid_response' }));
+      expect(() => reseller.parseWebhook('not json')).toThrow(
+        expect.objectContaining({ code: 'invalid_response' }),
+      );
     });
   });
 }

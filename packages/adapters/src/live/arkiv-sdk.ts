@@ -6,12 +6,22 @@
 import { createPublicClient, createWalletClient, ExpirationTime } from '@arkiv-network/sdk';
 import { rabdi } from '@arkiv-network/sdk/chains';
 import { and, asc, eq, gt } from '@arkiv-network/sdk/query';
-import { bytes, defineSchema, key as keyValue, str, u64 } from '@arkiv-network/sdk/schema';
-import { ANN } from '@ethglobal/protocol/ids';
-import { defineChain, hexToBytes, http, type Address, type Chain, type Hex, type HttpTransportConfig } from 'viem';
+import { addr, bytes, defineSchema, key as keyValue, str, u64 } from '@arkiv-network/sdk/schema';
+import {
+  defineChain,
+  hexToBytes,
+  http,
+  type Address,
+  type Chain,
+  type Hex,
+  type HttpTransportConfig,
+} from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
+import { ANN } from '@ethglobal/protocol/ids';
+
 import {
+  arkivAttribute,
   ARKIV_SCHEMA_NAMES,
   NUMERIC_ANNOTATIONS,
   type ArkivAttribute,
@@ -40,14 +50,17 @@ export interface ArkivSdkOptions {
 /** The viem chain for the configured Arkiv network; throws for Kaolin (A-23) or any unknown id. */
 export function arkivChain(chainId: number, rpcUrl: string, accessKey: string): Chain {
   if (chainId === KAOLIN_CHAIN_ID) {
-    throw new Error('ARKIV_CHAIN_ID 60138453025 is Kaolin, which is retired (INTERFACES A-23): use rabdi 7794095');
+    throw new Error(
+      'ARKIV_CHAIN_ID 60138453025 is Kaolin, which is retired (INTERFACES A-23): use rabdi 7794095',
+    );
   }
   if (chainId === RABDI_CHAIN_ID) {
-    if (new URL(rpcUrl).host === RABDI_HOST) return rabdi({ accessKey }) as Chain;
+    if (new URL(rpcUrl).host === RABDI_HOST) return rabdi({ accessKey });
   } else if (chainId !== TIRAMISU_CHAIN_ID) {
     throw new Error(`ARKIV_CHAIN_ID must be 7794095 (rabdi) or 7738577 (tiramisu); got ${chainId}`);
   }
-  const url = accessKey === '' ? rpcUrl : `${rpcUrl.replace(/\/$/, '')}/${encodeURIComponent(accessKey)}`;
+  const url =
+    accessKey === '' ? rpcUrl : `${rpcUrl.replace(/\/$/, '')}/${encodeURIComponent(accessKey)}`;
   return defineChain({
     id: chainId,
     name: chainId === RABDI_CHAIN_ID ? 'Rabdi' : 'Tiramisu',
@@ -63,7 +76,7 @@ export function arkivSchemas() {
     const out: Record<string, unknown> = { payload: bytes(), createdAtMs: u64() };
     for (const name of Object.values(ANN)) {
       const column = NUMERIC_ANNOTATIONS.has(name) ? u64().indexed() : str().indexed();
-      out[name] = name === ANN.type && typed ? column : column.optional();
+      out[arkivAttribute(name)] = name === ANN.type && typed ? column : column.optional();
     }
     return out;
   };
@@ -85,7 +98,7 @@ export function toSdkExpiration(expiration: ArkivExpiration) {
 /** The where expression ArkivLedger asks for, in SDK query nodes: `$creator` first, always (T-79). */
 export function toSdkWhere(where: ArkivWhere) {
   const nodes = [
-    eq('$creator', where.creator as never),
+    eq('$creator', addr(where.creator) as never),
     ...Object.entries(where.eq).map(([name, value]) =>
       eq(name as never, (typeof value === 'bigint' ? u64(value) : str(value)) as never),
     ),
@@ -101,16 +114,17 @@ interface SdkValue {
 
 /** A schemaless SDK row (`$key`, `$creator`, `$expiresAt`, `$attributes`) → ArkivRow. */
 export function fromSdkRow(row: Record<string, unknown>): ArkivRow {
-  const attributes = (row['$attributes'] ?? {}) as Record<string, SdkValue>;
+  const attributes = (row.$attributes ?? {}) as Record<string, SdkValue>;
   const values: Record<string, ArkivAttribute | Uint8Array> = {};
   for (const [name, attr] of Object.entries(attributes)) {
     if (attr.type === 'bytes') values[name] = hexToBytes(attr.value as Hex);
-    else if (typeof attr.value === 'bigint' || typeof attr.value === 'string') values[name] = attr.value;
+    else if (typeof attr.value === 'bigint' || typeof attr.value === 'string')
+      values[name] = attr.value;
   }
   return {
-    key: row['$key'] as Hex,
-    creator: row['$creator'] as Address,
-    expiresAt: BigInt(row['$expiresAt'] as bigint),
+    key: row.$key as Hex,
+    creator: row.$creator as Address,
+    expiresAt: BigInt(row.$expiresAt as bigint),
     values,
   };
 }
@@ -123,14 +137,26 @@ export function createArkivClient(opts: ArkivSdkOptions): ArkivClientLike {
   const chain = arkivChain(opts.chainId, opts.rpcUrl, opts.accessKey);
   const transport = http(undefined, opts.fetchFn ? { fetchFn: opts.fetchFn } : {});
   const schemas = arkivSchemas();
-  const pub = createPublicClient({ chain, transport }) as unknown as Record<string, (...a: unknown[]) => unknown> & {
-    select(sel: '*'): { where(e: unknown): { orderBy(o: unknown): { limit(n: number): { fetch(): Promise<{ entities: Record<string, unknown>[]; skipped: number }> } } } };
+  const pub = createPublicClient({ chain, transport }) as unknown as Record<
+    string,
+    (...a: unknown[]) => unknown
+  > & {
+    select(sel: '*'): {
+      where(e: unknown): {
+        orderBy(o: unknown): {
+          limit(n: number): {
+            fetch(): Promise<{ entities: Record<string, unknown>[]; skipped: number }>;
+          };
+        };
+      };
+    };
   };
   const wallet = opts.privateKey
-    ? (createWalletClient({ chain, transport, account: privateKeyToAccount(opts.privateKey) }) as unknown as Record<
-        string,
-        (...a: unknown[]) => Promise<unknown>
-      >)
+    ? (createWalletClient({
+        chain,
+        transport,
+        account: privateKeyToAccount(opts.privateKey),
+      }) as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>)
     : undefined;
   const write = () => {
     if (!wallet) throw new Error('arkiv: read-only client (no ARKIV_PRIVATE_KEY)');
@@ -138,33 +164,41 @@ export function createArkivClient(opts: ArkivSdkOptions): ArkivClientLike {
   };
   return {
     async createEntity(type, values, { expiration }) {
-      return (await write()['createEntity']!(schemas[type], values, {
+      return (await write().createEntity!(schemas[type], values, {
         expiration: toSdkExpiration(expiration),
       })) as { entityKey: Hex; txHash: Hex; expiresAt: bigint };
     },
     async getEntity(entityKey) {
       try {
-        return fromSdkRow((await pub['getEntity']!(entityKey)) as Record<string, unknown>);
+        return fromSdkRow((await pub.getEntity!(entityKey)) as Record<string, unknown>);
       } catch (error) {
         if (isNotFound(error)) return null;
         throw error;
       }
     },
     async select(_type, where, { limit }) {
-      const page = await pub.select('*').where(toSdkWhere(where)).orderBy(asc('$key')).limit(limit).fetch();
+      const page = await pub
+        .select('*')
+        .where(toSdkWhere(where))
+        .orderBy(asc('$key'))
+        .limit(limit)
+        .fetch();
       return { entities: page.entities.map(fromSdkRow), skipped: page.skipped };
     },
     async patchEntity(type, entityKey, changes) {
-      return (await write()['patchEntity']!(schemas[type], entityKey, changes)) as { txHash: Hex };
+      return (await write().patchEntity!(schemas[type], entityKey, changes)) as { txHash: Hex };
     },
     async extendEntity(entityKey, expiration) {
-      return (await write()['extendEntity']!({ entityKey, expiration: toSdkExpiration(expiration) })) as {
+      return (await write().extendEntity!({
+        entityKey,
+        expiration: toSdkExpiration(expiration),
+      })) as {
         txHash: Hex;
         expiresAt: bigint;
       };
     },
     async blockNumber() {
-      return (await pub['getBlockNumber']!()) as bigint;
+      return (await pub.getBlockNumber!()) as bigint;
     },
   };
 }

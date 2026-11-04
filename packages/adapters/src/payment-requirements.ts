@@ -10,7 +10,11 @@ const INTEGER = /^\d+$/;
 
 export function buildPaymentRequired(input: PaymentRequirementInput): PaymentRequired {
   if (!INTEGER.test(input.amount)) {
-    throw new AdapterError('payments', 'invalid_amount', 'amount must be an integer string in base units');
+    throw new AdapterError(
+      'payments',
+      'invalid_amount',
+      'amount must be an integer string in base units',
+    );
   }
   const draft: PaymentRequirements = {
     scheme: 'exact',
@@ -23,7 +27,11 @@ export function buildPaymentRequired(input: PaymentRequirementInput): PaymentReq
   };
   const parsed = paymentRequirementsSchema.safeParse(draft);
   if (!parsed.success) {
-    throw new AdapterError('payments', 'invalid_request', `invalid payment requirements: ${parsed.error.issues[0]?.message ?? 'schema'}`);
+    throw new AdapterError(
+      'payments',
+      'invalid_request',
+      `invalid payment requirements: ${parsed.error.issues[0]?.message ?? 'schema'}`,
+    );
   }
   return { x402Version: 2, resource: input.resource, accepts: [draft] };
 }
@@ -31,7 +39,8 @@ export function buildPaymentRequired(input: PaymentRequirementInput): PaymentReq
 /** accepted ≡ requirements on every field the payer committed to (case-insensitive for EVM hex). */
 export function sameRequirements(a: PaymentRequirements, b: PaymentRequirements): boolean {
   const lower = (s: string) => s.toLowerCase();
-  const extra = (r: PaymentRequirements) => JSON.stringify(Object.entries(r.extra ?? {}).sort(([x], [y]) => x.localeCompare(y)));
+  const extra = (r: PaymentRequirements) =>
+    JSON.stringify(Object.entries(r.extra ?? {}).sort(([x], [y]) => x.localeCompare(y)));
   return (
     a.scheme === b.scheme &&
     a.network === b.network &&

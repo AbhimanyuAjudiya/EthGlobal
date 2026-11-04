@@ -26,7 +26,7 @@
             "$bigint": "1793707200000"
           },
           "type": "entitlement",
-          "key": "ent:v1:cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+          "logicalKey": "ent:v1:cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
         }
       }
     }

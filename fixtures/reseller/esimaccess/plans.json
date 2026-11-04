@@ -1,0 +1,95 @@
+{
+  "name": "eSIM Access plans",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "note": "[verify Wed] authored from esimaccess-api@b9421b3 references/api-reference.md (envelope { success, errorCode, errorMsg, obj }, price ×10 000, volume bytes). Re-record with the console account: real packageCodes, the real `ac` (LPA) and its fill latency.",
+  "exchanges": [
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://api.esimaccess.com/api/v1/open/package/list",
+        "body": {
+          "locationCode": "IN",
+          "type": "",
+          "slug": "",
+          "packageCode": "",
+          "iccid": ""
+        },
+        "expectHeaders": {
+          "RT-AccessCode": "test-access-code",
+          "RT-Timestamp": "*",
+          "RT-RequestID": "*",
+          "RT-Signature": "*"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "errorCode": null,
+          "errorMsg": null,
+          "obj": {
+            "packageList": [
+              {
+                "packageCode": "P-IN-1G-7D",
+                "slug": "p-in-1g-7d",
+                "name": "India 1GB 7Days",
+                "price": 11400,
+                "retailPrice": 22800,
+                "currencyCode": "USD",
+                "volume": 1073741824,
+                "duration": 7,
+                "durationUnit": "DAY",
+                "location": "IN",
+                "speed": "4G/5G",
+                "supportTopUpType": 2
+              },
+              {
+                "packageCode": "P-IN-3G-30D",
+                "slug": "p-in-3g-30d",
+                "name": "India 3GB 30Days",
+                "price": 27000,
+                "retailPrice": 54000,
+                "currencyCode": "USD",
+                "volume": 3221225472,
+                "duration": 30,
+                "durationUnit": "DAY",
+                "location": "IN",
+                "speed": "4G/5G",
+                "supportTopUpType": 2
+              },
+              {
+                "packageCode": "P-IN-DAILY",
+                "slug": "p-in-daily",
+                "name": "India 1GB 1Days",
+                "price": 9000,
+                "retailPrice": 18000,
+                "currencyCode": "USD",
+                "volume": 1073741824,
+                "duration": 1,
+                "durationUnit": "MONTH",
+                "location": "IN",
+                "speed": "4G/5G",
+                "supportTopUpType": 2
+              },
+              {
+                "packageCode": "P-IN-ODD",
+                "slug": "p-in-odd",
+                "name": "<script>alert(1)</script> India half a gig with a very long name that keeps going and going",
+                "price": 8000,
+                "retailPrice": 16000,
+                "currencyCode": "USD",
+                "volume": 536870912,
+                "duration": 7,
+                "durationUnit": "DAY",
+                "location": "IN",
+                "speed": "4G/5G",
+                "supportTopUpType": 2
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

@@ -3,9 +3,13 @@
  * `POST {baseUrl}/api/v4/verify/{rp_id}` with the IDKit result unchanged; success only when the verifier says
  * success for every credential, for OUR action, in OUR environment, bound to OUR signal.
  */
-import { httpJson } from '@ethglobal/protocol/http';
-import { personhoodProofSchema, verificationLevelFromIdentifier } from '@ethglobal/protocol/schemas';
 import { z } from 'zod';
+
+import { httpJson } from '@ethglobal/protocol/http';
+import {
+  personhoodProofSchema,
+  verificationLevelFromIdentifier,
+} from '@ethglobal/protocol/schemas';
 
 import { AdapterError } from '../errors.js';
 import { nullifierHex, signalHash } from '../personhood-proof.js';
@@ -39,9 +43,20 @@ const errorBody = z
 const verifyBody = z.union([okBody, errorBody]);
 
 /** 400 codes that mean "this human already verified for this action" (World one-per-action rule, T-24). */
-const ALREADY = new Set(['nullifier_replayed', 'max_verifications_reached', 'already_verified', 'exceeded_max_verifications']);
+const ALREADY = new Set([
+  'nullifier_replayed',
+  'max_verifications_reached',
+  'already_verified',
+  'exceeded_max_verifications',
+]);
 /** 400 codes that are OUR configuration, not the human's proof: logged loudly, surfaced as unavailable. */
-const CONFIG = new Set(['app_not_migrated', 'unknown_rp', 'inactive_rp', 'invalid_rp_signature', 'rp_signature_expired']);
+const CONFIG = new Set([
+  'app_not_migrated',
+  'unknown_rp',
+  'inactive_rp',
+  'invalid_rp_signature',
+  'rp_signature_expired',
+]);
 
 export interface WorldCloudPersonhoodOptions {
   rpId: string;
@@ -60,7 +75,8 @@ export class WorldCloudPersonhood implements Personhood {
   readonly #url: string;
 
   constructor(opts: WorldCloudPersonhoodOptions) {
-    if (!/^(rp|app)_[A-Za-z0-9]{1,64}$/.test(opts.rpId)) throw new Error('WORLD_RP_ID must look like rp_…');
+    if (!/^(rp|app)_[A-Za-z0-9]{1,64}$/.test(opts.rpId))
+      throw new Error('WORLD_RP_ID must look like rp_…');
     this.#opts = opts;
     const base = checkedBaseUrl(opts.baseUrl ?? WORLD_VERIFY_BASE_URL);
     this.#url = joinUrl(base, `/api/v4/verify/${encodeURIComponent(opts.rpId)}`);
@@ -92,7 +108,9 @@ export class WorldCloudPersonhood implements Personhood {
 
     if (data.session_id !== undefined) throw invalid('session results are not accepted');
     if (data.environment !== this.#opts.environment) {
-      throw invalid(`verifier answered for environment ${data.environment}`, { environment: data.environment });
+      throw invalid(`verifier answered for environment ${data.environment}`, {
+        environment: data.environment,
+      });
     }
     if (data.action !== this.#opts.action) throw invalid('verifier answered for another action');
     const results = data.results ?? [];
@@ -103,22 +121,42 @@ export class WorldCloudPersonhood implements Personhood {
     if (!level) throw invalid(`unknown credential identifier ${identifier}`);
     const nullifierHash = nullifierHex(data.nullifier);
     if (!nullifierHash) {
-      throw new AdapterError('personhood', 'invalid_response', 'verifier nullifier is not a field element');
+      throw new AdapterError(
+        'personhood',
+        'invalid_response',
+        'verifier nullifier is not a field element',
+      );
     }
     const claimed = parsed.data.responses.map((r) => nullifierHex(r.nullifier));
     if (!claimed.includes(nullifierHash)) {
-      throw new AdapterError('personhood', 'invalid_response', 'verifier nullifier differs from the proof');
+      throw new AdapterError(
+        'personhood',
+        'invalid_response',
+        'verifier nullifier differs from the proof',
+      );
     }
     return { nullifierHash, level };
   }
 
   #refused(code: string): AdapterError {
     if (ALREADY.has(code)) {
-      return new AdapterError('personhood', 'already_verified', 'this person already verified for this action', { code });
+      return new AdapterError(
+        'personhood',
+        'already_verified',
+        'this person already verified for this action',
+        { code },
+      );
     }
     if (CONFIG.has(code)) {
-      this.#opts.logger?.warn(`world: verifier refused our configuration (${code}); check WORLD_RP_ID / Portal`);
-      return new AdapterError('personhood', 'unavailable', `world verifier configuration error: ${code}`, { code });
+      this.#opts.logger?.warn(
+        `world: verifier refused our configuration (${code}); check WORLD_RP_ID / Portal`,
+      );
+      return new AdapterError(
+        'personhood',
+        'unavailable',
+        `world verifier configuration error: ${code}`,
+        { code },
+      );
     }
     return invalid(`verifier rejected the proof: ${code}`, { code });
   }

@@ -18,7 +18,8 @@ export function describeConsensusLog(name: string, make: () => Promise<Consensus
       expect(all.map((m) => m.message)).toEqual(['{"n":1}', '{"n":2}', '{"n":3}']);
       const tail = await log.read(TOPIC, 2);
       expect(tail.map((m) => m.sequence)).toEqual([2, 3]);
-      for (let i = 1; i < all.length; i += 1) expect(all[i]!.sequence).toBeGreaterThan(all[i - 1]!.sequence);
+      for (let i = 1; i < all.length; i += 1)
+        expect(all[i]!.sequence).toBeGreaterThan(all[i - 1]!.sequence);
       expect(all[0]!.consensusAt).toBe(a.consensusAt);
     });
 
@@ -29,7 +30,9 @@ export function describeConsensusLog(name: string, make: () => Promise<Consensus
 
     it('rejects > 1024 bytes before submitting (L12), multi-byte characters counted as bytes', async () => {
       const log = await make();
-      await expect(log.submit(TOPIC, 'x'.repeat(1025))).rejects.toMatchObject({ code: 'too_large' });
+      await expect(log.submit(TOPIC, 'x'.repeat(1025))).rejects.toMatchObject({
+        code: 'too_large',
+      });
       await expect(log.submit(TOPIC, 'é'.repeat(513))).rejects.toMatchObject({ code: 'too_large' });
       await expect(log.submit(TOPIC, 'x'.repeat(1024))).resolves.toMatchObject({ sequence: 1 });
     });

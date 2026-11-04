@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
-
 import { readFileSync } from 'node:fs';
+
+import { describe, expect, it } from 'vitest';
 
 import { ADAPTER_CODE_MAP } from '@ethglobal/protocol/errors';
 
@@ -43,10 +43,14 @@ describe('createAdapters', () => {
     expect(adapters.consensus).toBeInstanceOf(MockConsensusLog);
     expect(adapters.blobs).toBeInstanceOf(MemoryBlobStore);
     expect(adapters.treasury).toBeInstanceOf(MockTreasury);
-    await expect(adapters.reseller.order('in-1gb-7d', { idempotencyKey: 'k' })).rejects.toMatchObject({
+    await expect(
+      adapters.reseller.order('in-1gb-7d', { idempotencyKey: 'k' }),
+    ).rejects.toMatchObject({
       code: 'unavailable',
     });
-    await expect(adapters.reseller.order('in-1gb-7d', { idempotencyKey: 'k' })).resolves.toMatchObject({
+    await expect(
+      adapters.reseller.order('in-1gb-7d', { idempotencyKey: 'k' }),
+    ).resolves.toMatchObject({
       provider: 'mock',
     });
   });

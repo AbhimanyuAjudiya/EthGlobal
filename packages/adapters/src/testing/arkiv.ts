@@ -3,8 +3,9 @@
  * follows the injected clock, and a replayer of ArkivClientLike-level recordings. Both record every call so tests
  * assert what reached the SDK (no `btl`/`expiresIn` key, the `$creator` filter, the expiration form).
  */
-import { sha256Hex } from '@ethglobal/crypto';
 import { getAddress, type Address, type Hex } from 'viem';
+
+import { sha256Hex } from '@ethglobal/crypto';
 
 import { loadFixture } from './fixtures.js';
 
@@ -65,7 +66,8 @@ export class FakeArkiv implements ArkivClientLike {
 
   #resolve(expiration: ArkivExpiration): bigint {
     if (expiration.kind === 'atBlock') return expiration.block;
-    if (expiration.seconds % 2 !== 0 || expiration.seconds <= 0) throw new Error('InvalidExpiryError');
+    if (expiration.seconds % 2 !== 0 || expiration.seconds <= 0)
+      throw new Error('InvalidExpiryError');
     return this.#head() + BigInt((expiration.seconds * 1000) / this.blockTimeMs);
   }
 
@@ -78,7 +80,13 @@ export class FakeArkiv implements ArkivClientLike {
     this.#seq += 1;
     const key = sha256Hex(`arkiv-entity:${this.#seq}`);
     const expiresAt = this.#resolve(opts.expiration);
-    this.#entities.set(key, { key, creator: this.#creator, expiresAt, values: { ...values }, schema });
+    this.#entities.set(key, {
+      key,
+      creator: this.#creator,
+      expiresAt,
+      values: { ...values },
+      schema,
+    });
     return { entityKey: key, txHash: sha256Hex(`tx:${this.#seq}`), expiresAt };
   }
 
@@ -144,8 +152,8 @@ function revive(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(revive);
   if (value && typeof value === 'object') {
     const o = value as Record<string, unknown>;
-    if (typeof o['$bigint'] === 'string') return BigInt(o['$bigint']);
-    if (typeof o['$utf8'] === 'string') return new TextEncoder().encode(o['$utf8']);
+    if (typeof o.$bigint === 'string') return BigInt(o.$bigint);
+    if (typeof o.$utf8 === 'string') return new TextEncoder().encode(o.$utf8);
     return Object.fromEntries(Object.entries(o).map(([k, v]) => [k, revive(v)]));
   }
   return value;
@@ -173,7 +181,9 @@ export function arkivFixtureClient(relPath: string): ArkivClientLike & { calls: 
     const i = Math.min(cursor.get(method) ?? 0, recorded.length - 1);
     cursor.set(method, i + 1);
     const hit = recorded[i]!;
-    return hit.error ? Promise.reject(new Error(hit.error)) : Promise.resolve(revive(hit.result) as never);
+    return hit.error
+      ? Promise.reject(new Error(hit.error))
+      : Promise.resolve(revive(hit.result) as never);
   };
   return {
     calls,

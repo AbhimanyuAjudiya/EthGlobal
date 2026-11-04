@@ -115,9 +115,7 @@ describe('httpJson', () => {
 
   it('sends a raw body as is and returns bytes with responseType bytes', async () => {
     const bytes = new Uint8Array([0, 1, 254, 255]);
-    const echo = fakeFetch(
-      async (_url, init) => new Response(init?.body as BodyInit, { status: 201 }),
-    );
+    const echo = fakeFetch(async (_url, init) => new Response(init?.body, { status: 201 }));
     const { status, data } = await httpJson<Uint8Array>('https://api.test/bzz', {
       fetch: echo.fn,
       rawBody: bytes,

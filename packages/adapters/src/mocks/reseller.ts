@@ -1,4 +1,10 @@
-import { hmacSha256, ReplayGuard, sha256Hex, verifyWebhookSignature, bytesToHex } from '@ethglobal/crypto';
+import {
+  hmacSha256,
+  ReplayGuard,
+  sha256Hex,
+  verifyWebhookSignature,
+  bytesToHex,
+} from '@ethglobal/crypto';
 import { WEBHOOK_WINDOW_S } from '@ethglobal/protocol/ids';
 import {
   LPA_PATTERN,
@@ -124,7 +130,12 @@ export class MockReseller implements Reseller {
     };
     if (!LPA_PATTERN.test(lpa)) throw new AdapterError('reseller', 'invalid_response', 'bad LPA');
     this.#orders.set(key, profile);
-    this.#lines.set(iccid, { profile, totalMb: plan.dataMb, orderedAt: this.#now(), advancedMb: 0 });
+    this.#lines.set(iccid, {
+      profile,
+      totalMb: plan.dataMb,
+      orderedAt: this.#now(),
+      advancedMb: 0,
+    });
     return { ...profile };
   }
 
@@ -141,7 +152,10 @@ export class MockReseller implements Reseller {
     const line = this.#line(iccid);
     line.totalMb += mb;
     this.#sequence += 1;
-    const result = { orderId: `mock-topup-${String(this.#sequence).padStart(6, '0')}`, totalMb: line.totalMb };
+    const result = {
+      orderId: `mock-topup-${String(this.#sequence).padStart(6, '0')}`,
+      totalMb: line.totalMb,
+    };
     this.#topUps.set(opts.idempotencyKey, result);
     return { ...result };
   }
@@ -165,10 +179,15 @@ export class MockReseller implements Reseller {
   }
 
   /** A delivery as the mock provider would send it: envelope body + `x-recharge-*` headers (INTERFACES §1.7). */
-  signedWebhook(events: UsageEvent[], now: number): { body: string; headers: Record<string, string> } {
+  signedWebhook(
+    events: UsageEvent[],
+    now: number,
+  ): { body: string; headers: Record<string, string> } {
     const body = JSON.stringify(mockWebhookEnvelopeSchema.parse({ events }));
     const timestamp = Math.floor(now / 1000);
-    const signature = bytesToHex(hmacSha256(this.#secret, webhookCanonical(timestamp, body))).slice(2);
+    const signature = bytesToHex(hmacSha256(this.#secret, webhookCanonical(timestamp, body))).slice(
+      2,
+    );
     return {
       body,
       headers: {
@@ -196,7 +215,16 @@ export class MockReseller implements Reseller {
         return { ok: false, reason: 'skew' };
       }
       const canonical = webhookCanonical(timestamp, rawBody);
-      if (!verifyWebhookSignature(this.#secret, canonical, signature, timestamp, now, WEBHOOK_WINDOW_S)) {
+      if (
+        !verifyWebhookSignature(
+          this.#secret,
+          canonical,
+          signature,
+          timestamp,
+          now,
+          WEBHOOK_WINDOW_S,
+        )
+      ) {
         return { ok: false, reason: 'bad_signature' };
       }
       // The header id is not covered by the MAC, so the body hash is the replay key too.
@@ -217,7 +245,8 @@ export class MockReseller implements Reseller {
       throw new AdapterError('reseller', 'invalid_response', 'webhook body is not JSON');
     }
     const parsed = mockWebhookEnvelopeSchema.safeParse(json);
-    if (!parsed.success) throw new AdapterError('reseller', 'invalid_response', 'unknown webhook shape');
+    if (!parsed.success)
+      throw new AdapterError('reseller', 'invalid_response', 'unknown webhook shape');
     if (parsed.data.events.some((e) => e.usedMb > e.totalMb)) {
       throw new AdapterError('reseller', 'invalid_response', 'usedMb exceeds totalMb');
     }
@@ -225,7 +254,10 @@ export class MockReseller implements Reseller {
   }
 
   orders(): readonly { idempotencyKey: string; profile: EsimProfile }[] {
-    return [...this.#orders].map(([idempotencyKey, profile]) => ({ idempotencyKey, profile: { ...profile } }));
+    return [...this.#orders].map(([idempotencyKey, profile]) => ({
+      idempotencyKey,
+      profile: { ...profile },
+    }));
   }
 
   #line(iccid: string): Line {

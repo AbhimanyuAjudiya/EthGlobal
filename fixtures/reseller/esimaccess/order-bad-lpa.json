@@ -1,0 +1,90 @@
+{
+  "name": "eSIM Access order-bad-lpa",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "note": "[verify Wed] authored from esimaccess-api@b9421b3 references/api-reference.md (envelope { success, errorCode, errorMsg, obj }, price ×10 000, volume bytes). Re-record with the console account: real packageCodes, the real `ac` (LPA) and its fill latency.",
+  "exchanges": [
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://api.esimaccess.com/api/v1/open/esim/order",
+        "body": {
+          "transactionId": "088a431e1fb0a1f1d863c6b37cf421b6",
+          "packageInfoList": [
+            {
+              "packageCode": "P-IN-1G-7D",
+              "count": 1
+            }
+          ]
+        },
+        "expectHeaders": {
+          "RT-AccessCode": "test-access-code",
+          "RT-Timestamp": "*",
+          "RT-RequestID": "*",
+          "RT-Signature": "*"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "errorCode": null,
+          "errorMsg": null,
+          "obj": {
+            "orderNo": "B26110300006",
+            "transactionId": "088a431e1fb0a1f1d863c6b37cf421b6"
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://api.esimaccess.com/api/v1/open/esim/query",
+        "body": {
+          "orderNo": "B26110300006",
+          "iccid": "",
+          "pager": {
+            "pageNum": 1,
+            "pageSize": 20
+          }
+        },
+        "expectHeaders": {
+          "RT-AccessCode": "test-access-code",
+          "RT-Timestamp": "*",
+          "RT-RequestID": "*",
+          "RT-Signature": "*"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "errorCode": null,
+          "errorMsg": null,
+          "obj": {
+            "esimList": [
+              {
+                "esimTranNo": "ESIM-TRAN-6",
+                "orderNo": "B26110300006",
+                "transactionId": "088a431e1fb0a1f1d863c6b37cf421b6",
+                "imsi": "",
+                "iccid": "89852240000000000006",
+                "msisdn": "",
+                "ac": "javascript:alert(1)",
+                "qrCodeUrl": "https://p.qrsim.net/example.png",
+                "shortUrl": "",
+                "smdpStatus": "RELEASED",
+                "esimStatus": "GOT_RESOURCE",
+                "eid": "",
+                "totalVolume": 1073741824,
+                "orderUsage": 0,
+                "expiredTime": "2026-11-10T12:00:00+0000"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

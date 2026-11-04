@@ -1,7 +1,7 @@
 /** Submits authorization calldata from the relayer key; simulates with eth_call first (T-16). */
-import type { Address, Hex, PublicClient, WalletClient } from 'viem';
-
 import { Eip3009Error } from './errors.js';
+
+import type { Address, Hex, PublicClient, WalletClient } from 'viem';
 
 export interface Relayer {
   /** The relayer's own address (receiveWithAuthorization is only submittable when `to` equals it). */

@@ -41,7 +41,7 @@ export class MockPersonhood implements Personhood {
     if (!parsed.success) throw invalid('not an IDKit 4 uniqueness result');
     const environment = (parsed.data as { environment?: unknown }).environment;
     if (environment !== undefined && environment !== this.#environment) {
-      throw invalid(`proof is for environment ${String(environment)}`);
+      throw invalid(`proof is for environment ${JSON.stringify(environment)}`);
     }
     const [first] = parsed.data.responses;
     const level = first && verificationLevelFromIdentifier(first.identifier);

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { domain, domainFromRequirements, readDomain } from '../src/index.js';
 import { BASE_SEPOLIA_USDC, MOCK_USDC } from './helpers.js';
+import { domain, domainFromRequirements, readDomain } from '../src/index.js';
 
 import type { PublicClient } from 'viem';
 
@@ -22,7 +22,9 @@ describe('domain', () => {
     [MOCK_USDC, 1, '', '2'],
     [MOCK_USDC, 1, 'USDC', ''],
   ] as const)('rejects %s / %s / %s / %s', (token, chainId, name, version) => {
-    expect(() => domain(token, chainId, name, version)).toThrow(expect.objectContaining({ code: 'invalid_domain' }));
+    expect(() => domain(token, chainId, name, version)).toThrow(
+      expect.objectContaining({ code: 'invalid_domain' }),
+    );
   });
 });
 
@@ -44,15 +46,23 @@ describe('domainFromRequirements (A-21)', () => {
     [{ network: 'eip155:31337', asset: MOCK_USDC, extra: { name: 'USDC' } }],
     [{ network: 'eip155:31337', asset: MOCK_USDC, extra: { name: 7, version: '2' } }],
   ])('throws on %j', (req) => {
-    expect(() => domainFromRequirements(req)).toThrow(expect.objectContaining({ code: 'invalid_domain' }));
+    expect(() => domainFromRequirements(req)).toThrow(
+      expect.objectContaining({ code: 'invalid_domain' }),
+    );
   });
 });
 
 describe('readDomain', () => {
   it('uses ERC-5267 eip712Domain() when the token has it', async () => {
-    const readContract = vi.fn().mockResolvedValue(['0x0f', 'USD Coin', '2', 31337n, MOCK_USDC, `0x${'0'.repeat(64)}`, []]);
+    const readContract = vi
+      .fn()
+      .mockResolvedValue(['0x0f', 'USD Coin', '2', 31337n, MOCK_USDC, `0x${'0'.repeat(64)}`, []]);
     const client = { readContract, getChainId: vi.fn() } as unknown as PublicClient;
-    await expect(readDomain(client, MOCK_USDC)).resolves.toEqual({ name: 'USD Coin', version: '2', chainId: 31337 });
+    await expect(readDomain(client, MOCK_USDC)).resolves.toEqual({
+      name: 'USD Coin',
+      version: '2',
+      chainId: 31337,
+    });
     expect(readContract).toHaveBeenCalledTimes(1);
     expect(readContract.mock.calls[0]?.[0]).toMatchObject({ functionName: 'eip712Domain' });
   });
@@ -62,7 +72,14 @@ describe('readDomain', () => {
       if (functionName === 'eip712Domain') throw new Error('execution reverted');
       return functionName === 'name' ? 'USDC' : '2';
     });
-    const client = { readContract, getChainId: vi.fn().mockResolvedValue(84532) } as unknown as PublicClient;
-    await expect(readDomain(client, BASE_SEPOLIA_USDC)).resolves.toEqual({ name: 'USDC', version: '2', chainId: 84532 });
+    const client = {
+      readContract,
+      getChainId: vi.fn().mockResolvedValue(84532),
+    } as unknown as PublicClient;
+    await expect(readDomain(client, BASE_SEPOLIA_USDC)).resolves.toEqual({
+      name: 'USDC',
+      version: '2',
+      chainId: 84532,
+    });
   });
 });

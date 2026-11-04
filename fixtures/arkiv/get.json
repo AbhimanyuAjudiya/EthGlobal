@@ -26,7 +26,7 @@
             "$bigint": "1793707200000"
           },
           "type": "entitlement",
-          "key": "ent:v1:abababababababababababababababababababababababababababababababab",
+          "logicalKey": "ent:v1:abababababababababababababababababababababababababababababababab",
           "status": "active",
           "expiresAt": {
             "$bigint": "1794312000000"

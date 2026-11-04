@@ -1,5 +1,14 @@
 /** Strict signature handling (T-17): canonical low-s, v ∈ {0,1,27,28}, 65-byte or EIP-2098 64-byte. */
-import { recoverAddress, size, sliceHex, hexToBigInt, isHex, numberToHex, type Address, type Hex } from 'viem';
+import {
+  recoverAddress,
+  size,
+  sliceHex,
+  hexToBigInt,
+  isHex,
+  numberToHex,
+  type Address,
+  type Hex,
+} from 'viem';
 
 import { Eip3009Error } from './errors.js';
 
@@ -60,7 +69,8 @@ export const normalizeSignature = (signature: Hex): Hex => parseSignature(signat
 
 /** ecrecover over a 32-byte digest with the strict rules above; returns the EIP-55 address. */
 export async function recoverSigner(digest: Hex, signature: Hex): Promise<Address> {
-  if (!isHex(digest, { strict: true }) || size(digest) !== 32) throw reject('digest must be 32 bytes');
+  if (!isHex(digest, { strict: true }) || size(digest) !== 32)
+    throw reject('digest must be 32 bytes');
   const { serialized } = parseSignature(signature);
   try {
     return await recoverAddress({ hash: digest, signature: serialized });

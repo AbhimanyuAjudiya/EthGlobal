@@ -20,7 +20,8 @@ describeReseller('MockReseller', async () => {
   return {
     reseller,
     now: clock.now,
-    deliver: (iccid, now) => reseller.signedWebhook([event(iccid, Math.floor(now / 1000) % 500)], now),
+    deliver: (iccid, now) =>
+      reseller.signedWebhook([event(iccid, Math.floor(now / 1000) % 500)], now),
     timestamped: true,
     bodyBound: true,
   };
@@ -33,7 +34,11 @@ describe('MockReseller specifics', () => {
     const { iccid } = await reseller.order('in-1gb-7d', { idempotencyKey: 'k' });
     expect((await reseller.usage(iccid)).usedMb).toBe(0);
     clock.advance(60_000 * 10);
-    expect(await reseller.usage(iccid)).toMatchObject({ usedMb: 50, totalMb: 1000, status: 'active' });
+    expect(await reseller.usage(iccid)).toMatchObject({
+      usedMb: 50,
+      totalMb: 1000,
+      status: 'active',
+    });
     reseller.advanceUsage(iccid, 100);
     expect((await reseller.usage(iccid)).usedMb).toBe(150);
     clock.advance(60_000 * 1000);
@@ -48,7 +53,9 @@ describe('MockReseller specifics', () => {
       adapter: 'reseller',
       code: 'unavailable',
     });
-    await expect(reseller.order('in-300mb-7d', { idempotencyKey: 'a' })).resolves.toMatchObject({ planId: 'in-300mb-7d' });
+    await expect(reseller.order('in-300mb-7d', { idempotencyKey: 'a' })).resolves.toMatchObject({
+      planId: 'in-300mb-7d',
+    });
     expect(reseller.orders()).toHaveLength(1);
   });
 
@@ -56,10 +63,15 @@ describe('MockReseller specifics', () => {
     const reseller = new MockReseller();
     const { iccid } = await reseller.order('in-1gb-7d', { idempotencyKey: 'k' });
     const { body, headers } = reseller.signedWebhook([event(iccid)], T0);
-    expect(reseller.verifyWebhook(body, headers, T0 + 299_000)).toEqual({ ok: true, eventId: headers[MOCK_WEBHOOK_HEADERS.eventId] });
+    expect(reseller.verifyWebhook(body, headers, T0 + 299_000)).toEqual({
+      ok: true,
+      eventId: headers[MOCK_WEBHOOK_HEADERS.eventId],
+    });
     expect(reseller.verifyWebhook(body, headers, T0)).toEqual({ ok: false, reason: 'replay' });
     // a fresh event id header on the same signed body is still a replay (the id is not MAC-covered)
-    expect(reseller.verifyWebhook(body, { ...headers, [MOCK_WEBHOOK_HEADERS.eventId]: 'other' }, T0)).toEqual({ ok: false, reason: 'replay' });
+    expect(
+      reseller.verifyWebhook(body, { ...headers, [MOCK_WEBHOOK_HEADERS.eventId]: 'other' }, T0),
+    ).toEqual({ ok: false, reason: 'replay' });
     const fresh = reseller.signedWebhook([event(iccid, 20)], T0);
     const cases: [Record<string, string | undefined>, string][] = [
       [{ ...fresh.headers, [MOCK_WEBHOOK_HEADERS.signature]: undefined }, 'missing_headers'],
@@ -74,26 +86,43 @@ describe('MockReseller specifics', () => {
       expect(reseller.verifyWebhook(fresh.body, h, T0)).toEqual({ ok: false, reason });
     }
     const parsed = (JSON.parse(fresh.body) as { events: Record<string, unknown>[] }).events[0]!;
-    const swapped = JSON.stringify({ events: [Object.fromEntries(Object.entries(parsed).reverse())] });
+    const swapped = JSON.stringify({
+      events: [Object.fromEntries(Object.entries(parsed).reverse())],
+    });
     expect(swapped).not.toBe(fresh.body);
-    expect(reseller.verifyWebhook(swapped, fresh.headers, T0)).toEqual({ ok: false, reason: 'bad_signature' });
+    expect(reseller.verifyWebhook(swapped, fresh.headers, T0)).toEqual({
+      ok: false,
+      reason: 'bad_signature',
+    });
     expect(reseller.verifyWebhook(fresh.body, fresh.headers, T0)).toMatchObject({ ok: true });
   });
 
   it('parseWebhook rejects usedMb > totalMb and unknown shapes', () => {
     const reseller = new MockReseller();
     const bad = JSON.stringify({ events: [{ ...event('8991000000000000001'), usedMb: 2000 }] });
-    expect(() => reseller.parseWebhook(bad)).toThrow(expect.objectContaining({ code: 'invalid_response' }));
-    expect(() => reseller.parseWebhook('{"x":1}')).toThrow(expect.objectContaining({ code: 'invalid_response' }));
+    expect(() => reseller.parseWebhook(bad)).toThrow(
+      expect.objectContaining({ code: 'invalid_response' }),
+    );
+    expect(() => reseller.parseWebhook('{"x":1}')).toThrow(
+      expect.objectContaining({ code: 'invalid_response' }),
+    );
   });
 
   it('rejects unknown plans, empty keys, unknown ICCIDs and bad MB', async () => {
     const reseller = new MockReseller();
-    await expect(reseller.order('nope', { idempotencyKey: 'k' })).rejects.toMatchObject({ code: 'invalid_request' });
-    await expect(reseller.order('in-1gb-7d', { idempotencyKey: '' })).rejects.toMatchObject({ code: 'invalid_request' });
+    await expect(reseller.order('nope', { idempotencyKey: 'k' })).rejects.toMatchObject({
+      code: 'invalid_request',
+    });
+    await expect(reseller.order('in-1gb-7d', { idempotencyKey: '' })).rejects.toMatchObject({
+      code: 'invalid_request',
+    });
     await expect(reseller.usage('8991')).rejects.toMatchObject({ code: 'not_found' });
     const { iccid } = await reseller.order('in-1gb-7d', { idempotencyKey: 'k' });
-    await expect(reseller.topUp(iccid, 0, { idempotencyKey: 't' })).rejects.toMatchObject({ code: 'invalid_request' });
-    expect(() => reseller.advanceUsage(iccid, -1)).toThrow(expect.objectContaining({ code: 'invalid_request' }));
+    await expect(reseller.topUp(iccid, 0, { idempotencyKey: 't' })).rejects.toMatchObject({
+      code: 'invalid_request',
+    });
+    expect(() => reseller.advanceUsage(iccid, -1)).toThrow(
+      expect.objectContaining({ code: 'invalid_request' }),
+    );
   });
 });

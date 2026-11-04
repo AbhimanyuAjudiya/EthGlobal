@@ -15,7 +15,7 @@ export function domain(
   name: string,
   version: string,
 ): TypedDataDomain {
-  if (!isAddress(token, { strict: false })) throw bad(`not an address: ${token}`);
+  if (!isAddress(token, { strict: false })) throw bad(`not an address: ${String(token)}`);
   if (!Number.isSafeInteger(chainId) || chainId <= 0) throw bad(`bad chainId ${chainId}`);
   if (name === '' || version === '') throw bad('name and version must be non-empty');
   return { name, version, chainId, verifyingContract: getAddress(token) };
@@ -32,8 +32,8 @@ export function domainFromRequirements(req: {
 }): TypedDataDomain {
   const match = EIP155.exec(req.network);
   if (!match?.[1]) throw bad(`not an eip155 network: ${req.network}`);
-  const name = req.extra?.['name'];
-  const version = req.extra?.['version'];
+  const name = req.extra?.name;
+  const version = req.extra?.version;
   if (typeof name !== 'string' || typeof version !== 'string') {
     throw bad('requirements.extra must carry the token EIP-712 name and version');
   }

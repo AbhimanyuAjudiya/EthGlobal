@@ -5,11 +5,20 @@
  * signed over the exact string sent. Webhooks are unsigned: URL token + sender IP + body-hash replay cache, and their
  * numbers are hints only — the API re-reads usage() (T-34, T-82).
  */
-import { bytesToHex, hmacSha256, ReplayGuard, sha256, sha256Hex, timingSafeEqual, utf8 } from '@ethglobal/crypto';
+import { z } from 'zod';
+
+import {
+  bytesToHex,
+  hmacSha256,
+  ReplayGuard,
+  sha256,
+  sha256Hex,
+  timingSafeEqual,
+  utf8,
+} from '@ethglobal/crypto';
 import { httpJson } from '@ethglobal/protocol/http';
 import { WEBHOOK_WINDOW_S } from '@ethglobal/protocol/ids';
 import { mbFromBytes } from '@ethglobal/protocol/units';
-import { z } from 'zod';
 
 import { AdapterError, type AdapterErrorCode } from '../errors.js';
 import {
@@ -25,10 +34,23 @@ import { guard } from './errors.js';
 import { checkedBaseUrl, joinUrl, withFetch } from './http.js';
 import { Pacer } from './rate-limit.js';
 
-import type { EsimPlan, EsimProfile, EsimUsage, Reseller, UsageEvent, WebhookVerdict } from '../types.js';
+import type {
+  EsimPlan,
+  EsimProfile,
+  EsimUsage,
+  Reseller,
+  UsageEvent,
+  WebhookVerdict,
+} from '../types.js';
 
 export const ESIMACCESS_BASE_URL = 'https://api.esimaccess.com/api/v1/open';
-export const ESIMACCESS_WEBHOOK_IPS = ['3.1.131.226', '54.254.74.88', '18.136.190.97', '18.136.60.197', '18.136.19.137'];
+export const ESIMACCESS_WEBHOOK_IPS = [
+  '3.1.131.226',
+  '54.254.74.88',
+  '18.136.190.97',
+  '18.136.60.197',
+  '18.136.19.137',
+];
 /** Pseudo-headers the API route sets from `?token=` and the socket address (never trusted from the client, T-82). */
 export const WEBHOOK_TOKEN_HEADER = 'x-recharge-url-token';
 export const WEBHOOK_IP_HEADER = 'x-recharge-remote-ip';
@@ -57,7 +79,9 @@ const packageSchema = z
   })
   .loose();
 const packageList = z.object({ packageList: z.array(packageSchema).max(2000) }).loose();
-const orderObj = z.object({ orderNo: z.string().min(1).max(64), transactionId: z.string().max(64).optional() }).loose();
+const orderObj = z
+  .object({ orderNo: z.string().min(1).max(64), transactionId: z.string().max(64).optional() })
+  .loose();
 const esimSchema = z
   .object({
     esimTranNo: z.string().max(64),
@@ -76,7 +100,11 @@ const webhookSchema = z
   .object({
     notifyType: z.string().max(32),
     content: z
-      .object({ iccid: z.string().max(32).optional(), esimStatus: z.string().optional(), smdpStatus: z.string().optional() })
+      .object({
+        iccid: z.string().max(32).optional(),
+        esimStatus: z.string().optional(),
+        smdpStatus: z.string().optional(),
+      })
       .loose()
       .optional(),
   })
@@ -85,7 +113,10 @@ const webhookSchema = z
 type Esim = z.infer<typeof esimSchema>;
 
 /** smdpStatus / esimStatus → our profile status (API-FACTS §5.1 status model). */
-export function esimStatus(e: { smdpStatus?: string | undefined; esimStatus?: string | undefined }): ProfileStatus {
+export function esimStatus(e: {
+  smdpStatus?: string | undefined;
+  esimStatus?: string | undefined;
+}): ProfileStatus {
   const s = new Set([e.smdpStatus, e.esimStatus]);
   if (s.has('USED_UP') || s.has('DELETED') || s.has('USED_EXPIRED')) return 'expired';
   if (s.has('IN_USE')) return 'active';
@@ -142,7 +173,8 @@ export class EsimAccessReseller implements Reseller {
 
   constructor(opts: EsimAccessResellerOptions) {
     if (!opts.accessCode) throw new Error('ESIMACCESS_ACCESS_CODE is required');
-    if (opts.webhookToken.length < 16) throw new Error('ESIMACCESS_WEBHOOK_TOKEN must be at least 16 characters');
+    if (opts.webhookToken.length < 16)
+      throw new Error('ESIMACCESS_WEBHOOK_TOKEN must be at least 16 characters');
     this.#opts = opts;
     this.#base = checkedBaseUrl(opts.baseUrl ?? ESIMACCESS_BASE_URL);
     this.#sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
@@ -155,7 +187,9 @@ export class EsimAccessReseller implements Reseller {
   signHeaders(rawBody: string, timestamp: string, requestId: string): Record<string, string> {
     const { accessCode } = this.#opts;
     const key = utf8(this.#opts.signingKey ?? accessCode);
-    const signature = bytesToHex(hmacSha256(key, `${timestamp}${requestId}${accessCode}${rawBody}`)).slice(2);
+    const signature = bytesToHex(
+      hmacSha256(key, `${timestamp}${requestId}${accessCode}${rawBody}`),
+    ).slice(2);
     return {
       'content-type': 'application/json',
       'RT-AccessCode': accessCode,
@@ -165,7 +199,11 @@ export class EsimAccessReseller implements Reseller {
     };
   }
 
-  async #call<T>(endpoint: string, body: Record<string, unknown>, schema: z.ZodType<T>): Promise<T> {
+  async #call<T>(
+    endpoint: string,
+    body: Record<string, unknown>,
+    schema: z.ZodType<T>,
+  ): Promise<T> {
     await this.#pacer.acquire();
     const rawBody = JSON.stringify(body); // serialised once: the string signed is the string sent
     const requestId = (this.#opts.uuid ?? (() => crypto.randomUUID()))();
@@ -183,15 +221,27 @@ export class EsimAccessReseller implements Reseller {
       const code = String(data.errorCode ?? '');
       if (code === '310402') throw new VendorError(code);
       const mapped = ERROR_CODES[code] ?? 'unavailable';
-      if (code === '200007') this.#opts.logger?.warn('esimaccess: insufficient balance (200007) — top up the console');
-      if (mapped === 'invalid_response') this.#opts.logger?.warn(`esimaccess: ${endpoint} refused (${code}), request ${requestId}`);
-      throw new AdapterError('reseller', mapped, `eSIM Access ${endpoint} failed (${code || 'no code'})`, {
-        vendorCode: code,
-        requestId,
-      });
+      if (code === '200007')
+        this.#opts.logger?.warn('esimaccess: insufficient balance (200007) — top up the console');
+      if (mapped === 'invalid_response')
+        this.#opts.logger?.warn(`esimaccess: ${endpoint} refused (${code}), request ${requestId}`);
+      throw new AdapterError(
+        'reseller',
+        mapped,
+        `eSIM Access ${endpoint} failed (${code || 'no code'})`,
+        {
+          vendorCode: code,
+          requestId,
+        },
+      );
     }
     const parsed = schema.safeParse(data.obj);
-    if (!parsed.success) throw new AdapterError('reseller', 'invalid_response', `eSIM Access ${endpoint}: unexpected shape`);
+    if (!parsed.success)
+      throw new AdapterError(
+        'reseller',
+        'invalid_response',
+        `eSIM Access ${endpoint}: unexpected shape`,
+      );
     return parsed.data;
   }
 
@@ -202,7 +252,10 @@ export class EsimAccessReseller implements Reseller {
       packageList,
     );
     return list
-      .filter((p) => p.durationUnit === 'DAY' && p.duration > 0 && p.price > 0 && mbFromBytes(p.volume) > 0)
+      .filter(
+        (p) =>
+          p.durationUnit === 'DAY' && p.duration > 0 && p.price > 0 && mbFromBytes(p.volume) > 0,
+      )
       .map((p) => ({
         id: p.packageCode,
         provider: 'esimaccess' as const,
@@ -216,7 +269,10 @@ export class EsimAccessReseller implements Reseller {
 
   order(planId: string, opts: { idempotencyKey: string }): Promise<EsimProfile> {
     const key = opts.idempotencyKey;
-    if (!key) return Promise.reject(new AdapterError('reseller', 'invalid_request', 'idempotencyKey is required'));
+    if (!key)
+      return Promise.reject(
+        new AdapterError('reseller', 'invalid_request', 'idempotencyKey is required'),
+      );
     const existing = this.#orders.get(key);
     if (existing) return existing;
     const pending = this.#order(planId, key);
@@ -244,14 +300,22 @@ export class EsimAccessReseller implements Reseller {
     }
     const deadline = this.#opts.now() + (this.#opts.pollTimeoutMs ?? 30_000);
     for (;;) {
-      const { esimList: list } = await this.#call('/esim/query', { ...lookup, pager: PAGER }, esimList);
+      const { esimList: list } = await this.#call(
+        '/esim/query',
+        { ...lookup, pager: PAGER },
+        esimList,
+      );
       const esim = list.find(
-        (e) => (lookup['orderNo'] ? e.orderNo === lookup['orderNo'] : e.transactionId === transactionId) && e.iccid !== '',
+        (e) =>
+          (lookup.orderNo ? e.orderNo === lookup.orderNo : e.transactionId === transactionId) &&
+          e.iccid !== '',
       );
       if (esim?.ac) return this.#profile(esim, planId);
       if (this.#opts.now() >= deadline) {
         // The API keeps pending-profile and retries with the same key (the vendor dedupes by transactionId).
-        throw unavailable('eSIM Access profile not ready after 30 s (pending-profile)', { reason: 'pending_profile' });
+        throw unavailable('eSIM Access profile not ready after 30 s (pending-profile)', {
+          reason: 'pending_profile',
+        });
       }
       await this.#sleep(this.#opts.pollMs ?? 3_000);
     }
@@ -269,15 +333,25 @@ export class EsimAccessReseller implements Reseller {
   }
 
   async #esim(iccid: string): Promise<Esim> {
-    if (!ICCID_PATTERN.test(iccid)) throw new AdapterError('reseller', 'invalid_request', 'malformed ICCID');
-    const { esimList: list } = await this.#call('/esim/query', { orderNo: '', iccid, pager: PAGER }, esimList);
+    if (!ICCID_PATTERN.test(iccid))
+      throw new AdapterError('reseller', 'invalid_request', 'malformed ICCID');
+    const { esimList: list } = await this.#call(
+      '/esim/query',
+      { orderNo: '', iccid, pager: PAGER },
+      esimList,
+    );
     if (list.length === 0) throw new AdapterError('reseller', 'not_found', 'unknown ICCID');
     const esim = list.find((e) => e.iccid === iccid);
-    if (!esim) throw new AdapterError('reseller', 'invalid_response', 'query answered for another ICCID');
+    if (!esim)
+      throw new AdapterError('reseller', 'invalid_response', 'query answered for another ICCID');
     return esim;
   }
 
-  topUp(iccid: string, mb: number, opts: { idempotencyKey: string }): Promise<{ orderId: string; totalMb: number }> {
+  topUp(
+    iccid: string,
+    mb: number,
+    opts: { idempotencyKey: string },
+  ): Promise<{ orderId: string; totalMb: number }> {
     const existing = this.#topUps.get(opts.idempotencyKey);
     if (existing) return existing;
     const pending = this.#topUp(iccid, mb, opts.idempotencyKey);
@@ -286,8 +360,13 @@ export class EsimAccessReseller implements Reseller {
     return pending;
   }
 
-  async #topUp(iccid: string, mb: number, idempotencyKey: string): Promise<{ orderId: string; totalMb: number }> {
-    if (!Number.isSafeInteger(mb) || mb <= 0) throw new AdapterError('reseller', 'invalid_request', 'mb must be a positive integer');
+  async #topUp(
+    iccid: string,
+    mb: number,
+    idempotencyKey: string,
+  ): Promise<{ orderId: string; totalMb: number }> {
+    if (!Number.isSafeInteger(mb) || mb <= 0)
+      throw new AdapterError('reseller', 'invalid_request', 'mb must be a positive integer');
     const { esimTranNo } = await this.#esim(iccid);
     // [verify Wed] `type: "TOPUP"` with `iccid` lists the compatible top-up packages.
     const { packageList: list } = await this.#call(
@@ -296,10 +375,19 @@ export class EsimAccessReseller implements Reseller {
       packageList,
     );
     const pkg = list.find((p) => p.supportTopUpType === 2 && mbFromBytes(p.volume) === mb);
-    if (!pkg) throw new AdapterError('reseller', 'invalid_request', `no ${mb} MB top-up package for this profile`);
+    if (!pkg)
+      throw new AdapterError(
+        'reseller',
+        'invalid_request',
+        `no ${mb} MB top-up package for this profile`,
+      );
     const transactionId = sha256Hex(`topup:${idempotencyKey}`).slice(2, 34);
     try {
-      await this.#call('/esim/topup', { esimTranNo, iccid: '', packageCode: pkg.packageCode, transactionId }, z.unknown());
+      await this.#call(
+        '/esim/topup',
+        { esimTranNo, iccid: '', packageCode: pkg.packageCode, transactionId },
+        z.unknown(),
+      );
     } catch (error) {
       if (!(error instanceof VendorError)) throw error; // 310402: already applied under this transactionId
     }
@@ -315,13 +403,18 @@ export class EsimAccessReseller implements Reseller {
     return { iccid, usedMb, totalMb, asOf: this.#opts.now(), status: esimStatus(e) };
   }
 
-  verifyWebhook(rawBody: string, headers: Record<string, string | undefined>, now: number): WebhookVerdict {
+  verifyWebhook(
+    rawBody: string,
+    headers: Record<string, string | undefined>,
+    now: number,
+  ): WebhookVerdict {
     try {
       const token = headerValue(headers, WEBHOOK_TOKEN_HEADER);
       const ip = headerValue(headers, WEBHOOK_IP_HEADER);
       if (!token || !ip) return { ok: false, reason: 'missing_headers' };
       // constant time: compare digests of equal length, never the strings (no early return on a prefix)
-      if (!timingSafeEqual(sha256(token), this.#tokenDigest)) return { ok: false, reason: 'bad_signature' };
+      if (!timingSafeEqual(sha256(token), this.#tokenDigest))
+        return { ok: false, reason: 'bad_signature' };
       if (!this.#ips.has(ip.replace(/^::ffff:/, ''))) return { ok: false, reason: 'bad_signature' };
       const rtTimestamp = headerValue(headers, 'rt-timestamp');
       if (rtTimestamp !== undefined) {
@@ -352,10 +445,15 @@ export class EsimAccessReseller implements Reseller {
       throw new AdapterError('reseller', 'invalid_response', 'webhook body is not JSON');
     }
     const parsed = webhookSchema.safeParse(json);
-    if (!parsed.success) throw new AdapterError('reseller', 'invalid_response', 'unknown webhook shape');
+    if (!parsed.success)
+      throw new AdapterError('reseller', 'invalid_response', 'unknown webhook shape');
     const { notifyType, content } = parsed.data;
     const iccid = content?.iccid;
-    if (!['DATA_USAGE', 'ESIM_STATUS', 'VALIDITY_USAGE'].includes(notifyType) || !iccid || !ICCID_PATTERN.test(iccid)) {
+    if (
+      !['DATA_USAGE', 'ESIM_STATUS', 'VALIDITY_USAGE'].includes(notifyType) ||
+      !iccid ||
+      !ICCID_PATTERN.test(iccid)
+    ) {
       return [];
     }
     const event: UsageEvent = {

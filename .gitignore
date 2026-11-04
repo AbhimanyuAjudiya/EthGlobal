@@ -46,3 +46,4 @@ packages/contracts/broadcast/**/31337/
 .e2e/
 .agent/
 fixtures/inventory.enc
+fixtures/inventory.enc.*.tmp

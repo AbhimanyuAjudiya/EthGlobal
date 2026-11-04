@@ -24,9 +24,7 @@
           ],
           "extensions": [],
           "signers": {
-            "eip155:*": [
-              "0x976EA74026E726554dB657fA54763abd0C3a0aa9"
-            ]
+            "eip155:*": ["0x976EA74026E726554dB657fA54763abd0C3a0aa9"]
           }
         }
       }

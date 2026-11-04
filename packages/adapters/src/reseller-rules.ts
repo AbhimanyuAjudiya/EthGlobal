@@ -11,7 +11,7 @@ export const ICCID_PATTERN = /^\d{18,22}$/;
 /** Plain text, no markup or control characters, ≤ 64 chars (names are rendered, T-39). */
 export const safePlanName = (name: string): string =>
   name
-    .replace(/[\u0000-\u001f\u007f<>"'`]/g, '')
+    .replace(/[\p{Cc}<>"'`]/gu, '')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, PLAN_NAME_MAX);
@@ -25,18 +25,26 @@ export function assertLpa(lpa: string): string {
 }
 
 export function assertIccid(iccid: string): string {
-  if (!ICCID_PATTERN.test(iccid)) throw new AdapterError('reseller', 'invalid_response', 'malformed ICCID');
+  if (!ICCID_PATTERN.test(iccid))
+    throw new AdapterError('reseller', 'invalid_response', 'malformed ICCID');
   return iccid;
 }
 
 export function assertUsage(usedMb: number, totalMb: number): void {
-  if (!(Number.isSafeInteger(usedMb) && Number.isSafeInteger(totalMb) && usedMb >= 0 && usedMb <= totalMb)) {
+  if (!(
+    Number.isSafeInteger(usedMb) &&
+    Number.isSafeInteger(totalMb) &&
+    usedMb >= 0 &&
+    usedMb <= totalMb
+  )) {
     throw new AdapterError('reseller', 'invalid_response', 'usage outside [0, totalMb]');
   }
 }
 
 /** Header lookup that ignores case (Node lower-cases, fetch Headers too, tests may not). */
-export const headerValue = (headers: Record<string, string | undefined>, name: string): string | undefined =>
-  Object.entries(headers).find(([k]) => k.toLowerCase() === name)?.[1];
+export const headerValue = (
+  headers: Record<string, string | undefined>,
+  name: string,
+): string | undefined => Object.entries(headers).find(([k]) => k.toLowerCase() === name)?.[1];
 
 export type ProfileStatus = EsimProfile['status'];

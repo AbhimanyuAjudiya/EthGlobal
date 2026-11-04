@@ -22,28 +22,46 @@ const isFixtureMiss = (error: unknown): error is Error & { code: 'fixture_miss' 
  * Any failure → AdapterError(adapter, code). Messages carry the status and reason only — never the body, the
  * headers or the URL (an RPC URL can carry an access key, a body an activation code).
  */
-export function toAdapterError(adapter: AdapterName, error: unknown, mapStatus?: StatusMapper): AdapterError {
+export function toAdapterError(
+  adapter: AdapterName,
+  error: unknown,
+  mapStatus?: StatusMapper,
+): AdapterError {
   if (error instanceof AdapterError) return error;
   if (isFixtureMiss(error)) return new AdapterError(adapter, 'fixture_miss', error.message);
   if (error instanceof HttpError) {
-    if (isFixtureMiss(error.cause)) return new AdapterError(adapter, 'fixture_miss', error.cause.message);
+    if (isFixtureMiss(error.cause))
+      return new AdapterError(adapter, 'fixture_miss', error.cause.message);
     if (error.reason === 'timeout' || error.reason === 'network') {
-      return new AdapterError(adapter, 'unavailable', `${adapter}: ${error.reason}`, { reason: error.reason });
-    }
-    if (error.reason === 'schema') {
-      return new AdapterError(adapter, 'invalid_response', `${adapter}: unexpected response shape (HTTP ${error.status})`, {
-        status: error.status,
+      return new AdapterError(adapter, 'unavailable', `${adapter}: ${error.reason}`, {
+        reason: error.reason,
       });
     }
+    if (error.reason === 'schema') {
+      return new AdapterError(
+        adapter,
+        'invalid_response',
+        `${adapter}: unexpected response shape (HTTP ${error.status})`,
+        {
+          status: error.status,
+        },
+      );
+    }
     const code = mapStatus?.(error.status, error.body) ?? defaultStatusCode(error.status);
-    return new AdapterError(adapter, code, `${adapter}: HTTP ${error.status}`, { status: error.status });
+    return new AdapterError(adapter, code, `${adapter}: HTTP ${error.status}`, {
+      status: error.status,
+    });
   }
   const name = error instanceof Error ? error.name : typeof error;
   return new AdapterError(adapter, 'unavailable', `${adapter}: ${name}`, { reason: name });
 }
 
 /** Runs `fn`, mapping any failure through toAdapterError. */
-export async function guard<T>(adapter: AdapterName, fn: () => Promise<T>, mapStatus?: StatusMapper): Promise<T> {
+export async function guard<T>(
+  adapter: AdapterName,
+  fn: () => Promise<T>,
+  mapStatus?: StatusMapper,
+): Promise<T> {
   try {
     return await fn();
   } catch (error) {

@@ -5,6 +5,8 @@
  * plausible transaction for the requested network, `settlement_pending` is polled on chain, and the Hedera fee
  * payer it advertises must equal the pinned one.
  */
+import { z } from 'zod';
+
 import { httpJson } from '@ethglobal/protocol/http';
 import {
   paymentPayloadSchema,
@@ -13,7 +15,6 @@ import {
   verifyResultSchema,
   type SupportedResponse,
 } from '@ethglobal/protocol/schemas';
-import { z } from 'zod';
 
 import { AdapterError } from '../errors.js';
 import { buildPaymentRequired, sameRequirements } from '../payment-requirements.js';
@@ -31,7 +32,12 @@ import type {
 } from '../types.js';
 
 /** A-30: the only facilitator hosts a configuration may name. */
-export const FACILITATOR_HOSTS = ['x402.org', 'api.testnet.blocky402.com', 'testnet.facilitator.launa.dev', 'localhost'] as const;
+export const FACILITATOR_HOSTS = [
+  'x402.org',
+  'api.testnet.blocky402.com',
+  'testnet.facilitator.launa.dev',
+  'localhost',
+] as const;
 export const DEFAULT_FACILITATOR_URL = 'https://x402.org/facilitator';
 
 const EVM_TX = /^0x[0-9a-fA-F]{64}$/;
@@ -48,10 +54,13 @@ export function plausibleTransaction(network: string, tx: string | undefined): b
 }
 
 /** `0.0.x@seconds.nanos` → the mirror node path form `0.0.x-seconds-nanos`. */
-export const mirrorTransactionId = (tx: string): string => tx.replace('@', '-').replace(/\.(\d+)$/, '-$1');
+export const mirrorTransactionId = (tx: string): string =>
+  tx.replace('@', '-').replace(/\.(\d+)$/, '-$1');
 
 const mirrorTransactions = z.object({
-  transactions: z.array(z.object({ result: z.string(), transaction_id: z.string().optional() }).loose()).max(20),
+  transactions: z
+    .array(z.object({ result: z.string(), transaction_id: z.string().optional() }).loose())
+    .max(20),
 });
 
 export interface ReceiptReader {
@@ -85,7 +94,9 @@ export class RemoteFacilitator implements PaymentRail {
   #supportedValue: SupportedResponse | undefined;
 
   constructor(opts: RemoteFacilitatorOptions) {
-    const allowed = opts.allowedHosts.filter((h) => (FACILITATOR_HOSTS as readonly string[]).includes(h));
+    const allowed = opts.allowedHosts.filter((h) =>
+      (FACILITATOR_HOSTS as readonly string[]).includes(h),
+    );
     this.#base = checkedBaseUrl(opts.url, allowed);
     this.#mirror = opts.mirrorUrl ? checkedBaseUrl(opts.mirrorUrl) : undefined;
     if (opts.networks.length === 0) throw new Error('RemoteFacilitator needs at least one network');
@@ -111,29 +122,47 @@ export class RemoteFacilitator implements PaymentRail {
   /** The facilitator's Hedera fee payer for `network`, checked against the pin (T-42). Call at boot. */
   async feePayer(network: string): Promise<string> {
     const kind = await this.#kind(network);
-    const feePayer = kind.extra?.['feePayer'];
+    const feePayer = kind.extra?.feePayer;
     if (typeof feePayer !== 'string' || !HEDERA_ACCOUNT.test(feePayer)) {
-      throw new AdapterError('payments', 'invalid_response', `facilitator lists no fee payer for ${network}`);
+      throw new AdapterError(
+        'payments',
+        'invalid_response',
+        `facilitator lists no fee payer for ${network}`,
+      );
     }
     const pinned = this.#opts.expectFeePayer?.[network];
     if (pinned !== undefined && pinned !== feePayer) {
-      throw new AdapterError('payments', 'invalid_response', `facilitator fee payer ${feePayer} ≠ pinned ${pinned}`, {
-        feePayer,
-        pinned,
-      });
+      throw new AdapterError(
+        'payments',
+        'invalid_response',
+        `facilitator fee payer ${feePayer} ≠ pinned ${pinned}`,
+        {
+          feePayer,
+          pinned,
+        },
+      );
     }
     return feePayer;
   }
 
   createPaymentRequirement(input: PaymentRequirementInput): PaymentRequired {
     if (!this.#opts.networks.includes(input.network)) {
-      throw new AdapterError('payments', 'unsupported_scheme', `facilitator not configured for ${input.network}`);
+      throw new AdapterError(
+        'payments',
+        'unsupported_scheme',
+        `facilitator not configured for ${input.network}`,
+      );
     }
     if (input.network.startsWith('hedera:')) {
-      const advertised = this.#supportedValue?.kinds.find((k) => k.network === input.network)?.extra?.['feePayer'];
-      const given = input.extra?.['feePayer'];
+      const advertised = this.#supportedValue?.kinds.find((k) => k.network === input.network)?.extra
+        ?.feePayer;
+      const given = input.extra?.feePayer;
       if (given !== undefined && advertised !== undefined && given !== advertised) {
-        throw new AdapterError('payments', 'invalid_request', 'extra.feePayer differs from the facilitator');
+        throw new AdapterError(
+          'payments',
+          'invalid_request',
+          'extra.feePayer differs from the facilitator',
+        );
       }
       if (given === undefined && typeof advertised === 'string') {
         return buildPaymentRequired({ ...input, extra: { ...input.extra, feePayer: advertised } });
@@ -160,7 +189,12 @@ export class RemoteFacilitator implements PaymentRail {
 
   async settle(payload: PaymentPayload, requirements: PaymentRequirements): Promise<SettleResult> {
     const { network } = requirements;
-    const fail = (errorReason: string): SettleResult => ({ success: false, errorReason, network, transaction: '' });
+    const fail = (errorReason: string): SettleResult => ({
+      success: false,
+      errorReason,
+      network,
+      transaction: '',
+    });
     const refused = this.#precheck(payload, requirements);
     if (refused) return fail(refused);
     await this.#kind(network);
@@ -173,16 +207,28 @@ export class RemoteFacilitator implements PaymentRail {
       }),
     );
     const parsed = settleResultSchema.safeParse(normaliseSettle(data));
-    if (!parsed.success) return this.#lie(network, 'invalid_response', 'settle response does not match the x402 v2 schema');
+    if (!parsed.success)
+      return this.#lie(
+        network,
+        'invalid_response',
+        'settle response does not match the x402 v2 schema',
+      );
     const result = parsed.data;
-    if (result.network !== network) return this.#lie(network, 'network_mismatch', `settled on ${result.network}, asked ${network}`);
+    if (result.network !== network)
+      return this.#lie(
+        network,
+        'network_mismatch',
+        `settled on ${result.network}, asked ${network}`,
+      );
     if (result.success) {
       return plausibleTransaction(network, result.transaction)
         ? result
         : this.#lie(network, 'invalid_response', 'success without a plausible transaction');
     }
-    if (result.errorReason !== 'settlement_pending') return { ...result, transaction: result.transaction ?? '' };
-    if (!plausibleTransaction(network, result.transaction)) return this.#lie(network, 'invalid_response', 'pending without a transaction');
+    if (result.errorReason !== 'settlement_pending')
+      return { ...result, transaction: result.transaction ?? '' };
+    if (!plausibleTransaction(network, result.transaction))
+      return this.#lie(network, 'invalid_response', 'pending without a transaction');
     return this.#awaitPending(network, result.transaction!, result.payer ?? '');
   }
 
@@ -192,7 +238,8 @@ export class RemoteFacilitator implements PaymentRail {
     const body = payload.payload as Record<string, unknown> | undefined;
     const evm = body !== undefined && 'authorization' in body;
     const hedera = body !== undefined && 'transaction' in body;
-    if ((network.startsWith('eip155:') && hedera) || (network.startsWith('hedera:') && evm)) return 'unsupported_scheme';
+    if ((network.startsWith('eip155:') && hedera) || (network.startsWith('hedera:') && evm))
+      return 'unsupported_scheme';
     if (!paymentPayloadSchema.safeParse(payload).success) return 'invalid_payload';
     if (!sameRequirements(payload.accepted, requirements)) return 'requirements_mismatch';
     return undefined;
@@ -200,9 +247,13 @@ export class RemoteFacilitator implements PaymentRail {
 
   async #kind(network: string) {
     const supported = await this.supported();
-    const kind = supported.kinds.find((k) => k.network === network && k.scheme === 'exact' && k.x402Version === 2);
+    const kind = supported.kinds.find(
+      (k) => k.network === network && k.scheme === 'exact' && k.x402Version === 2,
+    );
     if (!kind) {
-      this.#opts.logger?.warn(`x402: facilitator ${this.#base.host} does not list exact on ${network}`);
+      this.#opts.logger?.warn(
+        `x402: facilitator ${this.#base.host} does not list exact on ${network}`,
+      );
       throw new AdapterError('payments', 'unavailable', `facilitator does not support ${network}`);
     }
     return kind;
@@ -221,8 +272,12 @@ export class RemoteFacilitator implements PaymentRail {
     for (;;) {
       const state = await this.#chainState(network, tx);
       if (state === 'success') return { success: true, transaction: tx, network, payer };
-      if (state === 'failed') return { success: false, errorReason: 'settle_reverted', network, transaction: tx };
-      if (now() >= deadline) throw new AdapterError('payments', 'unavailable', 'settlement still pending after 30 s', { tx });
+      if (state === 'failed')
+        return { success: false, errorReason: 'settle_reverted', network, transaction: tx };
+      if (now() >= deadline)
+        throw new AdapterError('payments', 'unavailable', 'settlement still pending after 30 s', {
+          tx,
+        });
       await sleep(this.#opts.pollMs ?? 3_000);
     }
   }
@@ -230,16 +285,30 @@ export class RemoteFacilitator implements PaymentRail {
   async #chainState(network: string, tx: string): Promise<'success' | 'failed' | 'pending'> {
     if (network.startsWith('eip155:')) {
       const reader = this.#opts.evmReceipts;
-      if (!reader) throw new AdapterError('payments', 'unavailable', 'no RPC to confirm a pending settlement');
+      if (!reader)
+        throw new AdapterError('payments', 'unavailable', 'no RPC to confirm a pending settlement');
       const status = await guard('payments', () => reader.receipt(tx as `0x${string}`));
       return status === null ? 'pending' : status === 'success' ? 'success' : 'failed';
     }
-    if (!this.#mirror) throw new AdapterError('payments', 'unavailable', 'no mirror node to confirm a pending settlement');
-    const url = joinUrl(this.#mirror, `/api/v1/transactions/${encodeURIComponent(mirrorTransactionId(tx))}`);
+    if (!this.#mirror)
+      throw new AdapterError(
+        'payments',
+        'unavailable',
+        'no mirror node to confirm a pending settlement',
+      );
+    const url = joinUrl(
+      this.#mirror,
+      `/api/v1/transactions/${encodeURIComponent(mirrorTransactionId(tx))}`,
+    );
     const found = await guard('payments', () =>
-      httpJson(url, { ...withFetch(this.#opts.fetch), schema: mirrorTransactions, allowStatus: [404] }),
+      httpJson(url, {
+        ...withFetch(this.#opts.fetch),
+        schema: mirrorTransactions,
+        allowStatus: [404],
+      }),
     ).catch((error: unknown) => {
-      if (error instanceof AdapterError && error.code === 'invalid_response') return { status: 404, data: undefined };
+      if (error instanceof AdapterError && error.code === 'invalid_response')
+        return { status: 404, data: undefined };
       throw error;
     });
     const first = found.status === 404 ? undefined : found.data?.transactions[0];
@@ -252,7 +321,10 @@ export class RemoteFacilitator implements PaymentRail {
 function normaliseSettle(body: unknown): unknown {
   if (body && typeof body === 'object' && !Array.isArray(body)) {
     const o = body as Record<string, unknown>;
-    if ((o['transaction'] === undefined || o['transaction'] === '') && typeof o['transactionId'] === 'string') {
+    if (
+      (o.transaction === undefined || o.transaction === '') &&
+      typeof o.transactionId === 'string'
+    ) {
       const { transactionId, ...rest } = o;
       return { ...rest, transaction: transactionId };
     }

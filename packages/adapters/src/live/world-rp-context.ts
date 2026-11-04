@@ -5,11 +5,12 @@
  * the injected clock (signRequest reads Date.now and takes no clock) and our CSPRNG nonce. The key never leaves
  * this closure: not in the result, not in errors, not in logs.
  */
-import { hashToField, randomBytes } from '@ethglobal/crypto';
-import { rpContextSchema, type RpContext } from '@ethglobal/protocol/schemas';
 import { computeRpSignatureMessage } from '@worldcoin/idkit-core/signing';
 import { bytesToHex, hexToBytes, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
+
+import { hashToField, randomBytes } from '@ethglobal/crypto';
+import { rpContextSchema, type RpContext } from '@ethglobal/protocol/schemas';
 
 import { Secret } from './secret.js';
 
@@ -28,12 +29,15 @@ export interface RpContextSignerOptions {
   entropy?: () => Uint8Array;
 }
 
-export function createRpContextSigner(opts: RpContextSignerOptions): { issue(): Promise<RpContext> } {
+export function createRpContextSigner(opts: RpContextSignerOptions): {
+  issue(): Promise<RpContext>;
+} {
   const ttl = opts.ttlS ?? RP_CONTEXT_TTL_S;
   if (!Number.isSafeInteger(ttl) || ttl <= 0 || ttl > RP_CONTEXT_TTL_S) {
     throw new Error(`rp_context ttl must be 1..${RP_CONTEXT_TTL_S} s`);
   }
-  const key = opts.signingKeyHex instanceof Secret ? opts.signingKeyHex : new Secret(opts.signingKeyHex);
+  const key =
+    opts.signingKeyHex instanceof Secret ? opts.signingKeyHex : new Secret(opts.signingKeyHex);
   let account: ReturnType<typeof privateKeyToAccount>;
   try {
     account = privateKeyToAccount(key.reveal());
@@ -47,7 +51,12 @@ export function createRpContextSigner(opts: RpContextSignerOptions): { issue(): 
       const nonce = hashToField(entropy());
       const createdAt = Math.floor(opts.now() / 1000);
       const expiresAt = createdAt + ttl;
-      const message = computeRpSignatureMessage(hexToBytes(nonce), createdAt, expiresAt, opts.action);
+      const message = computeRpSignatureMessage(
+        hexToBytes(nonce),
+        createdAt,
+        expiresAt,
+        opts.action,
+      );
       const signature = await account.signMessage({ message: { raw: message } });
       return rpContextSchema.parse({
         rp_id: opts.rpId,
@@ -66,6 +75,14 @@ export function createRpContextSigner(opts: RpContextSignerOptions): { issue(): 
 /** The signer address of an rp_context, recomputed from the documented algorithm (tests, and the API's self-check). */
 export async function rpContextSigner(ctx: RpContext): Promise<Hex> {
   const { recoverMessageAddress } = await import('viem');
-  const message = computeRpSignatureMessage(hexToBytes(ctx.nonce as Hex), ctx.created_at, ctx.expires_at, ctx.action);
-  return recoverMessageAddress({ message: { raw: bytesToHex(message) }, signature: ctx.signature as Hex });
+  const message = computeRpSignatureMessage(
+    hexToBytes(ctx.nonce as Hex),
+    ctx.created_at,
+    ctx.expires_at,
+    ctx.action,
+  );
+  return recoverMessageAddress({
+    message: { raw: bytesToHex(message) },
+    signature: ctx.signature as Hex,
+  });
 }

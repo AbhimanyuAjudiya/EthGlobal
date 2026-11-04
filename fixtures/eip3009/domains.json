@@ -1,0 +1,26 @@
+{
+  "name": "USDC EIP-712 domains per chain",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "note": "[verify Wed] `cast call <usdc> \"name()(string)\"` and \"version()(string)\" on each chain; Base Sepolia is \"USDC\" (API-FACTS §7). 31337 is MockUSDC3009 (packages/contracts).",
+  "domains": [
+    {
+      "network": "eip155:31337",
+      "token": "deploy/addresses.anvil.json#usdc",
+      "name": "USD Coin",
+      "version": "2"
+    },
+    {
+      "network": "eip155:84532",
+      "token": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      "name": "USDC",
+      "version": "2"
+    },
+    {
+      "network": "eip155:8453",
+      "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "name": "USD Coin",
+      "version": "2"
+    }
+  ]
+}

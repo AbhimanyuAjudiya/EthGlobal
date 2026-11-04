@@ -1,26 +1,100 @@
 # @ethglobal/adapters
 
-Interfaces for the sponsor integrations plus deterministic in-memory mocks. `createAdapters('local')`
-returns the mocks; `createAdapters('live')` throws until the live implementations land after the product
-decision. Nothing here touches the network.
+Ports for every sponsor integration, deterministic in-memory mocks, the **live adapters** (`./live`, Node only) and
+the test helpers (`./testing`: fixture transport, fakes, and the `describe*` contract suites that run the same
+assertions against the mock and the live implementation of each port).
 
-| Interface                                                         | Modelled on                                                             | Mock behaviour                                                                                                                                                         |
-| ----------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Ledger` — `put / get / query` with optional `expiresIn`          | Arkiv entity API (payload + annotations + BTL)                          | Sequential keys `ent_000001…`, equality queries over annotations, expiry from an injectable clock                                                                      |
-| `Personhood` — `verify(proof, {action, signal})`                  | World ID IDKit success result + cloud verifier                          | Validates shape, enforces one verification per (action, nullifier)                                                                                                     |
-| `PaymentRail` — `createPaymentRequirement / verify / settle`      | x402 v2 (`PAYMENT-REQUIRED` / `PAYMENT-SIGNATURE` / `PAYMENT-RESPONSE`) | Checks requirements, recipient, amount, validity window and nonce; `settle` burns the nonce and returns a deterministic tx hash. Header encode/decode helpers included |
-| `Inference` — `complete(prompt)` → `{text, requestId, signature}` | 0G Compute (signed responses)                                           | Echo responder (overridable), sha256-derived ids and signatures                                                                                                        |
-| `NameResolver` — `resolve(name)`, `getText(name, key)`            | ENS                                                                     | Fixture records (`alice.eth`, `bob.eth` → Anvil accounts 0/1), lower-case normalisation                                                                                |
+| Subpath     | What                                                                                        | Browser-safe |
+| ----------- | ------------------------------------------------------------------------------------------- | ------------ |
+| `.`         | port types, mocks, `createAdapters('local')`, x402 codec re-exports, `normalizeEnsName`     | yes          |
+| `./live`    | `liveConfigSchema`, `createLiveAdapters`, every live adapter, `hcs14Uaid`                   | no (Node)    |
+| `./testing` | `T0`, `fakeClock`, Anvil keys/roles, `loadFixture`, `fixtureFetch`, builders, fakes, suites | no (Node)    |
+
+The root barrel never imports `./live` (a test asserts it), so nothing pulls `@hiero-ledger/sdk`, `@x402/hedera` or
+`@arkiv-network/sdk` into a browser bundle.
+
+## Ports
+
+| Port           | Mock (`createAdapters('local')`)                                                                                                                                    | Live (`createLiveAdapters`)                                                                                                         |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `Ledger`       | `InMemoryLedger`: keys `ent_000001…`, expiry from the clock **and** a numeric `expiresAt` annotation (T-35), writer-aware (`asWriter`, T-79), max lifetime as Arkiv | `ArkivLedger` over `ArkivClientLike` → `@arkiv-network/sdk` (rabdi 7794095), `$creator` filter on every read                        |
+| `Personhood`   | `MockPersonhood({ expectSignal, environment })`: IDKit 4 shape, `signal_hash` binding, one per (action, nullifier)                                                  | `WorldCloudPersonhood`: `POST /api/v4/verify/{rp_id}`; `createRpContextSigner` for `POST /world/rp-context`                         |
+| `PaymentRail`  | `MockPaymentRail`: window, nonce, recipient, amount; Hedera payload ⇒ `unsupported_scheme`                                                                          | `RoutingPaymentRail` of `SelfRunFacilitator` (EIP-3009 + relayer) and/or `RemoteFacilitator` (x402 v2 `/supported /verify /settle`) |
+| `Reseller`     | `MockReseller`: deterministic ICCID/LPA, idempotent orders, simulated usage clock, HMAC webhook simulator, `failNextOrder`                                          | `FallbackReseller(EsimAccessReseller, InventoryReseller)`; `MegaEsimReseller` is a fixture-only stub (A-28)                         |
+| `ConsensusLog` | `MockConsensusLog`: sequence per topic, `mock@<seq>`, 1024-byte limit, `messages()` dump                                                                            | `HcsLog`: SDK submit (`HederaClientLike`), mirror REST read; `hcs14Uaid`                                                            |
+| `NameResolver` | `MockNameResolver`: fixture records, ENSIP-15 via the shared `normalizeEnsName`                                                                                     | `EnsResolver`: same normaliser, viem `getEnsAddress`/`getEnsText`, Sepolia fallback                                                 |
+| `BlobStore`    | `MemoryBlobStore`: content-addressed `bzz://<sha256>`                                                                                                               | `SwarmBlobStore`: Bee `POST /bzz`, `GET /bzz/{ref}/`                                                                                |
+| `Treasury`     | `MockTreasury`: deterministic tx, `refunds()`, `failNext`, float per network                                                                                        | `RoutingTreasury` of `EvmTreasury` (ERC-20 transfer) and `HederaTreasury` (HTS transfer) — the separate refund wallets (A-31)       |
+| `Inference`    | `MockInference`                                                                                                                                                     | `MockInference` (`LLM_PROVIDER=none`; no live inference port in v0)                                                                 |
+
+Every live adapter takes `fetch` (and viem `fetchFn`) from its options, validates every response with zod, and maps
+every failure through `src/live/errors.ts` to `AdapterError(adapter, code)` with a code from `ADAPTER_ERROR_CODES`
+(each one is a key of protocol's `ADAPTER_CODE_MAP`; a test enforces it). A transport failure is always `unavailable`,
+never `null`/`[]` (T-20).
 
 ```ts
-import { createAdapters, parseAdapterMode } from '@ethglobal/adapters';
+import { createLiveAdapters, parseLiveConfig } from '@ethglobal/adapters/live';
 
-const adapters = createAdapters(parseAdapterMode(process.env['MODE']));
-const { key } = await adapters.ledger.put({
-  payload: '…',
-  annotations: { type: 'receipt' },
-  expiresIn: 3600,
-});
+const adapters = createLiveAdapters(parseLiveConfig(process.env)); // throws once, naming every bad variable
+const feePayer = await adapters.feePayer('hedera:testnet'); // boot check against X402_HEDERA_FEE_PAYER (T-42)
 ```
 
-Build output goes to `dist/` (`pnpm build`); consumers import the compiled package. Tests: `pnpm test`.
+## Tests
+
+`pnpm --filter @ethglobal/adapters test` (coverage: `exec vitest run --coverage`). Live adapters run only over
+recorded/authored fixtures in `fixtures/<vendor>/*.json` through `fixtureFetch` (an unmatched request throws
+`FixtureMiss`, printing the request and the three nearest recorded URLs; `expectHeaders` asserts headers; `jsonRpc`
+mode ignores JSON-RPC ids) or over the fakes in `./testing` (`FakeArkiv`, `arkivFixtureClient`, `FakeUsdc3009`).
+The SelfRunFacilitator end-to-end test runs against a real Anvil with the deployed MockUSDC3009:
+
+```sh
+pnpm dev:chain &                       # scripts/dev-chain.sh: Anvil 31337 + Deploy.s.sol
+ANVIL_RPC_URL=http://127.0.0.1:8545 pnpm --filter @ethglobal/adapters exec vitest run test/integration
+```
+
+Authored fixtures are generated by `scripts/author-fixtures.ts` (`pnpm --filter @ethglobal/adapters exec tsx
+scripts/author-fixtures.ts`) so they stay consistent with `fixtureProof`, the suite proofs and viem's encoding.
+
+## How to record a fixture
+
+`scripts/record-fixture.ts` (ops-demo workstream) wraps the real `fetch`, appends each exchange to the named file
+with `"source": "live"` and `"recordedAt": <ISO time>`, and redacts `Authorization`, `RT-AccessCode`, `RT-Signature`
+and any `LPA:` string (→ `LPA:1$redacted$…`) before writing. Pass the wrapped fetch as `deps.fetch` to
+`createLiveAdapters` (or as `fetch` to one adapter), run the flow once, and commit the file. Where the recording
+disagrees with an authored fixture, the recording wins and the adapter is fixed.
+
+## Record on Wednesday
+
+Every fixture below is `"source": "docs"` — authored from documentation, not recorded. Overwrite each with a live
+recording at the Wednesday pre-deploy (`node scripts/record-fixture.ts <file> -- <flow>`), then re-run the tests.
+
+| [verify Wed] item                                                                                                                                                          | Fixture(s) to overwrite                                                                                    | How                                                                                                    |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| x402.org `/supported` lists `eip155:84532` and `hedera:testnet` with `extra.feePayer` `0.0.9185802`; verify/settle bodies and the failure status codes (200 vs 400)        | `facilitator/x402org/*.json`                                                                               | `curl https://x402.org/facilitator/supported`; one Base Sepolia payment through `RemoteFacilitator`    |
+| Hedera facilitator (Blocky402 fee payer `0.0.7162784`): `transaction` vs `transactionId`, `settlement_pending`, mirror `GET /api/v1/transactions/{id}` shape               | `facilitator/hedera/*.json`                                                                                | one `hedera:testnet` payment (Integrations, Wed 14:00)                                                 |
+| World v4 verify response (`results[]`, `environment`, nullifier decimal) and error codes; hex-signal hashing (`hashToField(bytes)`) against a live proof                   | `world/verify-*.json`, `world/contract-suite.json`                                                         | a real IDKit 4 proof for `WORLD_RP_ID` + the Portal                                                    |
+| eSIM Access: signed-header auth accepted (vs `101003`), real `packageCode`s for `IN`, when `ac` fills, `type: "TOPUP"` listing, `/esim/query` by `transactionId` on 310402 | `reseller/esimaccess/{plans,order,query*,order-duplicate,topup,errors,balance,cancel,contract-suite}.json` | console account; one real order + top-up (+ `/esim/cancel` refund)                                     |
+| eSIM Access webhook JSON for `DATA_USAGE`, `ESIM_STATUS`, `ORDER_STATUS`, `CHECK_HEALTH` and any signature header                                                          | `reseller/esimaccess/webhook-*.json`                                                                       | `/webhook/save` to a capture URL with `?token=`                                                        |
+| Arkiv on rabdi: `createEntity`/`getEntity`/`select` row shapes, schemaless `$attributes`, `eq('$creator', addr())`, measured block time (nominal 2 s), `impliedDriftSec`   | `arkiv/{create,get,query,update,expired}.json`                                                             | `ARKIV_ACCESS_KEY` + tGLM; record the `ArkivClientLike` calls; log drift into `docs/ARKIV_FEEDBACK.md` |
+| HCS mirror page shape (`links.next`), receipt `topicSequenceNumber`, record consensus timestamp                                                                            | `hcs/{mirror-messages,submit-receipt}.json`                                                                | submit one receipt to `HCS_TOPIC_ID`                                                                   |
+| HCS-14 UAID — computed now with `@hashgraphonline/standards-sdk@0.1.192` (matches); confirm a registry accepts it                                                          | `hcs/hcs14-vector.json`                                                                                    | register the agent UAID                                                                                |
+| ENS: a reachable mainnet RPC; real `eth_call` exchanges for a demo name                                                                                                    | `ens/*.json`                                                                                               | `ENS_RPC_URL`                                                                                          |
+| Swarm: a Bee gateway + postage batch for the hackathon; upload/download shapes, 413/402 statuses                                                                           | `swarm/*.json`                                                                                             | `SWARM_BEE_URL`, `SWARM_POSTAGE_BATCH`                                                                 |
+| USDC EIP-712 `name()`/`version()` per chain (Base Sepolia `"USDC"`)                                                                                                        | `eip3009/domains.json`                                                                                     | `cast call <usdc> "name()(string)"` / `"version()(string)"`                                            |
+| MegaeSIM: no public API — only if the vendor supplies docs                                                                                                                 | `reseller/megaesim/order.json` (enables the skipped suite)                                                 | vendor on-site                                                                                         |
+
+## Decisions (adapters-live workstream)
+
+| #     | Decision                                                                                                                                                                                                                                                                                                       |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AL-1  | `createAdapters('live')` keeps throwing with a pointer to `createLiveAdapters(parseLiveConfig(process.env))` from `./live`: the root barrel is browser-safe and must not import the Node-only SDKs (INTERFACES §3.2, L15).                                                                                     |
+| AL-2  | Arkiv: `key` is a reserved word of the Arkiv query language (found by running the SDK's schema validation), so the logical-key annotation is stored as the attribute `logicalKey`; everything else maps 1:1. Only `ANN` names are accepted (T-37); `expiresAt` and `day` are `u64`, the rest `str`.            |
+| AL-3  | Arkiv: an `update` with a shorter `expiresIn` keeps the longer ledger expiry (the engine refuses to move an expiry earlier) and logs it; the `expiresAt` annotation still ends the entity on time (T-35). Entities without a `type` use a `recharge.untyped.v1` schema.                                        |
+| AL-4  | `RemoteFacilitator.settle` turns a lying response (no plausible tx, foreign network, bad shape) into `success:false` with `errorReason` `invalid_response` / `network_mismatch` (L10) and logs it, rather than throwing — fail closed either way.                                                              |
+| AL-5  | `SelfRunFacilitator` recognises an already-executed authorization (front-run or our own earlier settle) by the `AuthorizationUsed(from, nonce)` log **and** a `Transfer(from, payTo, value)` in the same tx — a `cancelAuthorization` is never reported as paid. A re-settle answers the same tx (idempotent). |
+| AL-6  | `receiveWithAuthorization` is used only when `payTo` is the relayer and the signature is over `ReceiveWithAuthorization`; x402 clients sign `TransferWithAuthorization`, so in practice settle uses transfer.                                                                                                  |
+| AL-7  | `createRpContextSigner` builds the message with idkit-core's `computeRpSignatureMessage` and signs with viem (EIP-191) instead of calling `signRequest`, which reads `Date.now()` (the clock must be injected, T-81); a test proves idkit's own `signRequest` output verifies with the same algorithm.         |
+| AL-8  | eSIM Access webhook events are hints with `usedMb = totalMb = 0`: the unsigned body's numbers never leave the adapter (T-82); the API re-reads `usage(iccid)`.                                                                                                                                                 |
+| AL-9  | HCS-14 routing parameters are emitted in the order the reference `createUaid` emits them (`uid, registry, proto, nativeId`), not the brief's `…;nativeId=…;proto=…` — conformance with the SDK wins (A-29).                                                                                                    |
+| AL-10 | Hedera SDK: `TopicMessageSubmitTransaction` and `AccountBalanceQuery` are not re-exported by `@x402/hedera`; they come from `@hiero-ledger/sdk@2.90.1`, the exact version `@x402/hedera` pins (one copy). `@hashgraph/sdk` is never used.                                                                      |
+| AL-11 | `@arkiv-network/sdk` 1.0.1 (catalog) is younger than the 3-day release-age gate; local verification links 1.0.0 (30 Oct; `.d.ts` diff = bundler renames only). `@vitest/coverage-v8` 5.1.0 likewise — measured with 5.1.0-beta.1. A real `pnpm install` uses the catalog pins.                                 |

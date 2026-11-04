@@ -23,13 +23,21 @@ export function describeTreasury(name: string, make: () => Promise<TreasurySubje
     it('rejects usd6 ≤ 0, a recipient of another network, and a memo over 100 bytes', async () => {
       const { treasury, network, to } = await make();
       for (const usd6 of [0n, -1n]) {
-        await expect(treasury.refund({ network, to, usd6, memo: '' })).rejects.toMatchObject({ code: 'invalid_amount' });
+        await expect(treasury.refund({ network, to, usd6, memo: '' })).rejects.toMatchObject({
+          code: 'invalid_amount',
+        });
       }
-      const foreign = network.startsWith('hedera:') ? '0x70997970C51812dc3A010C7d01b50e0d17dc79C8' : '0.0.1234';
-      await expect(treasury.refund({ network, to: foreign, usd6: 1n, memo: '' })).rejects.toMatchObject({
+      const foreign = network.startsWith('hedera:')
+        ? '0x70997970C51812dc3A010C7d01b50e0d17dc79C8'
+        : '0.0.1234';
+      await expect(
+        treasury.refund({ network, to: foreign, usd6: 1n, memo: '' }),
+      ).rejects.toMatchObject({
         code: 'invalid_request',
       });
-      await expect(treasury.refund({ network, to, usd6: 1n, memo: 'm'.repeat(101) })).rejects.toMatchObject({
+      await expect(
+        treasury.refund({ network, to, usd6: 1n, memo: 'm'.repeat(101) }),
+      ).rejects.toMatchObject({
         code: 'invalid_request',
       });
     });

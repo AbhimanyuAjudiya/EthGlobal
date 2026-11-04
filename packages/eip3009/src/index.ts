@@ -19,7 +19,12 @@ export {
   typedDataTransferWithAuthorization,
   type Authorization3009,
 } from './typed-data.js';
-export { normalizeSignature, parseSignature, recoverSigner, type ParsedSignature } from './recover.js';
+export {
+  normalizeSignature,
+  parseSignature,
+  recoverSigner,
+  type ParsedSignature,
+} from './recover.js';
 export { encodeReceiveWithAuthorization, encodeTransferWithAuthorization } from './calldata.js';
 export {
   fromPaymentAuthorization,

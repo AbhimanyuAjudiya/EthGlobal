@@ -1,0 +1,15 @@
+{
+  "name": "HCS-14 self-issued UAID vector",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "note": "computed with @hashgraphonline/standards-sdk@0.1.192 createUaid(input, { proto: \"x402\" }) (A-29); re-checked against the SDK in hcs-log.test.ts",
+  "input": {
+    "registry": "hedera",
+    "name": "Recharge Agent",
+    "version": "1.0.0",
+    "protocol": "x402",
+    "nativeId": "hedera:testnet:0.0.6006",
+    "skills": [3, 1]
+  },
+  "uaid": "uaid:aid:4K54ZoTRiQcP4AHwsaMSLtpWwiWNQ9vaCxKEy6cvSBNoxZcCoo2AjrbnBNscE34wh2;uid=0;registry=hedera;proto=x402;nativeId=hedera:testnet:0.0.6006"
+}

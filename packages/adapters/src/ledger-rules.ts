@@ -12,7 +12,11 @@ export const MAX_LEDGER_EXPIRES_IN_S = 15_768_000;
 export function assertExpiresIn(expiresIn: number | undefined): void {
   if (expiresIn === undefined) return;
   if (!(Number.isSafeInteger(expiresIn) && expiresIn > 0)) {
-    throw new AdapterError('ledger', 'invalid_expiry', 'expiresIn must be a positive integer (seconds)');
+    throw new AdapterError(
+      'ledger',
+      'invalid_expiry',
+      'expiresIn must be a positive integer (seconds)',
+    );
   }
   if (expiresIn > MAX_LEDGER_EXPIRES_IN_S) {
     throw new AdapterError(

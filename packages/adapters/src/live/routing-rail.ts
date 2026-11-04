@@ -24,7 +24,8 @@ export class RoutingPaymentRail implements PaymentRail {
 
   createPaymentRequirement(input: PaymentRequirementInput): PaymentRequired {
     const rail = this.#rails.get(input.network);
-    if (!rail) throw new AdapterError('payments', 'unsupported_scheme', `no rail for ${input.network}`);
+    if (!rail)
+      throw new AdapterError('payments', 'unsupported_scheme', `no rail for ${input.network}`);
     return rail.createPaymentRequirement(input);
   }
 
@@ -35,13 +36,20 @@ export class RoutingPaymentRail implements PaymentRail {
 
   async verify(payload: PaymentPayload, requirements: PaymentRequirements): Promise<VerifyResult> {
     const rail = this.#route(payload, requirements);
-    return rail ? rail.verify(payload, requirements) : { isValid: false, invalidReason: 'unsupported_scheme' };
+    return rail
+      ? rail.verify(payload, requirements)
+      : { isValid: false, invalidReason: 'unsupported_scheme' };
   }
 
   async settle(payload: PaymentPayload, requirements: PaymentRequirements): Promise<SettleResult> {
     const rail = this.#route(payload, requirements);
     return rail
       ? rail.settle(payload, requirements)
-      : { success: false, errorReason: 'unsupported_scheme', network: requirements.network, transaction: '' };
+      : {
+          success: false,
+          errorReason: 'unsupported_scheme',
+          network: requirements.network,
+          transaction: '',
+        };
   }
 }

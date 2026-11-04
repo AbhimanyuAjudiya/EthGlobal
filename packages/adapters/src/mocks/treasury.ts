@@ -19,7 +19,9 @@ export class MockTreasury implements Treasury {
   failNext = false;
 
   constructor(options: MockTreasuryOptions = {}) {
-    const balances = options.balances ?? Object.fromEntries(Object.values(NETWORKS).map((n) => [n, 1_000_000_000n]));
+    const balances =
+      options.balances ??
+      Object.fromEntries(Object.values(NETWORKS).map((n) => [n, 1_000_000_000n]));
     this.#balances = new Map(Object.entries(balances));
   }
 
@@ -31,7 +33,9 @@ export class MockTreasury implements Treasury {
       throw new AdapterError('treasury', 'unavailable', 'mock treasury: simulated failure');
     }
     if (balance < input.usd6) {
-      throw new AdapterError('treasury', 'unavailable', 'treasury float exhausted', { reason: 'insufficient_float' });
+      throw new AdapterError('treasury', 'unavailable', 'treasury float exhausted', {
+        reason: 'insufficient_float',
+      });
     }
     this.#balances.set(input.network, balance - input.usd6);
     const tx = sha256Hex(

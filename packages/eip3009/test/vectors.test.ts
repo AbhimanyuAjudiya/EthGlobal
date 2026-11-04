@@ -76,16 +76,28 @@ describe('EIP-3009 vectors', () => {
     const a = auth(v);
     expect(digestTransferWithAuthorization(d, a)).toBe(v.transferDigest);
     expect(digestReceiveWithAuthorization(d, a)).toBe(v.receiveDigest);
-    await expect(recoverSigner(v.transferDigest, v.transferSignature)).resolves.toBe(vectors.signer);
+    await expect(recoverSigner(v.transferDigest, v.transferSignature)).resolves.toBe(
+      vectors.signer,
+    );
     await expect(recoverSigner(v.receiveDigest, v.receiveSignature)).resolves.toBe(vectors.signer);
     // a signature for one kind never recovers the signer for the other kind's digest
-    await expect(recoverSigner(v.receiveDigest, v.transferSignature)).resolves.not.toBe(vectors.signer);
+    await expect(recoverSigner(v.receiveDigest, v.transferSignature)).resolves.not.toBe(
+      vectors.signer,
+    );
     const decoded = decodeFunctionData({
       abi: EIP3009_ABI,
       data: encodeTransferWithAuthorization(a, v.transferSignature),
     });
     expect(decoded.functionName).toBe('transferWithAuthorization');
-    expect(decoded.args).toEqual([a.from, a.to, a.value, a.validAfter, a.validBefore, a.nonce, v.transferSignature]);
+    expect(decoded.args).toEqual([
+      a.from,
+      a.to,
+      a.value,
+      a.validAfter,
+      a.validBefore,
+      a.nonce,
+      v.transferSignature,
+    ]);
     const receive = decodeFunctionData({
       abi: EIP3009_ABI,
       data: encodeReceiveWithAuthorization(a, v.receiveSignature),
@@ -97,8 +109,12 @@ describe('EIP-3009 vectors', () => {
     const a = auth(all[0]!);
     const local = domains[0]!.domain;
     const foreign = domain(local.verifyingContract!, 84532, local.name!, local.version!);
-    expect(digestTransferWithAuthorization(local, a)).not.toBe(digestTransferWithAuthorization(foreign, a));
+    expect(digestTransferWithAuthorization(local, a)).not.toBe(
+      digestTransferWithAuthorization(foreign, a),
+    );
     const renamed = domain(local.verifyingContract!, 31337, 'USDC', '2');
-    expect(digestTransferWithAuthorization(local, a)).not.toBe(digestTransferWithAuthorization(renamed, a));
+    expect(digestTransferWithAuthorization(local, a)).not.toBe(
+      digestTransferWithAuthorization(renamed, a),
+    );
   });
 });

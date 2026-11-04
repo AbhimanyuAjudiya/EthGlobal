@@ -3,7 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { MockInference } from '@ethglobal/adapters';
 
 import { createNotifier } from '../src/notifier.js';
-import { ANTHROPIC_MESSAGES_URL, AnthropicPhraser } from '../src/notify/anthropic.js';
+import {
+  ANTHROPIC_MESSAGES_URL,
+  AnthropicPhraser,
+  PHRASING_EFFORT,
+  PhrasingUnavailableError,
+} from '../src/notify/anthropic.js';
 import {
   factsJson,
   MAX_NOTIFICATION_CHARS,
@@ -102,9 +107,51 @@ describe('notify', () => {
     expect(body).toEqual({
       model: 'm',
       max_tokens: 80,
+      output_config: { effort: PHRASING_EFFORT },
       messages: [{ role: 'user', content: 'hello' }],
     });
     expect(body).not.toHaveProperty('tools');
+    expect(body).not.toHaveProperty('system');
+    expect(body).not.toHaveProperty('thinking'); // adaptive by default; never "disabled" (400 on current models)
     expect(new Headers(sent[0]!.init.headers).get('x-api-key')).toBe('k');
+  });
+
+  it.each(['refusal', 'max_tokens'])(
+    'AnthropicPhraser treats stop_reason=%s as unusable and the notifier falls back to the template',
+    async (stopReason) => {
+      const fetchFn: typeof fetch = async () =>
+        Response.json({
+          id: 'msg_2',
+          model: 'm',
+          stop_reason: stopReason,
+          content: [{ type: 'text', text: 'Partial or declined text that must never be shown' }],
+        });
+      const p = new AnthropicPhraser({ apiKey: 'k', model: 'm', fetch: fetchFn });
+      await expect(p.complete('hello')).rejects.toBeInstanceOf(PhrasingUnavailableError);
+      const facts = {
+        mbRemaining: 300,
+        mbTotal: 400,
+        expiresAt: 0,
+        boughtMb: 100,
+        spentTodayUsd6: '400000',
+        capUsd6: '10000000',
+        reason: 'threshold' as const,
+      };
+      expect(await phraseNotification(facts, p)).toBe(templateNotification(facts));
+    },
+  );
+
+  it('AnthropicPhraser accepts end_turn and a missing stop_reason', async () => {
+    for (const stop of ['end_turn', undefined, null]) {
+      const fetchFn: typeof fetch = async () =>
+        Response.json({
+          id: 'msg_3',
+          model: 'm',
+          ...(stop === undefined ? {} : { stop_reason: stop }),
+          content: [{ type: 'text', text: 'ok' }],
+        });
+      const p = new AnthropicPhraser({ apiKey: 'k', model: 'm', fetch: fetchFn });
+      expect((await p.complete('hello')).text).toBe('ok');
+    }
   });
 });

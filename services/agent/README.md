@@ -181,4 +181,4 @@ must show one), `pino`, and dev-only `hono`, `@hono/node-server`, `@hashgraphonl
 7. `[verify Wed]`: the Agent Kit `SUBMIT_TOPIC_MESSAGE_TOOL` output shape (we parse `raw.transactionId` /
    `raw.topicSequenceNumber`, else the tx id from the text; sequence `0` ⇒ `hcsSequence` omitted), and the facilitator's
    `PAYMENT-RESPONSE.transaction` (`0.0.x@s.n`).
-8. Optional LLM phrasing: `LLM_PROVIDER=anthropic`, `AGENT_LLM_MODEL=<model id>`, `ANTHROPIC_API_KEY`.
+8. Optional LLM phrasing: `LLM_PROVIDER=anthropic`, `AGENT_LLM_MODEL=claude-opus-5-5` (recommended; thinking is adaptive on this model and the phraser requests `effort: "low"`), `ANTHROPIC_API_KEY`. A `refusal` or `max_tokens` stop reason makes the phraser throw and the fixed template is shown instead, so no server-side model fallback is configured.

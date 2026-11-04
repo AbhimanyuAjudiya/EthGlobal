@@ -12,7 +12,7 @@ import { SlideToConfirm } from './SlideToConfirm';
 import { api, ApiError } from '../lib/api';
 import { explorerName, explorerTemplate, networkName } from '../lib/env';
 import { clockIst, dayLabel, formatMb, money } from '../lib/format';
-import { useWallet } from '../lib/hooks';
+import { useClock, useWallet } from '../lib/hooks';
 import { pauseCall, refundCall, sponsorLogin } from '../lib/sponsor';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
 import { isUserRejection } from '../lib/wallet';
@@ -70,6 +70,7 @@ export function SponsorTable({ id }: { id: string }) {
   const [error, setError] = useState<string | undefined>();
   const [login, setLogin] = useState<Awaited<ReturnType<typeof sponsorLogin>> | undefined>();
   const action = useOnchainAction();
+  const now = useClock(60_000);
   const [actionTitle, setActionTitle] = useState<string | undefined>();
 
   const load = useCallback(
@@ -101,7 +102,7 @@ export function SponsorTable({ id }: { id: string }) {
     async (title: string, tx: { to: `0x${string}`; data: `0x${string}` }) => {
       if (!wallet) return;
       setActionTitle(title);
-      if (action.row.state !== 'idle') action.dispatch({ type: 'retry' });
+      action.newRow();
       action.dispatch({ type: 'start', at: Date.now() });
       try {
         const hash = await wallet.sendTransaction(tx);
@@ -140,7 +141,6 @@ export function SponsorTable({ id }: { id: string }) {
   const budget = BigInt(chain.budgetUsd6);
   const spent = BigInt(chain.spentUsd6);
   const spentPct = budget > 0n ? Number((spent * 10_000n) / budget) / 100 : 0;
-  const now = Date.now();
   const expired = campaign.expiresAt <= now;
   const soon = view.expiring.filter((e) => e.expiresAt - now <= 86_400_000).length;
   const template = explorerTemplate(campaign.network);

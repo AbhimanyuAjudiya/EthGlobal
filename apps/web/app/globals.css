@@ -24,11 +24,6 @@ a {
   color: inherit;
 }
 
-[lang='hi'],
-[lang='mr'] {
-  line-height: var(--leading-devanagari);
-  letter-spacing: 0;
-}
 
 /* ── Frame ───────────────────────────────────────────────────────────────── */
 .screen {
@@ -834,6 +829,13 @@ a {
 .qr-code {
   max-width: 100%;
   color: var(--text-primary);
+}
+
+/* Devanagari: leading 1.6, no letter-spacing (design-references §6); beats any single-class line-height */
+body [lang='hi'],
+body [lang='mr'] {
+  line-height: var(--leading-devanagari);
+  letter-spacing: 0;
 }
 
 @media print {

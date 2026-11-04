@@ -5,5 +5,5 @@ export { NonceStore } from './nonce.js';
 export { GiftStore } from './gift.js';
 export { CampaignStore } from './campaign.js';
 export { ReceiptStore } from './receipt.js';
-export { AgentPolicyStore } from './agent-policy.js';
+export { AgentPolicyStore, mayRegisterPolicy, type PolicyRegistration } from './agent-policy.js';
 export { ClaimStore } from './claim.js';

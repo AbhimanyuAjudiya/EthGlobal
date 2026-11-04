@@ -76,6 +76,14 @@ pnpm build && pnpm lint && pnpm typecheck && pnpm test && pnpm dupcheck
 bash scripts/check-forbidden.sh        # §5.3 greps (ops-demo writes it; until then run the greps inline)
 ```
 
+**Red-team findings convention (`_RTFINDING`).** A red-team test that asserts the SAFE behaviour and fails until a finding is fixed is suffixed `_RTFINDING` and marked `// RT-FINDING <id>`. A wave gate that must pass while findings are open filters them out; the fix pass renames each one (`… [<id>]`), removes the marker, and the full run must then be green:
+
+```bash
+pnpm --filter <pkg> exec vitest run -t '^(?!.*_RTFINDING).*$'   # gate while findings are open
+pnpm --filter <pkg> exec vitest run                              # after the fix pass: no _RTFINDING left
+grep -rn '_RTFINDING\|RT-FINDING' <pkg>/test                      # must print nothing once the finding is fixed
+```
+
 ### 2.1 Wave 1a — interfaces (done before any W1b agent starts)
 
 ```bash

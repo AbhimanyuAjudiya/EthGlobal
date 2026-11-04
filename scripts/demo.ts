@@ -11,7 +11,16 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 
-import { cliArgs, E2E_DIR, ROOT, startApi, startChain, startWeb, stopAll } from './lib/harness.js';
+import {
+  cliArgs,
+  E2E_DIR,
+  ROOT,
+  startApi,
+  startChain,
+  startWeb,
+  stopAll,
+  stopWithParent,
+} from './lib/harness.js';
 import { anvilAddresses } from './lib/stack.js';
 
 const { values: flags } = parseArgs({
@@ -24,6 +33,7 @@ const { values: flags } = parseArgs({
   },
 });
 
+stopWithParent();
 process.once('SIGINT', () => {
   stopAll();
   process.exit(0);

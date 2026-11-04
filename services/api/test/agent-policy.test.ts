@@ -113,20 +113,15 @@ describe('PUT /agent/policy', () => {
     ).toBe(true);
   });
 
-  it('a free entitlement: the first owner registers, a second owner → 401; unknown entitlement → 404', async () => {
+  it('a free entitlement: the claiming session registers first (A-35), a second owner → 401; unknown entitlement → 404', async () => {
     const h = await harness();
     const { provisioned } = await import('./support/harness.js');
-    const { key } = await provisioned(h);
-    expect(
-      (
-        await h.json(
-          '/agent/policy',
-          await agentPolicyPut(HUMAN_KEY, h.deps.chainId, key, POLICY, h.clock.now()),
-          {},
-          'PUT',
-        )
-      ).status,
-    ).toBe(200);
+    const { key, spk } = await provisioned(h);
+    const put = await agentPolicyPut(HUMAN_KEY, h.deps.chainId, key, POLICY, h.clock.now());
+    expect((await h.json('/agent/policy', put, {}, 'PUT')).status).toBe(401); // key alone: no
+    expect((await h.json('/agent/policy', { ...put, sessionPubKey: spk }, {}, 'PUT')).status).toBe(
+      200,
+    );
     expect(
       (
         await h.json(

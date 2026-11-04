@@ -455,6 +455,8 @@ Public chains and Arkiv are evidence. The product's legal posture (no sale in In
 | Challenge-forgery if `OCTROI_SECRET` leaks (T-29) | One root secret keeps the key model simple for a 3-day build | ≥ 32 B, env-only, never rotated mid-campaign, no funds at stake |
 | Proof phishing: a look-alike page gets a human to prove for an attacker's session (T-81 b) | Inherent to any web World ID flow; the World App names the requesting app | Proof bound to the attacker's challenge/session only; the victim loses one welcome bundle, not funds |
 | eSIM Access webhooks are unsigned (T-82) | Vendor limitation (no documented signature, API-FACTS §5.1) | Webhook is a hint; usage always re-read from `/esim/query`; URL token + sender IPs |
+| Ledger atomicity is exact only within one API process (T-18, T-20, T-27, T-53; octroi RT-O-03/05/06, INTERFACES A-32) | Arkiv has no conditional create/update; `ArkivLedger` serialises in-process and re-reads-then-tombstones across processes `[verify Wed]` | Wave 2 runs **one API writer process**; a second writer inside one indexing lag could double a claim/redeem (bounded by DataDrop's on-chain `AlreadyClaimed` and the reseller idempotency key) |
+| A failed claim saga keeps the human's free slot (octroi A-33) | The claim lock is written before `serve-free` so a concurrent second campaign cannot be paid for; releasing it needs the nullifier | Until the would-be entitlement expiry (≤ 30 d); the paid lane is unaffected |
 
 ## 9. Change log
 

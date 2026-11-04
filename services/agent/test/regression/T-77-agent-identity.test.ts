@@ -38,7 +38,7 @@ describe('T-77 agent identity and state hygiene (AG7)', () => {
     await tick(h.agent.deps, KEY);
     const files = await allFiles(h.stateDir);
     expect(files.map((f) => f.slice(h.stateDir.length))).toEqual(
-      expect.arrayContaining(['/uaid', '/journal.jsonl', '/state.json']),
+      expect.arrayContaining(['/uaid', '/journal.jsonl', '/spent.jsonl']),
     );
     for (const f of files) {
       const text = await readFile(f, 'utf8');

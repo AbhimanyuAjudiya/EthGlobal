@@ -5,14 +5,14 @@ module: packages/octroi/src/store/common.ts
 threat: T-18
 severity: Med
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-octroi
 owner: builder-octroi
 found_at: 2026-11-04T05:40+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: packages/octroi/test/redteam/rt-economics.test.ts::two concurrent claims by one human on campaigns A and B: never two live free entitlements and never a paid claim without an entitlement_RTFINDING
-regression_test:
-fix_commit:
+regression_test: packages/octroi/test/redteam/rt-economics.test.ts::two concurrent claims by one human on campaigns A and B: never two live free entitlements and never a paid claim without an entitlement [RT-O-03] (+ rt-store `two concurrent creates … [RT-O-03]`, rt-challenge `two API instances … [RT-O-03]`; packages/octroi/test/regression/redteam-wave1.test.ts::RT-O-03 / RT-O-08)
+fix_commit: (uncommitted, wave-1 octroi fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -72,5 +72,7 @@ claims ⇒ one serve-free) and `T-20-challenge.test.ts` (case: two caches ⇒ on
 - **A-L7 expiry not earlier than requested:** a nonce or escrow must not die before `expiresIn` in server time (RT-O-04).
 
 ## Builder notes (optional)
+
+Ledger port gains create-if-absent (`put({ ifAbsent: true })`, A-32) implemented by `InMemoryLedger` (one synchronous check-and-write) and `ArkivLedger` (per-key serialisation in-process; create-then-re-read, oldest wins, loser tombstones across processes `[verify Wed]`), pinned by five new `describeLedger` contract tests both adapters run. Every `Repo.create` uses it (two creates ⇒ one row, the other `replay`); `NonceStore.consume` too (two instances ⇒ one `ok`). The free lane now reserves, create-if-absent and before `serve-free`, the human's live lock (`claim:HMAC('live'‖quotaKey‖day)`) and the campaign claim record (A-33), so the second concurrent campaign is `deny: replay 'claim_lock'` before any sponsor pays. Cross-process residual (Arkiv indexing lag) is in THREAT-MODEL §8: wave 2 runs one writer process.
 
 ## Verification (red team)

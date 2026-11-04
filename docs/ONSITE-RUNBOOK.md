@@ -199,6 +199,12 @@ pnpm print:cards -- --input /secure/cards.json      # needs apps/web /print/card
 shred -u /secure/cards.json out/cards-*.pdf         # after the printer has the file
 ```
 
+Before sending the file to the printer, decode one QR code from page 1 with a phone camera. It must read
+`https://<public host>/card/<serial>`. The web route builds the URL from the request's `Host` header, and
+`print-cards.ts` renders through `127.0.0.1`, so a local run encodes `http://127.0.0.1:<port>/card/…`. The fix is a configured public
+origin for the QR in the web route, which `print-cards.ts` would pass with the PIN file. This is **open with the web
+workstream: TBD by human (Product/PWA, Wed 19:00)**. Until it lands, a local run is a proof only.
+
 **10:00–17:00 · Founder · ≥ 5 sponsor meetings:** the drop and the free testnet pilot (E1 at 18:00).
 
 **12:00 · (only if switched) the Dhwani hardware gate.**

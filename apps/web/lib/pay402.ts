@@ -169,13 +169,15 @@ export async function pay<T>(
   q: Quote,
   signer: PaymentSigner,
   sessionPubKey?: Hex,
+  now: number = Date.now(),
 ): Promise<PaidResult<T>> {
+  const skew = now - Date.now();
   const result = await fetchWithPayment({
     fetch: globalThis.fetch,
     url: q.url,
     init: q.init,
     signer,
-    now: () => Date.now(),
+    now: () => Date.now() + skew,
     keccak256,
     ...(sessionPubKey ? { sessionPubKey } : {}),
   });

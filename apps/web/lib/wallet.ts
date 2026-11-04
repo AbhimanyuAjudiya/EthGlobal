@@ -133,3 +133,18 @@ export const isUserRejection = (error: unknown): boolean => {
     e?.name === 'UserRejectedRequestError'
   );
 };
+
+/**
+ * "Now" for anything the API or the chain checks against its own clock (EIP-3009 validBefore, SponsorLogin
+ * issuedAt). Live: the wall clock. MODE=local: the latest block's timestamp, because the e2e harness moves the
+ * API's local clock and Anvil's time together (POST /__local/clock + evm_increaseTime).
+ */
+export async function chainNow(wallet: Pick<Wallet, 'reader'>): Promise<number> {
+  if (!IS_LOCAL) return Date.now();
+  try {
+    const block = await wallet.reader.getBlock();
+    return Math.max(Number(block.timestamp) * 1000, Date.now());
+  } catch {
+    return Date.now();
+  }
+}

@@ -5,14 +5,14 @@ module: packages/octroi/src/decide.ts
 threat: T-27
 severity: Med
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-octroi
 owner: builder-octroi
 found_at: 2026-11-04T05:40+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: packages/octroi/test/redteam/rt-payment.test.ts::two concurrent decide() with the SAME signed payment serve at most once (front-run-recovering rail)_RTFINDING
-regression_test:
-fix_commit:
+regression_test: packages/octroi/test/redteam/rt-payment.test.ts::two concurrent decide() with the SAME signed payment serve at most once (front-run-recovering rail) [RT-O-05] (+ the Hedera case; packages/octroi/test/regression/redteam-wave1.test.ts::RT-O-05 / T-15)
+fix_commit: (uncommitted, wave-1 octroi fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -55,5 +55,7 @@ Regression test to add (builder): `packages/octroi/test/regression/T-27-serve-af
 duplicate payment with a front-run-recovering rail ⇒ exactly one `serve-paid`).
 
 ## Builder notes (optional)
+
+Settlement marker (A-33): after a successful settle, `decide()` creates-if-absent `claim:HMAC(secret,'settle'‖network‖tx)` (lifetime RECEIPT_TTL_S) before `serve-paid`; a second request for the same transaction — concurrent, sequential or cross-process — is denied (`invalid-payment 'nonce_already_used'` if verify had said so, else `replay 'settlement'`). Chosen: deny, not "the same entitlement again", because the top-up path ignores the returned key. Combined with the coordinator's T-15 item: verify `nonce_already_used` now continues to `settle()` so a front-run human is served exactly once (API test `x402.attack.test.ts` front-run case flipped to 200 then 402). MockPaymentRail still has no recovery path (stricter locally; noted in octroi README Decision 14).
 
 ## Verification (red team)

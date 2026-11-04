@@ -343,6 +343,11 @@ export const agentPolicyPutSchema = z.object({
   entitlementKey: z.string(),
   owner: evmAddressSchema,
   policy: topUpPolicySchema,
+  /**
+   * The X-Session-Pubkey of the session that obtained the entitlement (A-35, T-73 b): required for the FIRST
+   * registration of a free / gift / card entitlement that carries a holderHash; ignored otherwise.
+   */
+  sessionPubKey: hex32Schema.optional(),
   ...signedAuth,
 });
 export const agentPolicyViewSchema = z.object({

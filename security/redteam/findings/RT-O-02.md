@@ -5,14 +5,14 @@ module: packages/octroi/src/decide.ts
 threat: T-32
 severity: High
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-octroi
 owner: builder-octroi
 found_at: 2026-11-04T05:40+05:30
 due: 2026-11-04T09:40+05:30
 attack_test: packages/octroi/test/redteam/rt-payment.test.ts::a Hedera payment with a decoy `authorization` beside `transaction` is still refused on an LPA route_RTFINDING
-regression_test:
-fix_commit:
+regression_test: packages/octroi/test/redteam/rt-payment.test.ts::a Hedera payment with a decoy `authorization` beside `transaction` is still refused on an LPA route [RT-O-02] (+ the no-`from` case; packages/protocol/test/redteam-octroi-regressions.test.ts::RT-O-02)
+fix_commit: (uncommitted, wave-1 octroi fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -61,5 +61,7 @@ Regression test to add (builder): `packages/octroi/test/regression/T-32-session-
 on an LPA route ⇒ deny; decoy without `from` ⇒ deny, no throw). The `_RTFINDING` tests must turn green.
 
 ## Builder notes (optional)
+
+Validate, then use (A-40): after the raw accepted-echo compare, `paidLane` uses only `paymentPayloadSchema.safeParse(raw).data` for `sessionBound`, the EVM checks, `verify`/`settle` and the entitlement key. protocol: `evmExactPayloadSchema` / `hederaExactPayloadSchema` are `z.strictObject` (A-32 row / protocol D-29), so the hybrid payload is `malformed_payload` and the decoy-without-`from` case is a deny, not a TypeError. `services/api/openapi.json` regenerated (`additionalProperties: false`).
 
 ## Verification (red team)

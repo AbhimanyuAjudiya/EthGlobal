@@ -38,12 +38,17 @@ export const expiryLine = (expiresAt: number, now: number): string =>
 
 /** "Sun 15 Nov" in IST. */
 export function dayLabel(ms: number): string {
-  return new Intl.DateTimeFormat('en-IN', {
-    timeZone: DEFAULT_TIME_ZONE,
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  }).format(ms);
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-IN', {
+      timeZone: DEFAULT_TIME_ZONE,
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    })
+      .formatToParts(ms)
+      .map((p) => [p.type, p.value]),
+  );
+  return `${parts.weekday ?? ''} ${parts.day ?? ''} ${parts.month ?? ''}`.trim();
 }
 
 /** "03:12" in IST, 24-hour. */

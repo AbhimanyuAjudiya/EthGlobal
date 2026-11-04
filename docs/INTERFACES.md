@@ -87,11 +87,12 @@ export const WEBHOOK_WINDOW_S = 300;
 export const ENTITLEMENT_CACHE_S = 60;
 export const GIFT_CLAIM_WINDOW_S = 7 * 86_400;   // the escrow entity's expiresIn: after this the gift cannot be claimed
 export const GIFT_RECLAIM_WINDOW_S = 30 * 86_400; // after claimBy the sender may reclaim while the gift receipt still exists
-export const RECEIPT_TTL_S = 30 * 86_400;
+export const RECEIPT_TTL_S = GIFT_CLAIM_WINDOW_S + GIFT_RECLAIM_WINDOW_S + 86_400; // 38 d (A-36)
+export const NONCE_TTL_S = 300;                       // consumed-nonce lifetime ≥ acceptance window + skew + drift (A-37)
 export const AGENT_POLICY_TTL_S = 30 * 86_400;
 export const KEY_VERSION = 'v1';
 
-export const ENTITY_TYPES = ['entitlement', 'campaign', 'gift', 'nonce', 'receipt', 'agentpolicy'] as const;
+export const ENTITY_TYPES = ['entitlement', 'campaign', 'gift', 'nonce', 'receipt', 'agentpolicy', 'claim'] as const; // 'claim': A-33
 export type EntityType = (typeof ENTITY_TYPES)[number];
 
 /** Annotation (Arkiv attribute) names. Never a secret, a nullifier, an ICCID, a PIN or an LPA (T-37). */
@@ -112,6 +113,7 @@ export const keys = {
   receipt: (network: string, tx: string) => `rcpt:${network}:${tx.toLowerCase()}`,
   campaign: (id: Hex) => `camp:${id.toLowerCase()}`,
   agentPolicy: (entitlementKey: string) => `policy:${entitlementKey}`,
+  claim: (digest: Hex) => `claim:${digest}`,            // A-33: digest is already an HMAC/sha256
 } as const;
 
 /** UTC day bucket for the agent's daily cap (T-30: "day is UTC and stated"). */
@@ -201,7 +203,8 @@ export const entitlementSchema = z.object({
   expiresAt: msSchema,
 }).refine((e) => e.mbUsed <= e.mbTotal, { message: 'mbUsed must not exceed mbTotal' });
 export type Entitlement = z.infer<typeof entitlementSchema>;
-// annotations: { type:'entitlement', key, kind, status, tier, campaignId?, iccidHash?, expiresAt }
+// annotations: { type:'entitlement', key: entitlementIndex(key) = 'hk:'+sha256(key), kind, status, tier, campaignId?, iccidHash?, expiresAt }
+// payload.key on the ledger is the same index — the capability never reaches the ledger (A-34). holderHash?: A-35.
 // expiresIn: secondsUntil(expiresAt, now)
 
 export const campaignSchema = z.object({
@@ -258,7 +261,8 @@ export const nonceSchema = z.object({
   v: z.literal(1), nonce: hex32Schema, audience: z.string().max(32), path: z.string().max(64),
   exp: msSchema, consumedAt: msSchema,
 });
-// annotations: { type:'nonce', key: keys.nonce(nonce), nonce } ; expiresIn: CHALLENGE_TTL_S. Written on consume (T-45).
+// annotations: { type:'nonce', key: keys.nonce(nonce), nonce } ; expiresIn: NONCE_TTL_S (A-37); issuedAt?. Written on consume, create-if-absent (T-45, A-32).
+// claimSchema { v, key: keys.claim(digest), scope: 'free-live'|'free-campaign'|'settlement', expiresAt } ; annotations { type:'claim', key, expiresAt } (A-33)
 
 export const receiptKindSchema = z.enum(['claim', 'provision', 'topup', 'agent-topup', 'gift', 'gift-claim', 'gift-reclaim', 'card-redeem']);
 export const receiptSchema = z.object({
@@ -676,15 +680,23 @@ Dependencies: `@ethglobal/protocol`, `@ethglobal/crypto`, `@ethglobal/eip3009`; 
 export type { Hex, Address } from '@ethglobal/protocol/ids';
 export type { PaymentResource, PaymentRequirements, PaymentRequired, PaymentAuthorization, PaymentPayload, VerifyResult, SettleResult } from '@ethglobal/protocol/schemas';
 
-export interface LedgerPutInput { payload: string; annotations?: Annotations; expiresIn?: number }  // unchanged
-export interface LedgerEntity { key: string; payload: string; annotations: Annotations; createdAt: number; expiresAt: number | null } // unchanged
+/** A-32: `ifAbsent` = create-if-absent on the (type, key) annotations of this writer's live rows; else AdapterError('ledger','conflict'). */
+export interface LedgerPutInput { payload: string; annotations?: Annotations; expiresIn?: number; ifAbsent?: boolean }
+/** A-32: `version` is the ledger's revision (1 on put, +1 per update); absent only on hand-built entities (read as 1). */
+export interface LedgerEntity { key: string; payload: string; annotations: Annotations; createdAt: number; expiresAt: number | null; version?: number }
+/** A-32: `ifVersion` = compare-and-swap; a stale version ⇒ AdapterError('ledger','conflict') and nothing changes. */
+export interface LedgerUpdatePatch { payload?: string; annotations?: Annotations; ifVersion?: number }
 export interface Ledger {
   put(input: LedgerPutInput): Promise<LedgerPutResult>;
   get(key: string): Promise<LedgerEntity | null>;
   query(query?: LedgerQuery): Promise<LedgerEntity[]>;
-  /** Replace payload and/or annotations; reset the lifetime when expiresIn is given. The returned key may differ (Arkiv); callers re-index by ANN.key. */
-  update(key: string, patch: { payload?: string; annotations?: Annotations }, expiresIn?: number): Promise<LedgerPutResult>;
+  /** Replace payload and/or annotations; reset the lifetime when expiresIn is given; bump version. The returned key may differ (Arkiv); callers re-index by ANN.key. */
+  update(key: string, patch: LedgerUpdatePatch, expiresIn?: number): Promise<LedgerPutResult>;
 }
+// Contract (describeLedger, both InMemoryLedger and ArkivLedger): of N concurrent ifAbsent puts of one (type, key) exactly one
+// succeeds; of two concurrent ifVersion updates from one version exactly one applies. ArkivLedger: exact within a process
+// (serialised per key); across processes best effort — create-then-re-read, oldest (createdAt, key) wins, the loser tombstones
+// its row; `rev` u64 attribute for the version [verify Wed: Arkiv has no conditional create/update] (A-32).
 
 export type ResellerName = 'mock' | 'esimaccess' | 'megaesim' | 'inventory';
 export interface EsimPlan { id: string; provider: ResellerName; name: string; country: 'IN'; dataMb: number; validityDays: number; wholesaleUsd6: bigint }
@@ -860,6 +872,11 @@ export function quotaKey(secret: Uint8Array, nullifierHash: Hex): Hex;          
 export function auditKey(secret: Uint8Array, campaignId: Hex): Uint8Array;             // HMAC(secret, 'audit' ‖ campaignId): handed to the sponsor once
 export function campaignClaimKey(audit: Uint8Array, nullifierHash: Hex): Hex;          // HMAC(audit, nullifier): the published, per-campaign pseudonym
 export function onchainClaimKey(campaignId: Hex, cck: Hex): Hex;                        // keccak256(campaignId ‖ cck) = DataDrop claimKey
+// Capabilities and their ledger index (A-34, RT-O-01): the key IS the /me capability and never reaches the ledger.
+export function freeEntitlementKey(secret: Uint8Array, campaignId: Hex, nullifierHash: Hex): string;   // ent:v1:HMAC(secret,'entfree'‖campaignId‖nullifier) — per campaign
+export function paidEntitlementKey(secret: Uint8Array, network: string, payer: string, nonce: string): string; // paid:<payer>:HMAC(secret,'paid'‖network‖payer‖nonce|keccak(tx))
+export function entitlementIndex(key: string): string;                                   // 'hk:' + sha256(utf8(key)) (= receipts' entitlementKeyHash); idempotent
+export function holderHash(entitlementKey: string, sessionPubKey: Hex): Hex;             // sha256(utf8(key) ‖ spk): the claiming session (A-35)
 
 /** min(c.bundleMb[tier], floor(0.8 × idResale / (wholesale / 1000 MB)), 300) in integer Usd6 math; device|none → 0; wholesale ≤ 0 → cap only (T-23). */
 export function sizeBundle(c: Pick<Campaign, 'bundleMb' | 'idResaleUsd6' | 'wholesaleUsd6PerGb'>, tier: Tier): number;
@@ -872,7 +889,7 @@ export interface Challenge { nonce: Hex; audience: string; path: ChallengePath; 
 export function challenge(audience: string, path: ChallengePath, sessionPubKey: Hex, now: number, secret: Uint8Array): Challenge;
 export function signalFor(nonce: Hex, audience: string): Hex;
 export type ConsumeResult = 'ok' | 'replayed' | 'expired' | 'invalid' | 'unavailable';
-/** Checks MAC + session key + exp, then the in-memory set synchronously BEFORE any await, then the ledger; writes the nonce entity before returning 'ok'. 'unavailable' ⇒ caller denies (fail closed) (T-20). */
+/** Checks MAC + session key + exp (now == exp still accepted), then the in-memory set synchronously BEFORE any await, then the ledger; writes the nonce entity create-if-absent (A-32) with expiresIn NONCE_TTL_S = 300 (A-37) before returning 'ok'. 'unavailable' ⇒ caller denies (fail closed) (T-20). A malformed clock ⇒ 'invalid'; challenge() with a > 255-byte field or a non-integer clock throws RechargeError('invalid_request') (RT-O-07). */
 export function consumeChallenge(ledger: Ledger, cache: Set<string>, c: Challenge, sessionPubKey: Hex, now: number, secret: Uint8Array): Promise<ConsumeResult>;
 
 export type DenyReason = 'replay' | 'paused' | 'cap' | 'budget' | 'invalid-proof' | 'invalid-payment' | 'expired' | 'no-campaign' | 'ledger-unavailable' | 'invalid-request';
@@ -895,12 +912,18 @@ export interface DecideRequest {
   proof?: PersonhoodProof; challenge?: Challenge; sessionPubKey?: Hex;
   payment?: PaymentPayload; requireSessionKey?: boolean;   // true on routes that deliver an LPA ⇒ nonce must equal sessionNonce(sessionPubKey)
   campaign?: Campaign; counters?: CampaignCounters;
-  existingEntitlement?: Entitlement | null;                // looked up by the caller after verify via EntitlementStore (T-18)
+  existingEntitlement?: Entitlement | null;                // optional caller knowledge; decide() looks the replay up itself (A-33)
 }
 /**
- * Order: request validity → (free) campaign liveness/budget/hour-cap from counters → consumeChallenge → personhood.verify →
- * tier/sizeBundle (0 ⇒ payment-required) → quota/claim keys → replay (existing entitlement or counters.claimed) → serve-free.
- * (paid) accepts deep-equality incl. exact amount → session-nonce binding → verify → settle → serve-paid. Nothing is persisted here.
+ * Order: request validity (hostile shapes ⇒ deny, never a TypeError) → (free) campaign/counters validated like stored data →
+ * campaign liveness/budget/hour-cap from counters → consumeChallenge → personhood.verify → tier/sizeBundle (0 ⇒ payment-required)
+ * → keys (a malformed verifier nullifier ⇒ deny invalid-proof 'verifier_nullifier') → replay: this campaign's entitlement, this
+ * campaign's claim record (survives the entitlement, RT-O-08) and the human's live lock of any claim day in the last 30 → actionCheck
+ * → reserve the live lock + claim record create-if-absent (A-33; a lost race ⇒ deny replay 'claim_lock') → serve-free.
+ * (paid) accepts deep-equality on the RAW echo incl. exact amount → strict parse; everything after uses ONLY the parsed payload
+ * (RT-O-02) → session-nonce binding → verify (nonce_already_used continues to settle for the facilitator's front-run recovery, T-15)
+ * → settle → settlement marker create-if-absent (one serve per tx, RT-O-05: a duplicate ⇒ 'nonce_already_used' or replay
+ * 'settlement') → serve-paid. Persisted here: the consumed nonce, the claim locks and the settlement marker — never an entitlement.
  */
 export function decide(req: DecideRequest, deps: OctroiDeps): Promise<Decision>;
 export function buildAccepts(deps: Pick<OctroiDeps, 'accepts' | 'priceUsd6PerStep' | 'stepMb'>, mb: number): PaymentRequirements[];
@@ -909,36 +932,41 @@ export interface TopUpPolicy { maxUsd6PerDay: bigint; thresholdMb: number; stepM
 export type TopUpVerdict =
   | { buy: false; reason: 'ok' | 'paused' | 'cap' | 'expired' | 'already-bought-for-expiry' }
   | { buy: true; mb: number; reason: 'threshold' | 'expiry'; costUsd6: bigint };
-/** Pure. 'expiry' only when expiresAt − now ≤ expiryLeadS×1000 and lastExpiryBought !== expiresAt; cap: spent + cost ≤ max (T-30). */
+/** Pure. 'expiry' only when expiresAt − now ≤ expiryLeadS×1000 and lastExpiryBought !== expiresAt; cap: spent + cost ≤ max (T-30). stepPrice ≤ 0, spent < 0 or a non-finite now ⇒ { buy: false, reason: 'ok' } (RT-O-07). */
 export function shouldTopUp(e: Entitlement, p: TopUpPolicy, spentTodayUsd6: bigint, now: number, stepPriceUsd6: bigint, lastExpiryBought?: number): TopUpVerdict;
 export function policyFromWire(w: TopUpPolicyWire): TopUpPolicy; export function policyToWire(p: TopUpPolicy): TopUpPolicyWire;
 
 /**
  * Gift reclaim rule (D-7). Pure. The caller passes what it read: the escrow (null once expired), the receipts for giftId, and whether the
  * ledger answered. 'refund' only when: ledger ok ∧ gift receipt exists ∧ receipt.payer == payer ∧ no 'gift-claim' ∧ no 'gift-reclaim' ∧
- * escrow === null ∧ now ≥ claimBy ∧ now < claimBy + GIFT_RECLAIM_WINDOW_S×1000. Amount = usd6 − min(feeUsd6, usd6).
+ * escrow === null ∧ now ≥ claimBy ∧ now < claimBy + GIFT_RECLAIM_WINDOW_S×1000. Amount = usd6 − max(feeUsd6, 0); fee ≥ usd6 ⇒ deny 'nothing-to-refund' (A-39).
  */
 export type GiftReclaimVerdict =
   | { kind: 'refund'; to: string; network: string; usd6: bigint; feeUsd6: bigint }
-  | { kind: 'deny'; reason: 'too-early' | 'claimed' | 'already-reclaimed' | 'not-payer' | 'unknown-gift' | 'window-closed' | 'ledger-unavailable' };
+  | { kind: 'deny'; reason: 'too-early' | 'claimed' | 'already-reclaimed' | 'not-payer' | 'unknown-gift' | 'window-closed' | 'ledger-unavailable' | 'nothing-to-refund' };
 export function decideGiftReclaim(input: {
   giftId: Hex; payer: string; now: number; escrow: Gift | null; receipts: Receipt[]; ledgerOk: boolean; feeUsd6: bigint;
 }): GiftReclaimVerdict;
 
 // store/ — the only code that builds annotations (ARCHITECTURE §8 rule 9)
-export interface Found<T> { entityKey: string; payload: T; expiresAt: number | null }
+export interface Found<T> { entityKey: string; payload: T; expiresAt: number | null; version: number }   // version: the CAS token (A-32)
+// Every create is create-if-absent (duplicate ⇒ RechargeError('replay')); every read-modify-write (patch, markClaimed, upsert) is a
+// compare-and-swap on a fresh read, retried up to 8 times (A-32, RT-O-03/06).
 export class EntitlementStore {
   constructor(ledger: Ledger, now: () => number);
-  getByKey(key: string): Promise<Found<Entitlement> | null>;   // query {type:'entitlement', key}; expired if gone OR annotations.expiresAt < now (T-35)
-  getByIccidHash(iccidHash: Hex): Promise<Found<Entitlement> | null>;
-  create(e: Entitlement): Promise<LedgerPutResult>;
-  patch(key: string, patch: Partial<Entitlement>, opts?: { expiresAt?: number }): Promise<Found<Entitlement>>;
-  expiringWithin(ms: number, limit?: number): Promise<Found<Entitlement>[]>;   // sponsor dashboard
+  getByKey(key: string): Promise<Found<Entitlement> | null>;   // by CAPABILITY: query {type, key: entitlementIndex(key)}; an 'hk:' index finds nothing (A-34); payload.key = the capability
+  getByIccidHash(iccidHash: Hex): Promise<Found<Entitlement> | null>;   // server-internal: payload.key is the index
+  create(e: Entitlement): Promise<LedgerPutResult>;            // stores annotation AND payload key = entitlementIndex(e.key)
+  patch(key: string, patch: Partial<Entitlement> | ((current: Entitlement) => Partial<Entitlement>), opts?: { expiresAt?: number }): Promise<Found<Entitlement>>; // key: capability or index; function form for relative changes (A-38)
+  expiringWithin(ms: number, limit?: number): Promise<Found<Entitlement>[]>;   // sponsor dashboard (index keys)
 }
-export class NonceStore { constructor(ledger: Ledger, now: () => number); consumed(nonce: Hex): Promise<boolean>; consume(c: Challenge, now: number): Promise<void> }
+export class NonceStore { constructor(ledger: Ledger, now: () => number); consumed(nonce: Hex): Promise<boolean>; consume(c: Challenge, now: number): Promise<void> }  // consume: create-if-absent, a second ⇒ replay
+export class ClaimStore { constructor(ledger: Ledger, now: () => number); held(key: string): Promise<boolean>; reserve(key: string, scope: ClaimLock['scope'], expiresAt: number): Promise<boolean> } // A-33
+export function mayRegisterPolicy(input: { entitlement: Entitlement; existing: AgentPolicyWire | null; owner: string; sessionPubKey?: Hex }): 'ok' | 'not-owner' | 'holder-proof-required'; // A-35
 export class GiftStore { constructor(ledger: Ledger, now: () => number); create(g: Gift): Promise<LedgerPutResult>; openByNamehash(namehash: Hex): Promise<Found<Gift>[]>; byPinKey(pinKey: Hex): Promise<Found<Gift> | null>; bySerial(serial: string): Promise<Found<Gift> | null>; markClaimed(giftId: Hex, entitlementKey: string): Promise<void> }
 export class CampaignStore { constructor(ledger: Ledger, now: () => number); get(id: Hex): Promise<Found<Campaign> | null>; put(c: Campaign): Promise<LedgerPutResult>; list(): Promise<Found<Campaign>[]> }
-export class ReceiptStore { constructor(ledger: Ledger, now: () => number); add(r: Receipt): Promise<LedgerPutResult>; forEntitlement(entitlementKeyHash: Hex): Promise<Receipt[]>; forCampaign(campaignId: Hex): Promise<Receipt[]>; spentUsd6(entitlementKeyHash: Hex, kind: Receipt['kind'], day: number): Promise<bigint> }
+export class ReceiptStore { constructor(ledger: Ledger, now: () => number); add(r: Receipt): Promise<LedgerPutResult>; forEntitlement(entitlementKeyHash: Hex): Promise<Receipt[]>; forCampaign(campaignId: Hex): Promise<Receipt[]>; spentUsd6(entitlementKeyHash: Hex, kind: Receipt['kind'], day: number): Promise<bigint>;
+  byKindAndDay(kind: Receipt['kind'], day: number): Promise<Receipt[]>; spentUsd6ForDay(kind: Receipt['kind'], day: number): Promise<bigint>; patch(key: string, patch: Partial<Receipt>): Promise<Receipt> } // A-38
 export class AgentPolicyStore { constructor(ledger: Ledger, now: () => number); get(entitlementKey: string): Promise<Found<AgentPolicyWire> | null>; put(p: AgentPolicyWire): Promise<LedgerPutResult>; all(): Promise<Found<AgentPolicyWire>[]> }
 ```
 
@@ -1108,7 +1136,7 @@ CLI: `recharge-agent [--once] [--dry-run] [--key <entitlementKey>]`. Live wallet
 - **Contract events:** `ModeSet(bool)`, `CampaignCreated(bytes32,address,uint128,uint96,uint32,uint64)`, `Claimed(bytes32,bytes32,uint96,uint64)`, `Paused(bytes32,bool,address)`, `Refunded(bytes32,uint128)`, `AttestorSet(address)`; `MockUSDC3009`: ERC-20 `Transfer`, `AuthorizationUsed`, `AuthorizationCanceled`.
 - **HCS message types (`t`):** `claim`, `settle`, `gift`, `gift-claim`, `gift-reclaim`, `card-redeem`, `agent-topup`. One topic per deployment (`HCS_TOPIC_ID`), created by a human on Wed; agent messages carry `uaid`.
 - **HTTP headers:** `PAYMENT-REQUIRED`, `PAYMENT-SIGNATURE`, `PAYMENT-RESPONSE`, `X-Session-Pubkey`, `X-Request-Id`, `Idempotency-Key`, `Authorization: Recharge-Sponsor …`, webhook `x-recharge-signature` / `x-recharge-timestamp` / `x-recharge-event-id` (mock reseller); eSIM Access outbound `RT-AccessCode` / `RT-Timestamp` (ms) / `RT-RequestID` / `RT-Signature` (A-27).
-- **Ledger annotations:** §1.1 `ANN`; entity types §1.1 `ENTITY_TYPES`; logical key prefixes `ent:v1:`, `paid:`, `giftent:`, `gift:`, `nonce:`, `rcpt:`, `camp:`, `policy:`.
+- **Ledger annotations:** §1.1 `ANN`; entity types §1.1 `ENTITY_TYPES`; logical key prefixes `ent:v1:`, `paid:`, `giftent:`, `gift:`, `nonce:`, `rcpt:`, `camp:`, `policy:`, `claim:` (A-33); entitlement index `hk:` (A-34).
 - **Log events:** §1.10 `LOG_EVENTS`.
 - **PWA ↔ API:** no cookies; the PWA stores `entitlementKey`s and opened LPAs in IndexedDB (device-local), never the session secret.
 
@@ -1245,6 +1273,16 @@ Nobody imports another package's `src/` or `dist/` path; package names and subpa
 | A-29 | `hcs14Uaid` = sha256 of canonical JSON, string skills, no `uid` | `id = base58(sha384(JSON.stringify({ skills, name, nativeId, protocol, registry, version })))` with exactly that key order, skills sorted **integers**; `uaid:aid:<id>;uid=0;registry=…;nativeId=<CAIP-10 hedera:testnet:0.0.x>;proto=…`; conformance against `@hashgraphonline/standards-sdk@0.1.192` `createUaid` | API-FACTS §2.7 (`standards-sdk@04f97c8:src/hcs-14`). |
 | A-30 | `GET /facilitator/supported` → `{ kinds }`; remote facilitator allow-list `x402.org, *.hedera.com` | our self-run `supported` returns the v2 shape `{ kinds, extensions: [], signers: { "eip155:*": [relayer] } }`; remote allow-list = `x402.org`, `api.testnet.blocky402.com`, `testnet.facilitator.launa.dev`, `localhost`; default URL for both EVM and Hedera is `https://x402.org/facilitator`, Blocky402 the Hedera fallback | API-FACTS §1.5–1.6. |
 | A-31 | treasury = the payout key (`TREASURY_PRIVATE_KEY` = key of `PAYOUT_ADDRESS`) | the treasury is a **separate** refund wallet (EVM and Hedera), funded with at most one day's `TREASURY_MAX_USD6_PER_DAY`; `payout` keys never sit on the API host | red team `PLAN.md` §9 / T-71: a compromised API must not be able to drain the payout balance; the drain bound becomes the treasury float. |
+| A-32 | (§3.1) the Ledger port has `put/get/query/update` and nothing atomic; stores check-then-put (RT-O-03 A-L6) | **Atomic primitives on the port** (adapters): `LedgerPutInput.ifAbsent` (create-if-absent on (type, key)), `LedgerEntity.version` (1 on put, +1 per update), `update(key, { …, ifVersion })` (compare-and-swap); failure = `AdapterError('ledger','conflict')` (new code, protocol `ADAPTER_CODE_MAP.conflict → 'replay'`). `InMemoryLedger` implements both atomically; `ArkivLedger` serialises per key in-process and, across processes, re-reads after create (oldest (createdAt, key) wins, the loser tombstones its own row with `expiresAt = 1`) and stores the version as a `rev` u64 attribute (schema column optional; legacy rows read as 1) **[verify Wed]**. `describeLedger` gains five contract tests both adapters pass. octroi: every `Repo.create` is ifAbsent, every read-modify-write is CAS with ≤ 8 retries; payment payload branches are `z.strictObject` | red team RT-O-03/05/06: "no atomic create" is the root of the double gift redemption, the lost top-up and the multi-instance nonce double-consume. Arkiv has no conditional write, so the cross-process guarantee is best effort and THREAT-MODEL §8 states one API writer process for wave 2. |
+| A-33 | decide() persists nothing but the consumed nonce; the replay check is the caller's `existingEntitlement` / `counters.claimed` | protocol: `ENTITY_TYPES += 'claim'`, `claimSchema { v, key: 'claim:…', scope: 'free-live' \| 'free-campaign' \| 'settlement', expiresAt }`, `keys.claim(digest)`, `KEY_PREFIXES.claim`. octroi `ClaimStore`; decide() writes, create-if-absent, (free) the human's **live lock** `claim:HMAC(secret,'live'‖quotaKey‖claimDay)` until the entitlement's expiresAt and the **campaign claim record** `claim:HMAC(secret,'claimed'‖campaignId‖quotaKey)` until the campaign ends (≤ 180 d), and checks the live locks of the last 30 claim days (31 parallel reads) and the record itself; (paid) the **settlement marker** `claim:HMAC(secret,'settle'‖network‖tx)` for RECEIPT_TTL_S | RT-O-03 (two campaigns served concurrently), RT-O-05 (one payment, two serves), RT-O-08 (`counters.claimed` unknowable before verify). Day-keyed live locks keep two campaigns' entities unlinkable (A-9) while still giving one live free bundle per human. A saga failure after serve-free keeps the human's slot until the would-be expiry (fail closed; stated in octroi README). |
+| A-34 | `ANN.key = ent:v1:<quotaKey>` / `paid:<payer>:<nonce>` in clear on the public ledger; one global free key across campaigns | **Capability ≠ index.** `EntitlementStore` writes annotation AND payload `key = entitlementIndex(key) = 'hk:' + sha256(utf8(key))` (= receipts' `entitlementKeyHash`); `getByKey(capability)` hashes first and refuses an `hk:` index (the `/me/:key` check); `patch` accepts either (server-internal webhook path). Free key = `ent:v1:HMAC(secret,'entfree'‖campaignId‖nullifier)` (per campaign); paid key = `paid:<payer>:HMAC(secret,'paid'‖network‖payer‖nonce)`. API `MeCache` is keyed by the index. `quotaKey` never leaves the process | RT-O-01 (T-37, T-73, A-9). sha256 (not an HMAC) because every store instance (API, agent, tests) must index identically without the secret, and every capability is ≥ 256 bits of HMAC output. Residuals (octroi README): `giftent:<giftId>` is derivable from the public gift entity; `AgentPolicy.entitlementKey` is still stored in clear (the agent's watch list needs it). |
+| A-35 | first registered owner wins a free entitlement's agent policy (T-73 b, open) | `entitlementSchema.holderHash?` = sha256(utf8(key) ‖ sessionPubKey), set by decide() on free entitlements; `agentPolicyPutSchema.sessionPubKey?`; octroi `mayRegisterPolicy()` — paid: the payer; existing policy: its owner; first registration of an entitlement with a holderHash: only with the claiming session's pubkey. Wired in `services/api` PUT /agent/policy (401 `sessionPubKey of the claiming session required`) | coordinator follow-up (c). **PWA follow-up:** keep the claim session's PUBLIC key (never the secret) with the entitlement and send it on the first PUT. |
+| A-36 | `RECEIPT_TTL_S = 30 d` | `RECEIPT_TTL_S = GIFT_CLAIM_WINDOW_S + GIFT_RECLAIM_WINDOW_S + 1 d = 38 d` | T-71e: the reclaim window runs to day 37; a day-31 reclaim found no 'gift' receipt (404 unknown-gift). |
+| A-37 | nonce entity `expiresIn: CHALLENGE_TTL_S` | `NONCE_TTL_S = 300` (≥ TTL + 5 s skew guard + > 10 % ledger drift); `nonceSchema.issuedAt?` (exp − TTL); `now == exp` is still accepted (the entity outlives it) | RT-O-04: a +5 s issuer, a 6 % fast ledger and the `now == exp` boundary each re-opened a fresh-cache replay. The finding (and its tests) keep `now > exp ⇒ expired`. |
+| A-38 | `ReceiptStore` has no patch and no by-day query (the API kept the treasury cap in memory); `EntitlementStore.patch` merges a static object | `ReceiptStore.patch(key, Partial<Receipt>)` (CAS), `byKindAndDay(kind, day)`, `spentUsd6ForDay(kind, day)`; `EntitlementStore.patch` also takes `(current) => Partial<Entitlement>`, computed from each fresh row | coordinator follow-up (d); relative top-ups (`mbTotal + mb`) cannot lose a concurrent one. |
+| A-39 | `decideGiftReclaim` refunds `usd6 − min(fee, usd6)` (0 when fee ≥ paid) | fee ≥ paid ⇒ `deny 'nothing-to-refund'` (API: 410 `expired`) | RT-O-09: a 0n transfer still costs treasury gas and writes a receipt. |
+| A-40 | decide() validates a parsed copy of the payment and uses the raw one; verify `nonce_already_used` ends the paid lane | decide() uses ONLY the strictly parsed payload after the raw accepted-echo compare; verify `nonce_already_used` continues to settle (the facilitator's front-run recovery), deduped by the A-33 settlement marker | RT-O-02 (decoy `authorization` beside a Hedera `transaction`), T-15 (a front-run human payment answered 402). |
+| A-41 | decide()/challenge()/shouldTopUp trust their numbers | decide(): hostile request/payment/proof shapes ⇒ deny `invalid-request` (`request`/`payment`/`proof`); campaign validated with `campaignToPayload` (⇒ `campaign`), counters integers/bigints ≥ 0 (⇒ `counters`), a malformed verifier nullifier ⇒ `invalid-proof 'verifier_nullifier'`; challenge() throws `RechargeError('invalid_request')` (no RangeError); consumeChallenge with a non-integer clock ⇒ `'invalid'`; shouldTopUp: price ≤ 0 / spent < 0 / non-finite now ⇒ no buy | RT-O-07 (ARCHITECTURE §9 rule 2). |
 
 ---
 

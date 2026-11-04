@@ -5,14 +5,14 @@ module: packages/octroi/src/store/entitlement.ts
 threat: T-37
 severity: High
 likelihood: H
-status: open
+status: fixed
 found_by: redteam-octroi
 owner: builder-octroi
 found_at: 2026-11-04T05:40+05:30
 due: 2026-11-04T09:40+05:30
 attack_test: packages/octroi/test/redteam/rt-keys.test.ts::the /me/:key capability of a free entitlement does not appear on the public ledger_RTFINDING
-regression_test:
-fix_commit:
+regression_test: packages/octroi/test/redteam/rt-keys.test.ts::the /me/:key capability of a free entitlement does not appear on the public ledger [RT-O-01] (+ the two other [RT-O-01] cases in that file; packages/octroi/test/regression/redteam-wave1.test.ts::RT-O-01)
+fix_commit: (uncommitted, wave-1 octroi fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -63,5 +63,7 @@ asserting the safe behaviour. The red-team attack tests are marked `// RT-FINDIN
 (vitest filter: `-t '^(?!.*_RTFINDING).*$'`); they must turn green with the fix.
 
 ## Builder notes (optional)
+
+Capability ≠ index (INTERFACES A-34). `EntitlementStore` writes `entitlementIndex(key) = 'hk:' + sha256(utf8(key))` as the `key` annotation AND as `payload.key`; `getByKey(capability)` hashes first and refuses an `hk:` value (so a key read off Arkiv opens nothing). Free capability = `ent:v1:HMAC(secret,'entfree'‖campaignId‖nullifier)` — per campaign; the global `quotaKey` never leaves the process (it keys only the claim locks, A-33, which are day-keyed, so two claims ≥ 1 day apart share no identifier). Paid capability = `paid:<payer>:HMAC(secret,'paid'‖network‖payer‖nonce)`. API `MeCache` is keyed by the index so a webhook's invalidation (which only knows the index) still hits. sha256 instead of an HMAC for the index: stores are constructed without the secret (API, agent, these tests) and every capability is ≥ 256 bits of HMAC output; the index equals receipts' `entitlementKeyHash`. Test adaptation: case 2 now ignores A's own entities re-read in B's dump (A's campaign claim record legitimately outlives A's bundle) and compares only what was written for B. Residuals (octroi README Decision 16): `giftent:<giftId>` is derivable from the public gift entity; `AgentPolicyWire.entitlementKey` is still in clear. rt-store forges now target the index.
 
 ## Verification (red team)

@@ -1,4 +1,7 @@
 /** T-30 / red team AG1 — the daily cap holds under races, receipt lag and big steps. */
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { InMemoryLedger } from '@ethglobal/adapters';
@@ -9,7 +12,7 @@ import { dayBucket, keys } from '@ethglobal/protocol/ids';
 
 import { Journal } from '../../src/journal.js';
 import { LedgerReads } from '../../src/reads.js';
-import { tick } from '../../src/tick.js';
+import { tick, triggerKey } from '../../src/tick.js';
 import {
   EVM_ACCEPT,
   harness,
@@ -41,6 +44,17 @@ describe('T-30 agent cap (AG1)', () => {
     expect(results.filter((r) => r.bought)).toHaveLength(1);
     expect(results.find((r) => !r.bought)?.skipped).toBe('trigger-in-flight');
     expect(a.signatures() + b.signatures()).toBe(1);
+  });
+
+  it('RT-G-01 — a trigger record another process is still writing (empty file) ⇒ this tick backs off, no signature', async () => {
+    const h = await harness();
+    const e = await seed(h.ledger, h.clock.now, { mbUsed: 900 });
+    const triggers = join(h.stateDir, 'triggers');
+    await mkdir(triggers, { recursive: true });
+    const name = `${sha256Hex(triggerKey(KEY, e, 'threshold')).slice(2)}.json`;
+    await writeFile(join(triggers, name), '');
+    expect((await tick(h.agent.deps, KEY)).skipped).toBe('trigger-in-flight');
+    expect(h.signatures()).toBe(0);
   });
 
   it("receipt write lag: the ledger still shows $0 spent, the agent's own record blocks the next step", async () => {

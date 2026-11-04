@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import type { Hex } from '@ethglobal/protocol/ids';
-import type { ChallengeWire, EntitledResponse } from '@ethglobal/protocol/schemas';
+import type { ChallengeWire } from '@ethglobal/protocol/schemas';
 import { Button, Coupon } from '@ethglobal/ui/components';
 
 import { QrCode } from './QrCode';
@@ -71,8 +71,27 @@ async function openIdkit(
     connectorURI?: string;
     pollUntilCompletion(o: { pollInterval: number; timeout: number }): Promise<IdkitCompletion>;
   };
-  onConnector(req.connectorURI || undefined);
+  onConnector(req.connectorURI === '' ? undefined : req.connectorURI);
   return req.pollUntilCompletion({ pollInterval: 2000, timeout: 120_000 });
+}
+
+/** The session keypair is generated here, in memory only (T-60); the challenge MAC binds it. */
+async function prepareClaim(): Promise<{ spk: Hex; challenge: ChallengeWire }> {
+  const spk = beginSession();
+  return { spk, challenge: await api.challenge('/claim', spk) };
+}
+
+const SEEN = new Set(['replay', 'already_claimed']);
+const SPONSOR = new Set(['hourly_cap', 'budget_exhausted', 'campaign_paused', 'campaign_expired']);
+
+/** API error → the sheet's state (design-references §1b states). */
+function phaseFor(e: unknown, t: (k: ReturnType<typeof errorKey>) => string): Phase {
+  const err = e instanceof ApiError ? e : new ApiError(0, 'network', String(e));
+  if (SEEN.has(err.code)) return { kind: 'seen' };
+  if (err.code === 'payment_required') return { kind: 'noCredential' };
+  if (err.code === 'invalid_proof' || err.code === 'unauthorized') return { kind: 'failed' };
+  if (SPONSOR.has(err.code)) return { kind: 'sponsorFailed', why: t(errorKey(err.code)) };
+  return { kind: 'closed', retryS: err.retryAfterS ?? 30, message: t(errorKey(err.code)) };
 }
 
 export function VerifySheet() {
@@ -82,56 +101,27 @@ export function VerifySheet() {
   const now = useClock(1000);
   const [phase, setPhase] = useState<Phase>({ kind: 'preparing' });
   const session = useRef<{ spk: Hex; challenge: ChallengeWire } | undefined>(undefined);
-  const rpRetried = useRef(false);
 
-  const prepare = useCallback(async () => {
-    setPhase({ kind: 'preparing' });
-    try {
-      const spk = beginSession(); // the session keypair is generated here, in memory only (T-60)
-      const challenge = await api.challenge('/claim', spk);
-      session.current = { spk, challenge };
-      setPhase({ kind: 'ready' });
-    } catch (e) {
-      const err = e instanceof ApiError ? e : undefined;
-      setPhase({
-        kind: 'closed',
-        retryS: err?.retryAfterS ?? 30,
-        message: t(errorKey(err?.code ?? 'network')),
-      });
-    }
-  }, [t]);
-
+  const [round, setRound] = useState(0);
   useEffect(() => {
-    void prepare();
-  }, [prepare]);
-
-  const fail = useCallback(
-    (e: unknown) => {
-      const err = e instanceof ApiError ? e : new ApiError(0, 'network', String(e));
-      switch (err.code) {
-        case 'replay':
-        case 'already_claimed':
-          return setPhase({ kind: 'seen' });
-        case 'payment_required':
-          return setPhase({ kind: 'noCredential' });
-        case 'invalid_proof':
-        case 'unauthorized':
-          return setPhase({ kind: 'failed' });
-        case 'hourly_cap':
-        case 'budget_exhausted':
-        case 'campaign_paused':
-        case 'campaign_expired':
-          return setPhase({ kind: 'sponsorFailed', why: t(errorKey(err.code)) });
-        default:
-          return setPhase({
-            kind: 'closed',
-            retryS: err.retryAfterS ?? 30,
-            message: t(errorKey(err.code)),
-          });
-      }
-    },
-    [t],
-  );
+    let alive = true;
+    prepareClaim().then(
+      (next) => {
+        if (!alive) return;
+        session.current = next;
+        setPhase({ kind: 'ready' });
+      },
+      (e: unknown) => alive && setPhase(phaseFor(e, t)),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [t, round]);
+  const prepare = () => {
+    setPhase({ kind: 'preparing' });
+    setRound((n) => n + 1);
+  };
+  const fail = useCallback((e: unknown) => setPhase(phaseFor(e, t)), [t]);
 
   const claim = useCallback(
     async (proof: unknown) => {
@@ -165,25 +155,22 @@ export function VerifySheet() {
     if (!s) return;
     setPhase({ kind: 'waiting', since: Date.now() });
     try {
-      // the backend-signed rp_context, after the challenge and before IDKit opens (A-25)
-      const rp = await api.rpContext('/claim');
-      if (IS_LOCAL) {
-        const proof = await api.simulatedProof(s.challenge.signal as Hex, 'orb', simulatedSeed());
-        await claim(proof);
-        return;
-      }
-      const done = await openIdkit(s.challenge, rp, (uri) =>
-        setPhase({ kind: 'waiting', since: Date.now(), ...(uri ? { connectorURI: uri } : {}) }),
-      );
-      if (done.success) return await claim(done.result);
-      if (done.error === 'user_rejected') return setPhase({ kind: 'ready' });
-      if (done.error === 'credential_unavailable') return setPhase({ kind: 'noCredential' });
-      if (
-        (done.error === 'rp_signature_expired' || done.error === 'timestamp_too_old') &&
-        !rpRetried.current
-      ) {
-        rpRetried.current = true;
-        return await start();
+      // an expired rp_context (rp_signature_expired | timestamp_too_old) is re-fetched once
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        // the backend-signed rp_context, after the challenge and before IDKit opens (A-25)
+        const rp = await api.rpContext('/claim');
+        if (IS_LOCAL) {
+          const proof = await api.simulatedProof(s.challenge.signal as Hex, 'orb', simulatedSeed());
+          await claim(proof);
+          return;
+        }
+        const done = await openIdkit(s.challenge, rp, (uri) =>
+          setPhase({ kind: 'waiting', since: Date.now(), ...(uri ? { connectorURI: uri } : {}) }),
+        );
+        if (done.success) return await claim(done.result);
+        if (done.error === 'user_rejected') return setPhase({ kind: 'ready' });
+        if (done.error === 'credential_unavailable') return setPhase({ kind: 'noCredential' });
+        if (done.error !== 'rp_signature_expired' && done.error !== 'timestamp_too_old') break;
       }
       setPhase({ kind: 'failed' });
     } catch (e) {
@@ -295,7 +282,7 @@ export function VerifySheet() {
             </Button>
           ) : null}
           {phase.kind === 'closed' ? (
-            <Button variant="secondary" onClick={() => void prepare()}>
+            <Button variant="secondary" onClick={prepare}>
               {t('verify.retry')}
             </Button>
           ) : null}

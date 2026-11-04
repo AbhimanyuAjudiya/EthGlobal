@@ -11,7 +11,7 @@ import { AppHeader } from './Shell';
 import { useLang } from '../i18n/lang';
 import { parseDevice } from '../lib/device';
 import { clockIst, formatMb, money, priceFor } from '../lib/format';
-import { usePlans } from '../lib/hooks';
+import { useHydrated, usePlans } from '../lib/hooks';
 import { get, set } from '../lib/store';
 
 
@@ -20,15 +20,13 @@ const enIN = new Intl.NumberFormat('en-IN');
 /** Pre-flight line under the button (the Airalo borrow), from the UA only. */
 function Preflight() {
   const { t } = useLang();
-  const [line, setLine] = useState<string>();
-  useEffect(() => {
-    const device = parseDevice(navigator.userAgent);
-    setLine(
-      device.esimReady
-        ? t('preflight.ready', { device: device.label })
-        : t('preflight.unknown'),
-    );
-  }, [t]);
+  const hydrated = useHydrated();
+  const device = hydrated ? parseDevice(navigator.userAgent) : undefined;
+  const line = device
+    ? device.esimReady
+      ? t('preflight.ready', { device: device.label })
+      : t('preflight.unknown')
+    : undefined;
   return (
     <p className="preflight" data-testid="preflight">
       {line ?? ' '}

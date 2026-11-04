@@ -27,7 +27,7 @@ import { encode } from 'uqr';
 import { randomBytes } from '@ethglobal/crypto';
 import { generatePin } from '@ethglobal/protocol/pin';
 
-import { answers, cliArgs, ROOT, startWeb, stopAll } from './lib/harness.js';
+import { answers, cliArgs, ROOT, startWeb, stopAll, stopWithParent } from './lib/harness.js';
 
 interface Card {
   serial: string;
@@ -112,6 +112,7 @@ const pageCount = (pdf: Buffer): number =>
   (pdf.toString('latin1').match(/\/Type\s*\/Page(?!s)/g) ?? []).length;
 
 async function main(): Promise<void> {
+  stopWithParent();
   const { cards, dryRun } = loadCards();
   const hasPrintRoute = existsSync(join(ROOT, 'apps/web/app/print/cards/page.tsx'));
   if (!hasPrintRoute && !dryRun && !flags.proof) {
@@ -132,16 +133,22 @@ async function main(): Promise<void> {
   writeFileSync(cardsFile, JSON.stringify(cards), { mode: 0o600 });
 
   let webUrl = process.env.WEB_URL;
+  let webLog: string | undefined;
   const started = performance.now();
   try {
     if (hasPrintRoute || webUrl === undefined || !(await answers(`${webUrl}/`))) {
       // the PIN file only reaches a web process this script starts (PRINT_CARDS_FILE is read server-side)
-      webUrl = (
-        await startWeb(process.env.API_URL ?? 'http://127.0.0.1:8787', Number(flags.port), {
-          PRINT_TOKEN: token,
-          PRINT_CARDS_FILE: cardsFile,
-        })
-      ).webUrl;
+      const web = await startWeb(
+        process.env.API_URL ?? 'http://127.0.0.1:8787',
+        Number(flags.port),
+        { PRINT_TOKEN: token, PRINT_CARDS_FILE: cardsFile },
+        // a production build older than the /print/cards route cannot serve it: compile on demand instead
+        hasPrintRoute && !existsSync(join(ROOT, 'apps/web/.next/server/app/print/cards'))
+          ? 'dev'
+          : 'auto',
+      );
+      webUrl = web.webUrl;
+      webLog = web.log;
     }
     const front = hasPrintRoute
       ? `${webUrl}/print/cards?token=${encodeURIComponent(token)}&count=${count}`
@@ -170,7 +177,10 @@ async function main(): Promise<void> {
           sheet,
         );
       }
-      const drawn = await drawQrCodes(page);
+      // the web route draws its own codes (apps/web/components/QrCode.tsx, same uqr pin); the gallery has slots
+      const drawn = hasPrintRoute
+        ? await page.$$eval('svg[data-qr-url]', (n) => n.length)
+        : await drawQrCodes(page);
       await page.evaluate(() => document.fonts.ready);
       mkdirSync(flags.out, { recursive: true });
       const date = new Date().toISOString().slice(0, 10);
@@ -208,6 +218,9 @@ async function main(): Promise<void> {
   } finally {
     rmSync(secretDir, { recursive: true, force: true });
     stopAll();
+    // next's own access log echoes the request line: keep the one-time PRINT_TOKEN out of .e2e/web.log (T-64)
+    if (webLog !== undefined && existsSync(webLog))
+      writeFileSync(webLog, readFileSync(webLog, 'utf8').replaceAll(token, '<redacted>'));
   }
 }
 

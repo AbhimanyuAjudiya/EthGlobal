@@ -94,6 +94,9 @@ export const plans = {
   saveLpa: (key: string, lpa: string) => set(`lpa:${key}`, lpa),
   snapshot: (key: string) => get<{ at: number; me: MeResponse }>(`me:${key}`),
   saveSnapshot: (key: string, me: MeResponse) => set(`me:${key}`, { at: Date.now(), me }),
+  /** The claiming session's public key (A-35): sent with the first PUT /agent/policy of a free entitlement. */
+  holder: (key: string) => get<string>(`holder:${key}`),
+  saveHolder: (key: string, publicKey: string) => set(`holder:${key}`, publicKey),
   /** The bundle-issued facts the /plan IssuingRows replay once (hash, arkiv key), set by /verify. */
   issued: (key: string) => get<IssuedFacts>(`issued:${key}`),
   saveIssued: (key: string, facts: IssuedFacts) => set(`issued:${key}`, facts),

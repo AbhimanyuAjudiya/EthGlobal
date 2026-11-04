@@ -21,6 +21,7 @@ import {
 } from '../../src/index.js';
 import {
   AgentPolicyStore,
+  mayRegisterPolicy,
   CampaignStore,
   ClaimStore,
   EntitlementStore,
@@ -339,5 +340,80 @@ describe('A-38: ReceiptStore.patch and the by-kind-and-day reads (treasury daily
     await expect(store.patch('rcpt:missing', { tx: '0x1' })).rejects.toMatchObject({
       code: 'not_found',
     });
+  });
+});
+
+describe('T-73 b: mayRegisterPolicy (A-35)', () => {
+  const OWNER = `0x${'66'.repeat(20)}`;
+  const OTHER = `0x${'77'.repeat(20)}`;
+  const OTHER_SPK: Hex = `0x${'6b'.repeat(32)}`;
+  const free = entitlement({ key: KEY, holderHash: holderHash(KEY, SPK) });
+  const policyOf = (owner: string) => ({
+    v: 1 as const,
+    entitlementKey: KEY,
+    owner,
+    policy: {
+      maxUsd6PerDay: '1000000',
+      thresholdMb: 100,
+      stepMb: 100,
+      paused: false,
+      topUpOnExpiry: false,
+      expiryLeadS: 3600,
+    },
+    updatedAt: T0,
+  });
+
+  it('first registration of a holder-bound entitlement needs the claiming session key', () => {
+    const base = { entitlement: free, existing: null, owner: OWNER };
+    expect(mayRegisterPolicy(base)).toBe('holder-proof-required');
+    expect(mayRegisterPolicy({ ...base, sessionPubKey: OTHER_SPK })).toBe('holder-proof-required');
+    expect(mayRegisterPolicy({ ...base, sessionPubKey: '0x12' })).toBe('holder-proof-required');
+    expect(mayRegisterPolicy({ ...base, sessionPubKey: SPK })).toBe('ok');
+    const garbled = entitlement({ key: KEY, holderHash: `0x${'00'.repeat(32)}` });
+    expect(mayRegisterPolicy({ ...base, entitlement: garbled, sessionPubKey: SPK })).toBe(
+      'holder-proof-required',
+    );
+  });
+
+  it('paid ⇒ the payer; an existing policy ⇒ its owner; no holderHash ⇒ first registration', () => {
+    const paid = entitlement({ key: KEY, kind: 'paid', payer: OWNER });
+    expect(
+      mayRegisterPolicy({ entitlement: paid, existing: null, owner: OWNER.toUpperCase() }),
+    ).toBe('ok');
+    expect(mayRegisterPolicy({ entitlement: paid, existing: null, owner: OTHER })).toBe(
+      'not-owner',
+    );
+    expect(mayRegisterPolicy({ entitlement: free, existing: policyOf(OWNER), owner: OTHER })).toBe(
+      'not-owner',
+    );
+    expect(mayRegisterPolicy({ entitlement: free, existing: policyOf(OWNER), owner: OWNER })).toBe(
+      'ok',
+    );
+    expect(
+      mayRegisterPolicy({ entitlement: entitlement({ key: KEY }), existing: null, owner: OTHER }),
+    ).toBe('ok');
+  });
+});
+
+describe('A-38: EntitlementStore.patch with a function (relative changes)', () => {
+  it('two concurrent relative top-ups both land; a function returning expiresAt is refused', async () => {
+    const clock = fakeClock();
+    const store = new EntitlementStore(
+      networked(new InMemoryLedger({ now: clock.now })),
+      clock.now,
+    );
+    await store.create(entitlement({ key: KEY, mbTotal: 300 }));
+    await Promise.all([
+      store.patch(KEY, (e) => ({ mbTotal: e.mbTotal + 100 })),
+      store.patch(KEY, (e) => ({ mbTotal: e.mbTotal + 100 })),
+    ]);
+    expect((await store.getByKey(KEY))?.payload.mbTotal).toBe(500);
+    await expect(store.patch(KEY, (e) => ({ expiresAt: e.expiresAt + 1 }))).rejects.toMatchObject({
+      code: 'invalid_request',
+    });
+    // the function sees the capability, not the index
+    const seen: string[] = [];
+    await store.patch(KEY, (e) => (seen.push(e.key), {}));
+    expect(seen).toEqual([KEY]);
   });
 });

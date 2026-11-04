@@ -14,7 +14,7 @@ import { loadConfig } from '../src/config.js';
 import { buildAgent } from '../src/deps.js';
 import { AgentState, Journal, STALE_CLAIM_MS } from '../src/journal.js';
 import { memoryLog } from '../src/log.js';
-import { ApiReads, LedgerReads, PlansCache } from '../src/reads.js';
+import { ApiReads, LedgerReads, paidKeyPayer, PlansCache } from '../src/reads.js';
 import { tick } from '../src/tick.js';
 
 describe('agent state (.agent/)', () => {
@@ -35,19 +35,26 @@ describe('agent state (.agent/)', () => {
       reason: 'already-bought-for-trigger',
     });
     await s.releaseTrigger('t2'); // releasing a trigger that does not exist is fine
-    await s.releaseTrigger('t1');
-    expect(await s.trigger('t1')).toBeUndefined();
+    await s.releaseTrigger('t1'); // a done trigger is never released
+    expect((await s.trigger('t1'))?.state).toBe('done');
+    await s.claimTrigger('t3', T0);
+    await s.releaseTrigger('t3'); // the claimant's own unsigned claim: released
+    expect(await s.trigger('t3')).toBeUndefined();
   });
 
-  it('a corrupt trigger or state file fails safe', async () => {
+  it('a corrupt trigger is in flight until it is old by mtime; a corrupt state file fails safe', async () => {
     const dir = await tempDir();
     const s = new AgentState(dir);
     await s.claimTrigger('t', T0);
     const triggers = join(dir, 'triggers');
-    const { readdir } = await import('node:fs/promises');
-    const [file] = await readdir(triggers);
+    const { readdir, utimes } = await import('node:fs/promises');
+    const [file] = (await readdir(triggers)).filter((f) => f.endsWith('.json'));
     await writeFile(join(triggers, file!), '{not json');
-    expect(await s.claimTrigger('t', T0)).toEqual({ ok: true }); // unreadable ⇒ treated as dead, rewritten
+    // RT-G-01: a record being written (or torn) is somebody's claim, never "dead"
+    expect(await s.claimTrigger('t', T0)).toEqual({ ok: false, reason: 'trigger-in-flight' });
+    const old = new Date(Date.now() - STALE_CLAIM_MS - 1_000);
+    await utimes(join(triggers, file!), old, old);
+    expect(await s.claimTrigger('t', T0)).toEqual({ ok: true });
     await writeFile(join(dir, 'state.json'), '{"v":2}');
     expect(await s.spentToday(KEY, T0)).toBe(0n);
   });
@@ -109,6 +116,12 @@ describe('reads', () => {
     await expect(failing.entitlement(KEY)).rejects.toThrow(/503/);
   });
 
+  it('paidKeyPayer: the payer a paid key was issued to; nothing for other kinds (RT-G-04)', () => {
+    expect(paidKeyPayer(KEY)).toBe(OWNER.toLowerCase());
+    expect(paidKeyPayer('paid::0x11')).toBeUndefined();
+    expect(paidKeyPayer(`ent:1:0x${'22'.repeat(32)}`)).toBeUndefined();
+  });
+
   it('LedgerReads finds the newest agent-topup tx since a time', async () => {
     const h = await harness();
     await seed(h.ledger, h.clock.now, { mbUsed: 900 });
@@ -148,6 +161,7 @@ describe('buildAgent wiring', () => {
       AGENT_HEDERA_ACCOUNT_ID: '0.0.5005',
       AGENT_HEDERA_PRIVATE_KEY: PrivateKey.generateECDSA().toStringRaw(),
       AGENT_WATCH_KEYS: KEY,
+      AGENT_OWNER: OWNER,
     });
     const mirror: typeof fetch = async () =>
       Response.json({ tokens: [{ token_id: '0.0.429274', balance: '3000000' }] });

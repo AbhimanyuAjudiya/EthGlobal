@@ -5,14 +5,14 @@ module: packages/octroi/src/gift.ts
 threat: T-71
 severity: Low
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-octroi
 owner: builder-octroi
 found_at: 2026-11-04T05:40+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: packages/octroi/test/redteam/rt-topup-gift.test.ts::fee ≥ paid → deny, never a zero-value refund (a 0n transfer still costs the treasury gas and writes a gift-reclaim receipt)_RTFINDING
-regression_test:
-fix_commit:
+regression_test: packages/octroi/test/redteam/rt-topup-gift.test.ts::fee ≥ paid → deny, never a zero-value refund (a 0n transfer still costs the treasury gas and writes a gift-reclaim receipt) [RT-O-09] (+ packages/octroi/test/gift.test.ts::fee ≥ usd6 is nothing-to-refund)
+fix_commit: (uncommitted, wave-1 octroi fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -43,5 +43,7 @@ Regression test to add (builder): `services/api/test/regression/T-71-reclaim.tes
 `treasury.refund` call) and a unit case in `packages/octroi/test/gift.test.ts`.
 
 ## Builder notes (optional)
+
+`GiftReclaimVerdict` deny reason `'nothing-to-refund'` when `max(fee, 0) ≥ usd6` (A-39); the API maps it to 410 `expired` in `RECLAIM_DENY_CODES` (no `treasury.refund`, no receipt). The suggested `services/api/test/regression/T-71-reclaim.test.ts` is the API builder's.
 
 ## Verification (red team)

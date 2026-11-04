@@ -52,6 +52,9 @@ export interface AgentDeps {
   lastNotice?: Map<string, string>;
 }
 
+/** How far the clock may sit behind the newest purchase on file before the agent stops buying (RT-G-03). */
+export const CLOCK_SKEW_MS = 60_000;
+
 /** Shown when no verdict exists (nothing to decide on). */
 const NO_VERDICT: TopUpVerdict = { buy: false, reason: 'ok' };
 
@@ -106,8 +109,13 @@ async function run(deps: AgentDeps, key: string): Promise<TickResult> {
   if (!e) return skip('no-entitlement');
   const pol = await deps.reads.policy(key);
   if (!pol) return skip('no-policy');
-  if (deps.owner !== undefined && pol.owner.toLowerCase() !== deps.owner.toLowerCase())
-    return skip('not-mine');
+  // T-73 b / RT-G-04: whose policy the agent's wallet pays under. Pinned (AGENT_OWNER, required live): that owner only.
+  // Unpinned (local only): the policy owner must be the entitlement's payer, so a squatted policy is never followed.
+  if (deps.owner !== undefined) {
+    if (pol.owner.toLowerCase() !== deps.owner.toLowerCase()) return skip('not-mine');
+  } else if (pol.owner.toLowerCase() !== e.payer?.toLowerCase()) {
+    return skip('owner-unverified');
+  }
   let policy: TopUpPolicy;
   try {
     policy = policyFromWire(pol.policy);
@@ -116,11 +124,15 @@ async function run(deps: AgentDeps, key: string): Promise<TickResult> {
   }
 
   // T-30 + AG1.3: the ledger's receipts OR this agent's own record of what it paid today, whichever is higher
-  const [ledgerSpent, ownSpent, ownExpiry] = await Promise.all([
+  const [ledgerSpent, own] = await Promise.all([
     deps.reads.spentTodayUsd6(key, now),
-    deps.state.spentToday(key, now),
-    deps.state.lastExpiryBought(key),
+    deps.state.own(key, now),
   ]);
+  // RT-G-03 monotonic guard: a purchase on file from the future means the clock stepped back; "today" is not
+  // trustworthy, so nothing is bought until the clock is past it again
+  if (own.latestAt !== undefined && now + CLOCK_SKEW_MS < own.latestAt) return skip('clock-behind');
+  const ownSpent = own.spentToday;
+  const ownExpiry = own.lastExpiryBought;
   const spent = ledgerSpent > ownSpent ? ledgerSpent : ownSpent;
   const plans = await deps.plans.get();
   const stepPrice = priceUsd6(policy.stepMb, STEP_MB, usd6FromWire(plans.paid.priceUsd6PerStep));

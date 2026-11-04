@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { Button } from '@ethglobal/ui/components';
 
 import { useLang } from '../i18n/lang';
 import { isStandalone, parseDevice } from '../lib/device';
+import { useHydrated } from '../lib/hooks';
 
 interface InstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -42,13 +43,16 @@ function dismissed(): boolean {
  */
 export function AddToHomeScreen({ ready }: { ready: boolean }) {
   const { t, lang } = useLang();
-  const [state, setState] = useState<'hidden' | 'ios' | 'prompt' | 'plain'>('hidden');
-
-  useEffect(() => {
-    if (!ready || dismissed() || isStandalone(window)) return;
-    const device = parseDevice(navigator.userAgent);
-    setState(device.os === 'ios' ? 'ios' : deferred ? 'prompt' : 'plain');
-  }, [ready]);
+  const hydrated = useHydrated();
+  const [closed, setClosed] = useState(false);
+  const state: 'hidden' | 'ios' | 'prompt' | 'plain' =
+    !ready || !hydrated || closed || dismissed() || isStandalone(window)
+      ? 'hidden'
+      : parseDevice(navigator.userAgent).os === 'ios'
+        ? 'ios'
+        : deferred
+          ? 'prompt'
+          : 'plain';
 
   if (state === 'hidden') return null;
   const dismiss = () => {
@@ -57,7 +61,7 @@ export function AddToHomeScreen({ ready }: { ready: boolean }) {
     } catch {
       // per-viewer convenience only
     }
-    setState('hidden');
+    setClosed(true);
   };
 
   return (
@@ -106,13 +110,11 @@ export function AddToHomeScreen({ ready }: { ready: boolean }) {
  */
 export function NotificationAsk({ ready }: { ready: boolean }) {
   const { t, lang } = useLang();
-  const [standalone, setStandalone] = useState(false);
-  const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('default');
-
-  useEffect(() => {
-    setStandalone(isStandalone(window));
-    setPermission(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
-  }, []);
+  const hydrated = useHydrated();
+  const [asked, setAsked] = useState<NotificationPermission | undefined>();
+  const standalone = hydrated && isStandalone(window);
+  const permission: NotificationPermission | 'unsupported' =
+    asked ?? (!hydrated || typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
 
   if (!ready) return null;
   if (!standalone)
@@ -139,7 +141,7 @@ export function NotificationAsk({ ready }: { ready: boolean }) {
       <Button
         variant="secondary"
         onClick={() => {
-          void Notification.requestPermission().then(setPermission);
+          void Notification.requestPermission().then(setAsked);
         }}
       >
         {t('notify.button')}

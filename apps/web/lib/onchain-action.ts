@@ -51,6 +51,14 @@ const target: Record<ActionEvent['type'], OnchainActionState> = {
   retry: 'idle',
 };
 
+const ONLY_FROM: Partial<Record<ActionEvent['type'], OnchainActionState>> = {
+  rejected: 'signing',
+  preBroadcastError: 'signing',
+  seen: 'submitted',
+  reorg: 'confirmed',
+  retry: 'failed',
+};
+
 export class IllegalTransition extends Error {
   override readonly name = 'IllegalTransition';
   constructor(
@@ -65,12 +73,9 @@ const strict = process.env.NODE_ENV !== 'production';
 
 export function reducer(row: ActionRow, event: ActionEvent): ActionRow {
   const to = target[event.type];
-  // `rejected` is only the signing → idle edge; `retry` only failed → idle.
-  const edgeOk =
-    canTransition(row.state, to) &&
-    (event.type !== 'rejected' || row.state === 'signing') &&
-    (event.type !== 'retry' || row.state === 'failed') &&
-    (event.type !== 'reorg' || row.state === 'confirmed');
+  // events name their edge: rejected/preBroadcastError leave signing, seen leaves submitted, reorg leaves
+  // confirmed, retry leaves failed — on top of the state machine's own canTransition guard
+  const edgeOk = canTransition(row.state, to) && (ONLY_FROM[event.type] ?? row.state) === row.state;
   if (!edgeOk) {
     if (strict) throw new IllegalTransition(row.state, event.type);
     console.warn(new IllegalTransition(row.state, event.type).message);

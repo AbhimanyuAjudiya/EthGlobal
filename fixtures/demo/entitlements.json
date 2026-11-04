@@ -1,0 +1,20 @@
+[
+  {
+    "label": "orb",
+    "tier": "orb",
+    "mbTotal": 300,
+    "mbUsed": 180
+  },
+  {
+    "label": "paid",
+    "tier": "none",
+    "mbTotal": 300,
+    "mbUsed": 246
+  },
+  {
+    "label": "document",
+    "tier": "document",
+    "mbTotal": 150,
+    "mbUsed": 0
+  }
+]

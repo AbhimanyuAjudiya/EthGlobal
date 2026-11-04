@@ -5,14 +5,14 @@ module: packages/octroi/src/store/gift.ts
 threat: T-53
 severity: High
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-octroi
 owner: builder-octroi
 found_at: 2026-11-04T05:40+05:30
 due: 2026-11-04T09:40+05:30
 attack_test: packages/octroi/test/redteam/rt-store.test.ts::GiftStore.markClaimed: two concurrent claims of one gift with different entitlement keys → at most one succeeds_RTFINDING
-regression_test:
-fix_commit:
+regression_test: packages/octroi/test/redteam/rt-store.test.ts::GiftStore.markClaimed: two concurrent claims of one gift with different entitlement keys → at most one succeeds [RT-O-06] (+ `EntitlementStore.patch … lost update [RT-O-06]`; packages/octroi/test/regression/redteam-wave1.test.ts::RT-O-06)
+fix_commit: (uncommitted, wave-1 octroi fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -54,5 +54,7 @@ Regression test to add (builder): `packages/octroi/test/regression/T-53-gift-sin
 `packages/octroi/test/regression/T-36-logical-keys.test.ts`. T-53 is Med in the model with no §5.12 row; this finding argues it up to High, so the lead adds the row.
 
 ## Builder notes (optional)
+
+Compare-and-swap on the port (A-32): `LedgerEntity.version` + `update(key, { …, ifVersion })` ⇒ `AdapterError('conflict')` on a stale version. `Repo.mutate` re-reads and re-applies the change to the FRESH row up to 8 times; `GiftStore.markClaimed`, `EntitlementStore.patch`, `upsert` and the new `ReceiptStore.patch` use it. `EntitlementStore.patch` also accepts `(current) => Partial<Entitlement>` so relative top-ups (`mbTotal + mb`) cannot lose a concurrent one (the API's own RT `two concurrent paid top-ups` still computes the absolute value outside the store — switching `fulfilTopUp` to the function form is the API builder's change). Exhaustion surfaces the conflict (tested).
 
 ## Verification (red team)

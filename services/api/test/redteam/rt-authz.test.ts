@@ -184,8 +184,8 @@ describe('attack: rt key confusion', () => {
     expect(res.status).toBe(401);
   });
 
-  // T-73 b is a known open finding (services/api/README "Decisions" 8): verify, do not re-file
-  it('T-73 b status: a stranger is still the first owner of a free entitlement’s policy (known, open)', async () => {
+  // T-73 b was a known open finding (services/api/README "Decisions" 8); fixed by octroi A-35 (mayRegisterPolicy)
+  it('T-73 b status: a stranger who knows the key is no longer the first owner of a free entitlement’s policy (fixed)', async () => {
     const h = await harness();
     const { key } = await provisioned(h, 'rt-t73b');
     const squat = await h.json(
@@ -194,6 +194,6 @@ describe('attack: rt key confusion', () => {
       {},
       'PUT',
     );
-    expect(squat.status).toBe(200); // flips to 401/403 when the octroi/protocol fix lands
+    expect(squat.status).toBe(401); // flipped: the octroi/protocol fix landed (A-35)
   });
 });

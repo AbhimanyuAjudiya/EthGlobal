@@ -32,6 +32,8 @@ function writeLang(lang: Lang) {
   for (const listener of listeners) listener();
 }
 
+const serverLang = (): Lang => 'en';
+
 const subscribe = (listener: () => void) => {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -50,7 +52,7 @@ const LangContext = createContext<LangValue>({
 });
 
 export function LangProvider({ children }: { children: ReactNode }) {
-  const lang = useSyncExternalStore(subscribe, readLang, () => 'en');
+  const lang = useSyncExternalStore(subscribe, readLang, serverLang);
   const translate = useCallback((key: StringKey, params?: Params) => t(key, params, lang), [lang]);
   const value = useMemo(() => ({ lang, setLang: writeLang, t: translate }), [lang, translate]);
   return <LangContext.Provider value={value}>{children}</LangContext.Provider>;

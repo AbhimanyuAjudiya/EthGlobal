@@ -15,6 +15,7 @@ const live = {
   ARKIV_CHAIN_ID: '7794095',
   AGENT_HEDERA_ACCOUNT_ID: '0.0.5005',
   AGENT_HEDERA_PRIVATE_KEY: 'k',
+  AGENT_OWNER: '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc',
 };
 
 describe('config', () => {
@@ -102,6 +103,8 @@ describe('config', () => {
       /AGENT_EVM_RPC_URL/,
     );
     expect(() => loadConfig({ ...live, HCS_TOPIC_ID: '' })).toThrow(/HCS_TOPIC_ID/);
+    // RT-G-04: live never runs without a pinned policy owner
+    expect(() => loadConfig({ ...live, AGENT_OWNER: '' })).toThrow(/AGENT_OWNER is required/);
     expect(() => loadConfig({ ...live, ARKIV_RPC_URL: '' })).toThrow(/ARKIV/);
     expect(() => loadConfig({ ...live, AGENT_HEDERA_ACCOUNT_ID: '' })).toThrow(
       /Hedera Agent Kit wallet/,

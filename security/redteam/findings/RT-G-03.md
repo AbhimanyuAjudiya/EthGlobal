@@ -5,14 +5,14 @@ module: services/agent/src/journal.ts
 threat: T-30
 severity: Low
 likelihood: L
-status: open
+status: fixed
 found_by: redteam-wave2
 owner: builder-agent
 found_at: 2026-11-04T15:05+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: services/agent/test/redteam/rt-agent.test.ts::purchase on day D, one at a skewed D+1, back to D ⇒ own spend for D is still remembered_RTFINDING
-regression_test:
-fix_commit:
+regression_test: services/agent/test/redteam/rt-agent.test.ts::purchase on day D, one at a skewed D+1, back to D ⇒ own spend for D is still remembered; services/agent/test/lock.test.ts::RT-G-03 monotonic guard — a purchase on file from the future ⇒ the tick buys nothing (clock-behind)
+fix_commit: (uncommitted, wave-2 agent fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -38,5 +38,11 @@ Keep the last two UTC days (or all days younger than 48 h) instead of only the c
 the future evict the present day.
 
 ## Builder notes (optional)
+
+Fixed by the same journal (RT-G-02): every purchase is filed under its own UTC day and nothing is ever evicted, so a
+purchase dated D+1 cannot erase D. `tick` still uses `max(ledger-derived, journal-derived)` spend. Monotonic guard:
+if the newest purchase on file is more than `CLOCK_SKEW_MS` (60 s) ahead of `now`, the clock stepped back and the tick
+skips `clock-behind` (no purchase) until the clock passes it again — fail closed rather than trust "today". The
+`_RTFINDING` test was renamed in place and passes.
 
 ## Verification (red team)

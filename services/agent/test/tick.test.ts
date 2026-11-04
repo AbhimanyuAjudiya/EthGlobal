@@ -123,7 +123,7 @@ describe('tick', () => {
     for (const spent of perDay.values()) expect(spent).toBeLessThanOrEqual(2_000_000n);
     expect([...perDay.values()].some((s) => s === 2_000_000n)).toBe(true);
     expect(hcsMessages(h)).toHaveLength(receipts.length);
-  });
+  }, 120_000); // 17 280 ticks: ≈ 20 s alone, longer while the two-process race tests load the CPU
 
   it('pause stops it', async () => {
     const h = await harness();

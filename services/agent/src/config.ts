@@ -133,9 +133,6 @@ export const parseWatchKeys = (raw: string): string[] => [
   ),
 ];
 
-/** Anvil account #4 (anvilRoles.agent), the local default wallet; its key is public by construction. */
-export const ANVIL_AGENT_INDEX = 4;
-
 export interface AgentConfig {
   mode: 'local' | 'live';
   apiUrl: string;
@@ -184,6 +181,11 @@ export function loadConfig(env: Record<string, string | undefined>): AgentConfig
     if (allowList.length === 0)
       problems.push('AGENT_PAYTO_ALLOWLIST must not be empty in live (T-56)');
     if (!e.AGENT_LEDGER_WRITER) problems.push('AGENT_LEDGER_WRITER is required in live (T-79)');
+    if (!e.AGENT_OWNER) {
+      problems.push(
+        'AGENT_OWNER is required in live: the agent pays only under policies that owner set (T-73 b, RT-G-04)',
+      );
+    }
     if (!e.HCS_TOPIC_ID) problems.push('HCS_TOPIC_ID is required in live');
     if (!e.ARKIV_RPC_URL || e.ARKIV_CHAIN_ID === undefined) {
       problems.push(

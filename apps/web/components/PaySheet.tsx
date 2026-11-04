@@ -37,7 +37,7 @@ import {
 } from '../lib/pay402';
 import { beginSession } from '../lib/session-key';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
-import { isUserRejection } from '../lib/wallet';
+import { chainNow, isUserRejection } from '../lib/wallet';
 
 
 const BALANCE_ABI = parseAbi(['function balanceOf(address) view returns (uint256)']);
@@ -48,6 +48,13 @@ interface TestHooks {
 }
 const testHooks = (): TestHooks =>
   IS_LOCAL ? ((globalThis as { __RECHARGE_TEST__?: TestHooks }).__RECHARGE_TEST__ ?? {}) : {};
+
+/** The Review state's 402 (and, for a new plan, the session key the delivery will be sealed to). */
+async function fetchQuote(path: string, withSession: boolean): Promise<Quote & { at: number; spk?: Hex }> {
+  const spk = withSession ? beginSession() : undefined;
+  const next = await quote(path, spk ? { sessionPubKey: spk } : {});
+  return { ...next, at: Date.now(), ...(spk ? { spk } : {}) };
+}
 
 /** The x402 terms of a Hedera accepts[] entry, as an instruction panel (human Hedera wallets are in-window). */
 function HederaPanel({ req }: { req: PaymentRequirements }) {
@@ -99,23 +106,22 @@ export function PaySheet({ entitlementKey, initialMb }: { entitlementKey?: strin
     ? `/esim/topup?key=${encodeURIComponent(entitlementKey)}&mb=${mb}`
     : `/esim/provision?mb=${mb}`;
 
-  const loadQuote = useCallback(async () => {
-    setQuoteError(undefined);
-    try {
-      const spk = entitlementKey ? undefined : beginSession();
-      const next = await quote(path, spk ? { sessionPubKey: spk } : {});
-      setQ({ ...next, at: Date.now(), ...(spk ? { spk } : {}) });
-      setNetwork((current) => current ?? next.required.accepts[0]?.network);
-    } catch (e) {
-      setQuoteError(t(errorKey(e instanceof ApiError ? e.code : 'network')));
-    }
-  }, [path, entitlementKey, t]);
-
+  const [quoteRound, setQuoteRound] = useState(0);
   useEffect(() => {
-    if (row.state === 'idle') void loadQuote();
-    // a new quote only for a new size; never while a payment is in flight
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadQuote]);
+    let alive = true;
+    fetchQuote(path, !entitlementKey).then(
+      (next) => {
+        if (!alive) return;
+        setQuoteError(undefined);
+        setQ(next);
+        setNetwork((current) => current ?? next.required.accepts[0]?.network);
+      },
+      (e: unknown) => alive && setQuoteError(t(errorKey(e instanceof ApiError ? e.code : 'network'))),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [path, entitlementKey, t, quoteRound]);
 
   const accepts = useMemo(() => q?.required.accepts ?? [], [q]);
   const chosen = accepts.find((a) => a.network === network) ?? accepts[0];
@@ -164,7 +170,7 @@ export function PaySheet({ entitlementKey, initialMb }: { entitlementKey?: strin
       { tamperAmount: Boolean(testHooks().tamperAmount) },
     );
     try {
-      const paid = await pay<TopUpResponse | EntitledResponse>(q, signer, q.spk);
+      const paid = await pay<TopUpResponse | EntitledResponse>(q, signer, q.spk, await chainNow(wallet));
       if (paid.error || !paid.settlement?.success) {
         dispatch({ type: 'preBroadcastError', reason: paymentFailureReason(paid.error) });
         return;
@@ -262,7 +268,7 @@ export function PaySheet({ entitlementKey, initialMb }: { entitlementKey?: strin
         onConfirm={() => void onConfirm()}
         onRetry={() => {
           dispatch({ type: 'retry' });
-          void loadQuote();
+          setQuoteRound((n) => n + 1);
         }}
         className="pay__sheet"
       />

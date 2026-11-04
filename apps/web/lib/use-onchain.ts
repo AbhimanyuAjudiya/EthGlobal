@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useReducer } from 'react';
 import { formatEther, type PublicClient } from 'viem';
 
+import { useClock } from './hooks';
 import { type ActionEvent, type ActionRow, initialRow, reducer } from './onchain-action';
 import { pending } from './store';
 
@@ -16,16 +17,16 @@ export function expectedMsFor(network: string | undefined): number {
 
 /** The reducer plus a clock that ticks while a hash is in flight (for "4 s" and the ring). */
 export function useOnchainAction() {
-  const [row, dispatch] = useReducer(reducer, initialRow);
-  const [now, setNow] = useState(() => Date.now());
+  // `null` starts a NEW row for the next transaction on the same screen; everything else goes through the guard
+  const [row, dispatch] = useReducer(
+    (current: ActionRow, event: ActionEvent | null) => (event ? reducer(current, event) : initialRow),
+    initialRow,
+  );
   const live = row.state === 'signing' || row.state === 'submitted' || row.state === 'pending';
-  useEffect(() => {
-    if (!live) return;
-    const timer = setInterval(() => setNow(Date.now()), 250);
-    return () => clearInterval(timer);
-  }, [live]);
+  const now = useClock(250, live);
   const send = useCallback((event: ActionEvent) => dispatch(event), []);
-  return { row, dispatch: send, now };
+  const newRow = useCallback(() => dispatch(null), []);
+  return { row, dispatch: send, newRow, now };
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -86,17 +87,6 @@ export async function followTransaction(opts: {
   } finally {
     await pending.remove(hash);
   }
-}
-
-/** Calls `fn` once on mount (strict-mode safe). */
-export function useOnce(fn: () => void | (() => void)) {
-  const done = useRef(false);
-  useEffect(() => {
-    if (done.current) return;
-    done.current = true;
-    return fn();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 }
 
 export type { ActionRow };

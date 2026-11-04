@@ -155,7 +155,7 @@ export class ArkivLedger implements Ledger {
    * Create-if-absent (A-32). In-process it is exact (serialised per (type, key)). Across processes Arkiv has no
    * conditional create [verify Wed]: after writing, the row set is re-read and the oldest (createdAt, key) wins;
    * a loser tombstones its own row (`expiresAt` annotation = 1, dead under the two-clock rule, T-35) and throws
-   * `conflict`. Two writers that cannot yet see each other's row (indexer lag) can both win: stated in DISCLOSURE.
+   * `conflict`. Two writers that cannot yet see each other's row (indexer lag) can both win: stated in THREAT-MODEL §8.
    */
   async #createIfAbsent(input: LedgerPutInput): Promise<LedgerPutResult> {
     const annotations = input.annotations!;
@@ -263,7 +263,7 @@ export class ArkivLedger implements Ledger {
   /**
    * Read, compare `rev` (ifVersion), patch with rev + 1. Exact within this process (serialised per entity key);
    * across processes the read and the patch are two RPCs [verify Wed: Arkiv's entity update has no precondition],
-   * so a cross-process CAS can still lose an update inside one block — stated in DISCLOSURE (single writer process).
+   * so a cross-process CAS can still lose an update inside one block — stated in THREAT-MODEL §8 (single writer process).
    */
   async #update(
     key: string,

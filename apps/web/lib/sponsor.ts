@@ -13,7 +13,7 @@ import { rechargeDomain, SPONSOR_LOGIN_TYPES } from '@ethglobal/protocol/typed-d
 
 import { config, IS_LOCAL } from './env';
 
-import type { Wallet } from './wallet';
+import { chainNow, type Wallet } from './wallet';
 
 const DATADROP = DataDropAbi as Abi;
 const ERC20 = parseAbi(['function approve(address spender, uint256 amount) returns (bool)']);
@@ -67,7 +67,7 @@ export const refundCall = (id: Hex) => ({
 
 /** EIP-712 SponsorLogin{campaignId, sponsor, issuedAt} over rechargeDomain(chain); valid 1 h (T-72). */
 export async function sponsorLogin(wallet: Wallet, campaignId: Hex) {
-  const issuedAt = Date.now();
+  const issuedAt = await chainNow(wallet);
   const signature = await wallet.signTypedData({
     domain: rechargeDomain(config.chainId),
     types: SPONSOR_LOGIN_TYPES,

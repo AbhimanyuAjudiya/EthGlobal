@@ -75,12 +75,14 @@ export function AgentSheet() {
           message: { entitlementKey: key, owner: wallet.address, policyHash, issuedAt: BigInt(issuedAt) },
         });
         setStatus('saving');
+        const holder = await store.holder(key);
         const saved = await api.putAgentPolicy({
           entitlementKey: key,
           owner: wallet.address,
           policy: next,
           issuedAt,
           signature,
+          ...(holder && /^0x[0-9a-f]{64}$/i.test(holder) ? { sessionPubKey: holder } : {}),
         });
         setView(saved);
         setPolicy(saved.policy);

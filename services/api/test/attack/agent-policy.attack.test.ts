@@ -15,9 +15,10 @@ const POLICY = {
 };
 
 describe('attack: agent policy (AP20)', () => {
-  it('owner squat on a free entitlement: whoever registers first owns it (FINDING Med: needs an /agent/policy challenge, T-73 b)', async () => {
+  // T-73 b fixed (octroi mayRegisterPolicy, A-35): the first registration needs the claiming session's key.
+  it('owner squat on a free entitlement: a stranger who knows the key cannot register first; the claimer can', async () => {
     const h = await harness();
-    const { key } = await provisioned(h);
+    const { key, spk } = await provisioned(h);
     const squat = await h.json(
       '/agent/policy',
       await agentPolicyPut(
@@ -30,17 +31,29 @@ describe('attack: agent policy (AP20)', () => {
       {},
       'PUT',
     );
-    expect(squat.status).toBe(200);
+    expect(squat.status).toBe(401);
+    const stranger = await agentPolicyPut(
+      anvilKeys[anvilRoles.stranger],
+      h.deps.chainId,
+      key,
+      POLICY,
+      h.clock.now(),
+    );
+    const wrongSession = { ...stranger, sessionPubKey: `0x${'5a'.repeat(32)}` };
+    expect((await h.json('/agent/policy', wrongSession, {}, 'PUT')).status).toBe(401);
     expect(
       (
         await h.json(
           '/agent/policy',
-          await agentPolicyPut(HUMAN_KEY, h.deps.chainId, key, POLICY, h.clock.now() + 1),
+          {
+            ...(await agentPolicyPut(HUMAN_KEY, h.deps.chainId, key, POLICY, h.clock.now() + 1)),
+            sessionPubKey: spk,
+          },
           {},
           'PUT',
         )
       ).status,
-    ).toBe(401);
+    ).toBe(200);
   });
 
   it('X-Agent-Expiry-Bought on someone else’s top-up never moves lastExpiryBought', async () => {

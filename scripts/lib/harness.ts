@@ -136,26 +136,23 @@ export interface WebHandle {
   log: string;
 }
 
-/** apps/web: `next start` when a production build exists, else `next dev`. */
+/** apps/web: `next start` when a production build exists (mode 'auto'), else `next dev`. */
 export async function startWeb(
   apiUrl: string,
   port = 3000,
   env: Record<string, string> = {},
+  mode: 'auto' | 'dev' | 'start' = 'auto',
 ): Promise<WebHandle> {
   const webUrl = `http://127.0.0.1:${port}`;
   const web = join(ROOT, 'apps/web');
   const next = join(web, 'node_modules/.bin/next');
   if (!existsSync(next)) throw new Error('apps/web has no next binary (install or link apps/web)');
   const built = existsSync(join(web, '.next/BUILD_ID'));
-  const { child, log } = start(
-    'web',
-    next,
-    [built ? 'start' : 'dev', '-p', String(port), '-H', '127.0.0.1'],
-    {
-      cwd: web,
-      env: { NEXT_PUBLIC_MODE: 'local', NEXT_PUBLIC_API_URL: apiUrl, ...env },
-    },
-  );
+  const command = mode === 'auto' ? (built ? 'start' : 'dev') : mode;
+  const { child, log } = start('web', next, [command, '-p', String(port), '-H', '127.0.0.1'], {
+    cwd: web,
+    env: { NEXT_PUBLIC_MODE: 'local', NEXT_PUBLIC_API_URL: apiUrl, ...env },
+  });
   await waitFor(
     async () => {
       if (child.exitCode !== null) throw new Error(`web exited; see ${log}`);
@@ -165,6 +162,21 @@ export async function startWeb(
     { timeoutMs: 120_000, everyMs: 500 },
   );
   return { webUrl, log };
+}
+
+/**
+ * Stops everything when this process exits or is orphaned (a wrapper such as `pnpm` or `timeout` killed without
+ * forwarding the signal): the children run in their own process groups and would otherwise outlive us.
+ */
+export function stopWithParent(): void {
+  process.once('exit', stopAll);
+  const parent = process.ppid;
+  setInterval(() => {
+    if (process.ppid !== parent) {
+      stopAll();
+      process.exit(1);
+    }
+  }, 1_000).unref();
 }
 
 /** Kills every process this harness started (each runs in its own process group: anvil under dev-chain too). */

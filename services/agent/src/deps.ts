@@ -5,12 +5,12 @@
  * Every seam is injectable so tests and the integration run use the same assembly.
  */
 import { createPublicClient, http, type Address, type PublicClient } from 'viem';
-import { mnemonicToAccount, privateKeyToAccount } from 'viem/accounts';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import { MockConsensusLog, type ConsensusLog } from '@ethglobal/adapters';
 
 import { Buyer } from './buyer.js';
-import { ANVIL_AGENT_INDEX, ConfigError, type AgentConfig } from './config.js';
+import { ConfigError, type AgentConfig } from './config.js';
 import { resolveUaid, type Hcs14Fn } from './identity.js';
 import { AgentState, Journal } from './journal.js';
 import { createLogger, type Log } from './log.js';
@@ -22,9 +22,6 @@ import { ReceiptWriter } from './receipts.js';
 
 import type { Payer } from './payers/types.js';
 import type { AgentDeps } from './tick.js';
-
-/** Anvil's public test mnemonic (the same one scripts/dev-chain.sh starts Anvil with). */
-export const ANVIL_MNEMONIC = 'test test test test test test test test test test test junk';
 
 export interface BuildOptions {
   fetch?: typeof fetch;
@@ -48,6 +45,17 @@ export interface Agent {
   close(): void;
 }
 
+/**
+ * The EVM key: AGENT_EVM_PRIVATE_KEY, else — MODE=local only — Anvil's public agent key (anvilRoles.agent, #4) from
+ * `@ethglobal/adapters/testing`, loaded by a dynamic import so live never loads the test keys (RT-G-05).
+ */
+async function evmKey(config: AgentConfig): Promise<`0x${string}` | undefined> {
+  if (config.evmPrivateKey) return config.evmPrivateKey;
+  if (config.mode !== 'local') return undefined;
+  const { anvilKeys, anvilRoles } = await import('@ethglobal/adapters/testing');
+  return anvilKeys[anvilRoles.agent];
+}
+
 async function evmPayer(
   config: AgentConfig,
   opts: BuildOptions,
@@ -55,10 +63,9 @@ async function evmPayer(
 ): Promise<EvmPayer | undefined> {
   const entry = config.allowList.find((a) => a.network.startsWith('eip155:'));
   if (!entry) return undefined;
-  if (config.mode === 'live' && !config.evmPrivateKey) return undefined;
-  const account = config.evmPrivateKey
-    ? privateKeyToAccount(config.evmPrivateKey)
-    : mnemonicToAccount(ANVIL_MNEMONIC, { addressIndex: ANVIL_AGENT_INDEX });
+  const key = await evmKey(config);
+  if (key === undefined) return undefined;
+  const account = privateKeyToAccount(key);
   const publicClient =
     opts.publicClient ??
     createPublicClient({
@@ -133,6 +140,13 @@ export async function buildAgent(config: AgentConfig, opts: BuildOptions = {}): 
     if (config.mode === 'live')
       throw new ConfigError('live needs the Agent Kit consensus log (AGENT_HEDERA_*)');
     consensus = new MockConsensusLog({ now });
+  }
+
+  if (config.owner === undefined) {
+    log.warn(
+      { event: 'degraded', what: 'owner' },
+      'agent: AGENT_OWNER unset (local only) — buying only under policies owned by the entitlement payer',
+    );
   }
 
   const payers =

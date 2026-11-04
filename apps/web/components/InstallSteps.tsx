@@ -12,6 +12,7 @@ import { api } from '../lib/api';
 import { parseDevice, type DeviceInfo } from '../lib/device';
 import { config } from '../lib/env';
 import { formatMb } from '../lib/format';
+import { useHydrated } from '../lib/hooks';
 import { ANDROID_EUICC_INTENT, iosUniversalLink, isLpa, splitLpa } from '../lib/lpa-links';
 import { plans } from '../lib/store';
 
@@ -183,23 +184,22 @@ function AndroidSteps({ lpa }: { lpa: string }) {
 /** `/install` — honest by platform. Takes no URL parameter: the LPA comes only from this device's storage (T-62). */
 export function InstallSteps() {
   const { t, lang } = useLang();
-  const [device, setDevice] = useState<DeviceInfo | undefined>();
+  const hydrated = useHydrated();
+  const device: DeviceInfo | undefined = hydrated ? parseDevice(navigator.userAgent) : undefined;
   const [lpa, setLpa] = useState<string | null | undefined>();
   const [me, setMe] = useState<MeResponse | undefined>();
-  const [since] = useState(() => Date.now());
   const [late, setLate] = useState(false);
 
   useEffect(() => {
-    setDevice(parseDevice(navigator.userAgent));
     void (async () => {
       const key = await plans.latest();
       const stored = key ? await plans.lpa(key) : undefined;
       setLpa(isLpa(stored) ? stored : null);
       if (key) setMe(await api.me(key).catch(() => undefined));
     })();
-    const timer = setTimeout(() => setLate(true), TROUBLE_AFTER_MS - (Date.now() - since));
+    const timer = setTimeout(() => setLate(true), TROUBLE_AFTER_MS);
     return () => clearTimeout(timer);
-  }, [since]);
+  }, []);
 
   useEffect(() => {
     if (!me || me.status === 'active') return;

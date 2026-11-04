@@ -8,7 +8,7 @@ import type { Ledger } from '@ethglobal/adapters';
 import { sha256Hex } from '@ethglobal/crypto';
 import { AgentPolicyStore, EntitlementStore, ReceiptStore } from '@ethglobal/octroi';
 import { HttpError, httpJson } from '@ethglobal/protocol/http';
-import { dayBucket } from '@ethglobal/protocol/ids';
+import { dayBucket, KEY_PREFIXES } from '@ethglobal/protocol/ids';
 import {
   agentPolicyViewSchema,
   entitlementSchema,
@@ -102,6 +102,13 @@ async function getOrNull<T>(
   }
 }
 
+/** A paid entitlement key is `paid:<payer>:<nonce>` (keys.entitlementPaid): the payer it was issued to. */
+export function paidKeyPayer(key: string): string | undefined {
+  if (!key.startsWith(KEY_PREFIXES.entitlementPaid)) return undefined;
+  const payer = key.slice(KEY_PREFIXES.entitlementPaid.length).split(':')[0];
+  return payer === '' ? undefined : payer;
+}
+
 export class ApiReads implements AgentReads {
   constructor(
     private readonly apiUrl: string,
@@ -115,7 +122,9 @@ export class ApiReads implements AgentReads {
   async entitlement(key: string): Promise<Entitlement | null> {
     const me = await getOrNull(this.#url('/me/:key', key), meResponseSchema, this.fetchFn);
     if (!me) return null;
-    // /me is a view of the entitlement entity; only mbTotal/mbUsed/expiresAt feed the decision.
+    // /me is a view of the entitlement entity; only mbTotal/mbUsed/expiresAt feed the decision. /me has no payer:
+    // the key we asked for names it (paid keys only), which tick checks the policy owner against (RT-G-04).
+    const payer = paidKeyPayer(key);
     return entitlementSchema.parse({
       v: 1,
       key: me.entitlementKey,
@@ -129,6 +138,7 @@ export class ApiReads implements AgentReads {
       usageAsOf: me.usageAsOf,
       usageSource: me.usageSource,
       ...(me.network === undefined ? {} : { network: me.network }),
+      ...(payer === undefined ? {} : { payer }),
       createdAt: 0,
       expiresAt: me.expiresAt,
     });

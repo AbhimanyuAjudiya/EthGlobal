@@ -46,7 +46,7 @@ const worker = (mode: string, dir: string, count: number, startAt: number): Prom
       TSX,
       [WORKER, mode, dir, String(count), String(startAt)],
       { timeout: 50_000 },
-      (err, out) => (err ? reject(err) : resolve(out)),
+      (err, out) => (err ? reject(new Error(String(err.message), { cause: err })) : resolve(out)),
     );
   });
 
@@ -56,10 +56,10 @@ const first =
     ({ ...r, accepts: r.accepts.map((a, i) => (i === 0 ? fn(a) : a)) }) as PaymentRequired;
 
 describe('attack: rt two processes share .agent/triggers', () => {
-  // RT-FINDING RT-G-01: claimTrigger creates the file with O_EXCL and only THEN writes the record; a second process
+  // regression RT-G-01 (fixed; the attack was): claimTrigger creates the file with O_EXCL and only THEN writes the record; a second process
   // that hits EEXIST in that window reads an empty file, JSON.parse fails ⇒ `existing === undefined` ⇒ "dead" ⇒ it
   // overwrites the claim and also returns ok — both processes sign for one trigger
-  it('a claim file that exists but is not yet written is never treated as dead_RTFINDING', async () => {
+  it('a claim file that exists but is not yet written is never treated as dead', async () => {
     const dir = await tempDir();
     const trigger = `${KEY}:threshold:1000`;
     // process A is between open(path, 'wx') and handle.writeFile(): the file exists and is empty
@@ -71,8 +71,8 @@ describe('attack: rt two processes share .agent/triggers', () => {
     expect(claim.ok).toBe(false);
   });
 
-  // RT-FINDING RT-G-01 (stress form): two AgentState instances racing claimTrigger on fresh triggers
-  it('200 races of claimTrigger between two state instances ⇒ never two winners_RTFINDING', async () => {
+  // regression RT-G-01 (fixed; the attack was) (stress form): two AgentState instances racing claimTrigger on fresh triggers
+  it('200 races of claimTrigger between two state instances ⇒ never two winners', async () => {
     const dir = await tempDir();
     const a = new AgentState(dir);
     const b = new AgentState(dir);
@@ -85,9 +85,9 @@ describe('attack: rt two processes share .agent/triggers', () => {
     expect(doubles).toBe(0);
   });
 
-  // RT-FINDING RT-G-01 (real processes, intermittent): two OS processes on one AGENT_STATE_DIR race claimTrigger —
+  // regression RT-G-01 (fixed; the attack was) (real processes, intermittent): two OS processes on one AGENT_STATE_DIR race claimTrigger —
   // a trigger won by both was observed under full-suite load (green when run alone: the window is narrow, not absent)
-  it('two real processes racing 300 triggers ⇒ no trigger won by both_RTFINDING', async () => {
+  it('two real processes racing 300 triggers ⇒ no trigger won by both', async () => {
     const dir = await tempDir();
     const startAt = Date.now() + 1_500;
     const [a, b] = await Promise.all([
@@ -99,10 +99,10 @@ describe('attack: rt two processes share .agent/triggers', () => {
     expect(both).toEqual([]);
   }, 60_000);
 
-  // RT-FINDING RT-G-02: recordPurchase serialises read-modify-write of state.json per PROCESS only; two processes
+  // regression RT-G-02 (fixed; the attack was): recordPurchase serialises read-modify-write of state.json per PROCESS only; two processes
   // (same AGENT_STATE_DIR, the T-30 two-process case) lose purchases from "own spend today" — the receipt-lag guard
   // (AG1.3) then undercounts and the cap can be re-spent
-  it('two real processes record 40 purchases each ⇒ own spend today counts all 80_RTFINDING', async () => {
+  it('two real processes record 40 purchases each ⇒ own spend today counts all 80', async () => {
     const dir = await tempDir();
     const startAt = Date.now() + 1_500;
     await Promise.all([worker('record', dir, 40, startAt), worker('record', dir, 40, startAt)]);
@@ -112,9 +112,9 @@ describe('attack: rt two processes share .agent/triggers', () => {
 });
 
 describe('attack: rt clock jumps against the own-state cap', () => {
-  // RT-FINDING RT-G-03 (Low): state.json keeps only the day of the LAST purchase; a forward clock jump (NTP step, VM
+  // regression RT-G-03 (fixed; the attack was) (Low): state.json keeps only the day of the LAST purchase; a forward clock jump (NTP step, VM
   // resume) followed by a return wipes today's own record, and with the ledger lagging (AG1.3) the cap is re-spent
-  it('purchase on day D, one at a skewed D+1, back to D ⇒ own spend for D is still remembered_RTFINDING', async () => {
+  it('purchase on day D, one at a skewed D+1, back to D ⇒ own spend for D is still remembered', async () => {
     const dir = await tempDir();
     const s = new AgentState(dir);
     const d = Date.UTC(2026, 10, 4, 10);
@@ -177,9 +177,9 @@ describe('attack: rt hostile /me and policy reads', () => {
     expect(buys).toHaveLength(1);
   });
 
-  // RT-FINDING RT-G-04: with AGENT_WATCH_KEYS and no AGENT_OWNER (the documented local setup, allowed live) the
+  // regression RT-G-04 (fixed; the attack was): with AGENT_WATCH_KEYS and no AGENT_OWNER (the documented local setup, allowed live) the
   // agent spends its wallet under whatever policy the key carries — including one a stranger registered (T-73 b)
-  it('a watched key whose policy owner is a stranger ⇒ no purchase unless the owner is pinned_RTFINDING', async () => {
+  it('a watched key whose policy owner is a stranger ⇒ no purchase unless the owner is pinned', async () => {
     const h = await harness();
     await seed(h.ledger, h.clock.now, {
       mbUsed: 900,
@@ -262,7 +262,7 @@ describe('attack: rt T-84 — no model ever holds a tool', () => {
   it('AnthropicPhraser request body carries no tools/system and only instruction + facts JSON', async () => {
     const bodies: Record<string, unknown>[] = [];
     const fetch = (async (_url: string, init?: RequestInit) => {
-      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      bodies.push(JSON.parse(init?.body as string) as Record<string, unknown>);
       return Response.json({
         id: 'msg_1',
         model: 'm',

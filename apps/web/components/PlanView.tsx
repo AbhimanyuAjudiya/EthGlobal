@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import type { MeResponse, ReceiptPublic } from '@ethglobal/protocol/schemas';
 import { Countdown, Coupon, MbMeter, Receipt } from '@ethglobal/ui/components';
@@ -13,7 +13,7 @@ import { useLang } from '../i18n/lang';
 import { api, ApiError } from '../lib/api';
 import { IS_LOCAL } from '../lib/env';
 import { clockIst, dayLabel, formatMb, money } from '../lib/format';
-import { usePlans } from '../lib/hooks';
+import { useClock, usePlans } from '../lib/hooks';
 import { plans as store, type IssuedFacts } from '../lib/store';
 
 
@@ -30,39 +30,49 @@ function receiptLines(receipt: ReceiptPublic | undefined, facts: IssuedFacts | u
   return { you: facts?.you ?? '$0.00', sponsor: facts?.sponsor ? '—' : '—' };
 }
 
+/** /me, falling back to the last IndexedDB snapshot ("Offline · as of 14:02"); 404 / 410 are their own states. */
+async function readPlan(key: string): Promise<Load> {
+  try {
+    const me = await api.me(key);
+    void store.saveSnapshot(key, me);
+    return { kind: 'ok', me };
+  } catch (e) {
+    const err = e instanceof ApiError ? e : undefined;
+    if (err?.code === 'expired') return { kind: 'expired' };
+    if (err?.code === 'not_found') return { kind: 'unknown' };
+    const snap = await store.snapshot(key);
+    return snap ? { kind: 'ok', me: snap.me, offlineAt: snap.at } : { kind: 'unknown' };
+  }
+}
+
 /** `/plan/[key]` — the MB number at 2× everything else, "usage as of", expiry from the entity's expiresAt. */
 export function PlanView({ entitlementKey }: { entitlementKey: string }) {
   const { t, lang } = useLang();
   const { plans } = usePlans();
+  const now = useClock(60_000);
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const [facts, setFacts] = useState<IssuedFacts | undefined>();
   const [receipts, setReceipts] = useState<ReceiptPublic[]>([]);
   const [firstView, setFirstView] = useState(false);
 
-  const read = useCallback(async () => {
-    try {
-      const me = await api.me(entitlementKey);
-      setLoad({ kind: 'ok', me });
-      void store.saveSnapshot(entitlementKey, me);
-      void api.receipts(entitlementKey).then(setReceipts, () => undefined);
-    } catch (e) {
-      const err = e instanceof ApiError ? e : undefined;
-      if (err?.code === 'expired') return setLoad({ kind: 'expired' });
-      if (err?.code === 'not_found') return setLoad({ kind: 'unknown' });
-      const snap = await store.snapshot(entitlementKey);
-      setLoad(snap ? { kind: 'ok', me: snap.me, offlineAt: snap.at } : { kind: 'unknown' });
-    }
-  }, [entitlementKey]);
-
   useEffect(() => {
+    let alive = true;
     void store.setCurrent(entitlementKey);
     void store.issued(entitlementKey).then((f) => {
+      if (!alive) return;
       setFacts(f);
       setFirstView(Boolean(f && !f.shown));
       if (f && !f.shown) void store.markIssuedShown(entitlementKey);
     });
-    void read();
-  }, [entitlementKey, read]);
+    void readPlan(entitlementKey).then((next) => alive && setLoad(next));
+    void api.receipts(entitlementKey).then(
+      (r) => alive && setReceipts(r),
+      () => undefined,
+    );
+    return () => {
+      alive = false;
+    };
+  }, [entitlementKey]);
 
   const me = load.kind === 'ok' ? load.me : undefined;
   const odometer = useOdometer(me?.mbTotal ?? 0, firstView && Boolean(me));
@@ -91,7 +101,7 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
     );
 
   const m = load.me;
-  const expired = m.expiresAt <= Date.now();
+  const expired = m.expiresAt <= now;
   const lines = receiptLines(receipts.find((r) => r.kind === 'claim') ?? receipts[0], facts);
   const latest = receipts[0];
   const sponsor = m.sponsorName;

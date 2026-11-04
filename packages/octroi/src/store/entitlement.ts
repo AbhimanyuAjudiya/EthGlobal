@@ -75,22 +75,36 @@ export class EntitlementStore {
    * Merges `patch` into a FRESH read under compare-and-swap, retried on conflict (A-32, RT-O-06: a concurrent
    * usage patch and top-up both land). Keeps the logical key, re-derives annotations. The lifetime changes only
    * through `opts.expiresAt`; an expired or missing entity is never resurrected (RechargeError('not_found')).
-   * `key` is the capability or (server-internal) the index.
+   * `key` is the capability or (server-internal) the index. A function patch is computed from the fresh row on
+   * every attempt, so a relative change (`(e) => ({ mbTotal: e.mbTotal + 100 })`, a top-up) never loses a
+   * concurrent one.
    */
   async patch(
     key: string,
-    patch: Partial<Entitlement>,
+    patch: Partial<Entitlement> | ((current: Entitlement) => Partial<Entitlement>),
     opts: { expiresAt?: number } = {},
   ): Promise<Found<Entitlement>> {
-    if (patch.expiresAt !== undefined && patch.expiresAt !== opts.expiresAt) {
-      throw new RechargeError('invalid_request', 'change expiresAt through opts.expiresAt');
-    }
+    const checked = (changes: Partial<Entitlement>): Partial<Entitlement> => {
+      if (changes.expiresAt !== undefined && changes.expiresAt !== opts.expiresAt) {
+        throw new RechargeError('invalid_request', 'change expiresAt through opts.expiresAt');
+      }
+      return changes;
+    };
+    // a static patch is refused before any read; a function patch on each fresh row
+    const changesFor =
+      typeof patch === 'function'
+        ? (current: Entitlement) => checked(patch(current))
+        : (
+            (fixed) => () =>
+              fixed
+          )(checked(patch));
     const index = entitlementIndex(key);
     const found = await this.#repo.mutate(
       index,
       (existing) => {
+        const changes = changesFor({ ...existing.payload, key });
         const expiresAt = opts.expiresAt ?? existing.payload.expiresAt;
-        const next: Entitlement = { ...existing.payload, ...patch, v: 1, key: index, expiresAt };
+        const next: Entitlement = { ...existing.payload, ...changes, v: 1, key: index, expiresAt };
         const expiresIn =
           opts.expiresAt === undefined ? undefined : lifetimeUntil(opts.expiresAt, this.now());
         return { payload: next, ...(expiresIn === undefined ? {} : { expiresIn }) };

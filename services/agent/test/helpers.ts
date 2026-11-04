@@ -5,12 +5,13 @@ import { join } from 'node:path';
 
 import { createClientHederaSigner, PrivateKey } from '@x402/hedera';
 import { ExactHederaScheme } from '@x402/hedera/exact/client';
-import { mnemonicToAccount } from 'viem/accounts';
+import { privateKeyToAccount } from 'viem/accounts';
 
 import { InMemoryLedger, MockConsensusLog, type Inference } from '@ethglobal/adapters';
 import { hcs14Uaid } from '@ethglobal/adapters/live';
 import {
   anvilAccounts,
+  anvilKeys,
   anvilRoles,
   fakeClock,
   FakeUsdc3009,
@@ -21,8 +22,8 @@ import { keys } from '@ethglobal/protocol/ids';
 import type { AcceptTemplate, Entitlement, TopUpPolicyWire } from '@ethglobal/protocol/schemas';
 
 import { createFakeApi, type FakeApi, type FakeApiOptions } from './fake-api.js';
-import { ANVIL_AGENT_INDEX, loadConfig, type AgentConfig } from '../src/config.js';
-import { ANVIL_MNEMONIC, buildAgent, type Agent } from '../src/deps.js';
+import { loadConfig, type AgentConfig } from '../src/config.js';
+import { buildAgent, type Agent } from '../src/deps.js';
 import { memoryLog } from '../src/log.js';
 import { EvmPayer } from '../src/payers/evm.js';
 import { HederaPayer } from '../src/payers/hedera.js';
@@ -129,7 +130,7 @@ export async function setUsage(
 
 /** Anvil #4 with a counter on signTypedData: "signatures produced" is what the T-56 tests assert. */
 export function countingAccount(): LocalAccount & { signatures: number } {
-  const base = mnemonicToAccount(ANVIL_MNEMONIC, { addressIndex: ANVIL_AGENT_INDEX });
+  const base = privateKeyToAccount(anvilKeys[anvilRoles.agent]);
   const account = {
     ...base,
     signatures: 0,

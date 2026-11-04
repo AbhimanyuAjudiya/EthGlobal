@@ -8,7 +8,7 @@ import type { Hex } from '@ethglobal/protocol/ids';
 import type { EntitledResponse } from '@ethglobal/protocol/schemas';
 
 import { isLpa } from './lpa-links';
-import { endSession, openDelivery } from './session-key';
+import { endSession, openDelivery, sessionPublicKey } from './session-key';
 import { plans, type IssuedFacts } from './store';
 
 export async function deliver(
@@ -17,6 +17,9 @@ export async function deliver(
   facts: Omit<IssuedFacts, 'arkivKey'>,
 ): Promise<string> {
   const key = res.entitlementKey;
+  // the claiming session's PUBLIC key proves the holder on the first agent-policy PUT (A-35); never the secret
+  const holder = sessionPublicKey();
+  if (holder) await plans.saveHolder(key, holder);
   if (res.sealedLpa) {
     const lpa = openDelivery(res.sealedLpa as SealedBox, nonce, key);
     if (isLpa(lpa)) await plans.saveLpa(key, lpa);

@@ -20,7 +20,7 @@ import { usePlans, useWallet } from '../lib/hooks';
 import { DemoWalletSigner, EvmWalletSigner, pay, paymentFailureReason, quote } from '../lib/pay402';
 import { get, set } from '../lib/store';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
-import { isUserRejection } from '../lib/wallet';
+import { chainNow, isUserRejection } from '../lib/wallet';
 
 
 const SIZES_MB = [300, 1000, 3000];
@@ -50,26 +50,32 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
   const { row, dispatch, now } = useOnchainAction();
   const [name, setName] = useState('');
   const [mb, setMb] = useState(1000);
-  const [resolution, setResolution] = useState<Resolution>('idle');
+  const [resolved, setResolved] = useState<{ name: string; mb: number; result: Resolution }>();
   const [gift, setGift] = useState<GiftResponse | undefined>();
+  const typed = name.trim().toLowerCase();
+  const wellFormed = typed.length >= 3 && typed.includes('.');
+  const resolution: Resolution = !wellFormed
+    ? 'idle'
+    : resolved?.name === typed && resolved.mb === mb
+      ? resolved.result
+      : 'resolving';
 
   useEffect(() => {
-    const trimmed = name.trim().toLowerCase();
-    if (trimmed.length < 3 || !trimmed.includes('.')) {
-      setResolution('idle');
-      return;
-    }
-    setResolution('resolving');
+    if (!wellFormed) return;
     const timer = setTimeout(() => {
       // the API resolves the name BEFORE any 402 (T-43): 402 = resolves, 404 name_unresolved = no address
-      api.giftQuote(trimmed, mb).then(
-        (res) => setResolution(res.status === 402 ? 'resolves' : 'error'),
+      api.giftQuote(typed, mb).then(
+        (res) => setResolved({ name: typed, mb, result: res.status === 402 ? 'resolves' : 'error' }),
         (e: unknown) =>
-          setResolution(e instanceof ApiError && e.code === 'name_unresolved' ? 'unresolved' : 'error'),
+          setResolved({
+            name: typed,
+            mb,
+            result: e instanceof ApiError && e.code === 'name_unresolved' ? 'unresolved' : 'error',
+          }),
       );
     }, 350);
     return () => clearTimeout(timer);
-  }, [name, mb]);
+  }, [typed, wellFormed, mb]);
 
   const step = plans?.paid.priceUsd6PerStep ?? '400000';
   const price = priceFor(mb, step);
@@ -91,7 +97,7 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
         chosen.network,
         (plans?.paid.accepts ?? q.required.accepts).map((a) => ({ network: a.network, asset: a.asset, payTo: a.payTo })),
       );
-      const paid = await pay<GiftResponse>(q, signer);
+      const paid = await pay<GiftResponse>(q, signer, undefined, await chainNow(wallet));
       if (paid.error || !paid.settlement?.success || !paid.data) {
         dispatch({ type: 'preBroadcastError', reason: paymentFailureReason(paid.error) });
         return;

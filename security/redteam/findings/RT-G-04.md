@@ -5,14 +5,14 @@ module: services/agent/src/deps.ts
 threat: T-73
 severity: Med
 likelihood: L
-status: open
+status: fixed
 found_by: redteam-wave2
 owner: builder-agent
 found_at: 2026-11-04T15:05+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: services/agent/test/redteam/rt-agent.test.ts::a watched key whose policy owner is a stranger ⇒ no purchase unless the owner is pinned_RTFINDING
-regression_test:
-fix_commit:
+regression_test: services/agent/test/redteam/rt-agent.test.ts::a watched key whose policy owner is a stranger ⇒ no purchase unless the owner is pinned; services/agent/test/config.test.ts::live refuses public Anvil keys, missing RPC, missing HCS topic, Arkiv or the Hedera wallet
+fix_commit: (uncommitted, wave-2 agent fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -40,5 +40,18 @@ In live, require `AGENT_OWNER` (or a per-key owner in `AGENT_WATCH_KEYS=<key>@<o
 not pinned; keep the local default but log a warning when no owner is pinned.
 
 ## Builder notes (optional)
+
+- **Live requires `AGENT_OWNER`** (`loadConfig` ConfigError); any policy whose owner is not the pinned one is skipped
+  `not-mine` (unchanged).
+- **Local without `AGENT_OWNER`**: the policy is followed only if its owner equals the entitlement's payer, else
+  `owner-unverified` (fail closed). `LedgerReads` has `payer` from the entity; `ApiReads` (`/me` has no payer) takes it
+  from the paid key we asked for (`paid:<payer>:<nonce>`, `paidKeyPayer`). Free/gift entitlements carry no payer, so
+  locally they need `AGENT_OWNER`. `buildAgent` logs a `degraded / owner` warning when no owner is pinned.
+- **Policy signature**: checked `@ethglobal/protocol` at fix time — the concurrent T-73 work adds `sessionPubKey` to
+  the `PUT /agent/policy` body only; neither `agentPolicySchema` (entity) nor `agentPolicyViewSchema` carries an
+  owner signature the agent could verify. So the agent fails closed on the owner instead (pinned owner live, payer
+  match local). When a signed field lands on the stored policy, verify it in `tick` before `policyFromWire`.
+
+The `_RTFINDING` test was renamed in place and passes; the control test is unchanged.
 
 ## Verification (red team)

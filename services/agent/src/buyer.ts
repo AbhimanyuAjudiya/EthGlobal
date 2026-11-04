@@ -182,15 +182,17 @@ export class TermsGuard implements PaymentSigner {
     req: PaymentRequirements,
     ctx: { resource: PaymentResource; nonce?: `0x${string}`; now: number },
   ): Promise<PaymentPayload> {
-    if (this.paid !== undefined) throw new Error('TermsGuard signs at most once (T-57)');
+    if (this.signatures > 0) throw new Error('TermsGuard signs at most once (T-57)');
     if (this.chosen?.req !== req) throw new Error('sign() for an entry choose() did not pick');
     const payload = await this.chosen.payer.sign(req, ctx);
     this.signatures += 1;
     this.validBeforeMs = isEvmExact(payload.payload)
       ? Number(payload.payload.authorization.validBefore) * 1000
       : ctx.now + Math.min(req.maxTimeoutSeconds, HEDERA_MAX_TIMEOUT_S, PAYMENT_VALIDITY_S) * 1000;
-    this.paid = payload;
+    // the signed marker is durable (and the claim confirmed ours, RT-G-01) before `paid` is set: if onSigned throws,
+    // nothing was paid and the payload never leaves the process
     await this.opts.onSigned?.(this.validBeforeMs);
+    this.paid = payload;
     return payload;
   }
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { Button, Field, Hash } from '@ethglobal/ui/components';
 
@@ -9,7 +9,7 @@ import { ActionView } from './ActionView';
 import { DemoWalletPanel } from './Shell';
 import { api, ApiError } from '../lib/api';
 import { networkName } from '../lib/env';
-import { useWallet } from '../lib/hooks';
+import { useHydrated, useWallet } from '../lib/hooks';
 import { approveCall, createCampaignCall, dataDropAddress, myCampaigns, scopedCampaignId, sponsorLogin, usdcAddress } from '../lib/sponsor';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
 import { isUserRejection, type Wallet } from '../lib/wallet';
@@ -81,9 +81,9 @@ export function CampaignForm() {
   const [error, setError] = useState<string>();
   const [registered, setRegistered] = useState<{ id: string; auditKey: string; name: string }>();
   const [running, setRunning] = useState(false);
-  const [list, setList] = useState<{ id: string; name: string }[]>([]);
 
-  useEffect(() => setList(myCampaigns.list()), [registered]);
+  const hydrated = useHydrated();
+  const list = hydrated ? myCampaigns.list() : [];
 
   const field = (key: keyof Draft, label: string, hint?: string) => (
     <Field

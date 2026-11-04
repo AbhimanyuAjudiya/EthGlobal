@@ -5,14 +5,14 @@ module: packages/octroi/src/decide.ts
 threat: T-18
 severity: Low
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-octroi
 owner: builder-octroi
 found_at: 2026-11-04T05:40+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: packages/octroi/test/redteam/rt-economics.test.ts::after the free entitlement expires, a second claim on the SAME campaign is refused inside decide()_RTFINDING
-regression_test:
-fix_commit:
+regression_test: packages/octroi/test/redteam/rt-economics.test.ts::after the free entitlement expires, a second claim on the SAME campaign is refused inside decide() [RT-O-08] (packages/octroi/test/regression/redteam-wave1.test.ts::RT-O-03 / RT-O-08)
+fix_commit: (uncommitted, wave-1 octroi fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -45,5 +45,7 @@ Regression test to add (builder): `packages/octroi/test/regression/T-18-nullifie
 chain says claimed ⇒ `deny: replay`).
 
 ## Builder notes (optional)
+
+`decide()` now computes "claimed" itself: the per-campaign claim record `claim:HMAC(secret,'claimed'‖campaignId‖quotaKey)` (A-33) is written create-if-absent before `serve-free` and lives until the campaign ends (≤ 180 d), and is checked after verify with the other replay reads. No new `OctroiDeps` hook was needed; `CampaignCounters.claimed` stays as optional caller knowledge.
 
 ## Verification (red team)

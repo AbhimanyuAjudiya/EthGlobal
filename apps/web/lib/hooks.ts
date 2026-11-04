@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 
 import type { PlansResponse } from '@ethglobal/protocol/schemas';
 
@@ -92,12 +92,42 @@ export const useHydrated = (): boolean =>
     () => false,
   );
 
-/** A clock for countdown text that re-renders every `stepMs`. */
-export function useClock(stepMs = 1000) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), stepMs);
-    return () => clearInterval(timer);
-  }, [stepMs]);
-  return now;
+const tickers = new Map<
+  number,
+  { listeners: Set<() => void>; timer?: ReturnType<typeof setInterval> | undefined }
+>();
+
+function subscribeTick(stepMs: number) {
+  return (listener: () => void) => {
+    let entry = tickers.get(stepMs);
+    if (!entry) {
+      entry = { listeners: new Set() };
+      tickers.set(stepMs, entry);
+    }
+    const e = entry;
+    e.listeners.add(listener);
+    e.timer ??= setInterval(() => {
+      for (const l of e.listeners) l();
+    }, stepMs);
+    return () => {
+      e.listeners.delete(listener);
+      if (e.listeners.size === 0 && e.timer) {
+        clearInterval(e.timer);
+        e.timer = undefined;
+      }
+    };
+  };
+}
+
+/**
+ * The wall clock as an external store, quantised to `stepMs` so the snapshot is stable between ticks. The server
+ * (and the prerendered static shell) sees 0 — time is never baked into the shell (cacheComponents).
+ */
+export function useClock(stepMs = 1000, active = true): number {
+  const subscribe = useMemo(() => (active ? subscribeTick(stepMs) : noopSubscribe), [stepMs, active]);
+  return useSyncExternalStore(
+    subscribe,
+    () => Math.floor(Date.now() / stepMs) * stepMs,
+    () => 0,
+  );
 }

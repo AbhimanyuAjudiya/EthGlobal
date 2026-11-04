@@ -1,6 +1,7 @@
 /** PUT /agent/policy and GET /agent/policy/:key (D-10, T-73). */
 
 import { keccak256, sha256Hex, utf8 } from '@ethglobal/crypto';
+import { mayRegisterPolicy } from '@ethglobal/octroi';
 import { dayBucket, type Hex } from '@ethglobal/protocol/ids';
 import {
   agentPolicyPutSchema,
@@ -45,12 +46,17 @@ export function registerAgentPolicy(app: Hono<AppEnv>, deps: Deps): void {
     const entitlement = await deps.stores.entitlements.getByKey(put.entitlementKey);
     if (!entitlement) throw fail('not_found');
     const existing = await deps.stores.policies.get(put.entitlementKey);
-    const owner = put.owner.toLowerCase();
-    // paid: the payer owns the agent; free/gift/card: the first registered owner (T-73 b, see README)
-    const rightful =
-      entitlement.payload.payer?.toLowerCase() ?? existing?.payload.owner.toLowerCase();
-    if (rightful !== undefined && rightful !== owner)
-      throw fail('unauthorized', { detail: 'not the entitlement owner' });
+    // paid: the payer; an existing policy: its owner; a first free/gift/card registration: the session that
+    // obtained the entitlement (octroi mayRegisterPolicy, A-35, T-73 b)
+    const may = mayRegisterPolicy({
+      entitlement: entitlement.payload,
+      existing: existing?.payload ?? null,
+      owner: put.owner,
+      ...(put.sessionPubKey === undefined ? {} : { sessionPubKey: put.sessionPubKey as Hex }),
+    });
+    if (may === 'not-owner') throw fail('unauthorized', { detail: 'not the entitlement owner' });
+    if (may === 'holder-proof-required')
+      throw fail('unauthorized', { detail: 'sessionPubKey of the claiming session required' });
     // an older signed policy can never undo a newer one (T-73 a)
     if (existing && put.issuedAt <= existing.payload.updatedAt)
       throw fail('replay', { detail: 'stale policy' });

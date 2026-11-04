@@ -17,33 +17,58 @@ import { fail } from '../errors.js';
 import type { AppEnv, Ctx } from '../context.js';
 
 /** The v1 amount key (A-18), as a pattern so the v1 name never appears as a literal in app code. */
-const V1_AMOUNT = /^maxAmount(?:Required)$/;
+const V1_AMOUNT = /^maxamount(?:required)$/;
+
+/** No legitimate v2 payment nests deeper than 4; anything beyond 16 levels is refused outright (RT-A-07). */
+export const MAX_PAYMENT_JSON_DEPTH = 16;
 
 /**
- * True when any object in the decoded payload has the v1 amount as an OWN key (RT-A-07). It runs on the parsed
- * JSON, so a `\u0052`-escaped spelling is the same key; depth is bounded by the codec's 16 KiB cap.
+ * A key as the filter compares it: NFKC (full-width / compatibility forms fold), format characters (zero-width
+ * joiners, BOMs, soft hyphens) removed, lower-cased. JSON.parse has already undone `\u` escapes.
  */
-function hasV1Field(value: unknown, depth = 0): boolean {
-  if (depth > 32 || value === null || typeof value !== 'object') return false;
-  return Object.entries(value).some(
-    ([key, item]) => V1_AMOUNT.test(key) || hasV1Field(item, depth + 1),
-  );
+const normalizedKey = (key: string): string =>
+  key
+    .normalize('NFKC')
+    .replace(/\p{Cf}/gu, '')
+    .toLowerCase();
+
+/**
+ * Walks the WHOLE parsed header iteratively (no recursion, no silent depth cut-off; RT-A-07 variant): a container
+ * deeper than MAX_PAYMENT_JSON_DEPTH ⇒ 'too_deep', any object with the v1 amount as an OWN key after normalisation
+ * ⇒ 'v1_field'. Work is bounded by the codec's 16 KiB cap.
+ */
+export function paymentJsonViolation(root: unknown): 'too_deep' | 'v1_field' | undefined {
+  const stack: [unknown, number][] = [[root, 1]];
+  while (stack.length > 0) {
+    const [value, depth] = stack.pop()!;
+    if (value === null || typeof value !== 'object') continue;
+    if (depth > MAX_PAYMENT_JSON_DEPTH) return 'too_deep';
+    for (const [key, item] of Object.entries(value)) {
+      if (V1_AMOUNT.test(normalizedKey(key))) return 'v1_field';
+      stack.push([item, depth + 1]);
+    }
+  }
+  return undefined;
 }
 
 /**
  * x402 v2 only (A-18): `PAYMENT-SIGNATURE` is decoded ONCE here (16 KiB cap and schema in the codec; malformed ⇒
- * 400) and handed down as `c.var.payment`; a v1 payment header is ignored; a v1 field anywhere is a 400. `X-Session-Pubkey` must be hex32.
+ * 400) and handed down as `c.var.payment`; a v1 payment header is ignored; a v1 field anywhere (after key normalisation)
+ * or JSON deeper than 16 levels is a 400. `X-Session-Pubkey` must be hex32.
  */
 export const x402 = createMiddleware<AppEnv>(async (c, next) => {
   const header = c.req.header(PAYMENT_SIGNATURE_HEADER);
   const payment = header === undefined ? undefined : decodePaymentPayload(header);
   // the codec's zod parse strips unknown keys; a v1 amount field is refused outright, not silently dropped (A-18).
-  // The codec already proved the header is base64 JSON; the check runs on the parsed structure, not the bytes.
-  if (
-    header !== undefined &&
-    hasV1Field(JSON.parse(Buffer.from(header, 'base64').toString('utf8')) as unknown)
-  ) {
-    throw fail('invalid_request', { detail: 'x402 v1 field in PAYMENT-SIGNATURE' });
+  // The codec already proved the header is base64 JSON within 16 KiB; the checks run on the parsed structure.
+  if (header !== undefined) {
+    const violation = paymentJsonViolation(
+      JSON.parse(Buffer.from(header, 'base64').toString('utf8')) as unknown,
+    );
+    if (violation === 'too_deep')
+      throw fail('invalid_request', { detail: 'PAYMENT-SIGNATURE nested too deep' });
+    if (violation === 'v1_field')
+      throw fail('invalid_request', { detail: 'x402 v1 field in PAYMENT-SIGNATURE' });
   }
   c.set('payment', payment);
   const spk = c.req.header(SESSION_PUBKEY_HEADER);

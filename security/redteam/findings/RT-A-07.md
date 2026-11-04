@@ -5,14 +5,14 @@ module: services/api/src/middleware/x402.ts
 threat: T-28
 severity: Low
 likelihood: L
-status: open
+status: fixed
 found_by: redteam-wave2
 owner: builder-api
 found_at: 2026-11-04T15:05+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: services/api/test/redteam/rt-payment.test.ts::"maxAmount\\u0052equired" inside accepted ⇒ 400, never served_RTFINDING
-regression_test: services/api/test/redteam/rt-payment.test.ts::"maxAmount\\u0052equired" inside accepted ⇒ 400, never served [RT-A-07]
-fix_commit: (uncommitted, wave-2 API fix pass; orchestrator commits)
+regression_test: services/api/test/redteam/verify-rt-a-07-v1-depth.test.ts::v1 key in extensions nested 40 deep ⇒ not served, not settled [RT-A-07] (+ ::any payment JSON deeper than 16 levels ⇒ 400 before settle, v1 key or not; 16 levels still served [RT-A-07], ::v1 key spelled with … ⇒ 400 after normalisation [RT-A-07] ×3); earlier regressions (still green): services/api/test/redteam/rt-payment.test.ts::"maxAmount\\u0052equired" inside accepted ⇒ 400, never served [RT-A-07]
+fix_commit: (uncommitted, verification fix pass 2026-11-04; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -66,3 +66,7 @@ Impact: Low — nothing downstream reads the dropped key today; it defeats the "
 
 Suggested fix: treat exceeding the depth bound as a refusal (`depth > 32 ⇒ 400 too deep`) rather than "no v1 field", or walk
 iteratively with no bound (the 16 KiB cap already bounds the work).
+
+## Builder notes (verification fix pass)
+
+`paymentJsonViolation` (src/middleware/x402.ts) walks the parsed header iteratively (no recursion, no silent cut-off): any container deeper than `MAX_PAYMENT_JSON_DEPTH = 16` ⇒ 400 `PAYMENT-SIGNATURE nested too deep`; the v1 field filter compares every own key after full normalisation (JSON escapes undone by the parse, NFKC, `\p{Cf}` stripped, lower-cased) ⇒ 400. Runs after the codec's 16 KiB cap, before decide()/settle.

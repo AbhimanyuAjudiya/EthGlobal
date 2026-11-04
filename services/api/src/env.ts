@@ -67,7 +67,6 @@ const LOCAL_SECRETS = {
 /** The public Anvil account the local agent pays from (anvilRoles.agent, #4). */
 const LOCAL_AGENT_PAYER = anvilAccounts[4];
 const LOCAL_CORS = ['http://127.0.0.1:3000', 'http://localhost:3000'];
-const LOCALHOST_ORIGIN = /^https?:\/\/(localhost|127\.\d+\.\d+\.\d+|\[::1\])(:\d+)?$/i;
 
 /** anvilRoles: attestor #2, relayer #6, treasury #8, payout #1 (INTERFACES §3.4, A-31). */
 function localDefaults() {
@@ -93,6 +92,52 @@ function isPublicKey(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** Eight 16-bit groups of an IPv6 literal as WHATWG URL prints it (already compressed and lower-cased), or undefined. */
+function ipv6Groups(literal: string): number[] | undefined {
+  const [head = '', tail, extra] = literal.split('::');
+  if (extra !== undefined) return undefined;
+  const part = (s: string) => (s === '' ? [] : s.split(':').map((g) => parseInt(g, 16)));
+  const left = part(head);
+  const right = tail === undefined ? [] : part(tail);
+  const fill = 8 - left.length - right.length;
+  if (fill < 0 || (tail === undefined && fill !== 0)) return undefined;
+  const groups = [...left, ...Array<number>(fill).fill(0), ...right];
+  return groups.every((g) => Number.isInteger(g) && g >= 0 && g <= 0xffff) ? groups : undefined;
+}
+
+/**
+ * A URL hostname that reaches this machine (RT-A-09 variant). WHATWG URL has already normalised it: lower case,
+ * IPv4 short / hex / octal forms (`127.1`, `0x7f.1`, `2130706433`) to dotted quads, IPv6 to compressed hex. Here:
+ * trailing dots dropped (`localhost.`), then `localhost` and `*.localhost` (browsers resolve them to loopback),
+ * 127.0.0.0/8, 0.0.0.0/8, and IPv6 `::`, `::1`, IPv4-mapped / IPv4-compatible forms of those.
+ */
+export function isLoopbackEquivalentHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/\.+$/, '');
+  if (host === 'localhost' || host.endsWith('.localhost')) return true;
+  const v4 = /^(\d{1,3})\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.exec(host);
+  if (v4) return v4[1] === '127' || v4[1] === '0';
+  if (!host.startsWith('[') || !host.endsWith(']')) return false;
+  const g = ipv6Groups(host.slice(1, -1));
+  if (g === undefined) return false;
+  const zeroTo = (n: number) => g.slice(0, n).every((x) => x === 0);
+  if (zeroTo(7) && (g[7] === 0 || g[7] === 1)) return true; // :: and ::1
+  const v4High = g[6]! >> 8;
+  // ::ffff:a.b.c.d (IPv4-mapped: 127/8 and 0/8) and ::a.b.c.d (deprecated IPv4-compatible: 127/8; ::0.x is ::N)
+  if (zeroTo(5) && g[5] === 0xffff) return v4High === 127 || v4High === 0;
+  return zeroTo(6) && v4High === 127;
+}
+
+/** An origin that is unparsable or loopback-equivalent (refused in live CORS_ORIGINS, RT-A-09). */
+export function isLoopbackOrigin(origin: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(origin);
+  } catch {
+    return true; // not an origin at all: refuse rather than guess
+  }
+  return isLoopbackEquivalentHost(url.hostname);
 }
 
 /** The default listen address in every mode (RT-P-01). */
@@ -203,8 +248,11 @@ export const envSchema = z
     if (env.CHAIN === undefined) fail('CHAIN', 'CHAIN is required when MODE=live');
     else if (env.CHAIN === 31337) fail('CHAIN', 'CHAIN=31337 is the Anvil domain; refused in live');
     for (const origin of env.CORS_ORIGINS ?? []) {
-      if (LOCALHOST_ORIGIN.test(origin))
-        fail('CORS_ORIGINS', `${origin} is a local origin; refused in live (RT-A-09)`);
+      if (isLoopbackOrigin(origin))
+        fail(
+          'CORS_ORIGINS',
+          `${origin} is a local origin (or not an origin); refused in live (RT-A-09)`,
+        );
     }
     for (const payer of env.AGENT_PAYERS ?? []) {
       if (anvilAddresses.has(payer.toLowerCase()))

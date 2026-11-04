@@ -3419,30 +3419,6 @@
                 }
               }
             }
-          },
-          "410": {
-            "description": "410",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "details": {},
-                    "requestId": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["error", "message"],
-                  "additionalProperties": false
-                }
-              }
-            }
           }
         }
       }

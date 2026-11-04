@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { anvilKeys, TEST_USDC } from '@ethglobal/adapters/testing';
+import { anvilKeys, publicDevAccounts, TEST_USDC } from '@ethglobal/adapters/testing';
 
 import { ALLOW, FEE_PAYER, HEDERA_PAYOUT, PAYOUT } from './helpers.js';
 import { ConfigError, loadConfig, parseAllowList, parseWatchKeys } from '../src/config.js';
@@ -15,7 +15,8 @@ const live = {
   ARKIV_CHAIN_ID: '7794095',
   AGENT_HEDERA_ACCOUNT_ID: '0.0.5005',
   AGENT_HEDERA_PRIVATE_KEY: 'k',
-  AGENT_OWNER: '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc',
+  // a non-public owner (RT-G-04): never one of the Anvil/Hardhat default accounts, whose keys everyone holds
+  AGENT_OWNER: '0x5eF1b7a6c3D2E9f0A1b2C3d4E5f60718293a4B5c',
 };
 
 describe('config', () => {
@@ -105,6 +106,11 @@ describe('config', () => {
     expect(() => loadConfig({ ...live, HCS_TOPIC_ID: '' })).toThrow(/HCS_TOPIC_ID/);
     // RT-G-04: live never runs without a pinned policy owner
     expect(() => loadConfig({ ...live, AGENT_OWNER: '' })).toThrow(/AGENT_OWNER is required/);
+    // RT-G-04 variant: nor under a public Anvil/Hardhat owner, in any case
+    for (const owner of [...publicDevAccounts, publicDevAccounts[19]!.toLowerCase()]) {
+      expect(() => loadConfig({ ...live, AGENT_OWNER: owner })).toThrow(/public Anvil\/Hardhat/);
+    }
+    expect(loadConfig({ ...base, AGENT_OWNER: publicDevAccounts[5]! }).mode).toBe('local');
     expect(() => loadConfig({ ...live, ARKIV_RPC_URL: '' })).toThrow(/ARKIV/);
     expect(() => loadConfig({ ...live, AGENT_HEDERA_ACCOUNT_ID: '' })).toThrow(
       /Hedera Agent Kit wallet/,

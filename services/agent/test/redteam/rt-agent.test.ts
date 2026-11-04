@@ -286,7 +286,16 @@ describe('attack: rt T-84 — no model ever holds a tool', () => {
       llm,
     );
     expect(bodies).toHaveLength(1);
-    expect(Object.keys(bodies[0]!).sort()).toEqual(['max_tokens', 'messages', 'model']);
+    // output_config carries only the effort level (ed4386c): still no tools, no system prompt (T-84)
+    expect(Object.keys(bodies[0]!).sort()).toEqual([
+      'max_tokens',
+      'messages',
+      'model',
+      'output_config',
+    ]);
+    const outputConfig = bodies[0]!.output_config as Record<string, unknown>;
+    expect(Object.keys(outputConfig)).toEqual(['effort']);
+    expect(typeof outputConfig.effort).toBe('string');
     const messages = bodies[0]!.messages as { role: string; content: string }[];
     expect(messages).toHaveLength(1);
     expect(messages[0]!.content).toMatch(/^Rewrite these facts .*Facts: \{"mbRemaining":300,/);

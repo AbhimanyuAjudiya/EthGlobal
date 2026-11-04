@@ -3,7 +3,7 @@ import { createMiddleware } from 'hono/factory';
 import { keccak256, toBytes } from 'viem';
 
 import { sha256Hex } from '@ethglobal/crypto';
-import type { Challenge } from '@ethglobal/octroi';
+import { entitlementIndex, type Challenge } from '@ethglobal/octroi';
 import { dayBucket, type Hex } from '@ethglobal/protocol/ids';
 import {
   claimRequestSchema,
@@ -103,6 +103,9 @@ export function registerClaim(app: Hono<AppEnv>, deps: Deps): void {
       mb: inputOf<TopUpQuery>(c).mb,
       requireSessionKey: false,
       description: 'Recharge top-up',
+      // the payment is for THIS entitlement (RT-A-08): `extra.resource = /esim/topup?key=<index>`. The ledger index,
+      // not the capability: the offer travels to the payer's wallet and the facilitator (RT-O-01)
+      bind: { key: entitlementIndex(inputOf<TopUpQuery>(c).key) },
     })),
     topUp,
   );

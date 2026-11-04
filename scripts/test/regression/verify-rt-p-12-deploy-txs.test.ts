@@ -9,9 +9,12 @@ import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
   copyFileSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -61,15 +64,46 @@ const run = (t: string, bin: string, env: Record<string, string>) =>
   });
 
 describe('verify RT-P-12: deploy:txs under file-system and spelling tricks', () => {
-  // RT-FINDING RT-P-12: the "directly in deploy/" check is on the path string; writeFileSync follows the symlink.
-  it('deploy/addresses.<slug>.json symlinked outside deploy/ ⇒ refused or the outside file untouched_RTFINDING', () => {
+  // Regression RT-P-12 (fixed): the "directly in deploy/" check was on the path string and writeFileSync followed the
+  // symlink. The script now lstat-refuses a symlinked addresses file (or deploy/) and writes via temp file + rename.
+  it('deploy/addresses.<slug>.json symlinked outside deploy/ ⇒ refused or the outside file untouched [RT-P-12]', () => {
     const { t, bin } = tree({ 31337: { slug: 'anvil' } }, '31337');
     const outside = join(dir, 'outside.json');
     const original = JSON.stringify({ dataDrop: DD, victim: 'untouched' });
     writeFileSync(outside, original);
     symlinkSync(outside, join(t, 'deploy/addresses.anvil.json'));
-    run(t, bin, { CHAIN: '31337' });
+    const r = run(t, bin, { CHAIN: '31337' });
     expect(readFileSync(outside, 'utf8')).toBe(original);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/symlinked addresses file/);
+    expect(lstatSync(join(t, 'deploy/addresses.anvil.json')).isSymbolicLink()).toBe(true);
+  });
+
+  it('a symlinked deploy/ directory ⇒ refused, nothing written outside [RT-P-12]', () => {
+    const { t, bin } = tree({ 31337: { slug: 'anvil' } }, '31337');
+    const elsewhere = join(dir, 'elsewhere');
+    renameSync(join(t, 'deploy'), elsewhere);
+    writeFileSync(join(elsewhere, 'addresses.anvil.json'), JSON.stringify({ dataDrop: DD }));
+    symlinkSync(elsewhere, join(t, 'deploy'));
+    const r = run(t, bin, { CHAIN: '31337' });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/symlinked deploy/);
+    expect(JSON.parse(readFileSync(join(elsewhere, 'addresses.anvil.json'), 'utf8'))).toEqual({
+      dataDrop: DD,
+    });
+  });
+
+  it('a regular addresses file is replaced in place via rename, no temp file left behind [RT-P-12]', () => {
+    const { t, bin } = tree({ 31337: { slug: 'anvil' } }, '31337');
+    const file = join(t, 'deploy/addresses.anvil.json');
+    writeFileSync(file, JSON.stringify({ dataDrop: DD }));
+    const r = run(t, bin, { CHAIN: '31337' });
+    expect(r.status).toBe(0);
+    expect((JSON.parse(readFileSync(file, 'utf8')) as { txs: unknown }).txs).toEqual({
+      dataDrop: '0xabc',
+      usdc: '',
+    });
+    expect(readdirSync(join(t, 'deploy')).sort()).toEqual(['addresses.anvil.json', 'chains.json']);
   });
 
   it.each(['031337', '+31337', ' 31337', '31337 ', '31337.0', '0x7a69', '3.1337e4'])(

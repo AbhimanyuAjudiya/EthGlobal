@@ -190,7 +190,7 @@ export const OPERATIONS: readonly Operation[] = [
     path: '/me/{key}',
     summary: 'Entitlement (60-s cache; ?refresh=1 polls usage)',
     params: ['key'],
-    responses: { 200: meResponseSchema, 404: errorBodySchema, 410: errorBodySchema },
+    responses: { 200: meResponseSchema, 404: errorBodySchema },
   },
   {
     method: 'get',

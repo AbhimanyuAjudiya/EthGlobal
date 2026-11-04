@@ -5,14 +5,14 @@ module: packages/octroi/src/store/common.ts
 threat: T-18
 severity: Med
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-octroi
 owner: builder-octroi
 found_at: 2026-11-04T05:40+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: packages/octroi/test/redteam/rt-economics.test.ts::two concurrent claims by one human on campaigns A and B: never two live free entitlements and never a paid claim without an entitlement_RTFINDING
-regression_test: packages/octroi/test/redteam/rt-economics.test.ts::two concurrent claims by one human on campaigns A and B: never two live free entitlements and never a paid claim without an entitlement [RT-O-03] (+ rt-store `two concurrent creates … [RT-O-03]`, rt-challenge `two API instances … [RT-O-03]`; packages/octroi/test/regression/redteam-wave1.test.ts::RT-O-03 / RT-O-08)
-fix_commit: (uncommitted, wave-1 octroi fix pass; orchestrator commits)
+regression_test: packages/octroi/test/redteam/verify-rt-o-03-midnight.test.ts::concurrent claims on campaigns A and B straddling UTC midnight ⇒ at most one serve-free [RT-O-03] (+ ::cross-midnight, either start order and either campaign first ⇒ exactly one serve-free [RT-O-03], ::cross-midnight sequential … [RT-O-03]; the original rt-economics/rt-store/rt-challenge [RT-O-03] cases); earlier regressions (still green): packages/octroi/test/redteam/rt-economics.test.ts::two concurrent claims by one human on campaigns A and B: never two live free entitlements and never a paid claim without an entitlement [RT-O-03] (+ rt-store `two concurrent creates … [RT-O-03]`, rt-challenge `two API instances … [RT-O-03]`; packages/octroi/test/regression/redteam-wave1.test.ts::RT-O-03 / RT-O-08)
+fix_commit: (uncommitted, verification fix pass 2026-11-04; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -105,3 +105,7 @@ Suggested fix (builder's choice): make the lock key independent of the request i
 after reserving `live(D)` re-read `live(D−1)` and `live(D+1)` (and every day in the validity window) and release/deny on a
 collision, or key the live lock by a coarser, collision-forcing bucket and check both neighbours inside `reserve()`, or a
 per-quotaKey create-if-absent "live" entity whose lifetime is the entitlement's.
+
+## Builder notes (verification fix pass)
+
+decide() now reserves the human's live lock for **today and tomorrow** (`live(D)`, `live(D+1)`, create-if-absent, in order) and reads `live(D−30 … D+1)`, so two concurrent claims either side of 00:00 UTC contend for the same key `live(D+1)` and exactly one wins (A-44). Deviation from the orchestrator's brief ("key it by campaign + nullifier, no day"), with reason: a lock keyed by campaign + nullifier cannot collide across campaigns A and B (the property this finding is about — the variant test would still serve twice), and a per-human key with no time component repeats across one human's successive claims, which re-links their campaigns on the public ledger and fails the RT-O-01 regression `rt-keys.test.ts::two campaigns claimed by one human … share no ledger-visible identifier` (verified: that test fails with a day-free key). The per-campaign claim record is keyed by campaign + nullifier with no day (RT-O-08). Residual (A-44): two claims by one human < 48 h apart may share one `live(day)` key; cross-process Arkiv-lag residual unchanged (THREAT-MODEL §8, one writer process).

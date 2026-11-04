@@ -10,6 +10,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { anvilKeys } from '@ethglobal/adapters/testing';
+import { entitlementIndex } from '@ethglobal/octroi';
+import { decodePaymentRequired } from '@ethglobal/protocol/x402';
 
 import { harness, HUMAN_KEY, iccidOf, provisioned, webhook } from '../support/harness.js';
 
@@ -66,9 +68,9 @@ describe('verify RT-A-02: refused requests free their slot, the cap still holds'
 });
 
 describe('verify RT-A-08: a payment is bound to what it bought', () => {
-  // RT-FINDING RT-A-08: accepts carry extra.resource = c.req.path only; `key` (the entitlement being topped up) is in the
-  // query, so the same unmodified header buys MB for ANY entitlement on /esim/topup.
-  it('a top-up payment for K replayed unmodified for K2 on /esim/topup ⇒ refused_RTFINDING', async () => {
+  // Regression RT-A-08 (fixed): accepts carried extra.resource = c.req.path only, so the same unmodified header bought MB
+  // for ANY entitlement on /esim/topup. The offer now binds `/esim/topup?key=<entitlementIndex(K)>`.
+  it('a top-up payment for K replayed unmodified for K2 on /esim/topup ⇒ refused [RT-A-08]', async () => {
     const h = await harness();
     const victim = await provisioned(h, 'verify-a08-victim');
     const thief = await provisioned(h, 'verify-a08-thief');
@@ -78,6 +80,24 @@ describe('verify RT-A-08: a payment is bound to what it bought', () => {
     const thiefAfter = await meOf(h, thief.key);
     expect(stolen.status).not.toBe(200);
     expect(thiefAfter.mbTotal).toBe(300);
+    // the victim's own request with the same header still buys the victim's MB
+    expect((await h.get(topUpPath(victim.key), captured)).status).toBe(200);
+    expect((await meOf(h, victim.key)).mbTotal).toBe(400);
+  });
+
+  it('the 402 binds the target as extra.resource = /esim/topup?key=<ledger index>, never the capability [RT-A-08]', async () => {
+    const h = await harness();
+    const { key } = await provisioned(h, 'verify-a08-offer');
+    const quote = await h.get(topUpPath(key));
+    const body = await quote.text();
+    const offer = decodePaymentRequired(quote.headers.get('PAYMENT-REQUIRED')!).accepts[0]!;
+    expect(offer.extra?.resource).toBe(
+      `/esim/topup?key=${encodeURIComponent(entitlementIndex(key))}`,
+    );
+    expect(body).not.toContain(key);
+    expect(quote.headers.get('PAYMENT-REQUIRED')).not.toContain(
+      Buffer.from(key).toString('base64'),
+    );
   });
 
   it('control: the same header replayed on /esim/provision or /gift is refused', async () => {

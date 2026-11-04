@@ -5,14 +5,14 @@ module: packages/contracts/script/fill-deploy-txs.mjs; packages/contracts/script
 threat: T-10
 severity: Low
 likelihood: L
-status: open
+status: fixed
 found_by: redteam-wave3-ops
 owner: builder-contracts
 found_at: 2026-11-04T16:10+05:30
 due: next report (Low: opportunistic, PLAN §6.3)
 attack_test: security/redteam/wave3-ops/run.sh::deploy_txs_confines_writes_to_deploy_RTFINDING; security/redteam/wave3-ops/run.sh::deploy_txs_checks_rpc_chain_RTFINDING
-regression_test: scripts/test/regression/T-10-deploy-txs.test.ts (escaping/odd slugs, non-key CHAIN, wrong eth_chainId, non-address owner refused; happy path) + security/redteam/wave3-ops/run.sh::fill-deploy-txs.mjs refuses a slug that escapes deploy/ / deploy:txs checks RPC_URL's chain id
-fix_commit: (uncommitted, wave-3 ops fix pass on claude/ethglobal-mumbai-build; orchestrator commits)
+regression_test: scripts/test/regression/verify-rt-p-12-deploy-txs.test.ts::deploy/addresses.<slug>.json symlinked outside deploy/ ⇒ refused or the outside file untouched [RT-P-12] (+ ::a symlinked deploy/ directory ⇒ refused … [RT-P-12], ::a regular addresses file is replaced in place via rename, no temp file left behind [RT-P-12]); earlier regressions (still green): scripts/test/regression/T-10-deploy-txs.test.ts (escaping/odd slugs, non-key CHAIN, wrong eth_chainId, non-address owner refused; happy path) + security/redteam/wave3-ops/run.sh::fill-deploy-txs.mjs refuses a slug that escapes deploy/ / deploy:txs checks RPC_URL's chain id
+fix_commit: (uncommitted, verification fix pass 2026-11-04; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -71,3 +71,7 @@ Failing test (marked `// RT-FINDING`, suffixed `_RTFINDING`):
 
 Suggested fix: `lstat` the addresses path and refuse a symlink (or compare `realpath(file)`'s directory with
 `realpath(deploy/)`), and write via a temp file in `deploy/` + `rename` (which replaces the link rather than following it).
+
+## Builder notes (verification fix pass)
+
+`fill-deploy-txs.mjs` `lstat`s `deploy/` and `deploy/addresses.<slug>.json` and refuses a symlink (or a non-directory / non-regular file) before reading; it writes the result to an exclusive-create temp file inside `deploy/` and `rename`s it over the entry (replaces, never follows; the temp file is removed on any failure).

@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { anvilAccounts } from '@ethglobal/adapters/testing';
 
 import { fakeLiveEnv } from './rt-support.js';
-import { parseEnv } from '../../src/env.js';
+import { isLoopbackEquivalentHost, isLoopbackOrigin, parseEnv } from '../../src/env.js';
 import { ipBucket } from '../../src/middleware/rate-limit.js';
 import { harness } from '../support/harness.js';
 
@@ -51,15 +51,69 @@ describe('verify RT-A-09: other spellings of the local defaults are refused in M
     expect(noLoopback(origins)).toBe(true);
   });
 
-  // RT-FINDING RT-A-09: LOCALHOST_ORIGIN (env.ts:70) matches only localhost / 127.x.y.z / [::1] exactly; these loopback
-  // spellings boot MODE=live with a loopback CORS origin.
+  // Regression RT-A-09 (fixed): LOCALHOST_ORIGIN matched only localhost / 127.x.y.z / [::1] exactly, so these loopback
+  // spellings booted MODE=live with a loopback CORS origin. isLoopbackOrigin parses with WHATWG URL first.
   it.each([
     'http://localhost.:3000',
     'http://0.0.0.0:3000',
     'http://app.localhost:3000',
     'http://127.1:3000',
-  ])('CORS_ORIGINS=%j ⇒ refused or no loopback origin_RTFINDING', (origins) => {
+  ])('CORS_ORIGINS=%j ⇒ refused or no loopback origin [RT-A-09]', (origins) => {
     expect(noLoopback(origins)).toBe(true);
+  });
+
+  it.each([
+    'http://localhost.:3000',
+    'http://LOCALHOST..:3000',
+    'http://app.localhost:3000',
+    'https://a.b.localhost.',
+    'http://0.0.0.0:3000',
+    'http://0:3000',
+    'http://0.1.2.3',
+    'http://127.1:3000',
+    'http://127.255.255.254',
+    'http://0x7f.1',
+    'http://2130706433',
+    'http://017700000001',
+    'http://[::1]:3000',
+    'http://[0:0:0:0:0:0:0:1]',
+    'http://[::]:3000',
+    'http://[::ffff:127.0.0.1]',
+    'http://[::ffff:7f00:1]',
+    'http://[::127.0.0.1]',
+    'http://[::ffff:0.0.0.0]',
+    'not an origin',
+  ])(
+    'MODE=live refuses the loopback-equivalent (or invalid) CORS origin %j [RT-A-09]',
+    (origin) => {
+      expect(isLoopbackOrigin(origin)).toBe(true);
+      expect(() =>
+        parseEnv({ ...FAKE_LIVE, CORS_ORIGINS: `https://recharge.example,${origin}` }),
+      ).toThrow(/CORS_ORIGINS/);
+    },
+  );
+
+  it.each([
+    'https://recharge.example',
+    'https://localhost.example.com',
+    'https://mylocalhost',
+    'http://128.0.0.1',
+    'http://10.0.0.1:3000',
+    'http://[2001:db8::1]',
+    'http://[::ffff:8.8.8.8]',
+    'http://[::2]',
+  ])('a non-loopback origin %j is not a loopback origin [RT-A-09]', (origin) => {
+    expect(isLoopbackOrigin(origin)).toBe(false);
+    expect(isLoopbackEquivalentHost(new URL(origin).hostname)).toBe(false);
+  });
+
+  it('parseEnv boots MODE=live with public origins only', () => {
+    expect(
+      parseEnv({
+        ...FAKE_LIVE,
+        CORS_ORIGINS: 'https://recharge.example,https://app.recharge.example',
+      }).CORS_ORIGINS,
+    ).toEqual(['https://recharge.example', 'https://app.recharge.example']);
   });
 
   it.each([

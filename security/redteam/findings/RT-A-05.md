@@ -5,14 +5,14 @@ module: services/api/src/middleware/octroi.ts
 threat: T-24
 severity: Low
 likelihood: L
-status: open
+status: fixed
 found_by: redteam-wave2
 owner: builder-api
 found_at: 2026-11-04T15:05+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: services/api/test/redteam/rt-authz.test.ts::a stranger with only the victim’s session public key cannot complete the victim’s pending claim_RTFINDING
-regression_test: services/api/test/redteam/rt-authz.test.ts::a stranger with only the victim’s session public key cannot complete the victim’s pending claim [RT-A-05] (+ services/api/test/regression/T-24-verified-claim-retry.test.ts::same session, another human’s valid proof…)
-fix_commit: (uncommitted, wave-2 API fix pass; orchestrator commits)
+regression_test: services/api/test/redteam/verify-rt-a-04-05-06-authz.test.ts::junk /claim for another campaign id with the victim’s session key ⇒ the victim still completes [RT-A-05] (+ ::another human’s verified claim on the victim’s session key, failing on chain too, never replaces the victim’s intent [RT-A-05]); earlier regressions (still green): services/api/test/redteam/rt-authz.test.ts::a stranger with only the victim’s session public key cannot complete the victim’s pending claim [RT-A-05] (+ services/api/test/regression/T-24-verified-claim-retry.test.ts::same session, another human’s valid proof…)
+fix_commit: (uncommitted, verification fix pass 2026-11-04; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -76,3 +76,7 @@ may want Med given RT-A-03's rubric for burned verifications.)
 
 Suggested fix: on a campaign mismatch return `undefined` without deleting (let the intent expire by TTL), or delete only after
 the proof tag matches and the verifier accepts the proof as that human.
+
+## Builder notes (verification fix pass)
+
+`resumeIntent` returns without touching the intent when the campaign differs (it ends by TTL or when this human is served — entitle.ts deletes only the served human's own intent). The failure path no longer overwrites a pending intent whose nullifier tag differs from the failing request's verified proof. Nothing touches a pending claim until a proof verifies and matches its nullifier/session.

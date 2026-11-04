@@ -4,6 +4,7 @@ import { InMemoryLedger } from '@ethglobal/adapters';
 import { fakeClock } from '@ethglobal/adapters/testing';
 import { hmacKey } from '@ethglobal/crypto';
 import type { Hex } from '@ethglobal/protocol/ids';
+import type { Gift } from '@ethglobal/protocol/schemas';
 
 import { GiftStore } from '../../src/store/index.js';
 import { gift, GIFT_ID, SECRET, T0 } from '../helpers.js';
@@ -29,6 +30,37 @@ describe('GiftStore', () => {
     await store.markClaimed(OTHER, 'giftent:x');
     const open = await store.openByNamehash(g.namehash as Hex);
     expect(open.map((f) => f.payload.giftId)).toEqual([GIFT_ID]);
+  });
+
+  it('openCampaignCards: open campaign-funded cards of that campaign only (RT-P-08)', async () => {
+    const { store } = setup();
+    const campaignId: Hex = `0x${'ca'.repeat(32)}`;
+    const card = (n: number, over: Partial<Gift> = {}): Gift => {
+      const giftId: Hex = `0x${n.toString(16).padStart(2, '0').repeat(32)}`;
+      return {
+        v: 1,
+        giftId,
+        kind: 'card',
+        state: 'open',
+        to: null,
+        mb: 300,
+        validityDays: 7,
+        pinKey: `0x${(n + 0x40).toString(16).repeat(32)}`,
+        serial: giftId.slice(2, 10),
+        fundedBy: 'campaign',
+        campaignId,
+        createdAt: T0,
+        claimBy: T0 + 86_400_000,
+        ...over,
+      };
+    };
+    await store.create(card(0x11));
+    await store.create(card(0x12));
+    await store.create(card(0x13, { campaignId: OTHER }));
+    await store.create(gift()); // a paid gift: not a campaign card
+    await store.markClaimed(card(0x12).giftId as Hex, 'giftent:x');
+    const open = await store.openCampaignCards(campaignId.toUpperCase().replace('0X', '0x') as Hex);
+    expect(open.map((f) => f.payload.giftId)).toEqual([card(0x11).giftId]);
   });
 
   it('byPinKey / bySerial; a wrong PIN key finds nothing', async () => {

@@ -439,10 +439,16 @@ await step('I-15 sponsor dashboard: claim keys only, chain counters, expiring', 
   check((view.data.expiring as unknown[]).length >= 1, 'expiring');
 });
 
-await step('I-16 expiry: the 90-s entitlement ⇒ 410', async () => {
-  await advance(91);
-  check((await call(`/me/${encodeURIComponent(shortKey)}`)).status === 410, 'not expired');
-});
+await step(
+  'I-16 expiry: the 90-s entitlement ⇒ 404, the same answer as an unknown key (RT-O-01)',
+  async () => {
+    await advance(91);
+    const gone = await call(`/me/${encodeURIComponent(shortKey)}`);
+    const unknown = await call(`/me/${encodeURIComponent(`ent:v1:0x${'ab'.repeat(32)}`)}`);
+    check(gone.status === 404 && unknown.status === 404, 'not expired');
+    check(gone.data.error === unknown.data.error, 'expired and unknown differ');
+  },
+);
 
 await step(
   'I-17 reclaim: a lapsed gift refunds once; again 409; the claimed gift 409',

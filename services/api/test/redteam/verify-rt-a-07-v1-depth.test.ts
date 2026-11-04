@@ -48,15 +48,40 @@ describe('verify RT-A-07: the v1 amount key is refused wherever it sits', () => 
     expect(settle).not.toHaveBeenCalled();
   });
 
-  // RT-FINDING RT-A-07: hasV1Field stops at depth 32 (middleware/x402.ts:27) while the 16 KiB codec cap allows far deeper
-  // nesting; `extensions` is z.record(unknown), so the payload parses and the v1 key is silently dropped (A-18 says
-  // refuse, never drop).
-  it('v1 key in extensions nested 40 deep ⇒ not served, not settled_RTFINDING', async () => {
+  // Regression RT-A-07 (fixed): hasV1Field stopped at depth 32 while the 16 KiB codec cap allows far deeper nesting, and
+  // `extensions` is z.record(unknown), so the v1 key was silently dropped. JSON deeper than 16 levels is now refused
+  // outright, and the v1 filter walks the whole normalised structure.
+  it('v1 key in extensions nested 40 deep ⇒ not served, not settled [RT-A-07]', async () => {
     const { h, key, json } = await setup();
     const settle = vi.spyOn(h.adapters.payments, 'settle');
     const header = json.replace('{', `{"extensions":{"x":${nest(40, V1)}},`);
     const res = await h.get(topUpPath(key), { [PAYMENT_SIGNATURE_HEADER]: b64(header) });
-    expect(res.status).not.toBe(200);
+    expect(res.status).toBe(400);
     expect(settle).not.toHaveBeenCalled();
+  });
+
+  it('any payment JSON deeper than 16 levels ⇒ 400 before settle, v1 key or not; 16 levels still served [RT-A-07]', async () => {
+    const { h, key, json } = await setup();
+    const settle = vi.spyOn(h.adapters.payments, 'settle');
+    // root object (1) → extensions (2) → nest(n) is n + 1 more objects, the innermost at depth n + 3
+    const deep = json.replace('{', `{"extensions":{"x":${nest(14, '"k":1')}},`); // 17 levels
+    const deepRes = await h.get(topUpPath(key), { [PAYMENT_SIGNATURE_HEADER]: b64(deep) });
+    expect(deepRes.status).toBe(400);
+    expect(JSON.stringify(await deepRes.json())).toContain('too deep');
+    expect(settle).not.toHaveBeenCalled();
+    const ok = json.replace('{', `{"extensions":{"x":${nest(13, '"k":1')}},`); // 16 levels
+    expect((await h.get(topUpPath(key), { [PAYMENT_SIGNATURE_HEADER]: b64(ok) })).status).toBe(200);
+  });
+
+  it.each([
+    ['full-width letters', '"ｍａｘＡｍｏｕｎｔＲｅｑｕｉｒｅｄ":"1"'],
+    ['a zero-width joiner', '"maxAmount\u200dRequired":"1"'],
+    ['another case', '"MAXAMOUNTREQUIRED":"1"'],
+  ])('v1 key spelled with %s ⇒ 400 after normalisation [RT-A-07]', async (_how, field) => {
+    const { h, key, json } = await setup();
+    const res = await h.get(topUpPath(key), {
+      [PAYMENT_SIGNATURE_HEADER]: b64(json.replace('{', `{${field},`)),
+    });
+    expect(res.status).toBe(400);
   });
 });

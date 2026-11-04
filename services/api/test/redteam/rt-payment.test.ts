@@ -179,7 +179,7 @@ describe('attack: rt one payment, two routes', () => {
     const body = (await res.json()) as { pin?: string };
     expect(res.status).not.toBe(201);
     expect(body.pin).toBeUndefined();
-    expect(payload.accepted.extra?.resource).toBe('/esim/topup');
+    expect(payload.accepted.extra?.resource).toMatch(/^\/esim\/topup\?key=hk%3A0x[0-9a-f]{64}$/);
   });
 
   // property: once the gift used it, the victim's own top-up with the same header is refused (nonce once)

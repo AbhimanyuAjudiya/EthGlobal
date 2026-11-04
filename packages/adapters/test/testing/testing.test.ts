@@ -1,4 +1,4 @@
-import { privateKeyToAccount } from 'viem/accounts';
+import { mnemonicToAccount, privateKeyToAccount } from 'viem/accounts';
 import { describe, expect, it } from 'vitest';
 
 import { paymentPayloadSchema, paymentRequirementsSchema } from '@ethglobal/protocol/schemas';
@@ -8,6 +8,9 @@ import {
   anvilKeys,
   anvilRoles,
   fakeClock,
+  hardhatExtraAccounts,
+  isPublicDevAccount,
+  publicDevAccounts,
   fixtureFetch,
   FixtureMiss,
   loadFixture,
@@ -34,6 +37,18 @@ describe('clock and anvil', () => {
     anvilKeys.forEach((key, i) => expect(privateKeyToAccount(key).address).toBe(anvilAccounts[i]));
     expect(Object.values(anvilRoles).every((i) => i >= 0 && i < 10)).toBe(true);
     expect(new Set(Object.values(anvilRoles)).size).toBe(Object.keys(anvilRoles).length);
+  });
+
+  it('publicDevAccounts = the 20 accounts Anvil/Hardhat derive from the public mnemonic (RT-G-04)', () => {
+    const mnemonic = 'test test test test test test test test test test test junk';
+    const derived = Array.from(
+      { length: 20 },
+      (_, i) => mnemonicToAccount(mnemonic, { addressIndex: i }).address,
+    );
+    expect(publicDevAccounts).toEqual(derived);
+    expect(hardhatExtraAccounts).toEqual(derived.slice(10));
+    expect(derived.every((a) => isPublicDevAccount(a.toLowerCase()))).toBe(true);
+    expect(isPublicDevAccount(`0x${'12'.repeat(20)}`)).toBe(false);
   });
 });
 

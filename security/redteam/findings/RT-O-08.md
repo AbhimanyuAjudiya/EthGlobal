@@ -5,14 +5,14 @@ module: packages/octroi/src/decide.ts
 threat: T-18
 severity: Low
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-octroi
 owner: builder-octroi
 found_at: 2026-11-04T05:40+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: packages/octroi/test/redteam/rt-economics.test.ts::after the free entitlement expires, a second claim on the SAME campaign is refused inside decide()_RTFINDING
-regression_test: packages/octroi/test/redteam/rt-economics.test.ts::after the free entitlement expires, a second claim on the SAME campaign is refused inside decide() [RT-O-08] (packages/octroi/test/regression/redteam-wave1.test.ts::RT-O-03 / RT-O-08)
-fix_commit: (uncommitted, wave-1 octroi fix pass; orchestrator commits)
+regression_test: packages/octroi/test/redteam/verify-rt-o-08-long-campaign.test.ts::a 365-day campaign is refused with a typed error, before verify, and never served [RT-O-08] (+ ::the longest campaign the ledger allows refuses the same human on its last day [RT-O-08]; services/api/test/sponsor.test.ts::a campaign longer than its claim records can live on the ledger → 400 campaign_too_long, nothing stored [RT-O-08]); earlier regressions (still green): packages/octroi/test/redteam/rt-economics.test.ts::after the free entitlement expires, a second claim on the SAME campaign is refused inside decide() [RT-O-08] (packages/octroi/test/regression/redteam-wave1.test.ts::RT-O-03 / RT-O-08)
+fix_commit: (uncommitted, verification fix pass 2026-11-04; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -75,3 +75,7 @@ twice, but the API saga does the verify/reserve work and depends on the revert.
 Suggested fix (builder's choice): bound campaign expiry to ≤ 180 d (campaignSchema / `/sponsor/register`, documented in
 INTERFACES), or renew the claim record (CAS re-put) before it expires while the campaign lives, or have decide() consult
 `DataDrop.claimed(id, claimKey)` when the record is absent and the campaign is older than `MAX_LOCK_MS`.
+
+## Builder notes (verification fix pass)
+
+The per-campaign claim record lives until `campaign.expiresAt + CLAIM_RECORD_GRACE_MS` (1 day), no longer capped at now + 180 d. A campaign whose record would outlive the ledger's maximum entity lifetime (`MAX_CAMPAIGN_MS = MAX_LEDGER_EXPIRES_IN_S·1000 − grace`, ~181.5 d from now) is refused with the typed `CampaignTooLongError` (`RechargeError('invalid_request')`, details `{ reason: 'campaign_too_long', expiresAt, maxExpiresAt }`) by `assertCampaignLifetime`, `CampaignStore.put` and `POST /sponsor` (400), and decide() denies it `invalid-request 'campaign_too_long'` before verify. The variant test's 365-day campaign therefore cannot be registered or served at all; the test was adapted to assert the refusal, plus a max-length campaign refusing the same human on its last day. A-44.

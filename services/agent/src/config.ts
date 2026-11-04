@@ -5,7 +5,9 @@
 import { privateKeyToAccount } from 'viem/accounts';
 import { z } from 'zod';
 
-import { anvilAccounts } from '@ethglobal/adapters';
+// the public-account list is defined in the adapters' test-helper module; this root re-export keeps that module (it
+// holds test keys) out of the agent's static imports (RT-G-05: it is imported only lazily, after the live guard)
+import { anvilAccounts, isPublicDevAccount } from '@ethglobal/adapters';
 import {
   caipNetworkSchema,
   digitsSchema,
@@ -185,6 +187,9 @@ export function loadConfig(env: Record<string, string | undefined>): AgentConfig
       problems.push(
         'AGENT_OWNER is required in live: the agent pays only under policies that owner set (T-73 b, RT-G-04)',
       );
+    } else if (isPublicDevAccount(e.AGENT_OWNER)) {
+      // anyone holds a public Anvil/Hardhat key, so anyone could sign the policy as "the owner" (RT-G-04 variant)
+      problems.push('AGENT_OWNER is a public Anvil/Hardhat account; refused in live (RT-G-04)');
     }
     if (!e.HCS_TOPIC_ID) problems.push('HCS_TOPIC_ID is required in live');
     if (!e.ARKIV_RPC_URL || e.ARKIV_CHAIN_ID === undefined) {

@@ -78,9 +78,9 @@ describe('verify RT-A-04: once-only markers under another spelling / concurrency
 });
 
 describe('verify RT-A-05: a stranger with the victim’s public key cannot cancel the victim’s intent', () => {
-  // RT-FINDING RT-A-05: resumeIntent deletes the intent when the request's campaignId differs (middleware/octroi.ts:184),
-  // before any proof is checked and even for a campaign that does not exist.
-  it('junk /claim for another campaign id with the victim’s session key ⇒ the victim still completes_RTFINDING', async () => {
+  // Regression RT-A-05 (fixed): resumeIntent deleted the intent when the request's campaignId differed, before any proof
+  // was checked and even for a campaign that does not exist. A mismatch now falls through without touching it.
+  it('junk /claim for another campaign id with the victim’s session key ⇒ the victim still completes [RT-A-05]', async () => {
     const h = await harness();
     const victim = generateSessionKeypair();
     h.dataDrop.failNext.claim = true; // verified, then the chain step fails (T-24)
@@ -97,9 +97,22 @@ describe('verify RT-A-05: a stranger with the victim’s public key cannot cance
       sessionPubKey: spk,
     });
     expect(attack.status).not.toBe(201);
-    expect(h.deps.intents.size).toBe(1); // observed: 0 — the victim's intent was deleted
+    expect(h.deps.intents.size).toBe(1);
     const retry = await h.claim({ seed: 'verify-a05-victim', keys: victim });
     expect(retry.res.status).toBe(201);
+  });
+
+  it('another human’s verified claim on the victim’s session key, failing on chain too, never replaces the victim’s intent [RT-A-05]', async () => {
+    const h = await harness();
+    const victim = generateSessionKeypair();
+    h.dataDrop.failNext.claim = true;
+    expect((await h.claim({ seed: 'verify-a05-victim2', keys: victim })).res.status).toBe(503);
+    const spk = bytesToHex(victim.publicKey).toLowerCase();
+    const before = h.deps.intents.get(spk);
+    h.dataDrop.failNext.claim = true;
+    expect((await h.claim({ seed: 'verify-a05-other', keys: victim })).res.status).toBe(503);
+    expect(h.deps.intents.get(spk)).toEqual(before);
+    expect((await h.claim({ seed: 'verify-a05-victim2', keys: victim })).res.status).toBe(201);
   });
 
   it('control: junk /claim for the SAME campaign leaves the intent and the victim completes', async () => {

@@ -5,14 +5,14 @@ module: docs/ONSITE-RUNBOOK.md; services/api/src/flows/gift.ts
 threat: T-85
 severity: Med
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-wave3-ops
 owner: builder-api + builder-ops-demo (Founder decides)
 found_at: 2026-11-04T16:10+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: security/redteam/wave3-ops/run.sh::live_card_minting_path_RTFINDING
-regression_test: services/api/test/sponsor-cards.test.ts (8 cases: mint+redeem, 200 cap, bad sizes, stranger/tampered/stale/read-bearer 401, replay 409, paused 423, budget 409, rate 429) + security/redteam/wave3-ops/run.sh::a live, authenticated card-minting path exists
-fix_commit: (uncommitted, wave-3 ops fix pass on claude/ethglobal-mumbai-build; orchestrator commits)
+regression_test: services/api/test/verify-rt-p-08-cards-budget.test.ts::budget for 6 claims: 4 cards, then 4 more ⇒ at most 6 cards in total [RT-P-08] (+ ::two concurrent batches of 4 … [RT-P-08], ::five concurrent batches of 2 ⇒ exactly three mint [RT-P-08], ::a failed batch frees its reservation … [RT-P-08]; services/api/test/unit/primitives.test.ts::takeMany …; services/api/test/sponsor-cards.test.ts); earlier regressions (still green): services/api/test/sponsor-cards.test.ts (8 cases: mint+redeem, 200 cap, bad sizes, stranger/tampered/stale/read-bearer 401, replay 409, paused 423, budget 409, rate 429) + security/redteam/wave3-ops/run.sh::a live, authenticated card-minting path exists
+fix_commit: (uncommitted, verification fix pass 2026-11-04; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -78,3 +78,7 @@ doubles the outstanding PINs). Users hold a card that looks valid and cannot be 
 Suggested fix: subtract the campaign's open (unclaimed, unexpired) campaign-funded gifts from the remaining claims — e.g.
 count `GiftStore` open escrows with `fundedBy: 'campaign'` for the id — and take an `Admission`-style synchronous reservation
 for the batch before minting.
+
+## Builder notes (verification fix pass)
+
+`POST /sponsor/:id/cards` takes an Admission mark before reading, reads the open campaign-funded cards (`GiftStore.openCampaignCards`, new octroi read) beside the chain budget, and reserves `count` slots synchronously with `Admission.takeMany('cards:<id>', count, (budget − spent)/price, open, mark)` — the same reservation mechanism claims use (its own key so an in-flight 200-card batch never counts against the claims' hourly cap). The reservation is released as a commit once the cards exist (later batches count them on the ledger) and freed if minting fails. Residuals: in-process like the claims' admission (one API writer process, THREAT-MODEL §8); free claims still draw on the budget that printed cards rely on (chain-enforced, first come). A-45.

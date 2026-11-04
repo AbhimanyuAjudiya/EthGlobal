@@ -5,14 +5,14 @@ module: packages/octroi/src/decide.ts
 threat: T-26
 severity: Low
 likelihood: L
-status: open
+status: fixed
 found_by: redteam-wave2
 owner: builder-api
 found_at: 2026-11-04T15:05+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: services/api/test/redteam/rt-payment.test.ts::a top-up payment for key K is refused when replayed as a gift purchase_RTFINDING
-regression_test: services/api/test/redteam/rt-payment.test.ts::a top-up payment for key K is refused when replayed as a gift purchase [RT-A-08]
-fix_commit: (uncommitted, wave-2 API fix pass; orchestrator commits)
+regression_test: services/api/test/redteam/verify-rt-a-01-02-08-topup.test.ts::a top-up payment for K replayed unmodified for K2 on /esim/topup ⇒ refused [RT-A-08] (+ ::the 402 binds the target as extra.resource = /esim/topup?key=<ledger index>, never the capability [RT-A-08]; rt-payment.test.ts [RT-A-08]); earlier regressions (still green): services/api/test/redteam/rt-payment.test.ts::a top-up payment for key K is refused when replayed as a gift purchase [RT-A-08]
+fix_commit: (uncommitted, verification fix pass 2026-11-04; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -72,3 +72,7 @@ Failing test (marked `// RT-FINDING`, suffixed `_RTFINDING`):
 Suggested fix (builder's choice): bind the target into the offer — e.g. `extra.resource = "/esim/topup?key=<entitlementIndex(K)>&mb=<mb>"`
 (the index, not the capability, so the 402 does not echo the key) or `extra.target = entitlementIndex(K)` — and compare it in
 `decide()` like the path; or, for a cryptographic binding, derive the EIP-3009 nonce from the target (as `sessionNonce` does).
+
+## Builder notes (verification fix pass)
+
+Paid lanes may bind query parameters into the offer (`LaneInput.paid.bind`, canonical `boundResource(path, bind)`); `/esim/topup` binds `key`, so its accepts carry `extra.resource = /esim/topup?key=<entitlementIndex(K)>`. decide() compares the payer's raw `accepted` echo against these templates (equality), so the same header for K2 is `requirements_mismatch`; the victim's own request still settles. The bound value is the ledger index, not the capability, because the offer travels to the payer's wallet and the facilitator (RT-O-01). EIP-3009 residual (an edited unsigned JSON) as before.

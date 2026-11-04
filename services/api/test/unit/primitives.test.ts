@@ -14,6 +14,25 @@ import { LocalClock } from '../../src/seed.js';
 import { MemoryDataDrop } from '../doubles/datadrop.js';
 
 describe('Admission (T-46)', () => {
+  it('takeMany reserves n slots all-or-none, shares in-flight and commits with take (RT-P-08)', () => {
+    const a = new Admission();
+    const mark = a.mark();
+    const r4 = a.takeMany('c', 4, 6, 0, mark);
+    expect(r4).toBeDefined();
+    expect(a.takeMany('c', 3, 6, 0, mark)).toBeUndefined(); // 4 in flight, 2 left
+    expect(a.inFlight('c')).toBe(4);
+    const r2 = a.takeMany('C', 2, 6, 0, mark);
+    expect(a.take('c', 6, 0, mark)).toBeUndefined();
+    r4!(true); // committed after `mark` ⇒ still subtracted from reads that started before
+    r4!(true); // idempotent
+    expect(a.inFlight('c')).toBe(2);
+    expect(a.takeMany('c', 1, 6, 0, mark)).toBeUndefined();
+    // a read that starts after the commit counts it in `used` (0 here): 6 − 2 in flight ⇒ 4 fit
+    expect(a.takeMany('c', 4, 6, 0, a.mark())).toBeDefined();
+    r2!();
+    expect(a.takeMany('c', 0, 6, 0)).toBeUndefined();
+  });
+
   it('slots = claimsPerHour − claimsThisHour − inFlight; release is idempotent', () => {
     const a = new Admission();
     const r1 = a.take('0xAB', 2, 0);
@@ -95,7 +114,11 @@ describe('MeCache, LedgerHealth, observedLedger (T-51)', () => {
     const key = 'ent:v1:0xcafe';
     const index = entitlementIndex(key);
     c.remember(key, me, { staleAllowed: true });
-    expect([c.fresh(index), c.stale(index), c.expired(index)]).toEqual([undefined, undefined, false]);
+    expect([c.fresh(index), c.stale(index), c.expired(index)]).toEqual([
+      undefined,
+      undefined,
+      false,
+    ]);
     c.remember(index, me);
     c.seen(index, 0);
     expect(c.expired(index)).toBe(false);

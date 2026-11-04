@@ -93,15 +93,20 @@ describe('attack: 402 bypass and payment tampering (AP7)', () => {
     expect((await h.get(`/esim/topup?key=${path}&mb=100&mb=200`)).status).toBe(400);
   });
 
-  it('a payment for key A sent to ?key=B tops up B only (payments are not key-bound by design; recorded Low)', async () => {
+  it('a payment for key A sent to ?key=B is refused and settles nothing; A and B keep their MB (RT-A-08: the offer binds the key)', async () => {
     const h = await harness();
     const a = await provisioned(h, 'key-a');
     const b = await provisioned(h, 'key-b');
+    const settle = vi.spyOn(h.adapters.payments, 'settle');
     const pay = await h.payFor(await quoteOf(h, a.key));
-    expect((await paidWith(h, b.key, pay)).status).toBe(200);
-    expect(((await (await h.get(`/me/${a.path}`)).json()) as { mbTotal: number }).mbTotal).toBe(
-      300,
-    );
+    expect((await paidWith(h, b.key, pay)).status).not.toBe(200);
+    expect(settle).not.toHaveBeenCalled();
+    for (const k of [a, b]) {
+      expect(((await (await h.get(`/me/${k.path}`)).json()) as { mbTotal: number }).mbTotal).toBe(
+        300,
+      );
+    }
+    expect((await paidWith(h, a.key, pay)).status).toBe(200);
   });
 
   it('serve-before-settle: settlement_pending ⇒ 402 and no reseller call; the same payment later settles once', async () => {

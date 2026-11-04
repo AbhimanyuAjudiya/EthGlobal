@@ -5,14 +5,14 @@ module: services/api/src/env.ts
 threat: T-77
 severity: Low
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-wave2
 owner: builder-api
 found_at: 2026-11-04T15:05+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: services/api/test/redteam/rt-surface.test.ts::MODE=live without AGENT_PAYERS ⇒ no public Anvil address is an allow-listed agent payer_RTFINDING; services/api/test/redteam/rt-surface.test.ts::MODE=live without CORS_ORIGINS / CHAIN ⇒ refused or no localhost origin and no 31337 domain_RTFINDING
-regression_test: services/api/test/redteam/rt-surface.test.ts::MODE=live without AGENT_PAYERS ⇒ no public Anvil address is an allow-listed agent payer [RT-A-09]; ::MODE=live without CORS_ORIGINS / CHAIN ⇒ refused or no localhost origin and no 31337 domain [RT-A-09]
-fix_commit: (uncommitted, wave-2 API fix pass; orchestrator commits)
+regression_test: services/api/test/redteam/verify-rt-a-09-a-10.test.ts::CORS_ORIGINS=<spelling> ⇒ refused or no loopback origin [RT-A-09] ×4 (+ ::MODE=live refuses the loopback-equivalent (or invalid) CORS origin … [RT-A-09] ×20, ::a non-loopback origin … is not a loopback origin [RT-A-09] ×8); earlier regressions (still green): services/api/test/redteam/rt-surface.test.ts::MODE=live without AGENT_PAYERS ⇒ no public Anvil address is an allow-listed agent payer [RT-A-09]; ::MODE=live without CORS_ORIGINS / CHAIN ⇒ refused or no localhost origin and no 31337 domain [RT-A-09]
+fix_commit: (uncommitted, verification fix pass 2026-11-04; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -68,3 +68,7 @@ guard that is meant to catch exactly that mistake.
 
 Suggested fix: parse each origin with `new URL()`, strip one trailing dot from the hostname, and refuse `localhost`,
 `*.localhost`, any address in 127.0.0.0/8 (incl. short forms `inet_aton` accepts), `0.0.0.0` and `::1`/`::`.
+
+## Builder notes (verification fix pass)
+
+`isLoopbackOrigin` / `isLoopbackEquivalentHost` (src/env.ts) parse with WHATWG URL (which canonicalises `127.1`, `0x7f.1`, `2130706433`, `017700000001`, IPv6 forms), strip trailing dots, and refuse `localhost`, `*.localhost`, 127.0.0.0/8, 0.0.0.0/8, `::`, `::1`, IPv4-mapped 127/8 and 0/8, IPv4-compatible 127/8; an unparsable origin is refused too. `isLoopbackHost` (the MODE=local bind allow-list) is unchanged.

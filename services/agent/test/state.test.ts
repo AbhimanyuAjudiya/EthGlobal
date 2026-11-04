@@ -161,7 +161,8 @@ describe('buildAgent wiring', () => {
       AGENT_HEDERA_ACCOUNT_ID: '0.0.5005',
       AGENT_HEDERA_PRIVATE_KEY: PrivateKey.generateECDSA().toStringRaw(),
       AGENT_WATCH_KEYS: KEY,
-      AGENT_OWNER: OWNER,
+      // live refuses a public Anvil/Hardhat owner (RT-G-04): a non-public address
+      AGENT_OWNER: '0x5eF1b7a6c3D2E9f0A1b2C3d4E5f60718293a4B5c',
     });
     const mirror: typeof fetch = async () =>
       Response.json({ tokens: [{ token_id: '0.0.429274', balance: '3000000' }] });

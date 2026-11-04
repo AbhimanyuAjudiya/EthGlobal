@@ -5,14 +5,14 @@ module: packages/octroi/src/store/entitlement.ts
 threat: T-37
 severity: High
 likelihood: H
-status: open
+status: fixed
 found_by: redteam-octroi
 owner: builder-octroi
 found_at: 2026-11-04T05:40+05:30
 due: 2026-11-04T09:40+05:30
 attack_test: packages/octroi/test/redteam/rt-keys.test.ts::the /me/:key capability of a free entitlement does not appear on the public ledger_RTFINDING
-regression_test: packages/octroi/test/redteam/rt-keys.test.ts::the /me/:key capability of a free entitlement does not appear on the public ledger [RT-O-01] (+ the two other [RT-O-01] cases in that file; packages/octroi/test/regression/redteam-wave1.test.ts::RT-O-01)
-fix_commit: (uncommitted, wave-1 octroi fix pass; orchestrator commits)
+regression_test: services/api/test/redteam/verify-rt-o-01-index-cache.test.ts::/me/<hk:index> after the owner read /me/<key> ⇒ 404, never the owner’s entitlement [RT-O-01] (+ ::/me/<hk:index> while the ledger is down, and after expiry ⇒ the same 404 as an unknown key [RT-O-01]; services/api/test/unit/primitives.test.ts::keyed by the capability, never the ledger index … [RT-O-01]; services/api/test/me.test.ts::after expiry → the same 404 as unknown …, ::degraded ledger: a cached copy past its entitlement expiry, or one not marked stale-allowed, is never served [RT-O-01]; packages/octroi/test/redteam/rt-keys.test.ts [RT-O-01] cases); earlier regressions (still green): packages/octroi/test/redteam/rt-keys.test.ts::the /me/:key capability of a free entitlement does not appear on the public ledger [RT-O-01] (+ the two other [RT-O-01] cases in that file; packages/octroi/test/regression/redteam-wave1.test.ts::RT-O-01)
+fix_commit: (uncommitted, verification fix pass 2026-11-04; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -96,3 +96,7 @@ user who has opened `/me` in the last minute — a ledger watcher polling new `h
 Suggested fix (builder's choice): in `GET /me/:key` refuse an `INDEX_PREFIX` key before touching the cache (`404`), or key
 the cache's capability-facing methods (`fresh`/`stale`/`expired`/`remember`) by a value an index cannot produce (e.g.
 reject `hk:` inputs in those methods and keep `invalidate(index)` for webhooks). Not fixed here (red team does not edit `src/`).
+
+## Builder notes (verification fix pass)
+
+`MeCache` (services/api/src/cache.ts) is keyed by HMAC(per-process random secret, capability), never by the ledger index; `fresh`/`stale`/`remember`/`seen`/`expired` refuse an `hk:` value (miss / no-op), and `invalidate(index)` (usage webhooks only know the index) resolves through a write-only index → slot map that no read consults. `GET /me/:key` refuses an `INDEX_PREFIX` key before touching the cache, answers expired and unknown with the same 404 `not_found` (no liveness oracle; the PWA's PlanView tells "expired" from its own snapshot), and serves a stale copy while the ledger is down only for an entry remembered with `staleAllowed` (set for `ready`/`installed`/`active`) whose entitlement has not passed `expiresAt`. OpenAPI and INTERFACES §7 updated; A-45. The top-up guard keeps its 410 for a real capability (AP7.13).

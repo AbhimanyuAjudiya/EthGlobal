@@ -5,14 +5,14 @@ module: services/agent/src/deps.ts
 threat: T-73
 severity: Med
 likelihood: L
-status: open
+status: fixed
 found_by: redteam-wave2
 owner: builder-agent
 found_at: 2026-11-04T15:05+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: services/agent/test/redteam/rt-agent.test.ts::a watched key whose policy owner is a stranger ⇒ no purchase unless the owner is pinned_RTFINDING
-regression_test: services/agent/test/redteam/rt-agent.test.ts::a watched key whose policy owner is a stranger ⇒ no purchase unless the owner is pinned; services/agent/test/config.test.ts::live refuses public Anvil keys, missing RPC, missing HCS topic, Arkiv or the Hedera wallet
-fix_commit: (uncommitted, wave-2 agent fix pass; orchestrator commits)
+regression_test: services/agent/test/redteam/verify-rt-g-02-03-04.test.ts::live with AGENT_OWNER = any public Anvil/Hardhat account ⇒ refused [RT-G-04] (+ services/agent/test/config.test.ts::live refuses public Anvil keys, missing RPC, … (now also every public Anvil/Hardhat owner); packages/adapters/test/testing/testing.test.ts::publicDevAccounts = the 20 accounts Anvil/Hardhat derive from the public mnemonic (RT-G-04)); earlier regressions (still green): services/agent/test/redteam/rt-agent.test.ts::a watched key whose policy owner is a stranger ⇒ no purchase unless the owner is pinned; services/agent/test/config.test.ts::live refuses public Anvil keys, missing RPC, missing HCS topic, Arkiv or the Hedera wallet
+fix_commit: (uncommitted, verification fix pass 2026-11-04; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -79,3 +79,7 @@ impact (the agent's wallet spent under a squatted policy, bounded by the policy'
 
 Suggested fix: in `loadConfig`, refuse `AGENT_OWNER` that is one of `anvilAccounts` when `MODE=live` (as for
 `AGENT_EVM_PRIVATE_KEY`), and move the live fixture to a non-public address.
+
+## Builder notes (verification fix pass)
+
+`loadConfig` refuses, in live, an `AGENT_OWNER` that `isPublicDevAccount` (any case) — imported from `@ethglobal/adapters/testing`, which now exports `publicDevAccounts` (Anvil #0–#9 + Hardhat #10–#19, derived from the public mnemonic in its test) and `hardhatExtraAccounts`. The live fixture in `test/config.test.ts` uses a non-public owner. Local mode still accepts a public owner (documented in the agent README).

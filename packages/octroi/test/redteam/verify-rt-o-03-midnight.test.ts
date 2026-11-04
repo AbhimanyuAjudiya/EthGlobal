@@ -1,8 +1,8 @@
 /**
- * Red-team verification variant for RT-O-03 (create-if-absent live lock, A-33): the human's live lock is DAY-keyed
- * (`claim:HMAC('live' ‖ quotaKey ‖ day)`). Two concurrent claims by one human on two campaigns that straddle UTC
- * midnight read "no lock" for every day, then reserve DIFFERENT lock keys (day D and day D+1) — the create-if-absent
- * never collides. Property (RT-O-03): never two live free entitlements for one human.
+ * Red-team verification variant for RT-O-03 (create-if-absent live lock, A-33), now a regression: the human's live
+ * lock was keyed by ONE UTC day, so two concurrent claims straddling midnight reserved different keys (D, D+1) and
+ * both won. A claim now reserves its day AND the next (A-44), so the two contend for D+1 and exactly one wins.
+ * Property (RT-O-03): never two live free entitlements for one human, whatever the request instants.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -45,10 +45,40 @@ describe('verify RT-O-03: one live free bundle per human across a UTC day bounda
     expect(rs.filter((r) => r.kind === 'serve-free')).toHaveLength(1);
   });
 
-  // RT-FINDING RT-O-03: the two reservations use live(D) and live(D+1); both create-if-absent succeed.
-  it('concurrent claims on campaigns A and B straddling UTC midnight ⇒ at most one serve-free_RTFINDING', async () => {
+  // Regression RT-O-03 (fixed): the reservations used live(D) and live(D+1) and both create-if-absent succeeded.
+  it('concurrent claims on campaigns A and B straddling UTC midnight ⇒ at most one serve-free [RT-O-03]', async () => {
     const base = new InMemoryLedger({ now: () => MIDNIGHT });
     const rs = await Promise.all([claimAt(base, MIDNIGHT - 1, A), claimAt(base, MIDNIGHT + 1, B)]);
     expect(rs.filter((r) => r.kind === 'serve-free')).toHaveLength(1);
+    expect(rs.find((r) => r.kind !== 'serve-free')).toMatchObject({
+      kind: 'deny',
+      reason: 'replay',
+    });
+  });
+
+  it('cross-midnight, either start order and either campaign first ⇒ exactly one serve-free [RT-O-03]', async () => {
+    for (const [first, second] of [
+      [A, B],
+      [B, A],
+    ] as const) {
+      for (const [t1, t2] of [
+        [MIDNIGHT + 1, MIDNIGHT - 1],
+        [MIDNIGHT - 1, MIDNIGHT + 1],
+        [MIDNIGHT - 60_000, MIDNIGHT + 60_000],
+      ] as const) {
+        const base = new InMemoryLedger({ now: () => MIDNIGHT });
+        const rs = await Promise.all([claimAt(base, t1, first), claimAt(base, t2, second)]);
+        expect(rs.filter((r) => r.kind === 'serve-free')).toHaveLength(1);
+      }
+    }
+  });
+
+  it('cross-midnight sequential, the first bundle still live ⇒ the next day a replay on any campaign [RT-O-03]', async () => {
+    const base = new InMemoryLedger({ now: () => MIDNIGHT });
+    expect((await claimAt(base, MIDNIGHT - 1, A)).kind).toBe('serve-free');
+    expect(await claimAt(base, MIDNIGHT + DAY - 1, B)).toMatchObject({
+      kind: 'deny',
+      reason: 'replay',
+    });
   });
 });

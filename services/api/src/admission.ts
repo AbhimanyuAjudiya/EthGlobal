@@ -25,21 +25,30 @@ export class Admission {
 
   /** A release function, or undefined when no slot is left. Never awaits. */
   take(key: string, limit: number, used: number, mark = 0): Release | undefined {
+    return this.takeMany(key, 1, limit, used, mark);
+  }
+
+  /**
+   * `n` slots at once, all or none (a card batch, RT-P-08): shares the key — and so the in-flight count and the
+   * commits — with the single-slot claims of the same campaign. Never awaits.
+   */
+  takeMany(key: string, n: number, limit: number, used: number, mark = 0): Release | undefined {
     const id = key.toLowerCase();
     const inFlight = this.#inFlight.get(id) ?? 0;
-    if (limit - used - inFlight - this.#committedSince(id, mark) <= 0) return undefined;
-    this.#inFlight.set(id, inFlight + 1);
+    if (!(n >= 1) || limit - used - inFlight - this.#committedSince(id, mark) < n) return undefined;
+    this.#inFlight.set(id, inFlight + n);
     let released = false;
     return (committed = false) => {
       if (released) return;
       released = true;
-      const left = (this.#inFlight.get(id) ?? 1) - 1;
+      const left = (this.#inFlight.get(id) ?? n) - n;
       if (left <= 0) this.#inFlight.delete(id);
       else this.#inFlight.set(id, left);
       if (committed) {
         const at = this.now();
         const kept = (this.#commits.get(id) ?? []).filter((c) => at - c.at < COMMIT_MEMORY_MS);
-        this.#commits.set(id, [...kept, { seq: ++this.#seq, at }]);
+        const added = Array.from({ length: n }, () => ({ seq: ++this.#seq, at }));
+        this.#commits.set(id, [...kept, ...added]);
       }
     };
   }

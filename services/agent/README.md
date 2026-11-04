@@ -173,7 +173,8 @@ must show one), `pino`, and dev-only `hono`, `@hono/node-server`, `@hashgraphonl
 4. **Arkiv**: `ARKIV_CHAIN_ID=7794095`, `ARKIV_RPC_URL`, `ARKIV_ACCESS_KEY`, and `AGENT_LEDGER_WRITER` = the API's
    `ARKIV_PRIVATE_KEY` address (the agent needs no Arkiv key; it only reads).
 5. **Policy owner** (required live, RT-G-04): `AGENT_OWNER` = the wallet that signs this user's `PUT /agent/policy`;
-   any policy owned by someone else is skipped `not-mine`. **Keys to watch**: `AGENT_WATCH_KEYS`, or every policy
+   any policy owned by someone else is skipped `not-mine`. A public Anvil/Hardhat default account (anyone holds its key)
+   is refused as the owner in live. **Keys to watch**: `AGENT_WATCH_KEYS`, or every policy
    naming `AGENT_OWNER` (bounded to 50).
 6. **UAID**: printed at boot and in `.agent/uaid`; copy it into the README/demo. HCS-14 registry registration is not
    done in v0 — if the team wants it, register this UAID in an HCS-14 registry on-site (standards-sdk) and set

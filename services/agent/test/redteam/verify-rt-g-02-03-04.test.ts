@@ -13,7 +13,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { anvilAccounts } from '@ethglobal/adapters/testing';
+import { anvilAccounts, publicDevAccounts } from '@ethglobal/adapters/testing';
 
 import { loadConfig } from '../../src/config.js';
 import { AgentState } from '../../src/journal.js';
@@ -86,10 +86,12 @@ describe('verify RT-G-04: the pinned owner must be someone only the user control
     expect(loadConfig({ ...live, AGENT_OWNER: `0x${'12'.repeat(20)}` }).mode).toBe('live');
   });
 
-  // RT-FINDING RT-G-04: loadConfig refuses a public Anvil PAYER key in live but accepts a public Anvil OWNER address (the
-  // builder's own live fixture pins Anvil #5); whoever holds the published key signs the policy as "the owner".
-  it('live with AGENT_OWNER = any public Anvil account ⇒ refused_RTFINDING', () => {
-    const accepted = anvilAccounts.filter((owner) => {
+  // Regression RT-G-04 (fixed): loadConfig refused a public Anvil PAYER key in live but accepted a public Anvil OWNER
+  // address (the builder's own live fixture pinned Anvil #5); whoever holds the published key signed the policy as "the
+  // owner". Every public Anvil/Hardhat default account is now refused as AGENT_OWNER in live, in any case.
+  it('live with AGENT_OWNER = any public Anvil/Hardhat account ⇒ refused [RT-G-04]', () => {
+    const owners = [...publicDevAccounts, ...anvilAccounts.map((a) => a.toLowerCase())];
+    const accepted = owners.filter((owner) => {
       try {
         loadConfig({ ...live, AGENT_OWNER: owner });
         return true;
@@ -97,6 +99,6 @@ describe('verify RT-G-04: the pinned owner must be someone only the user control
         return false;
       }
     });
-    expect(accepted).toEqual([]); // observed: all ten boot MODE=live
+    expect(accepted).toEqual([]);
   });
 });

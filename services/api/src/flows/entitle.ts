@@ -82,8 +82,11 @@ async function serveFree(
       // nullifier (RT-A-05) and kept durably (RT-A-11); terminal reverts are not kept
       const body = inputOf<ClaimRequest>(c);
       const nullifierTag = proofTag(deps, body.proof);
+      // another human's pending intent on this session key is never overwritten (RT-A-05)
+      const pending = deps.intents.get(sessionPubKey.toLowerCase());
       if (
         nullifierTag !== undefined &&
+        (pending === undefined || pending.nullifierTag === nullifierTag) &&
         (error instanceof ChainUnavailable ||
           (error instanceof ChainRevert && RETRYABLE_REVERTS.has(error.errorName)))
       ) {

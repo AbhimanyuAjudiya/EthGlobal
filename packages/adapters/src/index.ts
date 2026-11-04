@@ -41,6 +41,11 @@ export {
   normalizeName,
   type NameRecord,
 } from './mocks/name-resolver.js';
+/**
+ * The public Anvil/Hardhat default ADDRESSES (no keys), defined in `./testing` and re-exported here so production code
+ * (agent config, RT-G-04) can refuse them without importing `@ethglobal/adapters/testing` eagerly (RT-G-05).
+ */
+export { isPublicDevAccount, publicDevAccounts } from './testing/anvil.js';
 
 export interface LocalAdapterOptions {
   /** Shared clock for ledger expiry, payment windows, reseller usage and consensus timestamps. */

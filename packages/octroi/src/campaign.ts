@@ -72,7 +72,11 @@ export class CampaignTooLongError extends RechargeError {
     readonly expiresAt: number,
     readonly maxExpiresAt: number,
   ) {
-    super('invalid_request', 'campaign_too_long', { expiresAt, maxExpiresAt });
+    super('invalid_request', 'campaign_too_long', {
+      reason: 'campaign_too_long',
+      expiresAt,
+      maxExpiresAt,
+    });
   }
 }
 

@@ -38,6 +38,19 @@ export class GiftStore {
     return this.#repo.findAll({ [ANN.namehash]: lower(namehash), [ANN.state]: 'open' });
   }
 
+  /**
+   * Open (unredeemed, unexpired) campaign-funded scratch cards of one campaign (RT-P-08, A-45): each is a claim the
+   * campaign's remaining budget has promised, so a new card batch is sized against budget − these.
+   */
+  async openCampaignCards(campaignId: Hex): Promise<Found<Gift>[]> {
+    const rows = await this.#repo.findAll({
+      [ANN.kind]: 'card',
+      [ANN.state]: 'open',
+      [ANN.campaignId]: lower(campaignId),
+    });
+    return rows.filter((g) => g.payload.fundedBy === 'campaign');
+  }
+
   byPinKey(pinKey: Hex): Promise<Found<Gift> | null> {
     return this.#repo.findOne({ [ANN.pinKey]: lower(pinKey) });
   }

@@ -30,7 +30,18 @@ export type LaneInput =
       challenge: Challenge;
       sessionPubKey: Hex;
     }
-  | { lane: 'paid'; mb: number; requireSessionKey: boolean; description: string };
+  | {
+      lane: 'paid';
+      mb: number;
+      requireSessionKey: boolean;
+      description: string;
+      /**
+       * What the payment is FOR, beyond the route (RT-A-08): query parameters the offer binds into
+       * `extra.resource` (`path?name=value…`), e.g. the top-up's target entitlement. The payer echoes it and
+       * decide() compares the echo, so an unmodified header replayed for another target is a mismatch.
+       */
+      bind?: Record<string, string>;
+    };
 
 /**
  * octroi(): assembles the DecideRequest (campaign from the ledger + DataDrop counters for the free lane, payment and
@@ -68,7 +79,10 @@ export const octroi = (input: (c: Ctx) => LaneInput | Promise<LaneInput>) =>
         ...(counters ? { counters } : {}),
       };
     } else {
-      engine = { ...deps.octroi, accepts: routeAccepts(deps, c.req.path) };
+      engine = {
+        ...deps.octroi,
+        accepts: routeAccepts(deps, boundResource(c.req.path, lane.bind)),
+      };
       const payment = c.get('payment');
       const spk = c.get('sessionPubKey');
       request = {
@@ -155,9 +169,20 @@ function admit(deps: Deps, campaign: Campaign, counters: CampaignCounters, mark:
   throw fail('hourly_cap', { retryAfterS: secondsToNextHour(deps.now()) });
 }
 
-/** This route's accepts (RT-A-08): `extra.resource` = the path, echoed by the payer and compared by decide(). */
-export const routeAccepts = (deps: Pick<Deps, 'accepts'>, path: string): OctroiDeps['accepts'] =>
-  deps.accepts.map((t) => ({ ...t, extra: { ...t.extra, resource: path } }));
+/** This route's accepts (RT-A-08): `extra.resource` = the bound resource, echoed by the payer and compared by decide(). */
+export const routeAccepts = (
+  deps: Pick<Deps, 'accepts'>,
+  resource: string,
+): OctroiDeps['accepts'] => deps.accepts.map((t) => ({ ...t, extra: { ...t.extra, resource } }));
+
+/** `path` plus the bound parameters as a canonical query (sorted names, URI-encoded values); no params ⇒ the path. */
+export function boundResource(path: string, bind: Record<string, string> = {}): string {
+  const query = Object.keys(bind)
+    .sort()
+    .map((name) => `${encodeURIComponent(name)}=${encodeURIComponent(bind[name]!)}`)
+    .join('&');
+  return query === '' ? path : `${path}?${query}`;
+}
 
 const firstResponse = (proof: PersonhoodProof) =>
   (proof as { responses?: { nullifier?: unknown; signal_hash?: unknown }[] }).responses?.[0];
@@ -174,17 +199,17 @@ export function proofTag(deps: Pick<Deps, 'secret'>, proof: PersonhoodProof): He
  * the SAME session key; the stored serve-free decision completes without spending a second verification (World
  * proofs are one-time). RT-A-05: the session PUBLIC key alone is not enough — the retry's proof must name the same
  * nullifier and the verifier must accept it as that human (fresh, or `already_verified`: the one-time proof was
- * spent on the first attempt), bound to the new challenge's signal or — a resent first proof — the first one's. Another session key, or another human's proof, never resumes; the latter falls
- * through to the normal lane, which judges it on its own. The new challenge is consumed first (one-shot, T-20).
+ * spent on the first attempt), bound to the new challenge's signal or — a resent first proof — the first one's.
+ * Another session key, another campaign, or another human's proof never resumes and never touches the intent; it
+ * falls through to the normal lane, which judges it on its own. The new challenge is consumed first (one-shot, T-20).
  */
 async function resumeIntent(deps: Deps, lane: Extract<LaneInput, { lane: 'free' }>) {
   const spk = lane.sessionPubKey.toLowerCase();
   const intent = deps.intents.get(spk);
-  if (!intent) return undefined;
-  if (intent.campaignId.toLowerCase() !== lane.campaignId.toLowerCase()) {
-    deps.intents.delete(spk);
-    return undefined;
-  }
+  // Another campaign is not this intent's resume: fall through WITHOUT touching it (RT-A-05 variant — a junk request
+  // naming another campaign used to delete the victim's intent before any proof was checked). It ends by its TTL,
+  // or when this human is served (entitle.ts deletes only the served human's own intent).
+  if (intent?.campaignId.toLowerCase() !== lane.campaignId.toLowerCase()) return undefined;
   const tag = proofTag(deps, lane.proof);
   if (tag === undefined || tag !== intent.nullifierTag) return undefined;
   await consume(deps, lane.challenge, '/claim', lane.sessionPubKey);

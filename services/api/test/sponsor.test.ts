@@ -21,6 +21,7 @@ const register = async (
   key: `0x${string}` = SPONSOR_KEY,
   id = scopedCampaignId(SPONSOR, 2n),
   issuedAt = h.clock.now(),
+  expiresAt = T0 + 10 * DAY,
 ) => {
   const login = await sponsorLogin(key, h.deps.chainId, id, issuedAt);
   return h.json('/sponsor', {
@@ -31,30 +32,45 @@ const register = async (
       maxClaims: 100,
       claimsPerHour: 10,
       contract: h.dataDrop.address,
-      expiresAt: T0 + 10 * DAY,
+      expiresAt,
     }),
     auth: { issuedAt: login.issuedAt, signature: login.signature },
   });
 };
 
+/** Campaign #2 of SPONSOR on chain (0.50 per claim, 10 USDC, 10/h), ending at `expiresAt`. */
+const onChain = (h: Harness, expiresAt = T0 + 10 * DAY) => {
+  const id = scopedCampaignId(SPONSOR, 2n);
+  h.dataDrop.create(id, {
+    sponsor: SPONSOR,
+    pricePerClaim: 500_000n,
+    budget: 10_000_000n,
+    spent: 0n,
+    claimsPerHour: 10,
+    expiresAt,
+  });
+  return id;
+};
+
 describe('POST /sponsor', () => {
   it('register with a valid SponsorLogin → 201 + auditKey', async () => {
     const h = await harness();
-    const id = scopedCampaignId(SPONSOR, 2n);
-    h.dataDrop.create(id, {
-      sponsor: SPONSOR,
-      pricePerClaim: 500_000n,
-      budget: 10_000_000n,
-      spent: 0n,
-      claimsPerHour: 10,
-      expiresAt: T0 + 10 * DAY,
-    });
+    const id = onChain(h);
     const res = await register(h);
     expect(res.status).toBe(201);
     const registered = (await res.json()) as { id: string; auditKey: string };
     expect(registered.id).toBe(id);
     expect(registered.auditKey).toMatch(/^0x[0-9a-f]{64}$/);
     expect(await h.deps.stores.campaigns.get(id)).not.toBeNull();
+  });
+
+  it('a campaign longer than its claim records can live on the ledger → 400 campaign_too_long, nothing stored [RT-O-08]', async () => {
+    const h = await harness();
+    const id = onChain(h, T0 + 365 * DAY);
+    const res = await register(h, SPONSOR_KEY, id, h.clock.now(), T0 + 365 * DAY);
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(await res.json())).toContain('campaign_too_long');
+    expect(await h.deps.stores.campaigns.get(id)).toBeNull();
   });
 
   it('no on-chain campaign → 404; on-chain sponsor differs / stranger signs → 401; stale login → 401', async () => {

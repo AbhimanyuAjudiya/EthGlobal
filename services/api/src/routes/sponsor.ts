@@ -15,7 +15,13 @@
  * a retry needs a new nonce and mints a new batch.
  */
 import { bytesToHex, hmacKey } from '@ethglobal/crypto';
-import { auditKey, campaignFromPayload, sizeBundle, type Campaign } from '@ethglobal/octroi';
+import {
+  assertCampaignLifetime,
+  auditKey,
+  campaignFromPayload,
+  sizeBundle,
+  type Campaign,
+} from '@ethglobal/octroi';
 import { keys, type Hex } from '@ethglobal/protocol/ids';
 import {
   sponsorCardsRequestSchema,
@@ -80,6 +86,8 @@ export function registerSponsor(app: Hono<AppEnv>, deps: Deps): void {
       issuedAt: auth.issuedAt,
       signature: auth.signature,
     });
+    // the per-campaign claim record must outlive the campaign (RT-O-08, A-44): CampaignTooLongError ⇒ 400
+    assertCampaignLifetime(campaign.expiresAt, deps.now());
     const chain = await deps.dataDrop.campaign(id);
     if (/^0x0{40}$/i.test(chain.sponsor))
       throw fail('not_found', { detail: 'no such campaign on-chain' });
@@ -174,9 +182,13 @@ export function registerSponsor(app: Hono<AppEnv>, deps: Deps): void {
     // after the signature: unsigned junk cannot spend the sponsor's batch quota
     const limited = cardBatches.hit(campaignId);
     if (!limited.ok) throw fail('rate_limited', { retryAfterS: limited.retryAfterS });
-    const [found, chain] = await Promise.all([
+    // RT-P-08: the mark is taken before the counters are read (Admission: a batch that commits after it is still
+    // subtracted), and the open cards are read beside the chain's budget — outstanding PINs are promised claims
+    const mark = deps.admission.mark();
+    const [found, chain, open] = await Promise.all([
       deps.stores.campaigns.get(campaignId),
       deps.dataDrop.campaign(campaignId),
+      deps.stores.gifts.openCampaignCards(campaignId),
     ]);
     const sponsor = auth.sponsor.toLowerCase();
     if (
@@ -188,39 +200,57 @@ export function registerSponsor(app: Hono<AppEnv>, deps: Deps): void {
     const now = deps.now();
     if (chain.paused) throw fail('campaign_paused');
     if (chain.expiresAt <= now || found.payload.expiresAt <= now) throw fail('campaign_expired');
-    const remaining =
+    const paysFor =
       chain.pricePerClaim > 0n ? (chain.budget - chain.spent) / chain.pricePerClaim : 0n;
-    if (BigInt(count) > remaining)
-      throw fail('budget_exhausted', { detail: `the budget pays for ${remaining} more claims` });
-    // one-shot nonce: the same signed batch twice is a replay, never a second set of PINs
-    if (
-      !(await firstTime(
-        deps,
-        `cards-${auth.nonce.toLowerCase()}`,
-        campaignId,
-        now + SPONSOR_CARDS_TTL_MS,
-      ))
-    )
-      throw fail('replay', { detail: 'this SponsorCards nonce was used' });
-    const claimBy = Math.min(now + claimWindowMs(), chain.expiresAt, found.payload.expiresAt);
-    const cards: MintedCard[] = [];
-    for (let i = 0; i < count; i += MINT_CONCURRENCY) {
-      const n = Math.min(MINT_CONCURRENCY, count - i);
-      cards.push(
-        ...(await Promise.all(
-          Array.from({ length: n }, () => mintCard(deps, campaignId, mb, claimBy)),
-        )),
-      );
+    const remaining =
+      paysFor > BigInt(Number.MAX_SAFE_INTEGER) ? Number.MAX_SAFE_INTEGER : Number(paysFor);
+    // Atomic across batches (RT-P-08): `count` slots taken synchronously with the Admission reservation claims use
+    // (its own `cards:` key, so a 200-card batch in flight never counts against the claims' hourly cap) against
+    // (budget − spent) / price − open cards − cards in flight − cards committed since the mark.
+    const slot = `cards:${campaignId}`;
+    const release = deps.admission.takeMany(slot, count, remaining, open.length, mark);
+    if (!release) {
+      const left = Math.max(0, remaining - open.length - deps.admission.inFlight(slot));
+      throw fail('budget_exhausted', {
+        detail: `the budget pays for ${left} more cards (${open.length} unredeemed cards outstanding)`,
+      });
     }
-    // counts only: no PIN, no serial list in the log (T-50, T-64)
-    deps.logger.info({ event: 'ledger.op', op: 'card.mint', count, mb }, 'sponsor cards minted');
-    const reply: SponsorCardsResponse = {
-      campaignId,
-      mb,
-      claimBy,
-      cards: cards.map(({ serial, pin }) => ({ serial, pin, mb })),
-    };
-    return c.json(reply, 201);
+    let minted = false;
+    try {
+      // one-shot nonce: the same signed batch twice is a replay, never a second set of PINs
+      if (
+        !(await firstTime(
+          deps,
+          `cards-${auth.nonce.toLowerCase()}`,
+          campaignId,
+          now + SPONSOR_CARDS_TTL_MS,
+        ))
+      )
+        throw fail('replay', { detail: 'this SponsorCards nonce was used' });
+      const claimBy = Math.min(now + claimWindowMs(), chain.expiresAt, found.payload.expiresAt);
+      const cards: MintedCard[] = [];
+      for (let i = 0; i < count; i += MINT_CONCURRENCY) {
+        const n = Math.min(MINT_CONCURRENCY, count - i);
+        cards.push(
+          ...(await Promise.all(
+            Array.from({ length: n }, () => mintCard(deps, campaignId, mb, claimBy)),
+          )),
+        );
+      }
+      // counts only: no PIN, no serial list in the log (T-50, T-64)
+      deps.logger.info({ event: 'ledger.op', op: 'card.mint', count, mb }, 'sponsor cards minted');
+      minted = true;
+      const reply: SponsorCardsResponse = {
+        campaignId,
+        mb,
+        claimBy,
+        cards: cards.map(({ serial, pin }) => ({ serial, pin, mb })),
+      };
+      return c.json(reply, 201);
+    } finally {
+      // committed: the cards now exist on the ledger (the next batch's `open` read counts them)
+      release(minted);
+    }
   });
 }
 

@@ -4,7 +4,14 @@
  * adapters-live workstream.
  */
 export { T0, fakeClock } from './clock.js';
-export { anvilAccounts, anvilKeys, anvilRoles } from './anvil.js';
+export {
+  anvilAccounts,
+  anvilKeys,
+  anvilRoles,
+  hardhatExtraAccounts,
+  isPublicDevAccount,
+  publicDevAccounts,
+} from './anvil.js';
 export { loadFixture, fixturePath } from './fixtures.js';
 export {
   fixtureFetch,

@@ -7,10 +7,11 @@ import type { Ledger, PaymentRail, Personhood, PersonhoodResult } from '@ethglob
 import { utf8 } from '@ethglobal/crypto';
 import {
   AUDIENCE,
+  dayBucket,
   hourBucket,
   isEvmNetwork,
   isHederaNetwork,
-  keys,
+  RECEIPT_TTL_S,
   type Hex,
 } from '@ethglobal/protocol/ids';
 import {
@@ -30,13 +31,23 @@ import { canonicalJson } from '@ethglobal/protocol/typed-data';
 import { assertMbStep, priceUsd6, usd6ToWire } from '@ethglobal/protocol/units';
 import { paymentRequired, sessionNonce } from '@ethglobal/protocol/x402';
 
+import { campaignToPayload, type Campaign, type CampaignCounters } from './campaign.js';
 import { consumeChallenge, signalFor, type Challenge, type ConsumeResult } from './challenge.js';
-import { auditKey, campaignClaimKey, onchainClaimKey, quotaKey } from './keys.js';
+import {
+  auditKey,
+  campaignClaimKey,
+  claimLockKeys,
+  freeEntitlementKey,
+  holderHash,
+  onchainClaimKey,
+  paidEntitlementKey,
+  quotaKey,
+  settlementLockKey,
+} from './keys.js';
 import { sizeBundle } from './size.js';
+import { ClaimStore } from './store/claim.js';
 import { EntitlementStore } from './store/entitlement.js';
 import { tierFromLevel, type Tier } from './tier.js';
-
-import type { Campaign, CampaignCounters } from './campaign.js';
 
 export type { Entitlement } from '@ethglobal/protocol/schemas';
 
@@ -106,7 +117,11 @@ export interface DecideRequest {
   requireSessionKey?: boolean;
   campaign?: Campaign;
   counters?: CampaignCounters;
-  /** The caller's lookup of keys.entitlementFree(quotaKey); decide() also looks it up itself (T-18). */
+  /**
+   * The caller's own replay knowledge, if any (an entitlement it already found). decide() does not need it: it
+   * looks up the per-campaign entitlement, the per-campaign claim record and the human's live lock itself (T-18,
+   * RT-O-08) — the caller cannot compute those keys (they need the nullifier).
+   */
   existingEntitlement?: Entitlement | null;
 }
 
@@ -114,6 +129,10 @@ type Deny = Extract<Decision, { kind: 'deny' }>;
 type Settled = Extract<SettleResult, { success: true }>;
 
 const DAY_MS = 86_400_000;
+/** campaignSchema's validityDays bound: a live lock can only come from the last 30 claim days (A-33). */
+const MAX_VALIDITY_DAYS = 30;
+/** A claim record never asks the ledger for more than ~180 days (Arkiv's cap is 182.5 days, A-24). */
+const MAX_LOCK_MS = 180 * DAY_MS;
 export const DEVICE_TIER_DETAIL = 'device tier: paid lane at the human price';
 
 const deny = (reason: DenyReason, detail?: string): Deny =>
@@ -239,18 +258,103 @@ async function verifyPerson(
   }
 }
 
+/** Everything the free lane derives from the verified nullifier (one place, so a bad one is one deny). */
+interface FreeKeys {
+  key: string;
+  cck: Hex;
+  claimKey: Hex;
+  locks: ReturnType<typeof claimLockKeys>;
+}
+
+function freeKeys(deps: OctroiDeps, campaignId: Hex, nullifierHash: Hex): FreeKeys | Deny {
+  try {
+    const cck = campaignClaimKey(auditKey(deps.secret, campaignId), nullifierHash);
+    return {
+      key: freeEntitlementKey(deps.secret, campaignId, nullifierHash),
+      cck,
+      claimKey: onchainClaimKey(campaignId, cck),
+      locks: claimLockKeys(deps.secret, campaignId, quotaKey(deps.secret, nullifierHash)),
+    };
+  } catch {
+    // the verifier answered a malformed nullifier: a deny, not a throw after the verification (RT-O-07)
+    return deny('invalid-proof', 'verifier_nullifier');
+  }
+}
+
+const dayRange = (from: number, to: number): number[] =>
+  Array.from({ length: to - from + 1 }, (_, i) => from + i);
+
+/**
+ * One live free bundle per human, one claim per (human, campaign) — decided from the ledger, not the caller:
+ * this campaign's entitlement, this campaign's claim record (RT-O-08: survives the entitlement), and the
+ * human's live lock of any claim day that can still be live (A-33). All reads, in parallel.
+ */
 async function alreadyServed(
   deps: OctroiDeps,
   req: DecideRequest,
-  entitlementKey: string,
+  k: FreeKeys,
+  now: number,
 ): Promise<Deny | null> {
   if (req.existingEntitlement || req.counters?.claimed === true) return deny('replay');
   try {
-    const found = await new EntitlementStore(deps.ledger, deps.now).getByKey(entitlementKey);
-    return found ? deny('replay') : null;
+    const claims = new ClaimStore(deps.ledger, deps.now);
+    const today = dayBucket(now);
+    const held = await Promise.all([
+      new EntitlementStore(deps.ledger, deps.now).getByKey(k.key).then((found) => found !== null),
+      claims.held(k.locks.campaign),
+      ...dayRange(today - MAX_VALIDITY_DAYS, today).map((day) => claims.held(k.locks.live(day))),
+    ]);
+    return held.some(Boolean) ? deny('replay') : null;
   } catch {
     return deny('ledger-unavailable', 'entitlement');
   }
+}
+
+/**
+ * Take the human's live lock (create-if-absent: of two concurrent claims on two campaigns exactly one gets it,
+ * RT-O-03) and this campaign's claim record. Written before serve-free, so a second claim — concurrent, in
+ * another process, or after this bundle expired — is a replay inside decide(), before any sponsor pays.
+ */
+async function reserve(
+  deps: OctroiDeps,
+  k: FreeKeys,
+  campaign: Campaign,
+  entitlementExpiresAt: number,
+  now: number,
+): Promise<Deny | null> {
+  const claims = new ClaimStore(deps.ledger, deps.now);
+  const recordUntil = Math.min(campaign.expiresAt, now + MAX_LOCK_MS);
+  try {
+    const live = await claims.reserve(
+      k.locks.live(dayBucket(now)),
+      'free-live',
+      entitlementExpiresAt,
+    );
+    if (!live) return deny('replay', 'claim_lock');
+    const record = await claims.reserve(k.locks.campaign, 'free-campaign', recordUntil);
+    return record ? null : deny('replay', 'claim_lock');
+  } catch {
+    return deny('ledger-unavailable', 'claim_lock');
+  }
+}
+
+const isSafeCount = (n: unknown): boolean => Number.isSafeInteger(n) && (n as number) >= 0;
+const isUsd6 = (n: unknown): boolean => typeof n === 'bigint' && n >= 0n;
+
+/** Campaign and counters are validated like stored data (RT-O-07): no NaN, no 0-day validity, no fractions. */
+function freeInputInvalid(c: Campaign, counters: CampaignCounters): Deny | null {
+  try {
+    campaignToPayload(c);
+  } catch {
+    return deny('invalid-request', 'campaign');
+  }
+  const ok =
+    typeof counters.paused === 'boolean' &&
+    isUsd6(counters.budgetUsd6) &&
+    isUsd6(counters.spentUsd6) &&
+    isSafeCount(counters.claimsThisHour) &&
+    isSafeCount(counters.hourBucket);
+  return ok ? null : deny('invalid-request', 'counters');
 }
 
 async function actionAllows(c: Campaign, claimKey: Hex): Promise<boolean> {
@@ -271,6 +375,8 @@ async function freeLane(
   if (!campaign) return deny('no-campaign');
   if (!ch || !sessionPubKey || !counters) return deny('invalid-request', 'challenge_required');
   // The free lane is /claim only; gift and card lanes consume their own path (T-21).
+  const invalid = freeInputInvalid(campaign, counters);
+  if (invalid) return invalid;
   if (ch.path !== '/claim' || ch.audience !== AUDIENCE)
     return deny('invalid-proof', 'challenge_route');
   const now = deps.now();
@@ -285,16 +391,18 @@ async function freeLane(
   const mb = sizeBundle(campaign, tier);
   if (mb === 0) return paymentRequiredFor(req, deps, deps.stepMb, DEVICE_TIER_DETAIL);
 
-  const key = keys.entitlementFree(quotaKey(deps.secret, person.nullifierHash));
-  const cck = campaignClaimKey(auditKey(deps.secret, campaign.id as Hex), person.nullifierHash);
-  const claimKey = onchainClaimKey(campaign.id as Hex, cck);
-  const replay = await alreadyServed(deps, req, key);
+  const k = freeKeys(deps, campaign.id as Hex, person.nullifierHash);
+  if ('kind' in k) return k;
+  const replay = await alreadyServed(deps, req, k, now);
   if (replay) return replay;
-  if (!(await actionAllows(campaign, claimKey))) return deny('invalid-proof', 'action');
+  if (!(await actionAllows(campaign, k.claimKey))) return deny('invalid-proof', 'action');
+  const expiresAt = now + campaign.validityDays * DAY_MS;
+  const reserved = await reserve(deps, k, campaign, expiresAt, now);
+  if (reserved) return reserved;
 
   const entitlement: Entitlement = {
     v: 1,
-    key,
+    key: k.key,
     kind: 'free',
     status: 'pending-profile',
     tier,
@@ -304,10 +412,18 @@ async function freeLane(
     mbUsed: 0,
     usageAsOf: now,
     usageSource: 'none',
+    holderHash: holderHash(k.key, sessionPubKey),
     createdAt: now,
-    expiresAt: now + campaign.validityDays * DAY_MS,
+    expiresAt,
   };
-  return { kind: 'serve-free', entitlement, claimKey, campaignClaimKey: cck, tier, mb };
+  return {
+    kind: 'serve-free',
+    entitlement,
+    claimKey: k.claimKey,
+    campaignClaimKey: k.cck,
+    tier,
+    mb,
+  };
 }
 
 // ───────────────────────────── paid lane ─────────────────────────────
@@ -357,14 +473,24 @@ function sessionBound(
     : deny('invalid-payment', 'session_binding');
 }
 
+/**
+ * verify → settle → parse. A verify that reports `nonce_already_used` is NOT final (T-15): the authorization may
+ * have been front-run by anyone who saw it, which still paid us; settle() of a recovering facilitator then
+ * returns the executed transaction. `recovered` records that, for the dedupe below.
+ */
 async function settle(
   deps: OctroiDeps,
   payment: PaymentPayload,
   offered: PaymentRequirements,
-): Promise<Settled | Deny> {
+): Promise<{ s: Settled; recovered: boolean } | Deny> {
+  let recovered = false;
   try {
     const verified = await deps.payments.verify(payment, offered);
-    if (!verified.isValid) return deny('invalid-payment', verified.invalidReason);
+    if (!verified.isValid) {
+      if (verified.invalidReason !== 'nonce_already_used')
+        return deny('invalid-payment', verified.invalidReason);
+      recovered = true;
+    }
   } catch (error) {
     return deny('invalid-payment', `verify_${codeOf(error)}`);
   }
@@ -387,20 +513,49 @@ async function settle(
   ) {
     return deny('invalid-payment', 'settlement_payer');
   }
-  return s;
+  return { s, recovered };
+}
+
+/**
+ * One serve per on-chain payment (RT-O-05): the settlement marker is written create-if-absent before serve-paid.
+ * A second request for the same transaction — concurrent (both settled, the recovering facilitator answered the
+ * same tx), sequential, or in another process — is refused: `nonce_already_used` when verify had said so,
+ * `replay` otherwise. A ledger failure fails closed; a retry is served once through the facilitator's recovery.
+ */
+async function servedOnce(
+  deps: OctroiDeps,
+  settled: { s: Settled; recovered: boolean },
+  now: number,
+): Promise<Deny | null> {
+  const key = settlementLockKey(deps.secret, settled.s.network, settled.s.transaction);
+  let first: boolean;
+  try {
+    first = await new ClaimStore(deps.ledger, deps.now).reserve(
+      key,
+      'settlement',
+      now + RECEIPT_TTL_S * 1000,
+    );
+  } catch {
+    return deny('ledger-unavailable', 'settlement');
+  }
+  if (first) return null;
+  return settled.recovered
+    ? deny('invalid-payment', 'nonce_already_used')
+    : deny('replay', 'settlement');
 }
 
 async function paidLane(
   req: DecideRequest,
   deps: OctroiDeps,
-  payment: PaymentPayload,
+  raw: PaymentPayload,
 ): Promise<Decision> {
   const offers = buildAccepts(deps, req.mb, { sessionKeyRequired: req.requireSessionKey === true });
-  const offered = offers.find((offer) => sameRequirements(payment.accepted, offer));
+  // The echo is compared RAW (an added key fails); everything after uses only the validated payload (RT-O-02).
+  const offered = offers.find((offer) => sameRequirements(raw.accepted, offer));
   if (!offered) return deny('invalid-payment', 'requirements_mismatch');
-  if (!paymentPayloadSchema.safeParse(payment).success) {
-    return deny('invalid-payment', 'malformed_payload');
-  }
+  const parsed = paymentPayloadSchema.safeParse(raw);
+  if (!parsed.success) return deny('invalid-payment', 'malformed_payload');
+  const payment = parsed.data;
   if (req.requireSessionKey === true) {
     if (!req.sessionPubKey) return deny('invalid-request', 'session_key_required');
     const unbound = sessionBound(payment, req.sessionPubKey, deps.keccak256);
@@ -415,14 +570,17 @@ async function paidLane(
   }
   const settled = await settle(deps, payment, offered);
   if ('kind' in settled) return settled;
-
   const now = deps.now();
+  const twice = await servedOnce(deps, settled, now);
+  if (twice) return twice;
+
+  const { s } = settled;
   const nonce = isEvmExact(payment.payload)
     ? payment.payload.authorization.nonce
-    : deps.keccak256(utf8(settled.transaction));
+    : deps.keccak256(utf8(s.transaction));
   const entitlement: Entitlement = {
     v: 1,
-    key: keys.entitlementPaid(settled.payer, nonce as Hex),
+    key: paidEntitlementKey(deps.secret, offered.network, s.payer, nonce),
     kind: 'paid',
     status: 'pending-profile',
     tier: 'none',
@@ -431,17 +589,24 @@ async function paidLane(
     mbUsed: 0,
     usageAsOf: now,
     usageSource: 'none',
-    payer: settled.payer,
+    payer: s.payer,
     network: offered.network,
     createdAt: now,
     expiresAt: now + deps.validityDays * DAY_MS,
   };
-  return { kind: 'serve-paid', entitlement, settlement: settled, requirements: offered };
+  return { kind: 'serve-paid', entitlement, settlement: s, requirements: offered };
 }
 
 // ───────────────────────────── entry point ─────────────────────────────
 
+const isObject = (v: unknown): boolean => typeof v === 'object' && v !== null;
+
 function requestInvalid(req: DecideRequest, deps: OctroiDeps): Deny | null {
+  // decide() is a public entry: hostile shapes are a deny, never a TypeError (RT-O-07, ARCHITECTURE §9 rule 2)
+  if (!isObject(req)) return deny('invalid-request', 'request');
+  if (req.payment !== undefined && !isObject(req.payment))
+    return deny('invalid-request', 'payment');
+  if (req.proof !== undefined && !isObject(req.proof)) return deny('invalid-request', 'proof');
   if (req.proof !== undefined && req.payment !== undefined) {
     return deny('invalid-request', 'proof_and_payment');
   }

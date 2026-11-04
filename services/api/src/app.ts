@@ -6,6 +6,9 @@
 import { Hono } from 'hono';
 import { createMiddleware } from 'hono/factory';
 
+import type { Hex } from '@ethglobal/protocol/ids';
+import { hex32Schema } from '@ethglobal/protocol/schemas';
+
 import { fail, respondError } from './errors.js';
 import { accessLog, bodyLimit, cors, requestId, securityHeaders } from './middleware/basics.js';
 import { idempotency } from './middleware/idempotency.js';
@@ -19,10 +22,10 @@ import { registerMe } from './routes/me.js';
 import { registerPublic } from './routes/public.js';
 import { registerSponsor } from './routes/sponsor.js';
 import { registerWebhooks } from './routes/webhooks.js';
+import { SIMULATED_LEVELS, simulatedWorldProof, type LocalClock } from './seed.js';
 
 import type { AppEnv } from './context.js';
 import type { Deps } from './deps.js';
-import type { LocalClock } from './seed.js';
 
 /** POST routes the Idempotency-Key middleware covers (brief §3). */
 export const IDEMPOTENT_ROUTES = [
@@ -89,6 +92,24 @@ export function createApp(deps: Deps, options: AppOptions = {}) {
         'local clock advanced',
       );
       return c.json({ now: deps.now() });
+    });
+    // The PWA's "Simulated World ID" button: an IDKit-4-shaped result bound to the challenge signal, so the
+    // browser never builds a proof itself (MODE=local only; the route does not exist in live).
+    app.post('/__local/world-proof', async (c) => {
+      const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+      const level = SIMULATED_LEVELS.find((l) => l === body.level);
+      const signal = hex32Schema.safeParse(body.signal);
+      const seed =
+        typeof body.seed === 'string' && /^[\w-]{1,64}$/.test(body.seed) ? body.seed : '';
+      if (!level || !signal.success || seed === '') throw fail('invalid_request');
+      c.get('log').warn({ event: 'seed-hook', hook: 'world-proof', level }, 'simulated World ID');
+      return c.json(
+        simulatedWorldProof(level, signal.data as Hex, seed, {
+          action: deps.env.WORLD_ACTION,
+          environment: deps.env.WORLD_ENVIRONMENT,
+          nowMs: deps.now(),
+        }),
+      );
     });
   }
 

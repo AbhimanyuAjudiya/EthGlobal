@@ -52,6 +52,7 @@ describe('ids', () => {
       [keys.receipt('eip155:31337', '0xDEAD'), KEY_PREFIXES.receipt],
       [keys.campaign(h), KEY_PREFIXES.campaign],
       [keys.agentPolicy('ent:v1:x'), KEY_PREFIXES.agentPolicy],
+      [keys.claim(h), KEY_PREFIXES.claim],
     ] as const;
     for (const [key, prefix] of built) expect(key.startsWith(prefix)).toBe(true);
     expect(Object.values(KEY_PREFIXES)).toEqual([
@@ -63,7 +64,9 @@ describe('ids', () => {
       'rcpt:',
       'camp:',
       'policy:',
+      'claim:',
     ]);
+    expect(keys.claim(h)).toBe(`claim:0x${'ab'.repeat(32)}`);
     expect(keys.entitlementPaid('0xABC', h)).toBe(`paid:0xabc:0x${'ab'.repeat(32)}`);
     expect(keys.receipt('eip155:31337', '0xDEAD')).toBe('rcpt:eip155:31337:0xdead');
   });
@@ -101,7 +104,7 @@ describe('ids', () => {
     const values = Object.values(ANN).join(' ').toLowerCase();
     for (const banned of ['nullifier', 'iccid ', 'pin ', 'lpa', 'secret'])
       expect(values).not.toContain(banned);
-    expect(ENTITY_TYPES).toHaveLength(6);
+    expect(ENTITY_TYPES).toHaveLength(7); // A-33: + 'claim'
   });
 });
 

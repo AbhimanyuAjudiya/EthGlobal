@@ -17,6 +17,7 @@ import { sessionNonce } from '@ethglobal/protocol/x402';
 
 import {
   campaign,
+  CAMPAIGN_ID,
   claimChallenge,
   counters,
   deps,
@@ -36,6 +37,9 @@ import {
   decide,
   DEVICE_TIER_DETAIL,
   EntitlementStore,
+  freeEntitlementKey,
+  holderHash,
+  paidEntitlementKey,
   quotaKey,
   type DecideRequest,
   type Decision,
@@ -238,7 +242,9 @@ describe('decide — free lane', () => {
     const d = deps({ personhood: permissive() });
     await decide(freeReq(d), d);
     d.clock.advance(200_000);
-    expect((await decide(freeReq(d), d)).kind).toBe('serve-free'); // pruned; a fresh challenge serves
+    // pruned; a fresh challenge from another human serves (the same human is now a replay: claim lock, A-33)
+    const other = { ...d, personhood: permissive('orb', `0x${'d4'.repeat(32)}`) };
+    expect((await decide(freeReq(other), other)).kind).toBe('serve-free');
     const nonceCache = new Set<string>();
     const e = deps({ personhood: permissive(), nonceCache });
     const ch = claimChallenge(e);
@@ -281,10 +287,12 @@ describe('decide — free lane', () => {
     expect(seen).toEqual([r.claimKey]);
   });
 
-  it('keys: entitlement under the global pseudonym, claim key per campaign', async () => {
+  it('keys: the entitlement capability is per campaign (A-34), never the global pseudonym', async () => {
     const d = deps({ personhood: permissive() });
     const r = asFree(await decide(freeReq(d), d));
-    expect(r.entitlement.key).toBe(keys.entitlementFree(quotaKey(SECRET, NULLIFIER)));
+    expect(r.entitlement.key).toBe(freeEntitlementKey(SECRET, CAMPAIGN_ID, NULLIFIER));
+    expect(r.entitlement.key).not.toBe(keys.entitlementFree(quotaKey(SECRET, NULLIFIER)));
+    expect(r.entitlement.holderHash).toBe(holderHash(r.entitlement.key, SPK));
     expect(JSON.stringify(r)).not.toContain(NULLIFIER.slice(2, 14));
   });
 });
@@ -319,13 +327,13 @@ describe('decide — request validity', () => {
 });
 
 describe('decide — paid lane', () => {
-  it('valid payment → serve-paid with key paid:<payer>:<nonce> and expiresAt = now + validity', async () => {
+  it('valid payment → serve-paid with key paid:<payer>:HMAC(network, payer, nonce) and expiresAt = now + validity', async () => {
     const d = deps({ planId: 'in-topup' });
     const r = await paid(d);
     if (r.kind !== 'serve-paid') throw new Error(JSON.stringify(r));
     const payer = anvilAccounts[anvilRoles.human];
     expect(r.entitlement).toMatchObject({
-      key: `paid:${payer.toLowerCase()}:0x${'01'.padStart(64, '0')}`,
+      key: paidEntitlementKey(SECRET, NETWORKS.anvil, payer, `0x${'01'.padStart(64, '0')}`),
       kind: 'paid',
       tier: 'none',
       mbTotal: 100,
@@ -526,7 +534,10 @@ describe('decide — paid lane', () => {
     const r = await paid(hd, { payment });
     expect(r).toMatchObject({
       kind: 'serve-paid',
-      entitlement: { key: `paid:0.0.777:${keccak256(utf8(tx))}`, network: NETWORKS.hederaTestnet },
+      entitlement: {
+        key: paidEntitlementKey(SECRET, NETWORKS.hederaTestnet, '0.0.777', keccak256(utf8(tx))),
+        network: NETWORKS.hederaTestnet,
+      },
     });
     const lpaPayment = { ...payment, accepted: offer(hd, 100, true, 1) };
     expect(
@@ -534,11 +545,17 @@ describe('decide — paid lane', () => {
     ).toEqual(denied('invalid-payment', 'session_binding_unsupported'));
   });
 
-  it('decide() persists nothing but the consumed nonce (O8)', async () => {
+  it('decide() persists only the consumed nonce and the claim locks / settlement marker (O8, A-33)', async () => {
     const d = deps();
     await decide(freeReq(d), d);
     await paid(d);
     const all = await d.ledger.query({});
-    expect(all.map((e) => e.annotations.type)).toEqual(['nonce']);
+    // free: nonce + live lock + campaign record; paid: settlement marker. Never an entitlement.
+    expect(all.map((e) => e.annotations.type)).toEqual(['nonce', 'claim', 'claim', 'claim']);
+    expect(all.map((e) => (JSON.parse(e.payload) as { scope: string }).scope).slice(1)).toEqual([
+      'free-live',
+      'free-campaign',
+      'settlement',
+    ]);
   });
 });

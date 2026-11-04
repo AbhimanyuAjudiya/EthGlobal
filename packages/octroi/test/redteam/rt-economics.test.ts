@@ -1,7 +1,7 @@
 /**
  * Red team (wave 1, octroi): economic invariants under adversarial interleavings (T-18, T-24, T-25, T-46).
  * A small model of the API saga (decide → DataDrop.claim → EntitlementStore.create) and of DataDrop's
- * counters is driven by fast-check. `_RTFINDING` tests (marked `// RT-FINDING`) fail today.
+ * counters is driven by fast-check. The tests once filed as findings (RT-O-01…09) are passing regressions named `… [RT-O-0N]`.
  */
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
@@ -78,8 +78,8 @@ class Chain {
 }
 
 describe('attack: rt same nullifier, two campaigns, concurrently (T-18 × T-25)', () => {
-  // RT-FINDING RT-O-03
-  it('two concurrent claims by one human on campaigns A and B: never two live free entitlements and never a paid claim without an entitlement_RTFINDING', async () => {
+  // Regression RT-O-03 (fixed)
+  it('two concurrent claims by one human on campaigns A and B: never two live free entitlements and never a paid claim without an entitlement [RT-O-03]', async () => {
     const clock = fakeClock();
     const base = new InMemoryLedger({ now: clock.now });
     const d: TestDeps = {
@@ -223,8 +223,8 @@ describe('attack: rt state changes between challenge issue and consume', () => {
     ).toMatchObject({ reason: 'budget' });
   });
 
-  // RT-FINDING RT-O-08
-  it('after the free entitlement expires, a second claim on the SAME campaign is refused inside decide()_RTFINDING', async () => {
+  // Regression RT-O-08 (fixed)
+  it('after the free entitlement expires, a second claim on the SAME campaign is refused inside decide() [RT-O-08]', async () => {
     const clock = fakeClock();
     const d: TestDeps = { ...deps({}, clock), personhood: switchable({ level: 'orb' }) };
     const chain = new Chain(clock.now);

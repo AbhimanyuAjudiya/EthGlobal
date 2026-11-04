@@ -1,15 +1,20 @@
-/** EntitlementStore (INTERFACES §5; T-35, T-36, T-37). */
+/**
+ * EntitlementStore (INTERFACES §5; T-35, T-36, T-37). The entitlement key is a capability (`/me/:key`): it never
+ * reaches the ledger. Annotation AND payload carry `entitlementIndex(key)` = `hk:` + sha256(key) instead (A-34,
+ * RT-O-01); a lookup by capability hashes first, and the payload handed back carries the capability again.
+ */
 import type { Ledger, LedgerPutResult } from '@ethglobal/adapters';
 import { RechargeError } from '@ethglobal/protocol/errors';
 import { ANN, type Hex } from '@ethglobal/protocol/ids';
 import { entitlementSchema, type Entitlement } from '@ethglobal/protocol/schemas';
 
+import { entitlementIndex, INDEX_PREFIX } from '../keys.js';
 import { lifetimeUntil, lower, Repo, type Codec, type Found } from './common.js';
 
 const entitlementCodec: Codec<Entitlement> = {
   type: 'entitlement',
   schema: entitlementSchema,
-  key: (e) => e.key,
+  key: (e) => entitlementIndex(e.key),
   annotations: (e) => ({
     [ANN.kind]: e.kind,
     [ANN.status]: e.status,
@@ -23,6 +28,15 @@ const entitlementCodec: Codec<Entitlement> = {
 
 const DEFAULT_LIST_LIMIT = 100;
 
+const isIndex = (key: string): boolean => key.startsWith(INDEX_PREFIX);
+/** The stored form: the key replaced by its index. */
+const stored = (e: Entitlement): Entitlement => ({ ...e, key: entitlementIndex(e.key) });
+/** The caller's form: the key it looked up by (a capability, or — server-internal reads — the index). */
+const as = (found: Found<Entitlement>, key: string): Found<Entitlement> => ({
+  ...found,
+  payload: { ...found.payload, key },
+});
+
 export class EntitlementStore {
   readonly #repo: Repo<Entitlement>;
 
@@ -33,22 +47,35 @@ export class EntitlementStore {
     this.#repo = new Repo(ledger, now, entitlementCodec);
   }
 
-  /** By logical key (`ent:v1:…`, `paid:…`, `giftent:…`); expired if gone OR annotations.expiresAt ≤ now. */
-  getByKey(key: string): Promise<Found<Entitlement> | null> {
-    return this.#repo.byKey(key);
+  /**
+   * By capability (`ent:v1:…`, `paid:…`, `giftent:…`); expired if gone OR annotations.expiresAt ≤ now. An index
+   * (`hk:…`, readable off the ledger) is NOT a capability and finds nothing: this is the `/me/:key` check.
+   */
+  async getByKey(key: string): Promise<Found<Entitlement> | null> {
+    if (typeof key !== 'string' || isIndex(key)) return null;
+    const found = await this.#repo.byKey(entitlementIndex(key));
+    return found && as(found, key);
   }
 
+  /** Server-internal (usage webhook): the payload's `key` is the index; `patch` accepts it. */
   getByIccidHash(iccidHash: Hex): Promise<Found<Entitlement> | null> {
     return this.#repo.findOne({ [ANN.iccidHash]: lower(iccidHash) });
   }
 
-  create(e: Entitlement): Promise<LedgerPutResult> {
-    return this.#repo.create(e);
+  /** Create-if-absent (A-32): a live entitlement with the same key anywhere ⇒ RechargeError('replay'). */
+  async create(e: Entitlement): Promise<LedgerPutResult> {
+    const valid = this.#repo.validate(e);
+    if (isIndex(valid.key)) {
+      throw new RechargeError('invalid_request', 'an entitlement is created by its capability');
+    }
+    return this.#repo.create(stored(valid));
   }
 
   /**
-   * Merges `patch`, keeps the logical key, re-derives annotations. The lifetime changes only through
-   * `opts.expiresAt`; an expired or missing entity is never resurrected (RechargeError('not_found')).
+   * Merges `patch` into a FRESH read under compare-and-swap, retried on conflict (A-32, RT-O-06: a concurrent
+   * usage patch and top-up both land). Keeps the logical key, re-derives annotations. The lifetime changes only
+   * through `opts.expiresAt`; an expired or missing entity is never resurrected (RechargeError('not_found')).
+   * `key` is the capability or (server-internal) the index.
    */
   async patch(
     key: string,
@@ -58,16 +85,22 @@ export class EntitlementStore {
     if (patch.expiresAt !== undefined && patch.expiresAt !== opts.expiresAt) {
       throw new RechargeError('invalid_request', 'change expiresAt through opts.expiresAt');
     }
-    const existing = await this.#repo.byKey(key);
-    if (!existing) throw new RechargeError('not_found', `no live entitlement ${key}`);
-    const expiresAt = opts.expiresAt ?? existing.payload.expiresAt;
-    const next: Entitlement = { ...existing.payload, ...patch, v: 1, key, expiresAt };
-    const expiresIn =
-      opts.expiresAt === undefined ? undefined : lifetimeUntil(opts.expiresAt, this.now());
-    return this.#repo.replace(existing, next, expiresIn);
+    const index = entitlementIndex(key);
+    const found = await this.#repo.mutate(
+      index,
+      (existing) => {
+        const expiresAt = opts.expiresAt ?? existing.payload.expiresAt;
+        const next: Entitlement = { ...existing.payload, ...patch, v: 1, key: index, expiresAt };
+        const expiresIn =
+          opts.expiresAt === undefined ? undefined : lifetimeUntil(opts.expiresAt, this.now());
+        return { payload: next, ...(expiresIn === undefined ? {} : { expiresIn }) };
+      },
+      () => new RechargeError('not_found', `no live entitlement ${index}`),
+    );
+    return as(found, key);
   }
 
-  /** Live entitlements whose expiresAt − now ≤ ms, soonest first (sponsor dashboard). */
+  /** Live entitlements whose expiresAt − now ≤ ms, soonest first (sponsor dashboard). Keys are indexes. */
   async expiringWithin(ms: number, limit = DEFAULT_LIST_LIMIT): Promise<Found<Entitlement>[]> {
     const horizon = this.now() + ms;
     const all = await this.#repo.findAll();

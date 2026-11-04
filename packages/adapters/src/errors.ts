@@ -29,6 +29,8 @@ export const ADAPTER_ERROR_CODES = [
   'too_large',
   'unsupported_network',
   'not_implemented',
+  // A-32: a create-if-absent found the key taken, or a compare-and-swap lost
+  'conflict',
 ] as const;
 export type AdapterErrorCode = (typeof ADAPTER_ERROR_CODES)[number];
 

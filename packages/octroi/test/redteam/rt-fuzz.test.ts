@@ -2,7 +2,7 @@
  * Red team (wave 1, octroi): schema-boundary fuzzing of every exported function (ARCHITECTURE §9 rule 2:
  * "octroi never throws for business outcomes … throws RechargeError('invalid_request') only for malformed input").
  * Every call must settle quickly; thrown values must be Error instances; the request-facing entry points must
- * throw only RechargeError. `_RTFINDING` tests (marked `// RT-FINDING`) fail today.
+ * throw only RechargeError. The tests once filed as findings (RT-O-01…09) are passing regressions named `… [RT-O-0N]`.
  */
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
@@ -142,9 +142,9 @@ describe('attack: rt fuzz — every export settles and throws only Error objects
     );
   });
 
-  // RT-FINDING RT-O-07: decide() trusts an unvalidated Campaign (validityDays 0 ⇒ an entitlement born expired;
+  // Regression RT-O-07 (fixed): decide() trusts an unvalidated Campaign (validityDays 0 ⇒ an entitlement born expired;
   // claimsPerHour ≤ 0 or a fractional claimsThisHour slips the cap comparison). Counterexample [-1, 0, -1.0000000000000002].
-  it('decide(): free lane with hostile campaign / counters numbers never serves a malformed entitlement_RTFINDING', async () => {
+  it('decide(): free lane with hostile campaign / counters numbers never serves a malformed entitlement [RT-O-07]', async () => {
     const hostileNum = fc.oneof(
       fc.constant(Number.NaN),
       fc.constant(Infinity),
@@ -182,8 +182,8 @@ describe('attack: rt fuzz — every export settles and throws only Error objects
     );
   });
 
-  // RT-FINDING RT-O-07
-  it('decide() with hostile top-level request fields throws only RechargeError (or returns a Decision)_RTFINDING', async () => {
+  // Regression RT-O-07 (fixed)
+  it('decide() with hostile top-level request fields throws only RechargeError (or returns a Decision) [RT-O-07]', async () => {
     await fc.assert(
       fc.asyncProperty(
         fc.record({
@@ -206,8 +206,8 @@ describe('attack: rt fuzz — every export settles and throws only Error objects
     );
   });
 
-  // RT-FINDING RT-O-07
-  it('decide(): a verifier returning a non-hex32 nullifier yields a deny, not a throw after the verification is burned_RTFINDING', async () => {
+  // Regression RT-O-07 (fixed)
+  it('decide(): a verifier returning a non-hex32 nullifier yields a deny, not a throw after the verification is burned [RT-O-07]', async () => {
     const d = {
       ...deps(),
       personhood: {

@@ -124,7 +124,11 @@ export const paymentAuthorizationSchema = z.object({
 });
 export type PaymentAuthorization = z.infer<typeof paymentAuthorizationSchema>;
 
-export const evmExactPayloadSchema = z.object({
+/**
+ * Strict (A-32, RT-O-02): a payload carrying both shapes (a decoy `authorization` beside a Hedera `transaction`)
+ * matches neither branch and is rejected, so no consumer can ever see a key the schema did not validate.
+ */
+export const evmExactPayloadSchema = z.strictObject({
   signature: hexSchema,
   authorization: paymentAuthorizationSchema,
 });
@@ -134,7 +138,7 @@ export type EvmExactPayload = z.infer<typeof evmExactPayloadSchema>;
  * Hedera exact scheme (@x402/hedera 2.29.0 `ExactHederaPayload`): a base64 serialized, partially signed
  * `TransferTransaction` whose transaction id account is `extra.feePayer`.
  */
-export const hederaExactPayloadSchema = z.object({ transaction: z.base64().max(8_192) });
+export const hederaExactPayloadSchema = z.strictObject({ transaction: z.base64().max(8_192) });
 export type HederaExactPayload = z.infer<typeof hederaExactPayloadSchema>;
 
 export const paymentPayloadSchema = z

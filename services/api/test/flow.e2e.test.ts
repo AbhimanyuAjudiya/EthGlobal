@@ -15,6 +15,7 @@ import {
   sha256Hex,
   type SealedBox,
 } from '@ethglobal/crypto';
+import { entitlementIndex } from '@ethglobal/octroi';
 import { isValidPin } from '@ethglobal/protocol/pin';
 import {
   challengeSchema,
@@ -80,7 +81,9 @@ describe('flow.e2e (BUILD-PLAN §4, in process)', () => {
 
     // I-4 the entitlement entity: key ent:v1:, expiresAt = now + 7 d, no clear ICCID/LPA/nullifier; a nonce entity
     const [entity] = await h.deps.adapters.ledger.query({ annotations: { type: 'entitlement' } });
-    expect(entity?.annotations.key).toBe(claimed.entitlementKey);
+    // the ledger carries the index, never the /me capability (octroi A-34, RT-O-01)
+    expect(entity?.annotations.key).toBe(entitlementIndex(claimed.entitlementKey));
+    expect(JSON.stringify(entity)).not.toContain(claimed.entitlementKey);
     expect(entity?.annotations.expiresAt).toBe(T0 + 7 * DAY);
     expect(entity?.payload).toMatch(/"iccidHash"/);
     expect(entity?.payload).not.toMatch(/LPA:|"iccid"|nullifier/);

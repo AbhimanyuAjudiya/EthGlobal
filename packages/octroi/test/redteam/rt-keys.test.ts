@@ -1,6 +1,6 @@
 /**
  * Red team (wave 1, octroi): key/HMAC properties and what a public-ledger observer learns (T-18, T-29, T-37,
- * T-73, INTERFACES A-9). `_RTFINDING` tests (marked `// RT-FINDING`) fail today.
+ * T-73, INTERFACES A-9). The tests once filed as findings (RT-O-01…09) are passing regressions named `… [RT-O-0N]`.
  */
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
@@ -33,8 +33,8 @@ const orb = (nullifierHash: Hex = NULLIFIER): Personhood => ({
 const publicDump = async (ledger: InMemoryLedger) => JSON.stringify(await ledger.query({}));
 
 describe('attack: rt public-ledger observer (T-37, T-73, A-9)', () => {
-  // RT-FINDING RT-O-01
-  it('the /me/:key capability of a free entitlement does not appear on the public ledger_RTFINDING', async () => {
+  // Regression RT-O-01 (fixed)
+  it('the /me/:key capability of a free entitlement does not appear on the public ledger [RT-O-01]', async () => {
     const clock = fakeClock();
     const ledger = new InMemoryLedger({ now: clock.now });
     const d: TestDeps = { ...deps({}, clock), ledger, personhood: orb() };
@@ -43,8 +43,8 @@ describe('attack: rt public-ledger observer (T-37, T-73, A-9)', () => {
     expect(await publicDump(ledger)).not.toContain(r.entitlement.key);
   });
 
-  // RT-FINDING RT-O-01
-  it('two campaigns claimed by one human (after the first bundle expired) share no ledger-visible identifier_RTFINDING', async () => {
+  // Regression RT-O-01 (fixed)
+  it('two campaigns claimed by one human (after the first bundle expired) share no ledger-visible identifier [RT-O-01]', async () => {
     const clock = fakeClock();
     const ledger = new InMemoryLedger({ now: clock.now });
     const d: TestDeps = { ...deps({}, clock), ledger, personhood: orb() };
@@ -70,7 +70,11 @@ describe('attack: rt public-ledger observer (T-37, T-73, A-9)', () => {
           .map(([, v]) => v),
       ),
     );
+    // Only what was written for B counts: A's own entities (its campaign claim record lives until campaign A
+    // ends, A-33) are still A's — re-reading them links nothing new.
+    const seenAKeys = new Set(seenA.map((e) => e.key));
     const shared = seenB
+      .filter((e) => !seenAKeys.has(e.key))
       .flatMap((e) => Object.entries(e.annotations))
       .filter(([k, v]) => k === 'key' && idsA.has(v));
     expect(shared).toEqual([]); // the sponsor of A and B must not be able to join their claim lists
@@ -78,8 +82,8 @@ describe('attack: rt public-ledger observer (T-37, T-73, A-9)', () => {
     expect(a.campaignClaimKey).not.toBe(b.campaignClaimKey);
   });
 
-  // RT-FINDING RT-O-01
-  it('the capability of a paid entitlement is not derivable from the public payment (from, nonce)_RTFINDING', async () => {
+  // Regression RT-O-01 (fixed)
+  it('the capability of a paid entitlement is not derivable from the public payment (from, nonce) [RT-O-01]', async () => {
     const d = deps();
     const offer = buildAccepts(d, 100)[0]!;
     const payment = paymentPayload(offer);

@@ -43,3 +43,30 @@ export function assertLimit(limit: number | undefined): void {
     throw new AdapterError('ledger', 'invalid_request', 'limit must be a non-negative integer');
   }
 }
+
+/**
+ * The unique (type, key) pair an ifAbsent put is keyed by (A-32); both annotations must be strings.
+ * Returns `type\u0000key`, the identity the ledger serialises on.
+ */
+export function uniqueIdentity(annotations: Annotations | undefined): string {
+  const type = annotations?.[ANN.type];
+  const key = annotations?.[ANN.key];
+  if (typeof type !== 'string' || typeof key !== 'string') {
+    throw new AdapterError(
+      'ledger',
+      'invalid_request',
+      'ifAbsent needs string `type` and `key` annotations',
+    );
+  }
+  return `${type}\u0000${key}`;
+}
+
+export const conflict = (message: string): AdapterError =>
+  new AdapterError('ledger', 'conflict', message);
+
+/** `ifVersion`, when given, must equal the entity's current version (absent ⇒ 1). */
+export function assertVersion(entity: { version?: number }, ifVersion: number | undefined): void {
+  if (ifVersion !== undefined && (entity.version ?? 1) !== ifVersion) {
+    throw conflict(`version ${entity.version ?? 1} ≠ expected ${ifVersion}`);
+  }
+}

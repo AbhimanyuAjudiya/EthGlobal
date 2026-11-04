@@ -14,7 +14,9 @@ export type GiftReclaimVerdict =
         | 'not-payer'
         | 'unknown-gift'
         | 'window-closed'
-        | 'ledger-unavailable';
+        | 'ledger-unavailable'
+        /** fee ≥ amount paid: a zero-value refund would only burn treasury gas (A-39, RT-O-09). */
+        | 'nothing-to-refund';
     };
 
 type ReclaimDeny = Extract<GiftReclaimVerdict, { kind: 'deny' }>;
@@ -24,7 +26,8 @@ const deny = (reason: ReclaimDeny['reason']): ReclaimDeny => ({ kind: 'deny', re
  * 'refund' only when: ledger ok ∧ a 'gift' receipt with network and usd6 ∧ its payer == payer ∧ no
  * 'gift-claim' (and the escrow, if still readable, is not claimed) ∧ no 'gift-reclaim' ∧ escrow gone ∧
  * now ≥ claimBy ∧ now < claimBy + GIFT_RECLAIM_WINDOW_S. claimBy = receipt.at + GIFT_CLAIM_WINDOW_S
- * (the receipt does not carry it). Amount = usd6 − min(fee, usd6); a fee ≥ usd6 refunds 0.
+ * (the receipt does not carry it). Amount = usd6 − max(fee, 0); a fee ≥ usd6 is 'nothing-to-refund' (no 0n
+ * transfer, no gift-reclaim receipt; A-39, RT-O-09).
  */
 export function decideGiftReclaim(input: {
   giftId: Hex;
@@ -49,7 +52,7 @@ export function decideGiftReclaim(input: {
   if (now < claimBy) return deny('too-early'); // the ledger dropped the escrow early (T-35)
   if (now >= claimBy + GIFT_RECLAIM_WINDOW_S * 1000) return deny('window-closed');
   const usd6 = usd6FromWire(paid.usd6);
-  const fee = input.feeUsd6 < 0n ? 0n : input.feeUsd6;
-  const feeUsd6 = fee < usd6 ? fee : usd6;
+  const feeUsd6 = input.feeUsd6 < 0n ? 0n : input.feeUsd6;
+  if (feeUsd6 >= usd6) return deny('nothing-to-refund');
   return { kind: 'refund', to: payer, network: paid.network, usd6: usd6 - feeUsd6, feeUsd6 };
 }

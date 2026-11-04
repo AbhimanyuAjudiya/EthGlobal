@@ -1,6 +1,6 @@
 /**
  * Red team (wave 1, octroi): challenge MAC and consume beyond wave1-octroi.md O3/O4 (T-20, T-21, T-32, T-35).
- * `_RTFINDING` tests (marked `// RT-FINDING`) assert the safe behaviour and fail today.
+ * The tests once filed as findings (RT-O-01…09) are passing regressions named `… [RT-O-0N]`.
  */
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
@@ -20,8 +20,8 @@ describe('attack: rt nonce entity outlives the challenge (T-20 × T-35)', () => 
   const sameClock = (n: number) => n;
   const at = (ms: number) => (clock: { set(ms: number): void }) => clock.set(T0 + ms);
 
-  // RT-FINDING RT-O-04
-  it('a challenge issued by an instance 5 s ahead (inside the skew guard) cannot be replayed on a fresh cache after 121 s_RTFINDING', async () => {
+  // Regression RT-O-04 (fixed)
+  it('a challenge issued by an instance 5 s ahead (inside the skew guard) cannot be replayed on a fresh cache after 121 s [RT-O-04]', async () => {
     // Instance A's clock is 5 s ahead: exp = T0 + 125 s, which consumeChallenge accepts (≤ TTL + 5 s); at
     // T0 + 121 s the nonce entity (expiresIn 120 from consume) is gone while the challenge is still valid.
     const r = await freshCacheReplay({
@@ -32,17 +32,17 @@ describe('attack: rt nonce entity outlives the challenge (T-20 × T-35)', () => 
     expect(r).toBe('replayed');
   });
 
-  // RT-FINDING RT-O-04
-  it('a ledger whose expiry clock runs 6 % fast (block-time drift, T-35) does not open a replay window_RTFINDING', async () => {
+  // Regression RT-O-04 (fixed)
+  it('a ledger whose expiry clock runs 6 % fast (block-time drift, T-35) does not open a replay window [RT-O-04]', async () => {
     // Arkiv expiry is counted in blocks; blocks 6 % faster than the assumed 2 s end the entity 6 % early.
     const drift = (n: number) => T0 + Math.round((n - T0) * 1.06);
     const r = await freshCacheReplay({ ledgerNow: drift, issueAt: sameClock, then: at(115_000) });
     expect(r).toBe('replayed');
   });
 
-  // RT-FINDING RT-O-04 (boundary): consumed in the issuing millisecond, the entity dies at exactly exp, while
+  // Regression RT-O-04 (fixed) (boundary): consumed in the issuing millisecond, the entity dies at exactly exp, while
   // consumeChallenge still accepts now == exp.
-  it('same clock, consumed at issue: fresh-Set replay at now == exp is refused_RTFINDING', async () => {
+  it('same clock, consumed at issue: fresh-Set replay at now == exp is refused [RT-O-04]', async () => {
     const r = await freshCacheReplay({
       ledgerNow: sameClock,
       issueAt: sameClock,
@@ -74,8 +74,8 @@ describe('attack: rt nonce entity outlives the challenge (T-20 × T-35)', () => 
     },
   );
 
-  // RT-FINDING RT-O-03 (no atomic consume across processes: the ledger port has no create-if-absent)
-  it('two API instances (two caches, one ledger) consuming one nonce concurrently: exactly one ok_RTFINDING', async () => {
+  // Regression RT-O-03 (fixed) (no atomic consume across processes: the ledger port has no create-if-absent)
+  it('two API instances (two caches, one ledger) consuming one nonce concurrently: exactly one ok [RT-O-03]', async () => {
     const ledger = new InMemoryLedger({ now: () => T0 });
     const c = challenge('recharge', '/claim', SPK, T0, SECRET);
     const rs = await Promise.all([
@@ -152,8 +152,8 @@ describe('attack: rt hostile audience / path strings in the MAC (T-21)', () => {
     expect(await consumeChallenge(ledger(), new Set(), c, SPK, T0, SECRET)).not.toBe('ok');
   });
 
-  // RT-FINDING RT-O-07
-  it('challenge() with a > 255-byte audience throws RechargeError(invalid_request), not RangeError_RTFINDING', () => {
+  // Regression RT-O-07 (fixed)
+  it('challenge() with a > 255-byte audience throws RechargeError(invalid_request), not RangeError [RT-O-07]', () => {
     let thrown: unknown;
     try {
       challenge('x'.repeat(256), '/claim', SPK, T0, SECRET);
@@ -163,9 +163,9 @@ describe('attack: rt hostile audience / path strings in the MAC (T-21)', () => {
     expect(thrown).toBeInstanceOf(RechargeError);
   });
 
-  // RT-FINDING RT-O-07
+  // Regression RT-O-07 (fixed)
   it.each([Number.NaN, 1.5, Number.POSITIVE_INFINITY])(
-    'challenge() with now = %s throws RechargeError, not RangeError_RTFINDING',
+    'challenge() with now = %s throws RechargeError, not RangeError [RT-O-07]',
     (now) => {
       let thrown: unknown;
       try {

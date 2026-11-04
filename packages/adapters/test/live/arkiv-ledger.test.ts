@@ -275,4 +275,40 @@ describe('ArkivLedger (A-23, A-24, T-35, T-79)', () => {
       () => new ArkivLedger({ client, blockTimeMs: 0, now: clock.now, writer: WRITER }),
     ).toThrow(/blockTimeMs/);
   });
+
+  it('A-32 across processes: two ArkivLedger instances racing one ifAbsent key ⇒ one winner, the loser tombstones its row [verify Wed]', async () => {
+    const clock = fakeClock();
+    const client = new FakeArkiv(clock.now, WRITER);
+    const make = () =>
+      new ArkivLedger({ client, blockTimeMs: 2000, now: clock.now, writer: WRITER });
+    const [a, b] = [make(), make()];
+    const ann = { type: 'claim', key: 'claim:x' };
+    const results = await Promise.allSettled([
+      a.put({ payload: 'a', annotations: ann, expiresIn: 60, ifAbsent: true }),
+      b.put({ payload: 'b', annotations: ann, expiresIn: 60, ifAbsent: true }),
+    ]);
+    expect(results.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected']);
+    expect(client.calls.filter((c) => c.method === 'createEntity')).toHaveLength(2);
+    expect(client.calls.some((c) => c.method === 'patchEntity')).toBe(true); // the tombstone
+    expect(await a.query({ annotations: ann })).toHaveLength(1);
+  });
+
+  it('A-32: rev is written as 1 and bumped on update; a row without rev (pre-A-32) reads as version 1', async () => {
+    const { ledger, client } = setup();
+    const { key } = await ledger.put({ payload: 'x', annotations: { type: 'gift', key: 'g' } });
+    expect(client.calls.find((c) => c.method === 'createEntity')!.args[1]).toMatchObject({
+      rev: 1n,
+    });
+    await ledger.update(key, { payload: 'y', ifVersion: 1 });
+    const patch = client.calls.find((c) => c.method === 'patchEntity')!.args[2] as {
+      set: Record<string, unknown>;
+    };
+    expect(patch.set.rev).toBe(2n);
+    const legacy = await client.createEntity(
+      'gift',
+      { payload: new TextEncoder().encode('old'), createdAtMs: BigInt(T0), type: 'gift' },
+      { expiration: { kind: 'seconds', seconds: 60 } },
+    );
+    expect((await ledger.get(legacy.entityKey))!.version).toBe(1);
+  });
 });

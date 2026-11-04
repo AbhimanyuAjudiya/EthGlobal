@@ -61,6 +61,7 @@ describe('@arkiv-network/sdk binding (A-23, A-24)', () => {
     expect(Object.keys(schemas).sort()).toEqual([
       'agentpolicy',
       'campaign',
+      'claim',
       'entitlement',
       'gift',
       'nonce',

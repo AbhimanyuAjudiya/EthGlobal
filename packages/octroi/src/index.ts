@@ -6,7 +6,18 @@ export {
   type Campaign,
   type CampaignCounters,
 } from './campaign.js';
-export { auditKey, campaignClaimKey, MIN_SECRET_BYTES, onchainClaimKey, quotaKey } from './keys.js';
+export {
+  auditKey,
+  campaignClaimKey,
+  entitlementIndex,
+  freeEntitlementKey,
+  holderHash,
+  INDEX_PREFIX,
+  MIN_SECRET_BYTES,
+  onchainClaimKey,
+  paidEntitlementKey,
+  quotaKey,
+} from './keys.js';
 export { sizeBundle } from './size.js';
 export {
   challenge,

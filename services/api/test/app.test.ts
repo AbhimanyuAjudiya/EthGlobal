@@ -170,3 +170,42 @@ describe('POST /__local/clock (MODE=local only)', () => {
     expect(h.lines.join('')).toMatch(/"hook":"clock"/);
   });
 });
+
+describe('POST /__local/world-proof (MODE=local only)', () => {
+  it('issues an IDKit-shaped result the local verifier accepts, equal to fixtureProof, and refuses bad input', async () => {
+    const { LocalClock } = await import('../src/seed.js');
+    const { createApp } = await import('../src/app.js');
+    const { fixtureProof } = await import('@ethglobal/adapters/testing');
+    const { bytesToHex, generateSessionKeypair } = await import('@ethglobal/crypto');
+    const h = await harness();
+    const app = createApp(h.deps, { localClock: new LocalClock(h.clock.now) });
+    const post = (path: string, body: unknown) =>
+      app.request(path, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-for': '198.51.100.9' },
+        body: JSON.stringify(body),
+      });
+    const spk = bytesToHex(generateSessionKeypair().publicKey);
+    const challenge = (await (
+      await post('/challenge', { audience: 'recharge', path: '/claim', sessionPubKey: spk })
+    ).json()) as { signal: `0x${string}` };
+    const res = await post('/__local/world-proof', {
+      level: 'orb',
+      signal: challenge.signal,
+      seed: 'web-sim-1',
+    });
+    expect(res.status).toBe(200);
+    const proof = (await res.json()) as Record<string, unknown>;
+    const fixture = fixtureProof('orb', challenge.signal, 'web-sim-1') as Record<string, unknown>;
+    expect({ ...proof, responses: undefined }).toEqual({ ...fixture, responses: undefined });
+    const claim = await post('/claim', {
+      proof,
+      campaignId: h.campaignId,
+      challenge,
+      sessionPubKey: spk,
+    });
+    expect(claim.status).toBe(201);
+    expect((await post('/__local/world-proof', { level: 'orb', signal: '0x12' })).status).toBe(400);
+    expect(h.lines.join('')).toMatch(/"hook":"world-proof"/);
+  });
+});

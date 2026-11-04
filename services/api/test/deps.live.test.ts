@@ -34,6 +34,9 @@ describe('buildDeps (MODE=live)', () => {
     expect(fetch).not.toHaveBeenCalled();
     const app = createApp(deps);
     expect((await app.request('/__local/clock', { method: 'POST', body: '{}' })).status).toBe(404);
+    expect((await app.request('/__local/world-proof', { method: 'POST', body: '{}' })).status).toBe(
+      404,
+    );
     expect((await app.request('/facilitator/supported')).status).toBe(404);
   });
 

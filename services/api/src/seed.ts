@@ -3,9 +3,64 @@
  * `if (… === 'local')` guard (semgrep `recharge-seed-hook-without-local-guard`); env.ts refuses SEED_* in live; in
  * live the headers are ignored and a request behaves exactly like a control request. Each use logs `seed-hook`.
  */
-import { hex32Schema } from '@ethglobal/protocol/schemas';
+import { hashToField, hexToBytes, sha256Hex } from '@ethglobal/crypto';
+import type { Hex } from '@ethglobal/protocol/ids';
+import { hex32Schema, type PersonhoodProof } from '@ethglobal/protocol/schemas';
 
 import type { Ctx } from './context.js';
+
+/** Credential levels the local World simulator can issue (POST /__local/world-proof). */
+export const SIMULATED_LEVELS = ['orb', 'document', 'device'] as const;
+export type SimulatedLevel = (typeof SIMULATED_LEVELS)[number];
+
+/**
+ * An IDKit-4-shaped result for the local MockPersonhood (MODE=local only; the PWA's "Simulated World ID"
+ * button). Same shape as adapters/testing `fixtureProof`: Orb → a V4 `proof_of_human` response, document and
+ * device → V3 legacy responses; `signal_hash = hashToField(challenge.signal)`, the nullifier is derived from
+ * `seed`, so the same seed replays the same human. The verifier never trusts the tier from here (T-22).
+ */
+export function simulatedWorldProof(
+  level: SimulatedLevel,
+  signal: Hex,
+  seed: string,
+  opts: { action: string; environment: string; nowMs: number },
+): PersonhoodProof {
+  const nullifier = sha256Hex(`nullifier:${seed}`);
+  const base = { nonce: sha256Hex(`nonce:${seed}`), action: opts.action };
+  const signal_hash = hashToField(hexToBytes(signal));
+  if (level === 'orb') {
+    return {
+      protocol_version: '4.0',
+      ...base,
+      environment: opts.environment,
+      responses: [
+        {
+          identifier: 'proof_of_human',
+          issuer_schema_id: 1,
+          nullifier: BigInt(nullifier).toString(),
+          expires_at_min: Math.floor(opts.nowMs / 1000) + 86_400,
+          proof: [0, 1, 2, 3, 4].map((i) => sha256Hex(`proof:${seed}:${i}`)),
+          signal_hash,
+        },
+      ],
+    };
+  }
+  return {
+    protocol_version: '3.0',
+    ...base,
+    environment: opts.environment,
+    responses: [
+      {
+        identifier: level,
+        merkle_root: sha256Hex(`root:${seed}`),
+        nullifier,
+        proof: sha256Hex(`proof:${seed}`),
+        signal_hash,
+        max_age: 7200,
+      },
+    ],
+  };
+}
 
 const seconds = (value: string | undefined, max: number): number | undefined => {
   if (value === undefined || !/^\d{1,9}$/.test(value)) return undefined;

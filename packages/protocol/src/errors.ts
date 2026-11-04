@@ -81,4 +81,6 @@ export const ADAPTER_CODE_MAP: Readonly<Record<string, ErrorCode>> = Object.free
   unsupported_network: 'invalid_request',
   fixture_miss: 'internal_error',
   not_implemented: 'internal_error',
+  /** Ledger create-if-absent / compare-and-swap lost (A-32): the other writer won. */
+  conflict: 'replay',
 });

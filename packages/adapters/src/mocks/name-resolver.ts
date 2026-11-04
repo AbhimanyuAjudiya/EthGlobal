@@ -14,6 +14,8 @@ export interface NameRecord {
 export const defaultNameRecords: readonly NameRecord[] = [
   { name: 'alice.eth', address: anvilAccounts[0] },
   { name: 'bob.eth', address: anvilAccounts[1] },
+  // the demo's gift recipient (DECISION §4 "gift data to a name"); Anvil #9 plays no other role
+  { name: 'rahul.eth', address: anvilAccounts[9] },
 ];
 
 /** Trim + ENSIP-15 (one implementation with the live EnsResolver); throws invalid_name. */

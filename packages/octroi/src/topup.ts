@@ -23,7 +23,8 @@ export type TopUpVerdict =
 /**
  * Evaluated top to bottom: paused → expired → already bought for this expiresAt → expiry lead → threshold
  * → ok; a candidate is refused when spentToday + stepPrice would exceed the daily cap (exactly reaching it
- * is allowed). `stepPriceUsd6` is the price of `p.stepMb`.
+ * is allowed). `stepPriceUsd6` is the price of `p.stepMb`. A step price ≤ 0, a negative spend or a non-finite
+ * `now` is malformed input and never buys (RT-O-07).
  */
 export function shouldTopUp(
   e: Entitlement,
@@ -33,6 +34,11 @@ export function shouldTopUp(
   stepPriceUsd6: bigint,
   lastExpiryBought?: number,
 ): TopUpVerdict {
+  // Untrusted numbers never buy (RT-O-07): a non-positive or unknown step price would slip the cap, a
+  // non-finite clock would skip the expiry check, a negative spend would widen the cap.
+  if (!(stepPriceUsd6 > 0n) || spentTodayUsd6 < 0n || !Number.isFinite(now)) {
+    return { buy: false, reason: 'ok' };
+  }
   if (p.paused) return { buy: false, reason: 'paused' };
   if (now >= e.expiresAt) return { buy: false, reason: 'expired' };
   const inExpiryLead = p.topUpOnExpiry && e.expiresAt - now <= p.expiryLeadS * 1000;

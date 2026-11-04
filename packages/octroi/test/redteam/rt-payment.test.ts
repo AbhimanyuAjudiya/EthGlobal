@@ -1,6 +1,6 @@
 /**
  * Red team (wave 1, octroi): paid-lane attacks beyond wave1-octroi.md O9–O11 / C4.
- * Tests suffixed `_RTFINDING` and marked `// RT-FINDING` assert the SAFE behaviour and fail today; each one is
+ * Tests named `… [RT-O-0N]` were filed as findings and are now passing regressions; each one is
  * filed in security/redteam/findings/. Every other test is a passing regression naming the property it proves.
  */
 import { describe, expect, it } from 'vitest';
@@ -88,8 +88,8 @@ const frontRunRecoveringRail = (): PaymentRail & { submissions: number } => {
 const served = (rs: Decision[]) => rs.filter((r) => r.kind === 'serve-paid');
 
 describe('attack: rt hybrid Hedera payload on an LPA route (T-32, README decision 7)', () => {
-  // RT-FINDING RT-O-02
-  it('a Hedera payment with a decoy `authorization` beside `transaction` is still refused on an LPA route_RTFINDING', async () => {
+  // Regression RT-O-02 (fixed)
+  it('a Hedera payment with a decoy `authorization` beside `transaction` is still refused on an LPA route [RT-O-02]', async () => {
     const d = { ...deps(), payments: honestHederaRail() };
     const offered = hederaOffer(d, 100, true);
     // A MITM swaps X-Session-Pubkey to its own key and adds a decoy authorization whose nonce is
@@ -116,8 +116,8 @@ describe('attack: rt hybrid Hedera payload on an LPA route (T-32, README decisio
     expect(r).toMatchObject({ kind: 'deny', reason: 'invalid-payment' });
   });
 
-  // RT-FINDING RT-O-02 (same root cause: the raw payload, not the parsed one, decides isEvmExact)
-  it('a hybrid Hedera payload whose decoy authorization has no `from` is a deny, not a thrown TypeError_RTFINDING', async () => {
+  // Regression RT-O-02 (fixed) (same root cause: the raw payload, not the parsed one, decides isEvmExact)
+  it('a hybrid Hedera payload whose decoy authorization has no `from` is a deny, not a thrown TypeError [RT-O-02]', async () => {
     const d = { ...deps(), payments: honestHederaRail() };
     const offered = hederaOffer(d);
     const hybrid = {
@@ -168,8 +168,8 @@ describe('attack: rt hybrid Hedera payload on an LPA route (T-32, README decisio
 });
 
 describe('attack: rt one payment, two serves (T-15, T-27)', () => {
-  // RT-FINDING RT-O-05
-  it('two concurrent decide() with the SAME signed payment serve at most once (front-run-recovering rail)_RTFINDING', async () => {
+  // Regression RT-O-05 (fixed)
+  it('two concurrent decide() with the SAME signed payment serve at most once (front-run-recovering rail) [RT-O-05]', async () => {
     const rail = frontRunRecoveringRail();
     const d = { ...deps(), payments: rail };
     const payment = paymentPayload(evmOffer(d));
@@ -197,8 +197,8 @@ describe('attack: rt one payment, two serves (T-15, T-27)', () => {
     expect(served(rs)).toHaveLength(1);
   });
 
-  // RT-FINDING RT-O-05 (Hedera: the same settled transaction id returned for a resubmitted payload)
-  it('the same Hedera settlement transaction is not served twice_RTFINDING', async () => {
+  // Regression RT-O-05 (fixed) (Hedera: the same settled transaction id returned for a resubmitted payload)
+  it('the same Hedera settlement transaction is not served twice [RT-O-05]', async () => {
     const d = { ...deps(), payments: honestHederaRail() };
     const payment = {
       x402Version: 2,

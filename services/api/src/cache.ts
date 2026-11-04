@@ -1,4 +1,5 @@
 import { AdapterError, isAdapterError, type Ledger } from '@ethglobal/adapters';
+import { entitlementIndex } from '@ethglobal/octroi';
 import { RechargeError } from '@ethglobal/protocol/errors';
 import { ENTITLEMENT_CACHE_S } from '@ethglobal/protocol/ids';
 import type { MeResponse } from '@ethglobal/protocol/schemas';
@@ -9,6 +10,8 @@ const MAX_ENTRIES = 10_000;
 /**
  * The 60-s read cache of GET /me/:key (T-51) — the ONLY cached read; decide() paths always hit the ledger.
  * Also remembers the expiry of every entitlement it has seen, so a vanished entity reads as 410 (not 404).
+ * Entries are keyed by `entitlementIndex(key)` (octroi A-34): a webhook only knows the ledger index of the
+ * entitlement it patches, and invalidating by it must hit the entry /me cached under the capability.
  */
 export class MeCache {
   readonly #entries = new Map<string, { me: MeResponse; at: number }>();
@@ -18,32 +21,32 @@ export class MeCache {
 
   /** A fresh entry (younger than 60 s), or undefined. */
   fresh(key: string): MeResponse | undefined {
-    const hit = this.#entries.get(key);
+    const hit = this.#entries.get(entitlementIndex(key));
     return hit && this.now() - hit.at < TTL_MS ? hit.me : undefined;
   }
 
   /** Any entry, however old (served with `degraded: true` while the ledger is down). */
   stale(key: string): MeResponse | undefined {
-    return this.#entries.get(key)?.me;
+    return this.#entries.get(entitlementIndex(key))?.me;
   }
 
   remember(key: string, me: MeResponse): void {
-    bounded(this.#entries, key, { me, at: this.now() });
+    bounded(this.#entries, entitlementIndex(key), { me, at: this.now() });
     this.seen(key, me.expiresAt);
   }
 
   /** Write-through invalidation from fulfil, top-ups and webhooks. */
   invalidate(key: string): void {
-    this.#entries.delete(key);
+    this.#entries.delete(entitlementIndex(key));
   }
 
   seen(key: string, expiresAt: number): void {
-    bounded(this.#expiries, key, expiresAt);
+    bounded(this.#expiries, entitlementIndex(key), expiresAt);
   }
 
   /** True when this key was a live entitlement that has since passed its expiry. */
   expired(key: string): boolean {
-    const at = this.#expiries.get(key);
+    const at = this.#expiries.get(entitlementIndex(key));
     return at !== undefined && at <= this.now();
   }
 }

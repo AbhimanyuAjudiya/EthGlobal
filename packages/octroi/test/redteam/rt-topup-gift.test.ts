@@ -1,6 +1,6 @@
 /**
  * Red team (wave 1, octroi): shouldTopUp (T-30, A-13/A-14) and decideGiftReclaim (T-71, D-7) beyond O13 / G.
- * `_RTFINDING` tests (marked `// RT-FINDING`) fail today.
+ * The tests once filed as findings (RT-O-01…09) are passing regressions named `… [RT-O-0N]`.
  */
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
@@ -124,9 +124,9 @@ describe('attack: rt shouldTopUp', () => {
     );
   });
 
-  // RT-FINDING RT-O-07
+  // Regression RT-O-07 (fixed)
   it.each([0n, -400_000n])(
-    'a non-positive stepPriceUsd6 (%s) is refused, not a buy that bypasses the cap_RTFINDING',
+    'a non-positive stepPriceUsd6 (%s) is refused, not a buy that bypasses the cap [RT-O-07]',
     (price) => {
       // spent is already AT the cap; the only reason this buys is that the price input was not validated.
       const v = shouldTopUp(entitlement(), policy(), 10_000_000n, T0, price);
@@ -134,16 +134,16 @@ describe('attack: rt shouldTopUp', () => {
     },
   );
 
-  // RT-FINDING RT-O-07
-  it('now = NaN is not a buy (an unparsable clock must not skip the expired check)_RTFINDING', () => {
+  // Regression RT-O-07 (fixed)
+  it('now = NaN is not a buy (an unparsable clock must not skip the expired check) [RT-O-07]', () => {
     const v = shouldTopUp(entitlement({ expiresAt: T0 - 1 }), policy(), 0n, Number.NaN, STEP);
     expect(v.buy).toBe(false);
   });
 });
 
 describe('attack: rt decideGiftReclaim', () => {
-  // RT-FINDING RT-O-09 (design)
-  it('fee ≥ paid → deny, never a zero-value refund (a 0n transfer still costs the treasury gas and writes a gift-reclaim receipt)_RTFINDING', () => {
+  // Regression RT-O-09 (fixed) (design)
+  it('fee ≥ paid → deny, never a zero-value refund (a 0n transfer still costs the treasury gas and writes a gift-reclaim receipt) [RT-O-09]', () => {
     const v = decideGiftReclaim({ ...base, feeUsd6: 4_000_000n });
     expect(v.kind).toBe('deny');
   });

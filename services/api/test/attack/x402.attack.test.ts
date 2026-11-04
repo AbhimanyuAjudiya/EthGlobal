@@ -132,10 +132,9 @@ describe('attack: 402 bypass and payment tampering (AP7)', () => {
     expect(settle).not.toHaveBeenCalled();
   });
 
-  // FINDING (README, octroi): decide() stops at verify(nonce_already_used) before the self-run facilitator's
-  // front-run recovery in settle(), so a front-run human payment answers 402: the human is not charged twice and is
-  // not served; the Transfer to payTo did happen (operator reconciles). Asserted here so a fix flips this test.
-  it('front-run: a stranger submits the human’s transferWithAuthorization first ⇒ 402 today (T-15 finding), never served twice', async () => {
+  // T-15 fixed (octroi): verify(nonce_already_used) no longer ends the paid lane — settle()'s front-run recovery
+  // returns the executed transfer and the settlement marker (A-33) serves it exactly once.
+  it('front-run: a stranger submits the human’s transferWithAuthorization first ⇒ served exactly once, never twice', async () => {
     const fake = fakeUsdcRail(() => h.clock.now());
     const h = await harness({ overrides: fake.overrides });
     const { key } = await provisioned(h);
@@ -149,21 +148,21 @@ describe('attack: 402 bypass and payment tampering (AP7)', () => {
     const { hash } = await fake.usdc
       .relayer(anvilAccounts[anvilRoles.stranger])
       .submit(fake.usdc.address, data);
-    const res = await paidWith(h, key, {
-      [PAYMENT_SIGNATURE_HEADER]: encodePaymentPayload(payload),
-    });
+    const headers = { [PAYMENT_SIGNATURE_HEADER]: encodePaymentPayload(payload) };
+    expect((await paidWith(h, key, headers)).status).toBe(200);
+    const again = await paidWith(h, key, headers);
     expect([
-      res.status,
-      ((await res.json()) as { details: { detail: string } }).details.detail,
+      again.status,
+      ((await again.json()) as { details: { detail: string } }).details.detail,
     ]).toEqual([402, 'nonce_already_used']);
     expect(fake.usdc.transfers.map((t) => t.transactionHash)).toEqual([hash]);
     expect(
       ((await (await h.get(`/me/${encodeURIComponent(key)}`)).json()) as { mbTotal: number })
         .mbTotal,
-    ).toBe(300);
+    ).toBe(400);
   });
 
-  it('the base 402 writes nothing and calls no reseller (spies at zero)', async () => {
+  it('the base 402 writes nothing and calls no reseller (spies at zero); the paid leg writes only receipts and its settlement marker', async () => {
     const h = await harness();
     const { key } = await provisioned(h);
     const put = vi.spyOn(h.adapters.ledger, 'put');
@@ -172,7 +171,7 @@ describe('attack: 402 bypass and payment tampering (AP7)', () => {
     expect(order).not.toHaveBeenCalled();
     expect(
       put.mock.calls.every(([input]) =>
-        /"receipt"|receipt/.test(JSON.stringify(input.annotations)),
+        /"receipt"|"claim"/.test(JSON.stringify(input.annotations)),
       ),
     ).toBe(true);
   });

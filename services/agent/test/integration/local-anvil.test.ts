@@ -4,8 +4,10 @@
  * against a server speaking the INTERFACES §7 contract that settles the EIP-3009 authorization on-chain through a
  * relayer (`@ethglobal/eip3009` calldata + createViemRelayer). Skipped when Foundry's `anvil` is not installed.
  *
- * TODO(api): point at services/api — replace `createFakeApi(...).app` below with the API's `createApp(...)` once it
- * serves /plans, /me/:key, /me/:key/receipts, /agent/policy/:key and /esim/topup (one line: `const app = …`).
+ * Against services/api: the same CLI path runs against the real API process (Anvil + Deploy.s.sol + the self-run
+ * facilitator) in `scripts/e2e-agent.ts`, step I-10 of `scripts/e2e-local.sh`. The in-process swap of the fixture
+ * below for the API's `createApp(...)` is not possible from this file: the eslint zone "services never import each
+ * other" bans `@ethglobal/api` and `../../../api/src/**` here, so this test keeps the §7-contract fixture.
  */
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
@@ -153,7 +155,7 @@ describe.skipIf(!hasAnvil)(
       });
       await publicClient.waitForTransactionReceipt({ hash: mint });
 
-      // TODO(api): point at services/api
+      // the real services/api runs this path in scripts/e2e-agent.ts (I-10); see the header
       const app = createFakeApi({
         ledger,
         now: Date.now,

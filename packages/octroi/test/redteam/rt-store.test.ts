@@ -1,6 +1,6 @@
 /**
- * Red team (wave 1, octroi): store-layer attacks (T-35, T-36, T-71, T-79). `_RTFINDING` tests (marked
- * `// RT-FINDING`) assert the safe behaviour and fail today. The rest prove what octroi actually relies on from
+ * Red team (wave 1, octroi): store-layer attacks (T-35, T-36, T-71, T-79). The tests once filed as
+ * findings (RT-O-03, RT-O-06) are passing regressions named `… [RT-O-0N]`. The rest prove what octroi actually relies on from
  * the ledger adapter (the guarantees listed in RT-O-03 and the wave report).
  */
 import { describe, expect, it } from 'vitest';
@@ -9,6 +9,7 @@ import { InMemoryLedger } from '@ethglobal/adapters';
 import { fakeClock, T0 } from '@ethglobal/adapters/testing';
 import { ANN, keys, type Hex } from '@ethglobal/protocol/ids';
 
+import { entitlementIndex } from '../../src/index.js';
 import {
   AgentPolicyStore,
   EntitlementStore,
@@ -23,8 +24,8 @@ const DAY = 86_400_000;
 const KEY = `ent:v1:0x${'d1'.repeat(32)}`;
 
 describe('attack: rt store read-modify-write without compare-and-swap', () => {
-  // RT-FINDING RT-O-06
-  it('GiftStore.markClaimed: two concurrent claims of one gift with different entitlement keys → at most one succeeds_RTFINDING', async () => {
+  // Regression RT-O-06 (fixed)
+  it('GiftStore.markClaimed: two concurrent claims of one gift with different entitlement keys → at most one succeeds [RT-O-06]', async () => {
     const clock = fakeClock();
     const ledger = networked(new InMemoryLedger({ now: clock.now }));
     const gifts = new GiftStore(ledger, clock.now);
@@ -48,8 +49,8 @@ describe('attack: rt store read-modify-write without compare-and-swap', () => {
     });
   });
 
-  // RT-FINDING RT-O-06
-  it('EntitlementStore.patch: a concurrent usage patch does not erase a paid top-up (lost update)_RTFINDING', async () => {
+  // Regression RT-O-06 (fixed)
+  it('EntitlementStore.patch: a concurrent usage patch does not erase a paid top-up (lost update) [RT-O-06]', async () => {
     const clock = fakeClock();
     const ledger = networked(new InMemoryLedger({ now: clock.now }));
     const store = new EntitlementStore(ledger, clock.now);
@@ -62,8 +63,8 @@ describe('attack: rt store read-modify-write without compare-and-swap', () => {
     expect(after?.payload).toMatchObject({ mbTotal: 400, mbUsed: 250 });
   });
 
-  // RT-FINDING RT-O-03
-  it('EntitlementStore.create: two concurrent creates of one logical key → exactly one entity_RTFINDING', async () => {
+  // Regression RT-O-03 (fixed)
+  it('EntitlementStore.create: two concurrent creates of one logical key → exactly one entity [RT-O-03]', async () => {
     const clock = fakeClock();
     const base = new InMemoryLedger({ now: clock.now });
     const store = new EntitlementStore(networked(base), clock.now);
@@ -71,9 +72,11 @@ describe('attack: rt store read-modify-write without compare-and-swap', () => {
       store.create(entitlement({ key: KEY, campaignId: `0x${'aa'.repeat(32)}` })),
       store.create(entitlement({ key: KEY, campaignId: `0x${'bb'.repeat(32)}` })),
     ]);
-    const rows = await base.query({ annotations: { [ANN.type]: 'entitlement', [ANN.key]: KEY } });
+    const rows = await base.query({
+      annotations: { [ANN.type]: 'entitlement', [ANN.key]: entitlementIndex(KEY) },
+    });
     expect(rows).toHaveLength(1);
-    // Consequence today: every later read of the key throws internal_error (the human is locked out until expiry).
+    // Before the fix both rows were written and every later read threw internal_error (lock-out until expiry).
     await expect(store.getByKey(KEY)).resolves.not.toBeNull();
   });
 
@@ -133,7 +136,11 @@ describe('attack: rt forged / conflicting entities (T-79, T-36)', () => {
     await ents.create(entitlement({ key: KEY }));
     await forge(
       ledger,
-      { [ANN.type]: 'entitlement', [ANN.key]: `${KEY}x`, [ANN.expiresAt]: T0 + DAY },
+      {
+        [ANN.type]: 'entitlement',
+        [ANN.key]: entitlementIndex(`${KEY}x`),
+        [ANN.expiresAt]: T0 + DAY,
+      },
       entitlement({ key: KEY }),
       3600,
     );
@@ -141,7 +148,7 @@ describe('attack: rt forged / conflicting entities (T-79, T-36)', () => {
     expect(await ents.getByKey(KEY)).not.toBeNull();
     await forge(
       ledger,
-      { [ANN.type]: 'entitlement', [ANN.key]: KEY, [ANN.expiresAt]: T0 + DAY },
+      { [ANN.type]: 'entitlement', [ANN.key]: entitlementIndex(KEY), [ANN.expiresAt]: T0 + DAY },
       'not json',
       3600,
     );
@@ -157,13 +164,13 @@ describe('attack: rt forged / conflicting entities (T-79, T-36)', () => {
     const ents = new EntitlementStore(base, clock.now);
     await forge(
       base,
-      { [ANN.type]: 'entitlement', [ANN.key]: KEY, [ANN.expiresAt]: T0 + 1 },
+      { [ANN.type]: 'entitlement', [ANN.key]: entitlementIndex(KEY), [ANN.expiresAt]: T0 + 1 },
       entitlement({ key: KEY }),
       3600,
     );
     await forge(
       base,
-      { [ANN.type]: 'entitlement', [ANN.key]: KEY, [ANN.expiresAt]: T0 + 2 },
+      { [ANN.type]: 'entitlement', [ANN.key]: entitlementIndex(KEY), [ANN.expiresAt]: T0 + 2 },
       entitlement({ key: KEY }),
       3600,
     );
@@ -174,7 +181,11 @@ describe('attack: rt forged / conflicting entities (T-79, T-36)', () => {
     for (const at of [T0 + 1, T0 + 2]) {
       raw.push({
         payload: JSON.stringify(entitlement({ key: KEY })),
-        annotations: { [ANN.type]: 'entitlement', [ANN.key]: KEY, [ANN.expiresAt]: at },
+        annotations: {
+          [ANN.type]: 'entitlement',
+          [ANN.key]: entitlementIndex(KEY),
+          [ANN.expiresAt]: at,
+        },
       });
     }
     const leaky = ledgerWith(base, {
@@ -203,7 +214,11 @@ describe('attack: rt expiry semantics at the store (T-35)', () => {
     // ledger lifetime is ceil(1 s) — make the ledger keep it longer, as Arkiv's block rounding does:
     await forge(
       ledger,
-      { [ANN.type]: 'entitlement', [ANN.key]: `${KEY}2`, [ANN.expiresAt]: T0 + 1000 },
+      {
+        [ANN.type]: 'entitlement',
+        [ANN.key]: entitlementIndex(`${KEY}2`),
+        [ANN.expiresAt]: T0 + 1000,
+      },
       entitlement({ key: `${KEY}2`, expiresAt: T0 + 1000 }),
       3600,
     );
@@ -243,7 +258,7 @@ describe('attack: rt expiry semantics at the store (T-35)', () => {
     expect(out.payload.key).toBe(KEY);
     expect(out.payload.v).toBe(1);
     const [row] = await ledger.query({
-      annotations: { [ANN.type]: 'entitlement', [ANN.key]: KEY },
+      annotations: { [ANN.type]: 'entitlement', [ANN.key]: entitlementIndex(KEY) },
     });
     expect(row!.annotations[ANN.kind]).toBe('paid');
   });

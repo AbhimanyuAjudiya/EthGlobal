@@ -4570,7 +4570,8 @@
                                 ]
                               }
                             },
-                            "required": ["signature", "authorization"]
+                            "required": ["signature", "authorization"],
+                            "additionalProperties": false
                           },
                           {
                             "type": "object",
@@ -4583,7 +4584,8 @@
                                 "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$"
                               }
                             },
-                            "required": ["transaction"]
+                            "required": ["transaction"],
+                            "additionalProperties": false
                           }
                         ]
                       },
@@ -4855,7 +4857,8 @@
                                 ]
                               }
                             },
-                            "required": ["signature", "authorization"]
+                            "required": ["signature", "authorization"],
+                            "additionalProperties": false
                           },
                           {
                             "type": "object",
@@ -4868,7 +4871,8 @@
                                 "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$"
                               }
                             },
-                            "required": ["transaction"]
+                            "required": ["transaction"],
+                            "additionalProperties": false
                           }
                         ]
                       },

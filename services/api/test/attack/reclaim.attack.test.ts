@@ -66,12 +66,13 @@ describe('attack: reclaim (AP11)', () => {
     ).toBe('replay');
   });
 
-  it('day 31 after a 7-day gift: the gift receipt (RECEIPT_TTL_S = 30 d) is gone ⇒ 404 unknown-gift (FINDING, protocol constant; see README)', async () => {
+  // T-71e fixed (protocol A-36): RECEIPT_TTL_S = claim window + reclaim window + 1 d = 38 d, so the receipt is there.
+  it('day 31 after a 7-day gift: the gift receipt (RECEIPT_TTL_S = 38 d) is still there ⇒ reclaimed', async () => {
     const h = await harness();
     const gift = await buyGift(h, 'bob.eth', 100);
     h.clock.advance(31 * DAY);
     const res = await reclaimGift(h, gift.giftId);
-    expect(await reasonOf(res)).toEqual([404, 'unknown-gift']);
+    expect(res.status).toBe(200);
   });
 
   it('a Hedera-account payer cannot sign GiftReclaim{payer: address} ⇒ 400 (documented: Hedera-paid gifts are not reclaimable)', async () => {

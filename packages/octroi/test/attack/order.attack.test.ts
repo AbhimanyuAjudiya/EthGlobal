@@ -30,10 +30,14 @@ describe('attack: O7 nothing burns a verification before the cheap checks (T-24,
 });
 
 describe('attack: O8 decide() persists nothing (T-25)', () => {
-  it('after serve-free the ledger holds the consumed nonce and no entitlement', async () => {
+  it('after serve-free the ledger holds the consumed nonce, the two claim locks (A-33) and no entitlement', async () => {
     const d = deps();
     expect((await decide(freeReq(d), d)).kind).toBe('serve-free');
     expect(await d.ledger.query({ annotations: { type: 'entitlement' } })).toHaveLength(0);
-    expect(await d.ledger.query({})).toHaveLength(1);
+    expect((await d.ledger.query({})).map((e) => e.annotations.type)).toEqual([
+      'nonce',
+      'claim',
+      'claim',
+    ]);
   });
 });

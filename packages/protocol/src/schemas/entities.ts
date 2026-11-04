@@ -42,6 +42,11 @@ export const entitlementSchema = z
     sealedRef: z.string().max(200).optional(),
     payer: z.string().max(64).optional(),
     network: caipNetworkSchema.optional(),
+    /**
+     * sha256(utf8(key) ‖ sessionPubKey) of the session that obtained it (A-35, T-73 b): proves "holder of this
+     * session" for the first agent-policy registration. Bound to the key, so it links nothing across entitlements.
+     */
+    holderHash: hex32Schema.optional(),
     createdAt: msSchema,
     expiresAt: msSchema,
   })
@@ -50,7 +55,8 @@ export const entitlementSchema = z
     path: ['mbUsed'],
   });
 export type Entitlement = z.infer<typeof entitlementSchema>;
-// annotations: { type:'entitlement', key, kind, status, tier, campaignId?, iccidHash?, expiresAt }
+// annotations: { type:'entitlement', key: 'hk:' + sha256(utf8(key)), kind, status, tier, campaignId?, iccidHash?, expiresAt }
+// payload.key on the ledger is the same 'hk:' index, never the capability (A-34, RT-O-01).
 // expiresIn: secondsUntil(expiresAt, now)
 
 /** paused/budget/spent live on-chain, never here. */
@@ -124,10 +130,27 @@ export const nonceSchema = z.object({
   audience: z.string().max(32),
   path: z.string().max(64),
   exp: msSchema,
+  /** exp − CHALLENGE_TTL_S × 1000 (A-37, RT-O-04). */
+  issuedAt: msSchema.optional(),
   consumedAt: msSchema,
 });
 export type NoncePayload = z.infer<typeof nonceSchema>;
-// annotations: { type:'nonce', key: keys.nonce(nonce), nonce } ; expiresIn: CHALLENGE_TTL_S. Written on consume (T-45).
+// annotations: { type:'nonce', key: keys.nonce(nonce), nonce } ; expiresIn: NONCE_TTL_S (≥ acceptance window + skew,
+// A-37). Written on consume (T-45), create-if-absent (A-32).
+
+/**
+ * A claim lock or settlement marker (A-33): written create-if-absent so the ledger, not the process, is the
+ * one-claim / one-serve guard. Its key is `claim:` + an opaque digest; it carries no identifier.
+ */
+export const claimSchema = z.object({
+  v: z.literal(1),
+  /** keys.claim(digest) */
+  key: z.string().startsWith('claim:').max(80),
+  scope: z.enum(['free-live', 'free-campaign', 'settlement']),
+  expiresAt: msSchema,
+});
+export type ClaimLock = z.infer<typeof claimSchema>;
+// annotations: { type:'claim', key: keys.claim(digest), expiresAt } ; expiresIn: secondsUntil(expiresAt)
 
 export const receiptKindSchema = z.enum([
   'claim',

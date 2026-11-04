@@ -12,7 +12,10 @@ import {
   annotationAlive,
   assertExpiresIn,
   assertLimit,
+  assertVersion,
+  conflict,
   matchesAnnotations,
+  uniqueIdentity,
 } from '../ledger-rules.js';
 import { guard } from './errors.js';
 
@@ -23,6 +26,7 @@ import type {
   LedgerPutInput,
   LedgerPutResult,
   LedgerQuery,
+  LedgerUpdatePatch,
 } from '../types.js';
 
 /** Arkiv's lifetime cap (blocks) and the attribute size cap of a bytes column (A-24). */
@@ -60,7 +64,7 @@ export interface ArkivRow {
   creator: Address;
   /** Block number at which the entity expires (`$expiresAt`). */
   expiresAt: bigint;
-  /** `payload` (UTF-8 bytes), `createdAtMs` (u64) and the annotation attributes. */
+  /** `payload` (UTF-8 bytes), `createdAtMs` (u64), `rev` (u64, A-32) and the annotation attributes. */
   values: Record<string, ArkivAttribute | Uint8Array>;
 }
 
@@ -118,6 +122,8 @@ export class ArkivLedger implements Ledger {
   readonly #writer: Address;
   readonly #logger: Pick<Console, 'info' | 'warn'> | undefined;
   #lastDriftLog = Number.NEGATIVE_INFINITY;
+  /** Per-identity tails: ifAbsent puts and updates of one key run one at a time in this process (A-32). */
+  readonly #tails = new Map<string, Promise<void>>();
 
   constructor(opts: ArkivLedgerOptions) {
     if (!opts.writer || !isAddress(opts.writer, { strict: false })) {
@@ -140,8 +146,53 @@ export class ArkivLedger implements Ledger {
 
   async put(input: LedgerPutInput): Promise<LedgerPutResult> {
     assertExpiresIn(input.expiresIn);
+    if (input.ifAbsent !== true) return this.#create(input);
+    const id = uniqueIdentity(input.annotations);
+    return this.#serial(`put\u0000${id}`, () => this.#createIfAbsent(input));
+  }
+
+  /**
+   * Create-if-absent (A-32). In-process it is exact (serialised per (type, key)). Across processes Arkiv has no
+   * conditional create [verify Wed]: after writing, the row set is re-read and the oldest (createdAt, key) wins;
+   * a loser tombstones its own row (`expiresAt` annotation = 1, dead under the two-clock rule, T-35) and throws
+   * `conflict`. Two writers that cannot yet see each other's row (indexer lag) can both win: stated in DISCLOSURE.
+   */
+  async #createIfAbsent(input: LedgerPutInput): Promise<LedgerPutResult> {
+    const annotations = input.annotations!;
+    const wanted: Annotations = {
+      [ANN.type]: annotations[ANN.type]!,
+      [ANN.key]: annotations[ANN.key]!,
+    };
+    const taken = () =>
+      conflict(`a live ${String(wanted[ANN.type])} ${String(wanted[ANN.key])} exists`);
+    if ((await this.query({ annotations: wanted, limit: 1 })).length > 0) throw taken();
+    const created = await this.#create(input);
+    const [winner] = await this.query({ annotations: wanted });
+    if (winner !== undefined && winner.key !== created.key) {
+      await this.#update(created.key, { annotations: { ...annotations, [ANN.expiresAt]: 1 } });
+      throw taken();
+    }
+    return created;
+  }
+
+  async #serial<T>(id: string, run: () => Promise<T>): Promise<T> {
+    const before = this.#tails.get(id) ?? Promise.resolve();
+    const result = before.then(run);
+    const tail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.#tails.set(id, tail);
+    try {
+      return await result;
+    } finally {
+      if (this.#tails.get(id) === tail) this.#tails.delete(id);
+    }
+  }
+
+  async #create(input: LedgerPutInput): Promise<LedgerPutResult> {
     const type = typeOf(input.annotations);
-    const values = encodeValues(input.payload, input.annotations ?? {}, this.#now());
+    const values = encodeValues(input.payload, input.annotations ?? {}, this.#now(), 1);
     const blocks =
       input.expiresIn === undefined ? ARKIV_MAX_LIFETIME_BLOCKS : this.blocksFor(input.expiresIn);
     if (blocks > ARKIV_MAX_LIFETIME_BLOCKS)
@@ -202,18 +253,37 @@ export class ArkivLedger implements Ledger {
 
   async update(
     key: string,
-    patch: { payload?: string; annotations?: Annotations },
+    patch: LedgerUpdatePatch,
     expiresIn?: number,
   ): Promise<LedgerPutResult> {
     assertExpiresIn(expiresIn);
+    return this.#serial(`update\u0000${key}`, () => this.#update(key, patch, expiresIn));
+  }
+
+  /**
+   * Read, compare `rev` (ifVersion), patch with rev + 1. Exact within this process (serialised per entity key);
+   * across processes the read and the patch are two RPCs [verify Wed: Arkiv's entity update has no precondition],
+   * so a cross-process CAS can still lose an update inside one block — stated in DISCLOSURE (single writer process).
+   */
+  async #update(
+    key: string,
+    patch: LedgerUpdatePatch,
+    expiresIn?: number,
+  ): Promise<LedgerPutResult> {
     const current = await this.get(key);
     if (!current) throw new AdapterError('ledger', 'not_found', `no live entity ${key}`);
+    assertVersion(current, patch.ifVersion);
     const type = typeOf(current.annotations);
     const annotations = patch.annotations ?? current.annotations;
     if (patch.annotations !== undefined && typeOf(patch.annotations) !== type) {
       throw invalid('update cannot change the entity type (its schema)');
     }
-    const next = encodeValues(patch.payload ?? current.payload, annotations, current.createdAt);
+    const next = encodeValues(
+      patch.payload ?? current.payload,
+      annotations,
+      current.createdAt,
+      (current.version ?? 1) + 1,
+    );
     const unset = Object.keys(current.annotations)
       .filter((name) => !(name in annotations))
       .map(arkivAttribute);
@@ -304,6 +374,7 @@ function encodeValues(
   payload: string,
   annotations: Annotations,
   createdAt: number,
+  version: number,
 ): Record<string, ArkivAttribute | Uint8Array> {
   const bytes = new TextEncoder().encode(payload);
   if (bytes.length > ARKIV_MAX_PAYLOAD_BYTES) {
@@ -316,6 +387,7 @@ function encodeValues(
   const values: Record<string, ArkivAttribute | Uint8Array> = {
     payload: bytes,
     createdAtMs: BigInt(createdAt),
+    rev: BigInt(version),
   };
   for (const [name, value] of Object.entries(annotations))
     values[arkivAttribute(name)] = encodeValue(name, value);
@@ -336,7 +408,7 @@ function encodeFilter(wanted: Annotations): Record<string, ArkivAttribute> | nul
 }
 
 function decodeRow(row: ArkivRow, expiresAt: number): LedgerEntity | null {
-  const { payload, createdAtMs, ...rest } = row.values;
+  const { payload, createdAtMs, rev, ...rest } = row.values;
   if (!(payload instanceof Uint8Array) || typeof createdAtMs !== 'bigint') return null;
   const annotations: Annotations = {};
   for (const [attribute, value] of Object.entries(rest)) {
@@ -351,5 +423,6 @@ function decodeRow(row: ArkivRow, expiresAt: number): LedgerEntity | null {
     annotations,
     createdAt: Number(createdAtMs),
     expiresAt,
+    version: typeof rev === 'bigint' ? Number(rev) : 1, // rows written before A-32 read as revision 1
   };
 }

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { MockPersonhood, type LedgerPutInput } from '@ethglobal/adapters';
 import { fixtureProof } from '@ethglobal/adapters/testing';
-import { keys, WORLD_ACTION, type Hex } from '@ethglobal/protocol/ids';
+import { WORLD_ACTION, type Hex } from '@ethglobal/protocol/ids';
 
 import {
   campaign,
@@ -24,7 +24,7 @@ import {
   consumeChallenge,
   decide,
   onchainClaimKey,
-  quotaKey,
+  freeEntitlementKey,
   signalFor,
 } from '../../src/index.js';
 
@@ -48,7 +48,7 @@ describe('attack: O1 nullifier replay (T-18)', () => {
     const id = campaign().id as Hex;
     expect(r).toMatchObject({
       claimKey: onchainClaimKey(id, campaignClaimKey(auditKey(SECRET, id), NULLIFIER)),
-      entitlement: { key: keys.entitlementFree(quotaKey(SECRET, NULLIFIER)) },
+      entitlement: { key: freeEntitlementKey(SECRET, id, NULLIFIER) },
     });
   });
 });
@@ -108,14 +108,14 @@ describe('attack: O3 challenge forgery, replay, expiry, fail-closed, double-cons
     expect(rs.filter((r) => r === 'ok')).toHaveLength(1);
   });
 
-  it('issuing writes nothing (D-3); consuming writes exactly one nonce entity with expiresIn 120', async () => {
+  it('issuing writes nothing (D-3); consuming writes exactly one nonce entity with expiresIn NONCE_TTL_S (A-37)', async () => {
     const d = deps();
     const c = ch();
     expect(await d.ledger.query({})).toHaveLength(0);
     await consumeChallenge(d.ledger, new Set(), c, SPK, T0, SECRET);
     const es = await d.ledger.query({ annotations: { type: 'nonce' } });
     expect(es).toHaveLength(1);
-    expect(es[0]!.expiresAt).toBe(T0 + 120_000);
+    expect(es[0]!.expiresAt).toBe(T0 + 300_000);
   });
 });
 

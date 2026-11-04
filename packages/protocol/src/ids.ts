@@ -51,6 +51,11 @@ export const MAX_BUNDLE_MB = 300;
 export const MAX_MB_PER_PURCHASE = 3000;
 export const DEFAULT_VALIDITY_DAYS = 7;
 export const CHALLENGE_TTL_S = 120;
+/**
+ * Lifetime of a consumed-nonce entity (A-37, RT-O-04): ≥ the longest acceptance window (TTL + 5 s skew guard) plus
+ * margin for a fast ledger clock (block drift, T-35). 2.5 × TTL = 300 s.
+ */
+export const NONCE_TTL_S = 300;
 export const PAYMENT_VALIDITY_S = 300;
 export const WEBHOOK_WINDOW_S = 300;
 export const ENTITLEMENT_CACHE_S = 60;
@@ -58,7 +63,11 @@ export const ENTITLEMENT_CACHE_S = 60;
 export const GIFT_CLAIM_WINDOW_S = 7 * 86_400;
 /** After claimBy the sender may reclaim while the gift receipt still exists. */
 export const GIFT_RECLAIM_WINDOW_S = 30 * 86_400;
-export const RECEIPT_TTL_S = 30 * 86_400;
+/**
+ * Receipts must outlive the whole gift life: claim window + reclaim window + 1 day of margin (T-71e, A-36), so a
+ * reclaim on day 37 still finds its 'gift' receipt.
+ */
+export const RECEIPT_TTL_S = GIFT_CLAIM_WINDOW_S + GIFT_RECLAIM_WINDOW_S + 86_400;
 export const AGENT_POLICY_TTL_S = 30 * 86_400;
 export const KEY_VERSION = 'v1';
 
@@ -69,6 +78,8 @@ export const ENTITY_TYPES = [
   'nonce',
   'receipt',
   'agentpolicy',
+  /** Claim locks and settlement markers (A-33): `{ v, scope }`, key = `claim:` + an opaque hash. */
+  'claim',
 ] as const;
 export type EntityType = (typeof ENTITY_TYPES)[number];
 
@@ -104,6 +115,7 @@ export const KEY_PREFIXES = {
   receipt: 'rcpt:',
   campaign: 'camp:',
   agentPolicy: 'policy:',
+  claim: 'claim:',
 } as const;
 
 const P = KEY_PREFIXES;
@@ -118,6 +130,8 @@ export const keys = {
   receipt: (network: string, tx: string) => `${P.receipt}${network}:${tx.toLowerCase()}`,
   campaign: (id: Hex) => `${P.campaign}${id.toLowerCase()}`,
   agentPolicy: (entitlementKey: string) => `${P.agentPolicy}${entitlementKey}`,
+  /** `digest` is already an opaque hash (HMAC or sha256): claim keys never carry an identifier in clear. */
+  claim: (digest: Hex) => `${P.claim}${digest.toLowerCase()}`,
 } as const;
 
 /** UTC day bucket for the agent's daily cap (T-30: "day is UTC and stated"). */

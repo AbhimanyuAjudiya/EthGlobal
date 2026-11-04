@@ -9,7 +9,7 @@ import { NonceStore } from '../../src/store/index.js';
 import { forge, SECRET, SPK, T0 } from '../helpers.js';
 
 describe('NonceStore', () => {
-  it('consume then consumed; after the TTL the store forgets but the MAC still says expired', async () => {
+  it('consume then consumed; after NONCE_TTL_S (A-37) the store forgets but the MAC still says expired', async () => {
     const clock = fakeClock();
     const ledger = new InMemoryLedger({ now: clock.now });
     const store = new NonceStore(ledger, clock.now);
@@ -21,10 +21,15 @@ describe('NonceStore', () => {
     );
     const [row] = await ledger.query({ annotations: { type: 'nonce' } });
     expect(row).toMatchObject({
-      expiresAt: T0 + 120_000,
+      expiresAt: T0 + 300_000,
       annotations: { key: `nonce:${c.nonce}`, nonce: c.nonce },
     });
+    expect(JSON.parse(row!.payload)).toMatchObject({ issuedAt: T0, exp: T0 + 120_000 });
+    await expect(store.consume(c, T0)).rejects.toMatchObject({ code: 'replay' }); // create-if-absent
     clock.advance(121_000);
+    expect(await store.consumed(c.nonce)).toBe(true); // still held after the challenge died
+    expect(await consumeChallenge(ledger, new Set(), c, SPK, clock.now(), SECRET)).toBe('expired');
+    clock.advance(180_000);
     expect(await store.consumed(c.nonce)).toBe(false);
     expect(await consumeChallenge(ledger, new Set(), c, SPK, clock.now(), SECRET)).toBe('expired');
   });

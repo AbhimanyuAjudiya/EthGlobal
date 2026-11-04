@@ -13,6 +13,7 @@ import {
   timingSafeEqual,
   utf8,
 } from '@ethglobal/crypto';
+import { RechargeError } from '@ethglobal/protocol/errors';
 import {
   CHALLENGE_PATHS,
   CHALLENGE_TTL_S,
@@ -47,7 +48,9 @@ const MAX_FIELD_BYTES = 255;
  */
 function field(s: string): Uint8Array {
   const bytes = utf8(s);
-  if (bytes.length > MAX_FIELD_BYTES) throw new RangeError('challenge field too long');
+  if (bytes.length > MAX_FIELD_BYTES) {
+    throw new RechargeError('invalid_request', 'challenge field too long'); // typed (RT-O-07)
+  }
   return concat(Uint8Array.of(bytes.length), bytes);
 }
 
@@ -75,6 +78,9 @@ function tagFor(
   ).slice(0, TAG_BYTES);
 }
 
+/** A clock reading octroi accepts: a non-negative safe integer of ms (NaN / 1.5 / ∞ are malformed, RT-O-07). */
+const validClock = (ms: number): boolean => Number.isSafeInteger(ms) && ms >= 0;
+
 /** keccak256(nonce bytes ‖ utf8(audience)): the IDKit signal (T-19). */
 export function signalFor(nonce: Hex, audience: string): Hex {
   return keccak256(concat(hexToBytes(nonce), utf8(audience)));
@@ -89,6 +95,9 @@ export function challenge(
   secret: Uint8Array,
 ): Challenge {
   assertSecret(secret);
+  if (typeof audience !== 'string' || typeof path !== 'string' || !validClock(now)) {
+    throw new RechargeError('invalid_request', 'challenge needs string fields and a clock in ms'); // RT-O-07
+  }
   const exp = now + TTL_MS;
   const random = randomBytes(RANDOM_BYTES);
   const nonce = bytesToHex(
@@ -104,6 +113,7 @@ function checkMac(
   now: number,
   secret: Uint8Array,
 ): ConsumeResult {
+  if (!validClock(now)) return 'invalid'; // NaN would pass both expiry comparisons
   try {
     if (!NONCE_PATTERN.test(c.nonce) || !CHALLENGE_PATHS.includes(c.path)) return 'invalid';
     if (!Number.isSafeInteger(c.exp) || c.exp < 0) return 'invalid';
@@ -115,6 +125,7 @@ function checkMac(
   } catch {
     return 'invalid';
   }
+  // `now == exp` is still inside the window; the nonce entity outlives it by NONCE_TTL_S (A-37, RT-O-04).
   if (now > c.exp) return 'expired';
   if (c.exp - now > MAX_REMAINING_MS) return 'invalid';
   return 'ok';
@@ -122,8 +133,9 @@ function checkMac(
 
 /**
  * MAC + session key + exp, then the in-memory set SYNCHRONOUSLY before any await (T-20 concurrent
- * double-consume), then the ledger; the nonce entity is written before 'ok'. On a ledger failure the nonce
- * stays in the cache and the result is 'unavailable' ⇒ the caller denies (fail closed).
+ * double-consume), then the ledger; the nonce entity is written create-if-absent before 'ok', so two processes
+ * (two caches, one ledger) consuming one nonce get exactly one 'ok' (A-32, RT-O-03). On a ledger failure the
+ * nonce stays in the cache and the result is 'unavailable' ⇒ the caller denies (fail closed).
  */
 export async function consumeChallenge(
   ledger: Ledger,
@@ -143,8 +155,8 @@ export async function consumeChallenge(
   try {
     if (await store.consumed(c.nonce)) return 'replayed';
     await store.consume(c, now);
-  } catch {
-    return 'unavailable';
+  } catch (error) {
+    return error instanceof RechargeError && error.code === 'replay' ? 'replayed' : 'unavailable';
   }
   return 'ok';
 }

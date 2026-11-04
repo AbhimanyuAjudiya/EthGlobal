@@ -117,6 +117,12 @@
       "exp": 1793707320000,
       "consumedAt": 1793707205000
     },
+    "claimSchema": {
+      "v": 1,
+      "key": "claim:0x7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c",
+      "scope": "free-live",
+      "expiresAt": 1762300000000
+    },
     "receiptSchema": {
       "v": 1,
       "key": "rcpt:eip155:31337:0x7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b",

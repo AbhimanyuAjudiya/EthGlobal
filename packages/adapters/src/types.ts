@@ -44,6 +44,22 @@ export interface LedgerEntity {
   createdAt: number;
   /** ms since epoch, or null when the entity never expires */
   expiresAt: number | null;
+  /**
+   * Revision, maintained by the ledger (A-32): 1 on put, +1 on every update. Pass it back as
+   * `update(…, { ifVersion })` for a compare-and-swap. Absent only on hand-built entities (read as 1).
+   */
+  version?: number;
+}
+
+/** The atomic primitives of the Ledger port (A-32, RT-O-03/05/06). */
+export interface LedgerUpdatePatch {
+  payload?: string;
+  annotations?: Annotations;
+  /**
+   * Compare-and-swap: the update applies only if the live entity's `version` still equals this, else
+   * AdapterError('ledger', 'conflict') and nothing changes.
+   */
+  ifVersion?: number;
 }
 
 export interface LedgerPutInput {
@@ -54,6 +70,12 @@ export interface LedgerPutInput {
    * `expiration: ExpirationTime.fromSeconds(ceil(s / 2) × 2)` (whole 2-s blocks, A-24).
    */
   expiresIn?: number;
+  /**
+   * Create-if-absent (A-32): when true, the put fails with AdapterError('ledger', 'conflict') if a live entity
+   * of this writer already carries the same `type` and `key` annotations (both required, strings). Exactly one
+   * of N concurrent ifAbsent puts of one (type, key) succeeds.
+   */
+  ifAbsent?: boolean;
 }
 
 export interface LedgerPutResult {
@@ -71,12 +93,11 @@ export interface Ledger {
   put(input: LedgerPutInput): Promise<LedgerPutResult>;
   get(key: string): Promise<LedgerEntity | null>;
   query(query?: LedgerQuery): Promise<LedgerEntity[]>;
-  /** Replace payload and/or annotations; reset the lifetime when expiresIn is given. The returned key may differ (Arkiv); callers re-index by ANN.key. */
-  update(
-    key: string,
-    patch: { payload?: string; annotations?: Annotations },
-    expiresIn?: number,
-  ): Promise<LedgerPutResult>;
+  /**
+   * Replace payload and/or annotations; reset the lifetime when expiresIn is given; bump `version`. With
+   * `patch.ifVersion`, a compare-and-swap (A-32). The returned key may differ (Arkiv); callers re-index by ANN.key.
+   */
+  update(key: string, patch: LedgerUpdatePatch, expiresIn?: number): Promise<LedgerPutResult>;
 }
 
 // ───────────────────────────── Personhood (modelled on World ID IDKit 4) ─────────────────────────────

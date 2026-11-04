@@ -217,7 +217,7 @@ export default function ComponentGallery() {
           encoder.
         </p>
         <nav className="flex flex-wrap gap-4 font-mono text-13">
-          <Link className="text-accent" href="/">
+          <Link className="text-accent" href="/ui/tokens">
             Token sheet
           </Link>
           <Link className="text-accent" href="/ui/print?count=10">

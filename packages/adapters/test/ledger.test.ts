@@ -16,6 +16,7 @@ describe('InMemoryLedger', () => {
       annotations: { type: 'receipt', amount: 5 },
       createdAt: T0,
       expiresAt: null,
+      version: 1,
     });
     expect(await ledger.get('ent_999999')).toBeNull();
   });

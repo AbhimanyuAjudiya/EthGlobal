@@ -3,16 +3,19 @@ import {
   annotationAlive,
   assertExpiresIn,
   assertLimit,
+  assertVersion,
+  conflict,
   matchesAnnotations,
+  uniqueIdentity,
 } from '../ledger-rules.js';
 
 import type {
-  Annotations,
   Ledger,
   LedgerEntity,
   LedgerPutInput,
   LedgerPutResult,
   LedgerQuery,
+  LedgerUpdatePatch,
 } from '../types.js';
 
 export interface InMemoryLedgerOptions {
@@ -56,8 +59,16 @@ export class InMemoryLedger implements Ledger {
     return new InMemoryLedger({ now: this.#now, writer }, this.#store);
   }
 
+  /** ifAbsent is checked and written in one synchronous step: atomic within the process (A-32). */
   async put(input: LedgerPutInput): Promise<LedgerPutResult> {
     assertExpiresIn(input.expiresIn);
+    if (input.ifAbsent === true) {
+      const id = uniqueIdentity(input.annotations);
+      const taken = [...this.#store.entities.values()].some(
+        (e) => this.#isVisible(e) && uniqueIdentityOf(e) === id,
+      );
+      if (taken) throw conflict(`a live ${id.replace('\u0000', ' ')} exists`);
+    }
     this.#store.sequence += 1;
     const key = `ent_${String(this.#store.sequence).padStart(6, '0')}`;
     const createdAt = this.#now();
@@ -68,20 +79,23 @@ export class InMemoryLedger implements Ledger {
       annotations: { ...(input.annotations ?? {}) },
       createdAt,
       expiresAt,
+      version: 1,
       creator: this.#writer,
     });
     return { key, expiresAt };
   }
 
-  /** Replaces payload and/or annotations in place (the key is stable here); keeps createdAt. */
+  /** Replaces payload and/or annotations in place (the key is stable here); keeps createdAt; bumps version. */
   async update(
     key: string,
-    patch: { payload?: string; annotations?: Annotations },
+    patch: LedgerUpdatePatch,
     expiresIn?: number,
   ): Promise<LedgerPutResult> {
     assertExpiresIn(expiresIn);
     const entity = this.#live(key);
     if (!entity) throw new AdapterError('ledger', 'not_found', `no live entity ${key}`);
+    assertVersion(entity, patch.ifVersion);
+    entity.version = (entity.version ?? 1) + 1;
     if (patch.payload !== undefined) entity.payload = patch.payload;
     if (patch.annotations !== undefined) entity.annotations = { ...patch.annotations };
     if (expiresIn !== undefined) entity.expiresAt = this.#now() + expiresIn * 1000;
@@ -115,6 +129,14 @@ export class InMemoryLedger implements Ledger {
       (entity.expiresAt === null || entity.expiresAt > now) &&
       annotationAlive(entity.annotations, now)
     );
+  }
+}
+
+function uniqueIdentityOf(entity: LedgerEntity): string | null {
+  try {
+    return uniqueIdentity(entity.annotations);
+  } catch {
+    return null;
   }
 }
 

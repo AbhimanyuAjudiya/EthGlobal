@@ -70,10 +70,17 @@ export function arkivChain(chainId: number, rpcUrl: string, accessKey: string): 
   });
 }
 
-/** One schema per entity type: payload bytes (never indexed), createdAtMs u64, every ANN attribute indexed. */
+/**
+ * One schema per entity type: payload bytes (never indexed), createdAtMs u64, rev u64 (the A-32 revision; optional
+ * so rows written before it still validate), every ANN attribute indexed.
+ */
 export function arkivSchemas() {
   const columns = (typed: boolean) => {
-    const out: Record<string, unknown> = { payload: bytes(), createdAtMs: u64() };
+    const out: Record<string, unknown> = {
+      payload: bytes(),
+      createdAtMs: u64(),
+      rev: u64().optional(),
+    };
     for (const name of Object.values(ANN)) {
       const column = NUMERIC_ANNOTATIONS.has(name) ? u64().indexed() : str().indexed();
       out[arkivAttribute(name)] = name === ANN.type && typed ? column : column.optional();

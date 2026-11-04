@@ -30,12 +30,10 @@ describe('decideGiftReclaim', () => {
     expect(verdict({ now: CLAIM_BY })).toMatchObject({ kind: 'refund' });
   });
 
-  it('fee ≥ usd6 refunds 0; a negative fee is treated as 0', () => {
-    expect(verdict({ feeUsd6: 9_000_000n })).toMatchObject({
-      kind: 'refund',
-      usd6: 0n,
-      feeUsd6: 4_000_000n,
-    });
+  it('fee ≥ usd6 is nothing-to-refund (A-39, RT-O-09); a negative fee is treated as 0', () => {
+    expect(verdict({ feeUsd6: 9_000_000n })).toEqual({ kind: 'deny', reason: 'nothing-to-refund' });
+    expect(verdict({ feeUsd6: 4_000_000n })).toEqual({ kind: 'deny', reason: 'nothing-to-refund' });
+    expect(verdict({ feeUsd6: 3_999_999n })).toMatchObject({ kind: 'refund', usd6: 1n });
     expect(verdict({ feeUsd6: -5n })).toMatchObject({ usd6: 4_000_000n, feeUsd6: 0n });
   });
 

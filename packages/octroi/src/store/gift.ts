@@ -49,19 +49,21 @@ export class GiftStore {
   /**
    * open → claimed with the entitlement key; idempotent for the same key, RechargeError('already_claimed')
    * for a different one, RechargeError('not_found') once the escrow has expired (no claim after claimBy).
+   * Compare-and-swap (A-32, RT-O-06): of N concurrent claims with different keys exactly one succeeds; the
+   * others re-read the claimed row and get already_claimed.
    */
   async markClaimed(giftId: Hex, entitlementKey: string): Promise<void> {
-    const existing = await this.#repo.byKey(keys.gift(giftId));
-    if (!existing) throw new RechargeError('not_found', `no live gift ${giftId}`);
-    const { payload } = existing;
-    if (payload.state === 'claimed') {
-      if (payload.claimedKey === entitlementKey) return;
-      throw new RechargeError('already_claimed', `gift ${giftId} already claimed`);
-    }
-    await this.#repo.replace(existing, {
-      ...payload,
-      state: 'claimed',
-      claimedKey: entitlementKey,
-    });
+    await this.#repo.mutate(
+      keys.gift(giftId),
+      (existing) => {
+        const { payload } = existing;
+        if (payload.state === 'claimed') {
+          if (payload.claimedKey === entitlementKey) return { payload };
+          throw new RechargeError('already_claimed', `gift ${giftId} already claimed`);
+        }
+        return { payload: { ...payload, state: 'claimed', claimedKey: entitlementKey } };
+      },
+      () => new RechargeError('not_found', `no live gift ${giftId}`),
+    );
   }
 }

@@ -1,4 +1,7 @@
-/** describeLedger: the Ledger port contract, run against InMemoryLedger and ArkivLedger (L1–L3, T-35). */
+/**
+ * describeLedger: the Ledger port contract, run against InMemoryLedger and ArkivLedger (L1–L3, T-35), including the
+ * atomic primitives every implementation must provide (A-32: create-if-absent, version compare-and-swap).
+ */
 import { describe, expect, it } from 'vitest';
 
 import { MAX_LEDGER_EXPIRES_IN_S } from '../../ledger-rules.js';
@@ -138,6 +141,86 @@ export function describeLedger(
       });
       const ok = await ledger.put({ payload: 'x', expiresIn: MAX_LEDGER_EXPIRES_IN_S });
       expect(ok.expiresAt).not.toBeNull();
+    });
+    it('ifAbsent: a second live (type, key) is a conflict; another type, or an expired holder, is not (A-32)', async () => {
+      const { ledger, clock } = await make();
+      const ann = { type: 'claim', key: 'claim:1' };
+      await ledger.put({ payload: 'a', annotations: ann, expiresIn: 10, ifAbsent: true });
+      await expect(
+        ledger.put({ payload: 'b', annotations: ann, expiresIn: 10, ifAbsent: true }),
+      ).rejects.toMatchObject({ code: 'conflict' });
+      await expect(
+        ledger.put({
+          payload: 'c',
+          annotations: { type: 'nonce', key: 'claim:1' },
+          expiresIn: 10,
+          ifAbsent: true,
+        }),
+      ).resolves.toHaveProperty('key');
+      clock.advance(10_000);
+      await expect(
+        ledger.put({ payload: 'd', annotations: ann, expiresIn: 10, ifAbsent: true }),
+      ).resolves.toHaveProperty('key');
+      const live = await ledger.query({ annotations: ann });
+      expect(live.map((e) => e.payload)).toEqual(['d']);
+    });
+
+    it('ifAbsent needs string type and key annotations', async () => {
+      const { ledger } = await make();
+      for (const annotations of [undefined, { type: 'claim' }, { key: 'k' }]) {
+        await expect(
+          ledger.put({ payload: 'x', ...(annotations ? { annotations } : {}), ifAbsent: true }),
+        ).rejects.toMatchObject({ code: 'invalid_request' });
+      }
+    });
+
+    it('ifAbsent: of N concurrent puts of one (type, key) exactly one succeeds (A-32, RT-O-03)', async () => {
+      const { ledger } = await make();
+      const ann = { type: 'nonce', key: 'nonce:race' };
+      const results = await Promise.allSettled(
+        [1, 2, 3, 4].map((i) =>
+          ledger.put({ payload: String(i), annotations: ann, expiresIn: 60, ifAbsent: true }),
+        ),
+      );
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      for (const r of results) {
+        if (r.status === 'rejected') expect(r.reason).toMatchObject({ code: 'conflict' });
+      }
+      expect(await ledger.query({ annotations: ann })).toHaveLength(1);
+    });
+
+    it('version: 1 on put, +1 per update; ifVersion is a compare-and-swap (A-32, RT-O-06)', async () => {
+      const { ledger } = await make();
+      const { key } = await ledger.put({
+        payload: 'a',
+        annotations: { type: 'gift', key: 'g' },
+        expiresIn: 60,
+      });
+      expect((await ledger.get(key))!.version).toBe(1);
+      const r1 = await ledger.update(key, { payload: 'b', ifVersion: 1 });
+      expect((await ledger.get(r1.key))!.version).toBe(2);
+      await expect(ledger.update(r1.key, { payload: 'stale', ifVersion: 1 })).rejects.toMatchObject(
+        { code: 'conflict' },
+      );
+      expect((await ledger.get(r1.key))!).toMatchObject({ payload: 'b', version: 2 });
+      const r2 = await ledger.update(r1.key, { payload: 'c' });
+      expect((await ledger.get(r2.key))!.version).toBe(3);
+    });
+
+    it('two concurrent compare-and-swaps from one version: exactly one applies (A-32, RT-O-06)', async () => {
+      const { ledger } = await make();
+      const { key } = await ledger.put({
+        payload: 'open',
+        annotations: { type: 'gift', key: 'g2' },
+        expiresIn: 60,
+      });
+      const results = await Promise.allSettled([
+        ledger.update(key, { payload: 'claimed:a', ifVersion: 1 }),
+        ledger.update(key, { payload: 'claimed:b', ifVersion: 1 }),
+      ]);
+      expect(results.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected']);
+      const winner = results.findIndex((r) => r.status === 'fulfilled');
+      expect((await ledger.get(key))!.payload).toBe(winner === 0 ? 'claimed:a' : 'claimed:b');
     });
   });
 }

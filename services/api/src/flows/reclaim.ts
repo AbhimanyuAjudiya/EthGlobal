@@ -37,6 +37,8 @@ export const RECLAIM_DENY_CODES: Readonly<Record<Deny, ErrorCode>> = {
   'unknown-gift': 'not_found',
   'window-closed': 'expired',
   'ledger-unavailable': 'ledger_unavailable',
+  // fee ≥ amount paid: no zero-value transfer, no gift-reclaim receipt (octroi A-39, RT-O-09) — 410, nothing left
+  'nothing-to-refund': 'expired',
 };
 
 /** The /gift/reclaim challenge binds the payer: its "session key" is the payer address left-padded to 32 bytes. */

@@ -10,46 +10,145 @@ concurrency:
 
 env:
   MODE: local
+  NEXT_PUBLIC_MODE: local
   # foundry.toml pins offline=true for the sandbox; a fresh runner must be allowed to fetch solc 0.8.30.
   FOUNDRY_OFFLINE: "false"
+  # Open red-team findings are attack tests named *_RTFINDING that fail until the fix lands (security/redteam/findings,
+  # BUILD-PLAN §2/§3): the blocking gates exclude them; the redteam job runs them and reports.
+  RTFINDING_FILTER: "^(?!.*_RTFINDING$)"
 
 jobs:
   checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
-
       - uses: pnpm/action-setup@v4
-
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: pnpm
-
       - uses: foundry-rs/foundry-toolchain@v1
         with:
           version: v1.5.1
 
       - run: pnpm install --frozen-lockfile
-
       - name: Install forge libraries
         run: pnpm --filter @ethglobal/contracts run deps
 
-      - name: Build workspace packages (packages resolve each other through dist)
-        run: pnpm -r build
+      # packages resolve each other through dist/, so build comes before lint, typecheck and test
+      - name: Build (tsc per package, next build, forge build)
+        run: pnpm -r run build
       - run: pnpm lint
       - run: pnpm typecheck
-      - run: pnpm test
+      - name: vitest (every package except contracts; open _RTFINDING attack tests excluded)
+        run: pnpm -r --filter '!@ethglobal/contracts' --if-present run test -t "$RTFINDING_FILTER"
 
-      - name: forge build
-        run: forge build --root packages/contracts
-      - name: forge test
-        run: pnpm test:contracts
+      - name: forge test (open RTFINDING attack tests excluded)
+        run: forge test --root packages/contracts --no-match-test RTFINDING
       - name: forge fmt --check
         run: forge fmt --check --root packages/contracts
+      - name: forge snapshot --check
+        working-directory: packages/contracts
+        run: forge snapshot --check --tolerance 5 --no-match-test 'invariant|RTFINDING'
 
-      - run: pnpm dupcheck
+      - name: jscpd (≤ 1 % duplicated lines)
+        run: pnpm dupcheck
 
-      - name: Build web and api
-        run: pnpm build
+      - name: Generated artefacts are current (abi, openapi, arkiv schema)
+        run: |
+          pnpm --filter @ethglobal/contracts run abi:check
+          pnpm --filter @ethglobal/api run openapi:check
+          pnpm schema:check
+
+  e2e-local:
+    # BUILD-PLAN §4: Anvil + Deploy.s.sol + the API + demo seed + the agent (I-10) + e2e-flow (I-0…I-18) + log scan
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.5.1
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @ethglobal/contracts run deps
+      - run: pnpm -r run build
+      - name: e2e-local (< 60 s for the flow)
+        run: bash scripts/e2e-local.sh --no-build
+      - name: The test of the test (a planted wrong assertion must fail the run)
+        run: "! E2E_FAULT=1 bash scripts/e2e-local.sh --no-build"
+      - name: Upload logs (never .e2e/cards.json, gift.json or audit-key.txt — they hold PINs and keys)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs
+          path: |
+            .e2e/*.log
+          if-no-files-found: ignore
+
+  playwright:
+    # I-19: the web suite against the same real stack; runs once apps/web ships its Playwright config
+    needs: checks
+    if: ${{ hashFiles('apps/web/playwright.config.ts') != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.5.1
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @ethglobal/contracts run deps
+      - run: pnpm -r run build
+      - name: Chromium only
+        run: pnpm --filter @ethglobal/web exec playwright install --with-deps chromium
+      - run: bash scripts/e2e-local.sh --no-build --web
+      - name: Print-run smoke (11-page PDF, manifest without PINs)
+        run: pnpm print:cards -- --count 10
+      - name: Upload Playwright report and screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          if-no-files-found: ignore
+
+  redteam:
+    # security/redteam/run-wave.sh (slither, semgrep, attack suites incl. the open _RTFINDING tests, forbidden patterns).
+    # Non-blocking until the red team marks wave 3 blocking (ops-demo §8).
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.5.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install slither-analyzer==0.11.6 semgrep
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @ethglobal/contracts run deps
+      - run: pnpm -r run build
+      - run: bash scripts/e2e-local.sh --no-build
+      - run: bash security/redteam/run-wave.sh all

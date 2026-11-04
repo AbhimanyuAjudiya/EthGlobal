@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { fixtureProof, T0 } from '@ethglobal/adapters/testing';
 import { sponsorViewSchema } from '@ethglobal/protocol/schemas';
 
+import { campaignFields } from './support/campaign.js';
 import { scopedCampaignId, sponsorAuthorization, sponsorLogin } from './support/client.js';
 import {
   DAY,
@@ -23,22 +24,15 @@ const register = async (
 ) => {
   const login = await sponsorLogin(key, h.deps.chainId, id, issuedAt);
   return h.json('/sponsor', {
-    campaign: {
+    campaign: campaignFields({
       id,
       sponsor: SPONSOR,
       name: 'Second campaign',
-      bundleMb: { orb: 300, document: 160, device: 0 },
-      pricePerClaimUsd6: '500000',
       maxClaims: 100,
       claimsPerHour: 10,
-      validityDays: 7,
-      wholesaleUsd6PerGb: '1140000',
-      idResaleUsd6: '500000',
-      planId: 'in-300mb-7d',
-      network: 'eip155:31337',
       contract: h.dataDrop.address,
       expiresAt: T0 + 10 * DAY,
-    },
+    }),
     auth: { issuedAt: login.issuedAt, signature: login.signature },
   });
 };

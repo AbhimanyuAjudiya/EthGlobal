@@ -124,7 +124,10 @@ function subscribeTick(stepMs: number) {
  * (and the prerendered static shell) sees 0 — time is never baked into the shell (cacheComponents).
  */
 export function useClock(stepMs = 1000, active = true): number {
-  const subscribe = useMemo(() => (active ? subscribeTick(stepMs) : noopSubscribe), [stepMs, active]);
+  const subscribe = useMemo(
+    () => (active ? subscribeTick(stepMs) : noopSubscribe),
+    [stepMs, active],
+  );
   return useSyncExternalStore(
     subscribe,
     () => Math.floor(Date.now() / stepMs) * stepMs,

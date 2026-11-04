@@ -16,7 +16,6 @@ import {
   TEST_USDC,
 } from '@ethglobal/adapters/testing';
 import { bytesToHex, generateSessionKeypair, type SessionKeypair } from '@ethglobal/crypto';
-import { campaignFromPayload } from '@ethglobal/octroi';
 import type { Hex } from '@ethglobal/protocol/ids';
 import type {
   ChallengeWire,
@@ -26,6 +25,7 @@ import type {
 } from '@ethglobal/protocol/schemas';
 import { decodePaymentRequired, PAYMENT_SIGNATURE_HEADER } from '@ethglobal/protocol/x402';
 
+import { storedCampaign } from './campaign.js';
 import {
   addressOf,
   paymentHeader,
@@ -58,19 +58,33 @@ export async function harness(opts: HarnessOptions = {}) {
   const lines: string[] = [];
   const logger = createLogger('info', { write: (line: string) => void lines.push(line) });
   const dataDrop = new MemoryDataDrop(clock.now);
-  const deps: Deps = await buildDeps(
-    {
-      MODE: 'local',
-      X402_FACILITATOR: 'mock',
-      RESELLER: 'mock',
-      TRUST_PROXY: '1',
-      USDC_ADDRESS: TEST_USDC,
-      OCTROI_SECRET: SECRET,
-      RESELLER_PLAN_ID: 'in-300mb-7d',
-      ...opts.env,
-    },
-    { now: clock.now, logger, dataDrop, anvilAnswers: async () => false, ...opts.overrides },
-  );
+  const env = {
+    MODE: 'local',
+    X402_FACILITATOR: 'mock',
+    RESELLER: 'mock',
+    TRUST_PROXY: '1',
+    USDC_ADDRESS: TEST_USDC,
+    OCTROI_SECRET: SECRET,
+    RESELLER_PLAN_ID: 'in-300mb-7d',
+    ...opts.env,
+  };
+  const overrides: DepsOverrides = {
+    now: clock.now,
+    logger,
+    dataDrop,
+    anvilAnswers: async () => false,
+    ...opts.overrides,
+  };
+  const deps: Deps = await buildDeps(env, overrides);
+  /**
+   * A process restart: fresh deps and app (every in-process map, cache and limiter empty) over the SAME external
+   * services — ledger, reseller, blobs, chain, clock — and the same STATE_FILE when the test set one.
+   */
+  const restart = async () => {
+    const next = await buildDeps(env, { ...overrides, adapters: deps.adapters });
+    if (deps.seedCampaignId) next.seedCampaignId = deps.seedCampaignId;
+    return { deps: next, app: createApp(next) };
+  };
   const campaignId = scopedCampaignId(SPONSOR, 1n);
   const expiresAt = T0 + (opts.campaign?.expiresInMs ?? 30 * DAY);
   dataDrop.create(campaignId, {
@@ -83,20 +97,10 @@ export async function harness(opts: HarnessOptions = {}) {
     paused: opts.campaign?.paused ?? false,
   });
   await deps.stores.campaigns.put(
-    campaignFromPayload({
-      v: 1,
+    storedCampaign({
       id: campaignId,
       sponsor: SPONSOR,
-      name: 'Mumbai Welcome',
-      bundleMb: { orb: 300, document: 160, device: 0 },
-      pricePerClaimUsd6: '500000',
-      maxClaims: 2000,
       claimsPerHour: opts.campaign?.claimsPerHour ?? 120,
-      validityDays: 7,
-      wholesaleUsd6PerGb: '1140000',
-      idResaleUsd6: '500000',
-      planId: 'in-300mb-7d',
-      network: 'eip155:31337',
       contract: dataDrop.address,
       createdAt: T0,
       expiresAt,
@@ -188,6 +192,7 @@ export async function harness(opts: HarnessOptions = {}) {
     dataDrop,
     lines,
     campaignId,
+    restart,
     request,
     json,
     get,

@@ -12,7 +12,6 @@ import type { Hex } from '@ethglobal/protocol/ids';
 import { rechargeDomain, SPONSOR_LOGIN_TYPES } from '@ethglobal/protocol/typed-data';
 
 import { config, IS_LOCAL } from './env';
-
 import { chainNow, type Wallet } from './wallet';
 
 const DATADROP = DataDropAbi as Abi;
@@ -37,7 +36,11 @@ export async function usdcAddress(wallet: Wallet): Promise<Address> {
 }
 
 export const approveCall = (budget: bigint) => ({
-  data: encodeFunctionData({ abi: ERC20, functionName: 'approve', args: [dataDropAddress(), budget] }),
+  data: encodeFunctionData({
+    abi: ERC20,
+    functionName: 'approve',
+    args: [dataDropAddress(), budget],
+  }),
 });
 
 export const createCampaignCall = (

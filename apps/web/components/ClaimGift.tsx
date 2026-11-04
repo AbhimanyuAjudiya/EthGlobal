@@ -19,7 +19,6 @@ import { useClock, useWallet } from '../lib/hooks';
 import { claimGiftBySignature, reclaimGift, redeemPin } from '../lib/redeem';
 import { isUserRejection } from '../lib/wallet';
 
-
 const errText = (t: ReturnType<typeof useLang>['t'], e: unknown) =>
   t(errorKey(e instanceof ApiError ? e.code : 'network'));
 
@@ -51,12 +50,19 @@ export function ClaimGift({ giftId, name }: { giftId?: string; name?: string }) 
       </h1>
       {giftId && name ? (
         <>
-          <WalletButton wallet={wallet} busy={busy} error={walletError} onInjected={() => void pickInjected()} />
+          <WalletButton
+            wallet={wallet}
+            busy={busy}
+            error={walletError}
+            onInjected={() => void pickInjected()}
+          />
           <p lang={lang}>{t('gift.claimSign')}</p>
           <Button
             block
             disabled={!wallet || working}
-            onClick={() => wallet && void run(() => claimGiftBySignature(wallet, giftId as Hex, name))}
+            onClick={() =>
+              wallet && void run(() => claimGiftBySignature(wallet, giftId as Hex, name))
+            }
             data-testid="claim-by-signature"
           >
             {`${t('gift.claimButton')} · ${name}`}

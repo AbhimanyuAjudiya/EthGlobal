@@ -5,14 +5,14 @@ module: services/api/src/env.ts
 threat: T-77
 severity: Low
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-wave2
 owner: builder-api
 found_at: 2026-11-04T15:05+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: services/api/test/redteam/rt-surface.test.ts::MODE=live without AGENT_PAYERS ⇒ no public Anvil address is an allow-listed agent payer_RTFINDING; services/api/test/redteam/rt-surface.test.ts::MODE=live without CORS_ORIGINS / CHAIN ⇒ refused or no localhost origin and no 31337 domain_RTFINDING
-regression_test:
-fix_commit:
+regression_test: services/api/test/redteam/rt-surface.test.ts::MODE=live without AGENT_PAYERS ⇒ no public Anvil address is an allow-listed agent payer [RT-A-09]; ::MODE=live without CORS_ORIGINS / CHAIN ⇒ refused or no localhost origin and no 31337 domain [RT-A-09]
+fix_commit: (uncommitted, wave-2 API fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -40,5 +40,7 @@ In the live branch of `envSchema.superRefine`: require `CHAIN`, `CORS_ORIGINS` a
 Anvil address in `AGENT_PAYERS` (same `anvilAddresses` set as the key check); refuse `CHAIN=31337` and localhost origins.
 
 ## Builder notes (optional)
+
+Live inherits nothing local: `CHAIN` has no schema default and is required in live (and refused if 31337); `CORS_ORIGINS` and `AGENT_PAYERS` default to empty in live and refuse localhost origins / Anvil accounts; the local defaults (31337, the PWA dev origins, Anvil #4) are applied only in `localDefaults()`. `src/env.ts`; `.env.example` and INTERFACES §11 document it (A-42).
 
 ## Verification (red team)

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
+import { ERROR_CODES } from '@ethglobal/protocol/errors';
+
 import en from '../i18n/en.json';
 import hi from '../i18n/hi.json';
 import mr from '../i18n/mr.json';
 import { errorKey, t } from '../i18n/strings';
-
-import { ERROR_CODES } from '@ethglobal/protocol/errors';
 
 const EMOJI = /[\p{Extended_Pictographic}\u{FE0F}]/u;
 const placeholders = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
@@ -26,8 +26,12 @@ describe('i18n', () => {
 
   it('every translation keeps the same placeholders', () => {
     for (const [key, value] of Object.entries(en)) {
-      expect(placeholders((hi as Record<string, string>)[key] ?? ''), `hi ${key}`).toEqual(placeholders(value));
-      expect(placeholders((mr as Record<string, string>)[key] ?? ''), `mr ${key}`).toEqual(placeholders(value));
+      expect(placeholders((hi as Record<string, string>)[key] ?? ''), `hi ${key}`).toEqual(
+        placeholders(value),
+      );
+      expect(placeholders((mr as Record<string, string>)[key] ?? ''), `mr ${key}`).toEqual(
+        placeholders(value),
+      );
     }
   });
 
@@ -44,7 +48,8 @@ describe('i18n', () => {
   });
 
   it('numerals and brand nouns stay Latin in Devanagari strings', () => {
-    for (const table of [hi, mr]) for (const value of Object.values(table)) expect(/[०-९]/.test(value)).toBe(false);
+    for (const table of [hi, mr])
+      for (const value of Object.values(table)) expect(/[०-९]/.test(value)).toBe(false);
     expect(t('install.ios.5', undefined, 'hi')).toContain('Data Roaming');
   });
 
@@ -55,7 +60,8 @@ describe('i18n', () => {
 
   it('Android strings never promise a one-tap install', () => {
     for (const [key, value] of Object.entries(en))
-      if (key.startsWith('install.')) expect(value.toLowerCase(), key).not.toMatch(/one[ -]tap|instantly/);
+      if (key.startsWith('install.'))
+        expect(value.toLowerCase(), key).not.toMatch(/one[ -]tap|instantly/);
   });
 
   it('fills placeholders as text', () => {

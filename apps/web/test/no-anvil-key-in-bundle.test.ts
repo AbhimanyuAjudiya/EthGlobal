@@ -31,7 +31,8 @@ describe.skipIf(!existsSync(STATIC))('production bundle (.next/static)', () => {
     const offenders: string[] = [];
     for (const file of files(STATIC)) {
       const text = readFileSync(file, 'latin1');
-      for (const needle of FORBIDDEN) if (text.includes(needle)) offenders.push(`${path.basename(file)}: ${needle}`);
+      for (const needle of FORBIDDEN)
+        if (text.includes(needle)) offenders.push(`${path.basename(file)}: ${needle}`);
     }
     expect(offenders).toEqual([]);
   });

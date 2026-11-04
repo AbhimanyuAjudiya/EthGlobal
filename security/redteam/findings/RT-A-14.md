@@ -5,14 +5,14 @@ module: scripts/dev-chain.sh
 threat: T-50
 severity: Low
 likelihood: H
-status: open
+status: fixed
 found_by: redteam-wave2
 owner: builder-ops
 found_at: 2026-11-04T15:05+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: security/redteam/tools/scan.sh .e2e/*.log (chain.log:1)
-regression_test:
-fix_commit:
+regression_test: scripts/e2e-local.sh (I-18 scan) + security/redteam/tools/scan.sh .e2e/chain.log .e2e/api.log .e2e/agent.log ⇒ clean
+fix_commit: (uncommitted, wave-2 API fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -37,5 +37,7 @@ which trains people to ignore the scan. Hygiene.
 Print `mnemonic: anvil default` (or the derived account #0 address) instead of the phrase.
 
 ## Builder notes (optional)
+
+`scripts/dev-chain.sh` prints `mnemonic: anvil default` (or `ANVIL_MNEMONIC (redacted)` when one is supplied), never the phrase. A fresh `bash scripts/e2e-local.sh` leaves `.e2e/chain.log` clean. A stale `.e2e/web-chain.log` written by an earlier `--web` run still holds the old line until that run is repeated.
 
 ## Verification (red team)

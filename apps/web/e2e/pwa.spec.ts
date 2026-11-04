@@ -37,23 +37,33 @@ test.describe('PWA installable', () => {
     }
   });
 
-  test('the service worker controls the page and serves /offline when the network is gone', async ({ page, context }) => {
+  test('the service worker controls the page and serves /offline when the network is gone', async ({
+    page,
+    context,
+  }) => {
     await page.goto('/');
-    await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', '/manifest.webmanifest');
+    await expect(page.locator('link[rel="manifest"]')).toHaveAttribute(
+      'href',
+      '/manifest.webmanifest',
+    );
     await page.evaluate(async () => {
       await navigator.serviceWorker.ready;
     });
     await page.reload();
-    await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
+    await expect
+      .poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller)))
+      .toBe(true);
     await context.setOffline(true);
     await page.goto('/receipts');
     await expect(page.getByRole('heading', { name: "You're offline" })).toBeVisible();
     await context.setOffline(false);
   });
 
-  test('the service worker never caches API, card, gift or plan data (T-61)', async ({ request }) => {
+  test('the service worker never caches API, card, gift or plan data (T-61)', async ({
+    request,
+  }) => {
     const sw = await (await request.get(`${BASE_URL}/sw.js`)).text();
-    expect(sw).toMatch(/NEVER = .*claim\|esim\|card\|me\|gift\|agent\|sponsor/);
+    expect(sw.replace(/\s+/g, '')).toContain('claim|esim|card|me|gift|agent|sponsor');
     expect(sw).toContain('url.origin !== self.location.origin');
   });
 });

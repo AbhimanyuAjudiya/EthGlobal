@@ -1,7 +1,15 @@
-/** POST /sponsor (register) and GET /sponsor/:id (the dashboard = an Arkiv query + chain counters; T-72, A-9). */
-import { bytesToHex } from '@ethglobal/crypto';
+/**
+ * POST /sponsor (register) and GET /sponsor/:id (the dashboard = an Arkiv query + chain counters; T-72, A-9).
+ *
+ * Scopes (RT-A-04): the `SponsorLogin` bearer is a READ credential. Registration is a one-time write: an id that is
+ * already registered is 409 `campaign_exists` whoever signs, so a captured dashboard bearer can neither rewrite a
+ * campaign nor mint its audit key again. The audit key is shown once per channel — in the first registration's
+ * 201, and on the first dashboard read — and "shown" is a ledger once-marker (`claim:` HMAC, A-42), not process
+ * memory, so a restart does not show it again.
+ */
+import { bytesToHex, hmacKey } from '@ethglobal/crypto';
 import { auditKey, campaignFromPayload, sizeBundle, type Campaign } from '@ethglobal/octroi';
-import type { Hex } from '@ethglobal/protocol/ids';
+import { keys, type Hex } from '@ethglobal/protocol/ids';
 import {
   sponsorRegisterSchema,
   type SponsorRegister,
@@ -19,6 +27,14 @@ import type { Hono } from 'hono';
 
 const DAY_MS = 86_400_000;
 const ID = /^0x[0-9a-fA-F]{64}$/;
+
+/** True the first time `what` happens for this campaign, on any process sharing the ledger. */
+const firstTime = (deps: Deps, what: 'registered' | 'audit-shown', id: Hex, until: number) =>
+  deps.stores.claims.reserve(
+    keys.claim(hmacKey(deps.secret, `sponsor-${what}`, id)),
+    'once',
+    until,
+  );
 
 export function registerSponsor(app: Hono<AppEnv>, deps: Deps): void {
   app.post('/sponsor', validateJson(sponsorRegisterSchema), async (c) => {
@@ -44,11 +60,18 @@ export function registerSponsor(app: Hono<AppEnv>, deps: Deps): void {
         { path: 'campaign.contract', message: 'not this deployment' },
       ]);
     }
-    await deps.stores.campaigns.put(
-      campaignFromPayload({ ...campaign, id, v: 1, createdAt: deps.now() }),
-    );
-    deps.logger.info({ event: 'ledger.op', op: 'campaign.put' }, 'campaign registered');
-    return c.json({ id, auditKey: bytesToHex(auditKey(deps.secret, id)) }, 201);
+    return deps.mutex.run(`sponsor:${id}`, async () => {
+      if (await deps.stores.campaigns.get(id))
+        throw fail('campaign_exists', { detail: 'already registered' });
+      await deps.stores.campaigns.put(
+        campaignFromPayload({ ...campaign, id, v: 1, createdAt: deps.now() }),
+      );
+      // another process registered it first: ours is not the first registration, so no audit key
+      if (!(await firstTime(deps, 'registered', id, campaign.expiresAt)))
+        throw fail('campaign_exists', { detail: 'already registered' });
+      deps.logger.info({ event: 'ledger.op', op: 'campaign.put' }, 'campaign registered');
+      return c.json({ id, auditKey: bytesToHex(auditKey(deps.secret, id)) }, 201);
+    });
   });
 
   app.get('/sponsor/:id', async (c) => {
@@ -72,8 +95,7 @@ export function registerSponsor(app: Hono<AppEnv>, deps: Deps): void {
     ]);
     const c0 = found.payload;
     const claims = receipts.filter((r) => r.kind === 'claim' && r.payer !== undefined);
-    const firstRead = !deps.auditShown.has(campaignId);
-    deps.auditShown.add(campaignId);
+    const firstRead = await firstTime(deps, 'audit-shown', campaignId, c0.expiresAt);
     const view: SponsorView = {
       campaign: campaignPayload(c0),
       chain: {

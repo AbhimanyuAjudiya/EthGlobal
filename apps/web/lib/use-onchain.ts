@@ -7,7 +7,6 @@ import { useClock } from './hooks';
 import { type ActionEvent, type ActionRow, initialRow, reducer } from './onchain-action';
 import { pending } from './store';
 
-
 /** Typical time to the next state per network (ring size; stuck = 2×). */
 export function expectedMsFor(network: string | undefined): number {
   if (network === 'eip155:31337') return 1_000;
@@ -19,7 +18,8 @@ export function expectedMsFor(network: string | undefined): number {
 export function useOnchainAction() {
   // `null` starts a NEW row for the next transaction on the same screen; everything else goes through the guard
   const [row, dispatch] = useReducer(
-    (current: ActionRow, event: ActionEvent | null) => (event ? reducer(current, event) : initialRow),
+    (current: ActionRow, event: ActionEvent | null) =>
+      event ? reducer(current, event) : initialRow,
     initialRow,
   );
   const live = row.state === 'signing' || row.state === 'submitted' || row.state === 'pending';

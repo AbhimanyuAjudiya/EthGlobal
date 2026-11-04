@@ -40,7 +40,9 @@ for _ in $(seq 1 100); do
 done
 cast chain-id --rpc-url "$RPC_URL" >/dev/null 2>&1 || { echo "dev-chain: anvil did not come up on $RPC_URL" >&2; exit 1; }
 
-echo "dev-chain: anvil on $RPC_URL (chain 31337, mnemonic '$MNEMONIC')"
+# never print the phrase (RT-A-14, T-50): the log scan treats any mnemonic in .e2e/*.log as a leak
+if [[ -z "${ANVIL_MNEMONIC:-}" ]]; then MNEMONIC_LABEL="anvil default"; else MNEMONIC_LABEL="ANVIL_MNEMONIC (redacted)"; fi
+echo "dev-chain: anvil on $RPC_URL (chain 31337, mnemonic: $MNEMONIC_LABEL)"
 (
   cd "$CONTRACTS"
   CHAIN=31337 ANVIL_RPC_URL="$RPC_URL" forge script script/Deploy.s.sol:Deploy \

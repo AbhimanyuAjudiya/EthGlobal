@@ -65,18 +65,36 @@ export function AddToHomeScreen({ ready }: { ready: boolean }) {
   };
 
   return (
-    <section className="sheet-row a2hs" aria-labelledby="a2hs-title" data-testid="add-to-home-screen">
+    <section
+      className="sheet-row a2hs"
+      aria-labelledby="a2hs-title"
+      data-testid="add-to-home-screen"
+    >
       <p id="a2hs-title" lang={lang}>
         {state === 'ios' ? t('a2hs.ios') : t('a2hs.android')}
       </p>
       {state === 'ios' ? (
         <p className="a2hs__icons" aria-hidden="true">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          >
             <path d="M12 3v12" />
             <path d="m8 7 4-4 4 4" />
             <path d="M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8" />
           </svg>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          >
             <rect x="4" y="4" width="16" height="16" rx="3" />
             <path d="M12 8v8" />
             <path d="M8 12h8" />
@@ -114,7 +132,8 @@ export function NotificationAsk({ ready }: { ready: boolean }) {
   const [asked, setAsked] = useState<NotificationPermission | undefined>();
   const standalone = hydrated && isStandalone(window);
   const permission: NotificationPermission | 'unsupported' =
-    asked ?? (!hydrated || typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
+    asked ??
+    (!hydrated || typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
 
   if (!ready) return null;
   if (!standalone)

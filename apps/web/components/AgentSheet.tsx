@@ -4,7 +4,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { toBytes } from 'viem';
 
 import { keccak256 } from '@ethglobal/crypto';
-import type { AgentPolicyView, MeResponse, ReceiptPublic, TopUpPolicyWire } from '@ethglobal/protocol/schemas';
+import type {
+  AgentPolicyView,
+  MeResponse,
+  ReceiptPublic,
+  TopUpPolicyWire,
+} from '@ethglobal/protocol/schemas';
 import { AGENT_POLICY_TYPES, canonicalJson, rechargeDomain } from '@ethglobal/protocol/typed-data';
 import { Button, Hash } from '@ethglobal/ui/components';
 
@@ -17,7 +22,6 @@ import { clockIst, formatMb, money } from '../lib/format';
 import { usePlans, useWallet } from '../lib/hooks';
 import { plans as store } from '../lib/store';
 import { isUserRejection } from '../lib/wallet';
-
 
 const CAPS_USD = [1, 5, 10, 25];
 const USD6 = 1_000_000;
@@ -72,7 +76,12 @@ export function AgentSheet() {
           domain: rechargeDomain(config.chainId),
           types: AGENT_POLICY_TYPES,
           primaryType: 'AgentPolicy',
-          message: { entitlementKey: key, owner: wallet.address, policyHash, issuedAt: BigInt(issuedAt) },
+          message: {
+            entitlementKey: key,
+            owner: wallet.address,
+            policyHash,
+            issuedAt: BigInt(issuedAt),
+          },
         });
         setStatus('saving');
         const holder = await store.holder(key);
@@ -89,7 +98,8 @@ export function AgentSheet() {
         setStatus('saved');
       } catch (e) {
         setStatus(isUserRejection(e) ? 'idle' : 'error');
-        if (!isUserRejection(e)) setMessage(t(errorKey(e instanceof ApiError ? e.code : 'network')));
+        if (!isUserRejection(e))
+          setMessage(t(errorKey(e instanceof ApiError ? e.code : 'network')));
       }
     },
     [wallet, key, t],
@@ -109,15 +119,25 @@ export function AgentSheet() {
   const capUsd6 = policy ? BigInt(policy.maxUsd6PerDay) : 0n;
   const spent = view ? BigInt(view.spentTodayUsd6) : 0n;
   const agentNetwork =
-    plans?.paid.accepts.find((a) => a.network.startsWith('hedera:'))?.network ?? plans?.paid.accepts[0]?.network;
+    plans?.paid.accepts.find((a) => a.network.startsWith('hedera:'))?.network ??
+    plans?.paid.accepts[0]?.network;
   const sentence = policy?.paused
     ? t('agent.sentencePaused')
-    : t('agent.sentence', { price: money(step), network: networkName(agentNetwork), cap: money(capUsd6) });
+    : t('agent.sentence', {
+        price: money(step),
+        network: networkName(agentNetwork),
+        cap: money(capUsd6),
+      });
 
   return (
     <Screen money>
       <AppHeader />
-      <WalletButton wallet={wallet} busy={busy} error={walletError} onInjected={() => void pickInjected()} />
+      <WalletButton
+        wallet={wallet}
+        busy={busy}
+        error={walletError}
+        onInjected={() => void pickInjected()}
+      />
       <section className="sheet agent" aria-labelledby="agent-title">
         <h1 id="agent-title" className="sheet__title" lang={lang}>
           {t('agent.title')}
@@ -127,7 +147,12 @@ export function AgentSheet() {
         </p>
         {policy ? (
           <>
-            <div className="segmented" role="radiogroup" aria-label={t('agent.cap')} data-testid="agent-cap">
+            <div
+              className="segmented"
+              role="radiogroup"
+              aria-label={t('agent.cap')}
+              data-testid="agent-cap"
+            >
               {CAPS_USD.map((usd) => (
                 <button
                   key={usd}
@@ -189,7 +214,12 @@ export function AgentSheet() {
                     <Hash
                       value={r.tx}
                       kind="transaction hash"
-                      {...(template ? { explorerHref: template.replace('{hash}', r.tx), explorerName: 'HashScan' } : {})}
+                      {...(template
+                        ? {
+                            explorerHref: template.replace('{hash}', r.tx),
+                            explorerName: 'HashScan',
+                          }
+                        : {})}
                     />
                   ) : null}
                 </li>

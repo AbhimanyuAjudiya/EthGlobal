@@ -95,8 +95,7 @@ export async function call<T>(
     });
     if (res.status >= 400 && !accept.includes(res.status))
       throw toApiError(res.status, res.data, res.headers);
-    const data =
-      opts.schema && res.status < 300 ? opts.schema.parse(res.data) : (res.data as T);
+    const data = opts.schema && res.status < 300 ? opts.schema.parse(res.data) : (res.data as T);
     return { status: res.status, headers: res.headers, data };
   } catch (error) {
     if (error instanceof ApiError) throw error;
@@ -118,8 +117,12 @@ export const api = {
       })
     ).data,
   rpContext: async (path: ChallengePath) =>
-    (await call('/world/rp-context', { body: { audience: 'recharge', path }, schema: rpContextSchema }))
-      .data,
+    (
+      await call('/world/rp-context', {
+        body: { audience: 'recharge', path },
+        schema: rpContextSchema,
+      })
+    ).data,
   /** MODE=local only: the API's simulated IDKit result (never built in the browser). */
   simulatedProof: async (
     signal: Hex,
@@ -143,8 +146,7 @@ export const api = {
   redeemCard: (body: { pin: string; challenge: ChallengeWire; sessionPubKey: Hex }) =>
     call('/card/redeem', { body, schema: entitledResponseSchema }),
   /** The quote: 402 = the name resolves and the price is known; 404 name_unresolved before any 402 (T-43). */
-  giftQuote: (name: string, mb: number) =>
-    call('/gift', { body: { name, mb }, accept: [402] }),
+  giftQuote: (name: string, mb: number) => call('/gift', { body: { name, mb }, accept: [402] }),
   giftClaim: (body: Record<string, unknown>) =>
     call('/gift/claim', { body, schema: entitledResponseSchema }),
   giftReclaim: (body: Record<string, unknown>) =>

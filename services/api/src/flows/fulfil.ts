@@ -85,8 +85,13 @@ export async function fulfil(
     await deps.stores.entitlements.patch(key, done.patch);
     sealed = done.sealed;
   } catch (error) {
-    // The human never proves (or pays) twice: the entitlement stays pending and /me retries the same order (T-25).
-    deps.pendingDelivery.set(key, { sessionPubKey: ctx.sessionPubKey, nonce: ctx.nonce });
+    // The human never proves (or pays) twice: the entitlement stays pending and /me (or the next boot) retries the
+    // same order (T-25); the delivery target is durable state, so a restart does not strand it (RT-A-11).
+    deps.pendingDelivery.set(
+      key,
+      { sessionPubKey: ctx.sessionPubKey, nonce: ctx.nonce },
+      entitlement.expiresAt,
+    );
     if (!isAdapterError(error) || error.adapter !== 'reseller') throw error;
     deps.logger.warn(
       { event: 'provision', status: 'pending-profile', err: errName(error) },
@@ -117,9 +122,9 @@ export async function fulfil(
 }
 
 /**
- * /me retry of a pending-profile order (≤ 1/min per key) with the same idempotency key. The new LPA is sealed to the
- * session key of the original request and stored as a blob reference only; it is NOT returned by /me (T-31) — see
- * README "Decisions" (AP6.3).
+ * /me (or boot) retry of a pending-profile order (≤ 1/min per key) with the same idempotency key. The new LPA is
+ * sealed to the session key of the original request and stored as a blob reference only; it is NOT returned by /me
+ * (T-31) — see README "Decisions" (AP6.3).
  */
 export async function retryPending(deps: Deps, entitlement: Entitlement): Promise<Entitlement> {
   const delivery = deps.pendingDelivery.get(entitlement.key);
@@ -145,7 +150,35 @@ export async function retryPending(deps: Deps, entitlement: Entitlement): Promis
   }
 }
 
-/** Top-up of an existing, live entitlement (brief §4.2 fulfilTopUp): reseller, then the ledger lifetime. */
+/**
+ * Boot (RT-A-11): every pending-profile delivery the durable state still holds is retried once; a delivery whose
+ * entitlement is gone or no longer pending is dropped. Never throws (a failed retry stays pending for /me).
+ */
+export async function retryPendingOnBoot(deps: Deps): Promise<{ retried: number; ready: number }> {
+  let retried = 0;
+  let ready = 0;
+  for (const [key] of deps.pendingDelivery.entries()) {
+    try {
+      const found = await deps.stores.entitlements.getByKey(key);
+      if (found?.payload.status !== 'pending-profile') {
+        deps.pendingDelivery.delete(key);
+        continue;
+      }
+      retried++;
+      if ((await retryPending(deps, found.payload)).status === 'ready') ready++;
+    } catch (error) {
+      deps.logger.warn({ event: 'provision', err: errName(error) }, 'boot retry skipped');
+    }
+  }
+  if (retried > 0) deps.logger.info({ event: 'provision', retried, ready }, 'boot retries done');
+  return { retried, ready };
+}
+
+/**
+ * Top-up of an existing, live entitlement (brief §4.2 fulfilTopUp): reseller, then the ledger. The patch is the
+ * function form (octroi A-38): `mbTotal` is recomputed from each fresh row under compare-and-swap, so two concurrent
+ * paid top-ups both land (RT-A-01, T-27).
+ */
 export async function fulfilTopUp(
   deps: Deps,
   existing: Entitlement,
@@ -163,7 +196,7 @@ export async function fulfilTopUp(
   const expiresAt = Math.max(existing.expiresAt, deps.now() + deps.env.VALIDITY_DAYS * DAY_MS);
   const found = await deps.stores.entitlements.patch(
     existing.key,
-    { mbTotal: existing.mbTotal + mb, expiresAt },
+    (current) => ({ mbTotal: current.mbTotal + mb, expiresAt }),
     { expiresAt },
   );
   deps.cache.invalidate(existing.key);

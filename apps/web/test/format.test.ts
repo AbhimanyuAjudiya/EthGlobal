@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { clockIst, dayLabel, formatMb, iccidGroups, mmss, money, moneyUsdc, priceFor } from '../lib/format';
+import {
+  clockIst,
+  dayLabel,
+  formatMb,
+  iccidGroups,
+  mmss,
+  money,
+  moneyUsdc,
+  priceFor,
+} from '../lib/format';
 
 // Sun 15 Nov 2026 09:12 IST
 const AT = Date.UTC(2026, 10, 15, 3, 42);

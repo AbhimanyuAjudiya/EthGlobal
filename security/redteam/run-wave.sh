@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Red-team wave runner (security/redteam/README.md, PLAN.md §4–5).
-#   security/redteam/run-wave.sh 1|2|3|all|static|contracts   # exit 0 == every attack failed as expected AND every gate is green
-#   (`contracts` = the wave-1 contracts gates + the contract-relevant static gates, runnable before the TS packages land)
+#   security/redteam/run-wave.sh 1|2|3|wave3-ops|all|static|contracts   # exit 0 == every attack failed as expected AND every gate is green
+#   (`wave3-ops` = only security/redteam/wave3-ops/run.sh, the ops/repo half of wave 3;
+#   `contracts` = the wave-1 contracts gates + the contract-relevant static gates, runnable before the TS packages land)
 # Pass criterion: all attacks fail; every finding has a regression test (PLAN §1). Any ✗ line makes the exit status 1.
 # Always MODE=local: no testnet RPC, no vendor API, no real keys (PLAN §7.1). Tools used: bash, grep -P, awk, jq, git, pnpm, forge,
 # slither, semgrep, jscpd (via `pnpm dupcheck`). Nothing is installed or fetched except what pnpm's frozen lockfile already pins.
@@ -149,14 +150,25 @@ wave3() {
   run bash "$TOOLS/coverage-check.sh" --require apps/web scripts
 }
 
+wave3_ops() {
+  # wave3-web-ops.md OP1–OP7 as executable checks (security/redteam/wave3-ops/run.sh): history + repo secrets, .gitignore,
+  # seed hooks against a real MODE=live boot, process hygiene, print pipeline, deploy tooling, supply chain, CI, docs.
+  # Exit non-zero while any RT-P finding is open (each failing check is printed as `RT-FINDING RT-P-<nn> <name>_RTFINDING`).
+  step "wave 3: ops / repo (wave3-ops/run.sh — OP1–OP7, findings RT-P-*)"
+  if need security/redteam/wave3-ops/run.sh "ops attack checks (wave3-web-ops.md OP1–OP7)"; then
+    RT_OUT="$RT_OUT" run bash security/redteam/wave3-ops/run.sh
+  fi
+}
+
 case "$wave" in
   1) wave1; static_gates ;;
   contracts) wave1_contracts; contracts_static ;;
   2) wave2; static_gates ;;
-  3) wave3; static_gates ;;
-  all) wave1; wave2; wave3; static_gates ;;
+  3) wave3; wave3_ops; static_gates ;;
+  wave3-ops) wave3_ops ;;
+  all) wave1; wave2; wave3; wave3_ops; static_gates ;;
   static) static_gates ;;
-  *) echo "usage: run-wave.sh 1|2|3|all|static|contracts" >&2; exit 2 ;;
+  *) echo "usage: run-wave.sh 1|2|3|wave3-ops|all|static|contracts" >&2; exit 2 ;;
 esac
 bash "$TOOLS/findings-index.sh" > /dev/null 2>&1 || true
 open_blocking="$(grep -l -E '^severity: (Critical|High)' security/redteam/findings/RT-*.md 2>/dev/null | xargs -r grep -L -E '^status: (verified|closed)' 2>/dev/null)"

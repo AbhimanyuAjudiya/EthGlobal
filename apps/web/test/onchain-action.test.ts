@@ -40,7 +40,7 @@ function rowIn(state: OnchainActionState): ActionRow {
     failed: ['start', 'preBroadcastError'],
     replaced: ['start', 'signed', 'replaced'],
   };
-  return path[state].reduce((row, name) => reducer(row, events[name] as ActionEvent), initialRow);
+  return path[state].reduce((row, name) => reducer(row, events[name]!), initialRow);
 }
 
 const TARGET: Record<ActionEvent['type'], OnchainActionState> = {
@@ -80,11 +80,12 @@ describe('onchain-action reducer', () => {
     ['confirmed', 'reorg'],
     ['failed', 'retry'],
   ];
-  const isLegal = (from: OnchainActionState, name: string) => LEGAL.some(([f, e]) => f === from && e === name);
+  const isLegal = (from: OnchainActionState, name: string) =>
+    LEGAL.some(([f, e]) => f === from && e === name);
 
   it('accepts every legal transition and lands on the event’s state, inside canTransition', () => {
     for (const [from, name] of LEGAL) {
-      const event = events[name] as ActionEvent;
+      const event = events[name]!;
       expect(canTransition(from, target(event))).toBe(true);
       expect(reducer(rowIn(from), event).state, `${from} --${name}-->`).toBe(target(event));
     }
@@ -95,7 +96,9 @@ describe('onchain-action reducer', () => {
     for (const from of onchainActionStates) {
       for (const [name, event] of Object.entries(events)) {
         if (isLegal(from, name)) continue;
-        expect(() => reducer(rowIn(from), event), `${from} --${name}-->`).toThrow(IllegalTransition);
+        expect(() => reducer(rowIn(from), event), `${from} --${name}-->`).toThrow(
+          IllegalTransition,
+        );
         rejected += 1;
       }
     }
@@ -110,24 +113,33 @@ describe('onchain-action reducer', () => {
   });
 
   it('a wallet rejection returns to idle with inputs intact and a neutral "declined" flag', () => {
-    const row = reducer(rowIn('signing'), events.rejected as ActionEvent);
+    const row = reducer(rowIn('signing'), events.rejected!);
     expect(row).toEqual({ state: 'idle', declined: true });
-    expect(reducer(row, events.start as ActionEvent).declined).toBeUndefined();
+    expect(reducer(row, events.start!).declined).toBeUndefined();
   });
 
   it('the hash exists from submitted on and survives to finalized', () => {
     expect(rowIn('signing').hash).toBeUndefined();
-    for (const s of ['submitted', 'pending', 'confirmed', 'finalized'] as const) expect(rowIn(s).hash).toBe('0xaa');
+    for (const s of ['submitted', 'pending', 'confirmed', 'finalized'] as const)
+      expect(rowIn(s).hash).toBe('0xaa');
   });
 
   it('a revert carries the decoded reason and the fee still charged', () => {
-    const row = reducer(rowIn('pending'), events.revert as ActionEvent);
-    expect(row).toMatchObject({ state: 'failed', reason: 'reverted', feeCharged: '0.0001 ETH', hash: '0xaa' });
-    expect(reducer(row, events.retry as ActionEvent)).toEqual({ state: 'idle' });
+    const row = reducer(rowIn('pending'), events.revert!);
+    expect(row).toMatchObject({
+      state: 'failed',
+      reason: 'reverted',
+      feeCharged: '0.0001 ETH',
+      hash: '0xaa',
+    });
+    expect(reducer(row, events.retry!)).toEqual({ state: 'idle' });
   });
 
   it('a reorg takes confirmed back to pending', () => {
-    expect(reducer(rowIn('confirmed'), events.reorg as ActionEvent)).toMatchObject({ state: 'pending', confirmations: 0 });
+    expect(reducer(rowIn('confirmed'), events.reorg!)).toMatchObject({
+      state: 'pending',
+      confirmations: 0,
+    });
   });
 
   it('the stuck flag rises after 2 × the expected time, only while submitted or pending', () => {
@@ -143,7 +155,12 @@ describe('onchain-action reducer', () => {
   it('a replacement starts a new row at submitted with the new hash', () => {
     const old = rowIn('replaced');
     expect(old.replacement).toEqual({ hash: '0xbb', kind: 'speed-up' });
-    expect(replacementRow(old, 9_000)).toEqual({ state: 'submitted', hash: '0xbb', submittedAt: 9_000, startedAt: 9_000 });
+    expect(replacementRow(old, 9_000)).toEqual({
+      state: 'submitted',
+      hash: '0xbb',
+      submittedAt: 9_000,
+      startedAt: 9_000,
+    });
     expect(replacementRow(rowIn('pending'), 9_000)).toBeUndefined();
   });
 });

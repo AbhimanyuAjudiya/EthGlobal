@@ -2,7 +2,8 @@ import { BASE_URL, PRINT_TOKEN } from './env';
 import { expect, state, test } from './fixtures';
 
 /** Pages in a Chromium PDF: one /Type /Page object per page. */
-const pageCount = (pdf: Buffer) => (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length;
+const pageCount = (pdf: Buffer) =>
+  (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length;
 
 test.describe('/print/cards (T-64)', () => {
   test('/print/cards without token → 404, wrong token → 404, noindex', async ({ request }) => {
@@ -25,19 +26,29 @@ test.describe('/print/cards (T-64)', () => {
     await page.emulateMedia({ media: 'print' });
     const coupons = page.locator('.print-sheet[data-side="front"] .coupon[data-variant="print"]');
     await expect(coupons).toHaveCount(cards.length);
-    const pins = (await page.locator('.print-sheet[data-side="front"] .coupon__pin').allTextContents()).map((t) =>
-      t.replace(/^PIN /, '').trim(),
-    );
+    const pins = (
+      await page.locator('.print-sheet[data-side="front"] .coupon__pin').allTextContents()
+    ).map((t) => t.replace(/^PIN /, '').trim());
     expect(pins).toEqual(cards.map((c) => c.pin.replace(/(\d{4})(?=\d)/g, '$1 ')));
-    const font = await page.locator('.coupon__pin').first().evaluate((el) => getComputedStyle(el).fontFamily);
+    const font = await page
+      .locator('.coupon__pin')
+      .first()
+      .evaluate((el) => getComputedStyle(el).fontFamily);
     expect(font).toContain('Chivo Mono');
-    await expect(page.locator('.print-sheet[data-side="front"] svg.qr-code')).toHaveCount(cards.length);
+    await expect(page.locator('.print-sheet[data-side="front"] svg.qr-code')).toHaveCount(
+      cards.length,
+    );
     const clipped = await page.evaluate(() =>
       [...document.querySelectorAll('.print-sheet')].flatMap((sheet) => {
         const s = sheet.getBoundingClientRect();
         return [...sheet.querySelectorAll('.coupon__pin, .qr-code')].filter((el) => {
           const r = el.getBoundingClientRect();
-          return r.left < s.left - 0.5 || r.top < s.top - 0.5 || r.right > s.right + 0.5 || r.bottom > s.bottom + 0.5;
+          return (
+            r.left < s.left - 0.5 ||
+            r.top < s.top - 0.5 ||
+            r.right > s.right + 0.5 ||
+            r.bottom > s.bottom + 0.5
+          );
         }).length;
       }),
     );

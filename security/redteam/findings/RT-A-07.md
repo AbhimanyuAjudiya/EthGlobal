@@ -5,14 +5,14 @@ module: services/api/src/middleware/x402.ts
 threat: T-28
 severity: Low
 likelihood: L
-status: open
+status: fixed
 found_by: redteam-wave2
 owner: builder-api
 found_at: 2026-11-04T15:05+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: services/api/test/redteam/rt-payment.test.ts::"maxAmount\\u0052equired" inside accepted ⇒ 400, never served_RTFINDING
-regression_test:
-fix_commit:
+regression_test: services/api/test/redteam/rt-payment.test.ts::"maxAmount\\u0052equired" inside accepted ⇒ 400, never served [RT-A-07]
+fix_commit: (uncommitted, wave-2 API fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -39,5 +39,7 @@ Check the parsed JSON, not the bytes: `JSON.parse(decoded)` once in the middlewa
 own key `maxAmountRequired`, or make the protocol schema `strictObject` for `accepted` so any unknown key fails the parse.
 
 ## Builder notes (optional)
+
+The v1-field refusal runs on the parsed JSON, after the protocol codec has accepted the header: any object at any depth (bounded) with the v1 amount as an OWN key ⇒ 400, so a `\u`-escaped spelling is the same key. The v1 name still never appears as a literal in app code (pattern). `src/middleware/x402.ts`.
 
 ## Verification (red team)

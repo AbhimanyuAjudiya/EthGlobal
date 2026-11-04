@@ -5,14 +5,14 @@ module: services/api/src/deps.ts
 threat: T-25
 severity: Med
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-wave2
 owner: builder-api
 found_at: 2026-11-04T15:05+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: services/api/test/redteam/rt-lpa-idem.test.ts::a pending-profile entitlement still completes after a process restart_RTFINDING
-regression_test:
-fix_commit:
+regression_test: services/api/test/redteam/rt-lpa-idem.test.ts::a pending-profile entitlement still completes after a process restart [RT-A-11] (+ services/api/test/regression/T-25-durable-state.test.ts; services/api/test/redteam/rt-authz.test.ts::auditKey stays hidden after a restart [RT-A-04])
+fix_commit: (uncommitted, wave-2 API fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -43,5 +43,7 @@ intents the same way (THREAT-MODEL T-24 already specifies a ledger `claim-intent
 `gift-reclaim` receipts (needs the by-kind-and-day query).
 
 ## Builder notes (optional)
+
+Every item is persisted: (1) the treasury day total is `ReceiptStore.spentUsd6ForDay('gift-reclaim', today)` from the ledger, checked under an in-process lock with the pending-receipt write, and the settled reclaim PATCHES the pending receipt (`ReceiptStore.patch`) instead of writing a twin, so it is counted once; (2) "audit key shown" is a ledger once-marker (RT-A-04); (3) pending-profile delivery targets and (4) T-24 intents hold capability keys, so they go to a sealed local store, not the world-readable ledger: `src/state.ts` `DurableState` — one JSON file at `STATE_FILE`, sealed to `SERVER_SEAL_KEY`, replaced atomically, mode 0600, refused at boot if it cannot be opened; `STATE_FILE` is required in live. Boot retries every pending delivery once (`retryPendingOnBoot`, `src/index.ts`), then `/me` retries ≤ 1/min. **Residual:** the Idempotency-Key cache stays in memory (money paths are idempotent by their natural keys, T-74); the state file is single-writer (one API process per deployment, THREAT-MODEL §8) and must sit on a persistent volume in live.
 
 ## Verification (red team)

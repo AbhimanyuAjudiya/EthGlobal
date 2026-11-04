@@ -10,10 +10,17 @@ import { DemoWalletPanel } from './Shell';
 import { api, ApiError } from '../lib/api';
 import { networkName } from '../lib/env';
 import { useHydrated, useWallet } from '../lib/hooks';
-import { approveCall, createCampaignCall, dataDropAddress, myCampaigns, scopedCampaignId, sponsorLogin, usdcAddress } from '../lib/sponsor';
+import {
+  approveCall,
+  createCampaignCall,
+  dataDropAddress,
+  myCampaigns,
+  scopedCampaignId,
+  sponsorLogin,
+  usdcAddress,
+} from '../lib/sponsor';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
 import { isUserRejection, type Wallet } from '../lib/wallet';
-
 
 import type { ActionEvent } from '../lib/onchain-action';
 
@@ -62,11 +69,23 @@ async function send(
   try {
     hash = await wallet.sendTransaction(tx);
   } catch (e) {
-    dispatch(isUserRejection(e) ? { type: 'rejected' } : { type: 'preBroadcastError', reason: 'the wallet could not send the transaction' });
+    dispatch(
+      isUserRejection(e)
+        ? { type: 'rejected' }
+        : { type: 'preBroadcastError', reason: 'the wallet could not send the transaction' },
+    );
     return false;
   }
   dispatch({ type: 'signed', hash, at: Date.now() });
-  return (await followTransaction({ hash, network: wallet.network, label, reader: wallet.reader, dispatch })) === 'finalized';
+  return (
+    (await followTransaction({
+      hash,
+      network: wallet.network,
+      label,
+      reader: wallet.reader,
+      dispatch,
+    })) === 'finalized'
+  );
 }
 
 /**
@@ -108,8 +127,23 @@ export function CampaignForm() {
       const expiresAtS = block.timestamp + BigInt(Number(draft.expiresDays)) * DAY_S;
       const id = scopedCampaignId(wallet.address, BigInt(Date.now()));
       const usdc = await usdcAddress(wallet);
-      if (!(await send(wallet, { to: usdc, ...approveCall(budget) }, 'approve USDC', approve.dispatch))) return;
-      if (!(await send(wallet, createCampaignCall(id, budget, price, Number(draft.perHour), expiresAtS), 'createCampaign', create.dispatch)))
+      if (
+        !(await send(
+          wallet,
+          { to: usdc, ...approveCall(budget) },
+          'approve USDC',
+          approve.dispatch,
+        ))
+      )
+        return;
+      if (
+        !(await send(
+          wallet,
+          createCampaignCall(id, budget, price, Number(draft.perHour), expiresAtS),
+          'createCampaign',
+          create.dispatch,
+        ))
+      )
         return;
       const login = await sponsorLogin(wallet, id);
       const res = await api.registerSponsor({
@@ -134,7 +168,13 @@ export function CampaignForm() {
       myCampaigns.add({ id: res.id, name: draft.name.trim() });
       setRegistered({ ...res, name: draft.name.trim() });
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.code}: ${e.message}` : e instanceof Error ? e.message : String(e));
+      setError(
+        e instanceof ApiError
+          ? `${e.code}: ${e.message}`
+          : e instanceof Error
+            ? e.message
+            : String(e),
+      );
     } finally {
       setRunning(false);
     }
@@ -166,7 +206,9 @@ export function CampaignForm() {
           <tbody>
             {list.length === 0 ? (
               <tr className="ghost">
-                <td colSpan={2}>Create a campaign — name, budget, bundle size by tier, hourly cap.</td>
+                <td colSpan={2}>
+                  Create a campaign — name, budget, bundle size by tier, hourly cap.
+                </td>
               </tr>
             ) : (
               list.map((c) => (
@@ -247,9 +289,17 @@ export function CampaignForm() {
           <h2 id="audit-title" className="pane__title">
             Audit key · shown once
           </h2>
-          <p>Store it now: it proves which claims belong to this campaign. Recharge will not show it again.</p>
+          <p>
+            Store it now: it proves which claims belong to this campaign. Recharge will not show it
+            again.
+          </p>
           <Hash value={registered.auditKey} kind="audit key" />
-          <Link href={`/sponsor/${registered.id}`} className="ui-button" data-variant="secondary" prefetch={false}>
+          <Link
+            href={`/sponsor/${registered.id}`}
+            className="ui-button"
+            data-variant="secondary"
+            prefetch={false}
+          >
             {`Open ${registered.name}`}
           </Link>
         </section>

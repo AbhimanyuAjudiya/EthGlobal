@@ -17,13 +17,20 @@ import { pauseCall, refundCall, sponsorLogin } from '../lib/sponsor';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
 import { isUserRejection } from '../lib/wallet';
 
-
 const enIN = new Intl.NumberFormat('en-IN');
 const TIERS = ['orb', 'document', 'device'] as const;
 const HOURS = 24;
 
 /** One line of claims per hour, --series-1, no fill, the hourly cap as a dashed rule, axes labelled. */
-function ClaimsPerHour({ claims, cap, now }: { claims: SponsorView['claims']; cap: number; now: number }) {
+function ClaimsPerHour({
+  claims,
+  cap,
+  now,
+}: {
+  claims: SponsorView['claims'];
+  cap: number;
+  now: number;
+}) {
   const buckets = Array.from({ length: HOURS }, (_, i) => {
     const end = now - (HOURS - 1 - i) * 3_600_000;
     return claims.filter((c) => c.at > end - 3_600_000 && c.at <= end).length;
@@ -35,7 +42,10 @@ function ClaimsPerHour({ claims, cap, now }: { claims: SponsorView['claims']; ca
   const y = (v: number) => h - 20 - (v / max) * (h - 32);
   const points = buckets.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
   return (
-    <figure className="chart" aria-label={`Claims per hour, last ${HOURS} hours; hourly cap ${cap}`}>
+    <figure
+      className="chart"
+      aria-label={`Claims per hour, last ${HOURS} hours; hourly cap ${cap}`}
+    >
       <svg viewBox={`0 0 ${w} ${h}`} role="img" aria-hidden="true">
         <line x1="32" x2={w - 8} y1={y(cap)} y2={y(cap)} className="chart__cap" />
         <line x1="32" x2={w - 8} y1={h - 20} y2={h - 20} className="chart__axis" />
@@ -57,7 +67,15 @@ function ClaimsPerHour({ claims, cap, now }: { claims: SponsorView['claims']; ca
 
 function csv(view: SponsorView): string {
   const rows = view.claims.map((c) =>
-    [new Date(c.at).toISOString(), c.campaignClaimKey, c.tier, c.mb, c.usd6, c.tx ?? '', c.status].join(','),
+    [
+      new Date(c.at).toISOString(),
+      c.campaignClaimKey,
+      c.tier,
+      c.mb,
+      c.usd6,
+      c.tx ?? '',
+      c.status,
+    ].join(','),
   );
   return ['at,claim_key_hmac,tier,mb,usd6,tx,status', ...rows].join('\n');
 }
@@ -94,7 +112,10 @@ export function SponsorTable({ id }: { id: string }) {
         setLogin(auth);
         void load(auth);
       },
-      (e: unknown) => setError(isUserRejection(e) ? 'Sign in with the sponsor wallet to see this campaign.' : String(e)),
+      (e: unknown) =>
+        setError(
+          isUserRejection(e) ? 'Sign in with the sponsor wallet to see this campaign.' : String(e),
+        ),
     );
   }, [wallet, login, id, load]);
 
@@ -107,10 +128,20 @@ export function SponsorTable({ id }: { id: string }) {
       try {
         const hash = await wallet.sendTransaction(tx);
         action.dispatch({ type: 'signed', hash, at: Date.now() });
-        await followTransaction({ hash, network: wallet.network, label: title, reader: wallet.reader, dispatch: action.dispatch });
+        await followTransaction({
+          hash,
+          network: wallet.network,
+          label: title,
+          reader: wallet.reader,
+          dispatch: action.dispatch,
+        });
         await load();
       } catch (e) {
-        action.dispatch(isUserRejection(e) ? { type: 'rejected' } : { type: 'preBroadcastError', reason: 'the wallet could not send the transaction' });
+        action.dispatch(
+          isUserRejection(e)
+            ? { type: 'rejected' }
+            : { type: 'preBroadcastError', reason: 'the wallet could not send the transaction' },
+        );
       }
     },
     [wallet, action, load],
@@ -122,7 +153,13 @@ export function SponsorTable({ id }: { id: string }) {
         const rows = view?.claims.filter((c) => c.tier === tier) ?? [];
         const mb = rows.reduce((s, c) => s + c.mb, 0);
         const cost = rows.reduce((s, c) => s + BigInt(c.usd6), 0n);
-        return { tier, claims: rows.length, mb, cost, avg: rows.length ? Math.round(mb / rows.length) : 0 };
+        return {
+          tier,
+          claims: rows.length,
+          mb,
+          cost,
+          avg: rows.length ? Math.round(mb / rows.length) : 0,
+        };
       }),
     [view],
   );
@@ -160,16 +197,21 @@ export function SponsorTable({ id }: { id: string }) {
       <DemoWalletPanel wallet={wallet} />
       <header className="sponsor-hero">
         <h1 className="sponsor-hero__name">
-          {campaign.name} <span className="pill" data-state={chain.paused ? 'paused' : 'live'}>{chain.paused ? 'Paused' : 'Live'}</span>
+          {campaign.name}{' '}
+          <span className="pill" data-state={chain.paused ? 'paused' : 'live'}>
+            {chain.paused ? 'Paused' : 'Live'}
+          </span>
         </h1>
         <p className="sponsor-hero__figure" data-testid="sponsor-claims">
           {enIN.format(chain.claims)} claims
         </p>
         <p className="sponsor-hero__line">
-          {money(spent)} of {money(budget)} · {enIN.format(campaign.maxClaims)} cap · {campaign.claimsPerHour}/h ·{' '}
-          {networkName(campaign.network)}
+          {money(spent)} of {money(budget)} · {enIN.format(campaign.maxClaims)} cap ·{' '}
+          {campaign.claimsPerHour}/h · {networkName(campaign.network)}
         </p>
-        <p className="note">This hour: {chain.claimsThisHour} claims · ends {dayLabel(campaign.expiresAt)}</p>
+        <p className="note">
+          This hour: {chain.claimsThisHour} claims · ends {dayLabel(campaign.expiresAt)}
+        </p>
       </header>
       {auditKey ? (
         <section className="audit-key" data-testid="audit-key">
@@ -195,10 +237,18 @@ export function SponsorTable({ id }: { id: string }) {
           <thead>
             <tr>
               <th scope="col">Level</th>
-              <th scope="col" className="num">Claims</th>
-              <th scope="col" className="num">MB issued</th>
-              <th scope="col" className="num">Cost (USDC)</th>
-              <th scope="col" className="num">Avg MB</th>
+              <th scope="col" className="num">
+                Claims
+              </th>
+              <th scope="col" className="num">
+                MB issued
+              </th>
+              <th scope="col" className="num">
+                Cost (USDC)
+              </th>
+              <th scope="col" className="num">
+                Avg MB
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -222,7 +272,9 @@ export function SponsorTable({ id }: { id: string }) {
           <thead>
             <tr>
               <th scope="col">Arkiv key</th>
-              <th scope="col" className="num">MB left</th>
+              <th scope="col" className="num">
+                MB left
+              </th>
               <th scope="col">Expires</th>
               <th scope="col">Tier</th>
             </tr>
@@ -260,8 +312,12 @@ export function SponsorTable({ id }: { id: string }) {
                 <th scope="col">Time</th>
                 <th scope="col">Claim key (HMAC)</th>
                 <th scope="col">Tier</th>
-                <th scope="col" className="num">MB</th>
-                <th scope="col" className="num">Cost</th>
+                <th scope="col" className="num">
+                  MB
+                </th>
+                <th scope="col" className="num">
+                  Cost
+                </th>
                 <th scope="col">Tx</th>
                 <th scope="col">Status</th>
               </tr>
@@ -335,7 +391,9 @@ export function SponsorTable({ id }: { id: string }) {
           disabled={!expired}
           onClick={() => void runTx('Refund the unspent budget', refundCall(campaign.id as Hex))}
         >
-          {expired ? `Refund ${money(budget - spent)}` : `Refund opens after ${dayLabel(campaign.expiresAt)}`}
+          {expired
+            ? `Refund ${money(budget - spent)}`
+            : `Refund opens after ${dayLabel(campaign.expiresAt)}`}
         </button>
         {actionTitle ? (
           <ActionView

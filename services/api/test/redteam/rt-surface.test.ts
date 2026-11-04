@@ -2,21 +2,23 @@
  * Red team wave 2 (unscripted): what is reachable and what leaks — a real MODE=live boot (fake env, no network) with
  * the route table enumerated, local hooks probed, live env defaults inherited from local mode, OpenAPI drift, security
  * headers on error paths, request-size/depth limits on streamed bodies, error-mapper leaks, and rate-limit keying.
+ * RT-A-09/10 are fixed: their attack tests are passing regressions named `… [RT-A-NN]`.
  */
 import { describe, expect, it, vi } from 'vitest';
 
-import { anvilAccounts, anvilRoles } from '@ethglobal/adapters/testing';
 import { AdapterError } from '@ethglobal/adapters';
+import { anvilAccounts, anvilRoles } from '@ethglobal/adapters/testing';
 import { randomBytes } from '@ethglobal/crypto';
 import { generatePin } from '@ethglobal/protocol/pin';
 
+import { fakeLiveEnv } from './rt-support.js';
 import { createApp } from '../../src/app.js';
 import { buildDeps } from '../../src/deps.js';
 import { parseEnv } from '../../src/env.js';
 import { createLogger } from '../../src/logger.js';
+import { ipBucket } from '../../src/middleware/rate-limit.js';
 import { OPERATIONS } from '../../src/openapi.js';
 import { harness, redeemPin, seedCard } from '../support/harness.js';
-import { fakeLiveEnv } from './rt-support.js';
 
 const FAKE_LIVE = fakeLiveEnv();
 
@@ -97,18 +99,20 @@ describe('attack: rt MODE=live boot — route enumeration and local hooks', () =
 });
 
 describe('attack: rt live env inherits local defaults', () => {
-  // RT-FINDING RT-A-09: AGENT_PAYERS defaults to Anvil #4 (a PUBLIC key) in live; anyone who pays from that address
-  // gets their X-Agent-Uaid recorded as an agent-topup — the T-77 control is an allow-list of a public key
-  it('MODE=live without AGENT_PAYERS ⇒ no public Anvil address is an allow-listed agent payer_RTFINDING', () => {
+  // regression RT-A-09 (fixed): live defaults AGENT_PAYERS to none and refuses an Anvil address in it
+  it('MODE=live without AGENT_PAYERS ⇒ no public Anvil address is an allow-listed agent payer [RT-A-09]', () => {
     const env = parseEnv(FAKE_LIVE);
     const anvil = new Set(anvilAccounts.map((a) => a.toLowerCase()));
     expect(env.AGENT_PAYERS.map((p) => p.toLowerCase()).filter((p) => anvil.has(p))).toEqual([]);
-    expect(anvil.has(anvilAccounts[anvilRoles.agent]!.toLowerCase())).toBe(true);
+    expect(anvil.has(anvilAccounts[anvilRoles.agent].toLowerCase())).toBe(true);
+    expect(() => parseEnv({ ...FAKE_LIVE, AGENT_PAYERS: anvilAccounts[anvilRoles.agent] })).toThrow(
+      /public Anvil account/,
+    );
   });
 
-  // RT-FINDING RT-A-09 (same root): live accepts the local CORS origins and a missing CHAIN (31337, the Anvil
-  // EIP-712 domain) without complaint
-  it('MODE=live without CORS_ORIGINS / CHAIN ⇒ refused or no localhost origin and no 31337 domain_RTFINDING', () => {
+  // regression RT-A-09 (same root, fixed): live requires CHAIN (never 31337), defaults CORS_ORIGINS to none and
+  // refuses a localhost origin
+  it('MODE=live without CORS_ORIGINS / CHAIN ⇒ refused or no localhost origin and no 31337 domain [RT-A-09]', () => {
     const { CHAIN: _c, ...noChain } = FAKE_LIVE;
     let env: ReturnType<typeof parseEnv> | undefined;
     try {
@@ -120,6 +124,12 @@ describe('attack: rt live env inherits local defaults', () => {
       expect(env.CHAIN).not.toBe(31337);
       expect(env.CORS_ORIGINS.some((o) => /localhost|127\.0\.0\.1/.test(o))).toBe(false);
     }
+    expect(env).toBeUndefined(); // the fix chose refusal
+    expect(parseEnv(FAKE_LIVE).CORS_ORIGINS).toEqual([]);
+    expect(() => parseEnv({ ...FAKE_LIVE, CHAIN: '31337' })).toThrow(/Anvil domain/);
+    expect(() => parseEnv({ ...FAKE_LIVE, CORS_ORIGINS: 'http://localhost:3000' })).toThrow(
+      /local origin/,
+    );
   });
 });
 
@@ -218,7 +228,7 @@ describe('attack: rt request size and depth', () => {
       headers: { 'content-type': 'application/json' },
       body,
       duplex: 'half', // undici needs duplex for a stream body
-    } as RequestInit);
+    });
     expect(res.status).toBe(413);
   });
 
@@ -246,7 +256,11 @@ describe('attack: rt error-mapper leaks', () => {
     const { res } = await h.claim({ seed: 'rt-leak' });
     const text = await res.text();
     expect(res.status).toBeGreaterThanOrEqual(500);
-    expect(Object.keys(JSON.parse(text)).sort()).toEqual(['error', 'message', 'requestId']);
+    expect(Object.keys(JSON.parse(text) as object).sort()).toEqual([
+      'error',
+      'message',
+      'requestId',
+    ]);
     expect(text).not.toMatch(/hunter2|RTSECRET|at .*\.ts:\d+/);
     expect(h.lines.join('\n')).not.toMatch(/hunter2|RTSECRET/);
   });
@@ -267,9 +281,8 @@ describe('attack: rt error-mapper leaks', () => {
 });
 
 describe('attack: rt rate-limit keying', () => {
-  // RT-FINDING RT-A-10: limits key on the full client address; one IPv6 /64 (one home or one VPS) is 2^64 buckets,
-  // so the 10/min /challenge and /world/rp-context limits (the T-81 signing-oracle control) do not bind an attacker
-  it('20 /world/rp-context from one IPv6 /64 within a minute ⇒ at most 10 signed_RTFINDING', async () => {
+  // regression RT-A-10 (fixed): the limiter buckets IPv6 by /64 and IPv4-mapped IPv6 as its IPv4
+  it('20 /world/rp-context from one IPv6 /64 within a minute ⇒ at most 10 signed [RT-A-10]', async () => {
     const h = await harness();
     const signs = vi.spyOn(h.deps.rpSigner, 'issue');
     for (let i = 0; i < 20; i++) {
@@ -281,6 +294,16 @@ describe('attack: rt rate-limit keying', () => {
       });
     }
     expect(signs.mock.calls.length).toBeLessThanOrEqual(10);
+    // another /64 is another bucket; ::ffff:a.b.c.d shares the IPv4 bucket
+    const other = await h.request('/world/rp-context', {
+      method: 'POST',
+      ip: '2001:db8:1:3::1',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ audience: 'recharge', path: '/claim' }),
+    });
+    expect(other.status).toBe(200);
+    expect(ipBucket('::ffff:203.0.113.9')).toBe('203.0.113.9');
+    expect(ipBucket('2001:0db8:0001:0002:aaaa::1')).toBe(ipBucket('2001:db8:1:2::ffff'));
   });
 
   // property: path spellings never dodge a per-route bucket (they 404 or share the bucket)

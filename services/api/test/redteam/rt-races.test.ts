@@ -1,7 +1,7 @@
 /**
  * Red team wave 2 (unscripted): races through the real HTTP surface on the fake chain — parallel top-ups on one
  * entitlement, the per-ICCID daily cap under concurrency, and the sponsor BUDGET (not the hourly cap) under a burst.
- * Failing cases are marked // RT-FINDING and named *_RTFINDING; passing ones are kept as regressions.
+ * RT-A-01/02/03 are fixed: their attack tests are passing regressions named `… [RT-A-0N]`.
  */
 import { describe, expect, it, vi } from 'vitest';
 
@@ -10,8 +10,8 @@ import { HUMAN_KEY, STRANGER_KEY, harness, provisioned } from '../support/harnes
 const topUpPath = (key: string, mb = 100) => `/esim/topup?key=${encodeURIComponent(key)}&mb=${mb}`;
 
 describe('attack: rt parallel top-ups on one entitlement', () => {
-  // RT-FINDING RT-A-01: fulfilTopUp patches mbTotal = (read-before) + mb with no per-key mutex; two paid top-ups lose one
-  it('two concurrent paid top-ups (two distinct payments) both land in mbTotal_RTFINDING', async () => {
+  // regression RT-A-01 (fixed): fulfilTopUp patches with the function form (mbTotal recomputed per CAS attempt)
+  it('two concurrent paid top-ups (two distinct payments) both land in mbTotal [RT-A-01]', async () => {
     const h = await harness();
     const { key } = await provisioned(h, 'rt-topup-race');
     const before = (await (await h.get(`/me/${encodeURIComponent(key)}?refresh=1`)).json()) as {
@@ -48,14 +48,14 @@ describe('attack: rt parallel top-ups on one entitlement', () => {
 });
 
 describe('attack: rt daily top-up cap under concurrency', () => {
-  // RT-FINDING RT-A-02: topUpGuard counts receipts BEFORE settle; N concurrent payments all pass a cap of 2
-  it('TOPUPS_PER_ICCID_PER_DAY=2: five concurrent paid top-ups settle at most 2_RTFINDING', async () => {
+  // regression RT-A-02 (fixed): topUpGuard reserves a slot synchronously over today's receipt count
+  it('TOPUPS_PER_ICCID_PER_DAY=2: five concurrent paid top-ups settle at most 2 [RT-A-02]', async () => {
     const h = await harness({ env: { TOPUPS_PER_ICCID_PER_DAY: '2' } });
     const { key } = await provisioned(h, 'rt-daily-cap');
     const quote = await h.get(topUpPath(key));
     const pays = await Promise.all(Array.from({ length: 5 }, () => h.payFor(quote)));
     const settle = vi.spyOn(h.adapters.payments, 'settle');
-    const results = await Promise.all(pays.map((p) => h.get(topUpPath(key), p)));
+    const results = await Promise.all(pays.map(async (p) => h.get(topUpPath(key), p)));
     const ok = results.filter((r) => r.status === 200).length;
     // property: the per-ICCID daily cap holds before settle (no payment is taken above the cap)
     expect(settle.mock.calls.length).toBeLessThanOrEqual(2);
@@ -78,9 +78,8 @@ describe('attack: rt daily top-up cap under concurrency', () => {
 });
 
 describe('attack: rt sponsor budget burst burns one-time proofs (T-24 / T-46 sibling)', () => {
-  // RT-FINDING RT-A-03: admission sizes the queue to the HOURLY cap only; a burst against a budget of 3 claims runs
-  // verify() for every human and 7 lose their one-time World proof to BudgetExhausted (not kept as an intent)
-  it('budget for 3 claims, 10 concurrent humans ⇒ verify ≤ 3 and the rest refused before verify_RTFINDING', async () => {
+  // regression RT-A-03 (fixed): admission slots = min(hour left, ⌊budget left / price⌋) − in flight, before verify
+  it('budget for 3 claims, 10 concurrent humans ⇒ verify ≤ 3 and the rest refused before verify [RT-A-03]', async () => {
     const h = await harness({ campaign: { budget: 3n * 500_000n, claimsPerHour: 120 } });
     const verify = vi.spyOn(h.adapters.personhood, 'verify');
     const results = await Promise.all(
@@ -90,10 +89,11 @@ describe('attack: rt sponsor budget burst burns one-time proofs (T-24 / T-46 sib
     expect(statuses.filter((s) => s === 201)).toHaveLength(3);
     // property: a human is never verified for a claim the sponsor budget cannot pay (T-24: proofs are one-time)
     expect(verify.mock.calls.length).toBeLessThanOrEqual(3);
+    expect(statuses.filter((s) => s === 409)).toHaveLength(7); // budget_exhausted, before verify
   });
 
-  // documents what the burned humans see: a terminal error, no intent kept, and a retry is a replay
-  it('a human burned by BudgetExhausted cannot recover (no intent, retry denied)', async () => {
+  // since RT-A-03 nobody is burned: the losers are refused before verify, so there is no intent to keep
+  it('budget for 1 claim, 3 concurrent humans ⇒ the 2 losers are refused before verify (no intent needed)', async () => {
     const h = await harness({ campaign: { budget: 1n * 500_000n, claimsPerHour: 120 } });
     const results = await Promise.all(
       Array.from({ length: 3 }, (_, i) => h.claim({ seed: `rt-burn-${i}` })),

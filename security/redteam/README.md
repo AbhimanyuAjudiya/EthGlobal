@@ -17,6 +17,7 @@ This directory attacks Recharge before the judges do. The model is `docs/THREAT-
 | `attacks/wave3-web-ops.md`                                 | W1–W11 PWA (Playwright) · OP1–OP7 scripts, fixtures, docs, CI                                                                            |
 | `findings/`                                                | One file per finding (`RT-W<wave>-<seq>-<slug>.md`), format in `findings/README.md`; `INDEX.md` is generated                             |
 | `run-wave.sh`                                              | The wave runner: attack suites + static gates + coverage; exit 0 = cleared                                                               |
+| `wave3-ops/run.sh` (+ `live-env.sh`)                       | OP1–OP7 as executable checks (`run-wave.sh wave3-ops`; `--static` boots nothing); findings `RT-P-*`                                      |
 | `tools/scan.sh` + `tools/forbidden-patterns.txt`           | Forbidden-pattern scan (LPAs, nullifiers, PINs, keys, bearer headers, reseller credentials) over logs, dumps, fixtures, docs, bundles    |
 | `tools/semgrep/recharge.yml` + `tools/semgrep/selftest.sh` | 19 offline semgrep rules, each tied to a threat; the self-test proves they parse and fire                                                |
 | `tools/slither.config.json`                                | slither gate for `packages/contracts` (fail on medium)                                                                                   |

@@ -146,7 +146,8 @@ export const claimSchema = z.object({
   v: z.literal(1),
   /** keys.claim(digest) */
   key: z.string().startsWith('claim:').max(80),
-  scope: z.enum(['free-live', 'free-campaign', 'settlement']),
+  /** 'once': a once-only API marker — a gift's LPA delivered, an audit key shown (A-42, RT-A-04/06). */
+  scope: z.enum(['free-live', 'free-campaign', 'settlement', 'once']),
   expiresAt: msSchema,
 });
 export type ClaimLock = z.infer<typeof claimSchema>;

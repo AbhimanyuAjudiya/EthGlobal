@@ -27,7 +27,8 @@ export const config = {
 /** Explorer URL template for a transaction on `network` (CAIP-2), `{hash}` placeholder; undefined → no link. */
 export function explorerTemplate(network: string | undefined): string | undefined {
   if (network?.startsWith('hedera:')) return `${config.explorerHedera}/transaction/{hash}`;
-  if (network?.startsWith('eip155:') && config.explorerEvm) return `${config.explorerEvm}/tx/{hash}`;
+  if (network?.startsWith('eip155:') && config.explorerEvm)
+    return `${config.explorerEvm}/tx/{hash}`;
   return undefined;
 }
 

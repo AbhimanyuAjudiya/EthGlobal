@@ -28,13 +28,13 @@ actual_built="$(awk '/onlyBuiltDependencies:/{f=1;next} /^[^ ]/{f=0} f && /^ *- 
 grep -q 'minimumReleaseAge' pnpm-workspace.yaml || note "WARN: pnpm-workspace.yaml has no minimumReleaseAge (recommend 3 days = 4320)"
 
 # 5. No unpinned npx in scripts or package.json scripts.
-if grep -R -n -E 'npx +[a-z@][^ ]*' --include='*.sh' --include='package.json' --include='*.ts' scripts package.json apps/*/package.json packages/*/package.json services/*/package.json 2>/dev/null | grep -v -E 'npx +[^ ]+@[0-9]' ; then
+if grep -R -n -E 'npx +[a-z@][^ ]*' --exclude-dir=node_modules --include='*.sh' --include='package.json' --include='*.ts' scripts package.json apps/*/package.json packages/*/package.json services/*/package.json 2>/dev/null | grep -v -E 'npx +[^ ]+@[0-9]' ; then
   bad "unpinned npx invocation(s) above — pin an exact version"
 fi
 
-# 6. Secrets hygiene.
+# 6. Secrets hygiene. (packages/adapters/src/testing is the one sanctioned home of the public Anvil keys — wave3-ops.)
 git ls-files --error-unmatch .env > /dev/null 2>&1 && bad ".env is tracked by git"
-if git grep -n -E 'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' -- . ':!scripts/dev-chain.sh' ':!**/test/**' ':!**/fixtures/**' ':!**/*.test.ts' ':!security/**' ':!docs/**' ':!research/**' ':!**/mocks/**'; then
+if git grep -n -E 'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' -- . ':!scripts/dev-chain.sh' ':!packages/adapters/src/testing/**' ':!**/test/**' ':!**/fixtures/**' ':!**/*.test.ts' ':!security/**' ':!docs/**' ':!research/**' ':!**/mocks/**'; then
   bad "Anvil account #0 private key outside dev tooling/tests (lines above; docs may quote it, code may not)"
 fi
 if git grep -n -E '(PRIVATE_KEY|SECRET|MNEMONIC)[A-Z_]*=[^$<]{8,}' -- . ':!.env.example' ':!security/**' ':!docs/**' ':!research/**' > /dev/null; then

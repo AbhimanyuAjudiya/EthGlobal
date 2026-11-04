@@ -1,33 +1,59 @@
+/** Releases a reservation; `committed` = the reserved thing happened (a claim mined, a top-up receipt written). */
+export type Release = (committed?: boolean) => void;
+
+/** How long a commit is subtracted from reads that started before it (far longer than any counter read). */
+const COMMIT_MEMORY_MS = 5 * 60_000;
+
 /**
- * Per-campaign admission (T-46, T-24): a free claim takes a slot BEFORE personhood.verify runs, so a burst larger
- * than the hourly cap is refused cheaply instead of burning one-time proofs. slots = claimsPerHour −
- * claimsInHour(bucket) − inFlight; the check-and-increment is synchronous, so concurrent requests cannot race it.
+ * Synchronous reservations against a counter that lives elsewhere (T-46, T-24, RT-A-02, RT-A-03): the chain's
+ * per-hour claims and remaining budget, or today's top-up receipts. A request takes `mark()` BEFORE it reads the
+ * counter, then `take(id, limit, used, mark)`: slots = limit − used − inFlight − commitsSince(mark). A commit that
+ * finished after the read began is not in `used` yet, so it is still subtracted; one that finished before is.
+ * The check-and-increment never awaits, so concurrent requests cannot race past it.
  */
 export class Admission {
   readonly #inFlight = new Map<string, number>();
+  readonly #commits = new Map<string, { seq: number; at: number }[]>();
+  #seq = 0;
 
-  /** A release function, or undefined when the hour is full. Never awaits. */
-  take(
-    campaignId: string,
-    claimsPerHour: number,
-    claimsThisHour: number,
-  ): (() => void) | undefined {
-    const id = campaignId.toLowerCase();
+  constructor(private readonly now: () => number = Date.now) {}
+
+  /** A position in time to pass to `take` (taken before the counter is read). */
+  mark(): number {
+    return ++this.#seq;
+  }
+
+  /** A release function, or undefined when no slot is left. Never awaits. */
+  take(key: string, limit: number, used: number, mark = 0): Release | undefined {
+    const id = key.toLowerCase();
     const inFlight = this.#inFlight.get(id) ?? 0;
-    if (claimsPerHour - claimsThisHour - inFlight <= 0) return undefined;
+    if (limit - used - inFlight - this.#committedSince(id, mark) <= 0) return undefined;
     this.#inFlight.set(id, inFlight + 1);
     let released = false;
-    return () => {
+    return (committed = false) => {
       if (released) return;
       released = true;
       const left = (this.#inFlight.get(id) ?? 1) - 1;
       if (left <= 0) this.#inFlight.delete(id);
       else this.#inFlight.set(id, left);
+      if (committed) {
+        const at = this.now();
+        const kept = (this.#commits.get(id) ?? []).filter((c) => at - c.at < COMMIT_MEMORY_MS);
+        this.#commits.set(id, [...kept, { seq: ++this.#seq, at }]);
+      }
     };
   }
 
-  inFlight(campaignId: string): number {
-    return this.#inFlight.get(campaignId.toLowerCase()) ?? 0;
+  inFlight(key: string): number {
+    return this.#inFlight.get(key.toLowerCase()) ?? 0;
+  }
+
+  #committedSince(id: string, mark: number): number {
+    const at = this.now();
+    const commits = (this.#commits.get(id) ?? []).filter((c) => at - c.at < COMMIT_MEMORY_MS);
+    if (commits.length === 0) this.#commits.delete(id);
+    else this.#commits.set(id, commits);
+    return commits.filter((c) => c.seq > mark).length;
   }
 }
 

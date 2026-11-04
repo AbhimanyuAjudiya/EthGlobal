@@ -6,8 +6,16 @@
  * page then renders the last IndexedDB snapshot with "as of HH:MM".
  */
 const VERSION = 'recharge-shell-v1';
-const SHELL = ['/', '/offline', '/plan', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
-const NEVER = /^\/(claim|esim|card|me|gift|agent|sponsor|challenge|world|webhooks|facilitator|__local|api)(\/|$)/;
+const SHELL = [
+  '/',
+  '/offline',
+  '/plan',
+  '/manifest.webmanifest',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+];
+const NEVER =
+  /^\/(claim|esim|card|me|gift|agent|sponsor|challenge|world|webhooks|facilitator|__local|api)(\/|$)/;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

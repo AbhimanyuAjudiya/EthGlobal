@@ -110,7 +110,10 @@ export function registerClaim(app: Hono<AppEnv>, deps: Deps): void {
 
 /**
  * Before any 402 or settlement: the entitlement must be live (an expired one is 410 and is never charged, AP7.13) and
- * under its per-ICCID daily top-up cap (429 daily_cap before settle, AP7.14). Cheap ledger reads only.
+ * under its per-ICCID daily top-up cap (429 daily_cap before settle, AP7.14). Cheap ledger reads only. The cap is a
+ * synchronous reservation over today's receipt count (RT-A-02): N concurrent payments take at most the slots left,
+ * a slot is released when the request ends and counted as a commit when the top-up was served (its receipt now
+ * exists), so the receipts stay the cross-process floor and in-flight requests are the in-process ceiling.
  */
 const topUpGuard = createMiddleware<AppEnv>(async (c, next) => {
   const deps = c.get('deps');
@@ -118,14 +121,27 @@ const topUpGuard = createMiddleware<AppEnv>(async (c, next) => {
   const found = await deps.stores.entitlements.getByKey(key);
   if (!found) throw fail(deps.cache.expired(key) ? 'expired' : 'not_found');
   const today = dayBucket(deps.now());
-  const receipts = await deps.stores.receipts.forEntitlement(sha256Hex(key));
+  const keyHash = sha256Hex(key);
+  const mark = deps.admission.mark();
+  const receipts = await deps.stores.receipts.forEntitlement(keyHash);
   const count = receipts.filter(
     (r) => (r.kind === 'topup' || r.kind === 'agent-topup') && dayBucket(r.at) === today,
   ).length;
-  if (count >= deps.env.TOPUPS_PER_ICCID_PER_DAY) throw fail('daily_cap');
-  if (found.payload.iccidEnc === undefined)
-    throw fail('invalid_request', { detail: 'profile not provisioned yet' });
-  return next();
+  const release = deps.admission.take(
+    `topup:${keyHash}:${today}`,
+    deps.env.TOPUPS_PER_ICCID_PER_DAY,
+    count,
+    mark,
+  );
+  if (!release) throw fail('daily_cap');
+  try {
+    if (found.payload.iccidEnc === undefined)
+      throw fail('invalid_request', { detail: 'profile not provisioned yet' });
+    await next();
+    release(c.res.status === 200);
+  } finally {
+    release();
+  }
 });
 
 async function topUp(c: Ctx): Promise<Response> {

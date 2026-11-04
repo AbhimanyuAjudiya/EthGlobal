@@ -25,7 +25,9 @@ test.describe('/card/[serial] — preview → scratch → redeem', () => {
     expect(await page.content()).not.toContain(card.pin);
   });
 
-  test('scratch to ≥ 45 % enables Redeem; typo PIN rejected locally (Verhoeff); valid → /plan', async ({ page }) => {
+  test('scratch to ≥ 45 % enables Redeem; typo PIN rejected locally (Verhoeff); valid → /plan', async ({
+    page,
+  }) => {
     const card = state().cards[1];
     if (!card) throw new Error('no seeded card');
     let redeemCalls = 0;

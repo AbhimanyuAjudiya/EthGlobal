@@ -17,8 +17,9 @@ nullifier_hash"?[[:space:]]*[:=][[:space:]]*"?0x[0-9a-fA-F]{64}  # [relaxed-skip
 "nullifier"[[:space:]]*:[[:space:]]*"(?:0x[0-9a-fA-F]{60,64}|[0-9]{60,78})"  # [relaxed-skip]
 "proof"[[:space:]]*:[[:space:]]*"0x[0-9a-fA-F]{128,}  # [relaxed-skip]
 merkle_root"?[[:space:]]*[:=][[:space:]]*"?0x[0-9a-fA-F]{64}  # [relaxed-skip]
-RP_SIGNING_KEY[[:space:]]*[:=][[:space:]]*["']?(?:0x)?[0-9a-fA-F]{64}
-signingKeyHex"?[[:space:]]*[:=][[:space:]]*["']?(?:0x)?[0-9a-fA-F]{64}
+# (a single repeated byte such as 0x1111… is a published synthetic vector, e.g. fixtures/world/rp-context-vector.json; any other 64-hex value fires)
+RP_SIGNING_KEY[[:space:]]*[:=][[:space:]]*["']?(?!(?:0x)?([0-9a-fA-F]{2})\g{-1}{31}\b)(?:0x)?[0-9a-fA-F]{64}
+signingKeyHex"?[[:space:]]*[:=][[:space:]]*["']?(?!(?:0x)?([0-9a-fA-F]{2})\g{-1}{31}\b)(?:0x)?[0-9a-fA-F]{64}
 #
 # --- bearer payment headers / signed authorizations / sponsor bearer ------------------------------------------------------
 PAYMENT-SIGNATURE[[:space:]]*[:=][[:space:]]*[A-Za-z0-9+/=]{40,}
@@ -60,3 +61,9 @@ SERVER_SEAL_KEY\s*=\s*(?![A-Z0-9_]+=)[A-Fa-f0-9x]{32,}
 INVENTORY_SEAL_KEY\s*=\s*(?![A-Z0-9_]+=)[A-Fa-f0-9x]{32,}
 WEBHOOK_SECRET\s*=\s*(?![A-Z0-9_]+=)[A-Za-z0-9+/=_-]{16,}
 HMAC_SECRET\s*=\s*(?![A-Z0-9_]+=)[A-Za-z0-9+/=_-]{16,}
+#
+# --- Arkiv access key (last RPC path segment, T-50) and Swarm postage batch (wave3-ops, T-63) ----------------------------
+db-chain\.testnet\.arkiv\.network/(?!access-keys\b|faucet\b)[A-Za-z0-9_-]{16,}
+ARKIV_ACCESS_KEY[[:space:]]*=[[:space:]]*(?![A-Z0-9_]+=)[A-Za-z0-9_-]{16,}
+SWARM_POSTAGE_BATCH[[:space:]]*=[[:space:]]*(?![A-Z0-9_]+=)(?:0x)?[0-9a-fA-F]{64}
+postage-batch(?:-id)?"?[[:space:]]*[:=][[:space:]]*["']?(?!([0-9a-fA-F]{2})\g{-1}{31}\b)[0-9a-fA-F]{64}

@@ -1,13 +1,15 @@
+import type { PlansResponse } from '@ethglobal/protocol/schemas';
+
 import { API_URL } from './env';
 import { apiGet, claimFreeBundle, expect, test } from './fixtures';
-
-import type { PlansResponse } from '@ethglobal/protocol/schemas';
 
 test.describe('claim: / → /verify → /plan', () => {
   test('landing renders both paths and the live coupon count', async ({ page }) => {
     const plans = await apiGet<PlansResponse>(page, '/plans');
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Landing in Mumbai without data?' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Landing in Mumbai without data?' }),
+    ).toBeVisible();
     await expect(page.getByRole('link', { name: /Prove I.m human → 300\sMB/ })).toBeVisible();
     await expect(page.getByRole('link', { name: /I.ll pay · \$0\.40 per 100 MB/ })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Enter a coupon PIN' })).toBeVisible();
@@ -48,7 +50,12 @@ test.describe('claim: / → /verify → /plan', () => {
       if (res.url() === `${API_URL}/__local/world-proof`) simulated = await res.json();
     });
     await claimFreeBundle(page);
-    expect(order.slice(0, 4)).toEqual(['/challenge', '/world/rp-context', '/__local/world-proof', '/claim']);
+    expect(order.slice(0, 4)).toEqual([
+      '/challenge',
+      '/world/rp-context',
+      '/__local/world-proof',
+      '/claim',
+    ]);
     expect(JSON.stringify(claimed)).toBe(JSON.stringify(simulated));
   });
 
@@ -60,12 +67,19 @@ test.describe('claim: / → /verify → /plan', () => {
     const coupon = page.locator('#plan-coupon');
     await expect(coupon.locator('.coupon__value')).toHaveText('300');
     // the lock-screen line: "300 MB · from <sponsor> · because you're human"
-    await expect(coupon.locator('.coupon__line').first()).toContainText(/from .+ · because you.re human/);
+    await expect(coupon.locator('.coupon__line').first()).toContainText(
+      /from .+ · because you.re human/,
+    );
     for (const row of ['issuing-verified', 'issuing-paid', 'issuing-arkiv'])
       await expect(page.getByTestId(row)).toHaveAttribute('data-done', 'true');
-    await expect(page.getByTestId('issuing-paid')).toContainText(/Sponsor paid\s*0x[0-9a-f]{4}…[0-9a-f]{4}/);
+    await expect(page.getByTestId('issuing-paid')).toContainText(
+      /Sponsor paid\s*0x[0-9a-f]{4}…[0-9a-f]{4}/,
+    );
     await expect(page.getByTestId('arkiv-key')).toHaveText(/\S{8,}/, { useInnerText: false });
-    await expect(page.getByRole('meter', { name: 'Data left' })).toHaveAttribute('aria-valuenow', '300');
+    await expect(page.getByRole('meter', { name: 'Data left' })).toHaveAttribute(
+      'aria-valuenow',
+      '300',
+    );
     // second visit: the odometer does not run again
     await page.reload();
     await expect(coupon.locator('.coupon__value')).toHaveText('300');
@@ -86,7 +100,9 @@ test.describe('claim: / → /verify → /plan', () => {
     await claimFreeBundle(page);
     await page.goto('/verify');
     await page.getByRole('button', { name: 'Simulated World ID' }).click();
-    await expect(page.getByTestId('nullifier-seen')).toContainText('This World ID claimed its bundle');
+    await expect(page.getByTestId('nullifier-seen')).toContainText(
+      'This World ID claimed its bundle',
+    );
     await expect(page.getByRole('link', { name: 'Open that plan' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Pay for more' })).toBeVisible();
     // no shield-check, no "Verified human" pill after World returns

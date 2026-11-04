@@ -1,4 +1,7 @@
 /** A complete, safe MODE=live environment for parseEnv/buildDeps tests (no network is touched). */
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 const key = (n: number) => `0x${n.toString(16).padStart(2, '0').repeat(32)}`;
 export const LIVE_ENV: Record<string, string> = {
   MODE: 'live',
@@ -18,4 +21,6 @@ export const LIVE_ENV: Record<string, string> = {
   X402_FACILITATOR: 'remote',
   RESELLER: 'esimaccess',
   ESIMACCESS_WEBHOOK_TOKEN: 'a-very-long-webhook-token-0123456789',
+  // written only when a test changes durable state (state.ts); per process, under the OS temp dir
+  STATE_FILE: join(tmpdir(), `recharge-api-live-test-${process.pid}.state`),
 };

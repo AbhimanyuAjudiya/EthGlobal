@@ -58,14 +58,16 @@ export function discoverInjected(timeoutMs = 250): Promise<Announced[]> {
     const found: Announced[] = [];
     const onAnnounce = (event: Event) => {
       const detail = (event as CustomEvent<Announced>).detail;
-      if (detail?.provider && !found.some((f) => f.info.rdns === detail.info.rdns)) found.push(detail);
+      if (detail?.provider && !found.some((f) => f.info.rdns === detail.info.rdns))
+        found.push(detail);
     };
     window.addEventListener('eip6963:announceProvider', onAnnounce);
     window.dispatchEvent(new Event('eip6963:requestProvider'));
     setTimeout(() => {
       window.removeEventListener('eip6963:announceProvider', onAnnounce);
       const legacy = (window as unknown as { ethereum?: Eip1193 }).ethereum;
-      if (found.length === 0 && legacy) found.push({ info: { name: 'Browser wallet', rdns: 'injected' }, provider: legacy });
+      if (found.length === 0 && legacy)
+        found.push({ info: { name: 'Browser wallet', rdns: 'injected' }, provider: legacy });
       resolve(found);
     }, timeoutMs);
   });
@@ -127,11 +129,7 @@ export const connectDemo = (role: DemoRole): Promise<Wallet> =>
 /** True when the wallet declined (EIP-1193 4001) rather than failed. */
 export const isUserRejection = (error: unknown): boolean => {
   const e = error as { code?: number; cause?: { code?: number }; name?: string } | undefined;
-  return (
-    e?.code === 4001 ||
-    e?.cause?.code === 4001 ||
-    e?.name === 'UserRejectedRequestError'
-  );
+  return e?.code === 4001 || e?.cause?.code === 4001 || e?.name === 'UserRejectedRequestError';
 };
 
 /**

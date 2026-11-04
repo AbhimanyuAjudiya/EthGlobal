@@ -20,7 +20,6 @@ import { formatMb, mmss, money, priceFor } from '../lib/format';
 import { useClock, usePlans } from '../lib/hooks';
 import { beginSession } from '../lib/session-key';
 
-
 type Phase =
   | { kind: 'preparing' }
   | { kind: 'ready' }
@@ -202,7 +201,9 @@ export function VerifySheet() {
     case 'checking':
       status = (
         <p role="status" lang={lang}>
-          {t('verify.checking', { elapsed: `${Math.max(1, Math.round((now - phase.since) / 1000))} s` })}
+          {t('verify.checking', {
+            elapsed: `${Math.max(1, Math.round((now - phase.since) / 1000))} s`,
+          })}
         </p>
       );
       break;
@@ -286,7 +287,9 @@ export function VerifySheet() {
               {t('verify.retry')}
             </Button>
           ) : null}
-          {phase.kind === 'failed' || phase.kind === 'noCredential' || phase.kind === 'sponsorFailed' ? (
+          {phase.kind === 'failed' ||
+          phase.kind === 'noCredential' ||
+          phase.kind === 'sponsorFailed' ? (
             <Link href={payHref} className="ui-button" data-variant="secondary" prefetch={false}>
               {t('landing.payInstead', { price, mb: formatMb(mb) })}
             </Link>

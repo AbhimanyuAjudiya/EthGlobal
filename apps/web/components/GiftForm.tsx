@@ -17,11 +17,17 @@ import { api, ApiError } from '../lib/api';
 import { networkName } from '../lib/env';
 import { dayLabel, formatMb, money, moneyUsdc, priceFor } from '../lib/format';
 import { usePlans, useWallet } from '../lib/hooks';
-import { DemoWalletSigner, EvmWalletSigner, pay, paymentFailureReason, quote } from '../lib/pay402';
+import {
+  DemoWalletSigner,
+  EvmWalletSigner,
+  pay,
+  paymentFailureReason,
+  quote,
+  signingFailure,
+} from '../lib/pay402';
 import { get, set } from '../lib/store';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
-import { chainNow, isUserRejection } from '../lib/wallet';
-
+import { chainNow } from '../lib/wallet';
 
 const SIZES_MB = [300, 1000, 3000];
 type Resolution = 'idle' | 'resolving' | 'resolves' | 'unresolved' | 'error';
@@ -65,7 +71,8 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
     const timer = setTimeout(() => {
       // the API resolves the name BEFORE any 402 (T-43): 402 = resolves, 404 name_unresolved = no address
       api.giftQuote(typed, mb).then(
-        (res) => setResolved({ name: typed, mb, result: res.status === 402 ? 'resolves' : 'error' }),
+        (res) =>
+          setResolved({ name: typed, mb, result: res.status === 402 ? 'resolves' : 'error' }),
         (e: unknown) =>
           setResolved({
             name: typed,
@@ -95,7 +102,11 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
       const signer = new Signer(
         wallet,
         chosen.network,
-        (plans?.paid.accepts ?? q.required.accepts).map((a) => ({ network: a.network, asset: a.asset, payTo: a.payTo })),
+        (plans?.paid.accepts ?? q.required.accepts).map((a) => ({
+          network: a.network,
+          asset: a.asset,
+          payTo: a.payTo,
+        })),
       );
       const paid = await pay<GiftResponse>(q, signer, undefined, await chainNow(wallet));
       if (paid.error || !paid.settlement?.success || !paid.data) {
@@ -123,8 +134,7 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
         dispatch,
       });
     } catch (e) {
-      if (isUserRejection(e)) dispatch({ type: 'rejected' });
-      else dispatch({ type: 'preBroadcastError', reason: paymentFailureReason(e instanceof ApiError ? e : undefined) });
+      dispatch(signingFailure(e));
     }
   }, [wallet, dispatch, shownName, mb, plans, onSent]);
 
@@ -133,7 +143,12 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
 
   return (
     <section className="gift" aria-labelledby="gift-title">
-      <WalletButton wallet={wallet} busy={busy} error={walletError} onInjected={() => void pickInjected()} />
+      <WalletButton
+        wallet={wallet}
+        busy={busy}
+        error={walletError}
+        onInjected={() => void pickInjected()}
+      />
       <h1 id="gift-title" className="screen__title" lang={lang}>
         {t('gift.title')}
       </h1>
@@ -149,7 +164,13 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
             spellCheck={false}
             data-testid="gift-name"
           />
-          <p className="resolve-line" role="status" data-state={resolution} data-testid="gift-resolution" lang={lang}>
+          <p
+            className="resolve-line"
+            role="status"
+            data-state={resolution}
+            data-testid="gift-resolution"
+            lang={lang}
+          >
             {resolution === 'resolving'
               ? t('gift.resolving')
               : resolution === 'resolves'
@@ -160,7 +181,13 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
           </p>
           <div className="segmented" role="radiogroup" aria-label={t('gift.size')}>
             {SIZES_MB.map((size) => (
-              <button key={size} type="button" role="radio" aria-checked={size === mb} onClick={() => setMb(size)}>
+              <button
+                key={size}
+                type="button"
+                role="radio"
+                aria-checked={size === mb}
+                onClick={() => setMb(size)}
+              >
                 {formatMb(size)} · {money(priceFor(size, step))}
               </button>
             ))}
@@ -180,11 +207,21 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
           { label: t('pay.rowTo'), value: shownName || '—' },
           { label: t('pay.rowFee'), value: t('pay.feeFacilitator') },
         ]}
-        worstCase={t('gift.rule', { claimBy: dayLabel(claimBy), reclaimUntil: dayLabel(reclaimUntil) })}
+        worstCase={t('gift.rule', {
+          claimBy: dayLabel(claimBy),
+          reclaimUntil: dayLabel(reclaimUntil),
+        })}
         actionLabel={t('pay.button', { price: moneyUsdc(price) })}
         walletName={wallet?.name ?? 'your wallet'}
         result={gift ? t('gift.sent', { name: gift.name, claimBy: dayLabel(gift.claimBy) }) : ''}
-        {...(resolution !== 'resolves' ? { blocked: resolution === 'unresolved' ? t('gift.unresolved', { name: shownName }) : t('gift.title') } : {})}
+        {...(resolution !== 'resolves'
+          ? {
+              blocked:
+                resolution === 'unresolved'
+                  ? t('gift.unresolved', { name: shownName })
+                  : t('gift.title'),
+            }
+          : {})}
         expectedMs={expectedMsFor(network)}
         onConfirm={() => void send()}
         onRetry={() => dispatch({ type: 'retry' })}
@@ -205,7 +242,10 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
             renderQr={renderQr}
           />
           <div className="row-actions">
-            <Button variant="secondary" onClick={() => void saveCardPng(gift, `${origin}/card/${gift.serial}`)}>
+            <Button
+              variant="secondary"
+              onClick={() => void saveCardPng(gift, `${origin}/card/${gift.serial}`)}
+            >
               {t('gift.save')}
             </Button>
             <Button variant="quiet" onClick={() => window.print()}>

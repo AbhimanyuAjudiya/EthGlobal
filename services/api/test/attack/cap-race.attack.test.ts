@@ -17,7 +17,9 @@ describe('attack: hourly cap and burned proofs (AP5)', () => {
     expect((await h.claim({ seed: 'slot-2' })).res.status).toBe(201);
   });
 
-  it('verified but unserved: the chain fails after verify ⇒ 503; the same session retries with a fresh challenge ⇒ 201 without a second verify', async () => {
+  // RT-A-05: the resume is bound to the human (same nullifier, accepted by the verifier as already_verified), not to
+  // the session public key alone — the one-time proof is not spent again, it is shown again
+  it('verified but unserved: the chain fails after verify ⇒ 503; the same session retries with a fresh challenge ⇒ 201 without a second proof', async () => {
     const h = await harness();
     h.dataDrop.failNext.claim = true;
     const first = await h.claim({ seed: 'intent' });
@@ -31,7 +33,8 @@ describe('attack: hourly cap and burned proofs (AP5)', () => {
       sessionPubKey: first.spk,
     });
     expect(retry.status).toBe(201);
-    expect(verify).not.toHaveBeenCalled();
+    expect(verify).toHaveBeenCalledTimes(1);
+    await expect(verify.mock.results[0]?.value).rejects.toMatchObject({ code: 'already_verified' });
     expect(h.dataDrop.claimedEvents).toHaveLength(1);
   });
 

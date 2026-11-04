@@ -36,7 +36,10 @@ for (const scheme of ['light', 'dark'] as const) {
       await page.goto(route);
       await page.waitForLoadState('networkidle');
       await expectNoHorizontalScroll(page);
-      await page.screenshot({ path: path.join(SCREENSHOTS, `${name}-${scheme}-360.png`), fullPage: true });
+      await page.screenshot({
+        path: path.join(SCREENSHOTS, `${name}-${scheme}-360.png`),
+        fullPage: true,
+      });
     }
     expect(routes.length).toBe(12);
   });

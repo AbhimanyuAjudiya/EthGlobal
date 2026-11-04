@@ -200,10 +200,15 @@ export const OPERATIONS: readonly Operation[] = [
   {
     method: 'post',
     path: '/sponsor',
-    summary: 'Register a campaign (EIP-712 SponsorLogin)',
+    summary: 'Register a campaign once (EIP-712 SponsorLogin); a registered id is 409 campaign_exists',
     body: sponsorRegisterSchema,
     headers: ['Idempotency-Key'],
-    responses: { 201: registered, 401: errorBodySchema, 404: errorBodySchema },
+    responses: {
+      201: registered,
+      401: errorBodySchema,
+      404: errorBodySchema,
+      409: errorBodySchema,
+    },
   },
   {
     method: 'get',
@@ -236,16 +241,16 @@ export const OPERATIONS: readonly Operation[] = [
   {
     method: 'post',
     path: '/facilitator/verify',
-    summary: 'x402 facilitator verify',
+    summary: 'x402 facilitator verify (our terms, amount ≥ one step)',
     body: facilitatorRequestSchema,
-    responses: { 200: verifyResultSchema, 400: errorBodySchema },
+    responses: { 200: verifyResultSchema, 400: errorBodySchema, 429: errorBodySchema },
   },
   {
     method: 'post',
     path: '/facilitator/settle',
-    summary: 'x402 facilitator settle',
+    summary: 'x402 facilitator settle (our terms, amount ≥ one step; one relayer tx at a time)',
     body: facilitatorRequestSchema,
-    responses: { 200: settleResultSchema, 400: errorBodySchema },
+    responses: { 200: settleResultSchema, 400: errorBodySchema, 429: errorBodySchema },
   },
   { method: 'get', path: '/openapi.json', summary: 'This document', responses: { 200: null } },
 ];

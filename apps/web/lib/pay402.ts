@@ -30,10 +30,11 @@ import {
   type PaymentSigner,
 } from '@ethglobal/protocol/x402';
 
-import { call, requestId, toApiError, type ApiError } from './api';
+import { ApiError, call, requestId, toApiError } from './api';
 import { config } from './env';
+import { isUserRejection, type Wallet } from './wallet';
 
-import type { Wallet } from './wallet';
+import type { ActionEvent } from './onchain-action';
 
 /** What the PWA lets a signer pay: the terms /plans advertised (T-56 allow-list). */
 export interface AcceptTerm {
@@ -193,7 +194,12 @@ export async function pay<T>(
     const again = result.response.headers.get(PAYMENT_REQUIRED_HEADER);
     const reason = again ? safeError(again) : undefined;
     const error = toApiError(result.response.status, body, result.response.headers);
-    return { ...out, error: reason ? Object.assign(error, { details: { reason, ...asObject(error.details) } }) : error };
+    return {
+      ...out,
+      error: reason
+        ? Object.assign(error, { details: { reason, ...asObject(error.details) } })
+        : error,
+    };
   }
   return { ...out, data: body as T };
 }
@@ -207,6 +213,16 @@ function safeError(header: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+/** The reducer event for a throw while the wallet was open: a decline is neutral, anything else decoded. */
+export function signingFailure(error: unknown): ActionEvent {
+  return isUserRejection(error)
+    ? { type: 'rejected' }
+    : {
+        type: 'preBroadcastError',
+        reason: paymentFailureReason(error instanceof ApiError ? error : undefined),
+      };
 }
 
 /** Plain words for a failed x402 payment, from the API's error code and the facilitator's reason. */
@@ -229,4 +245,5 @@ const FAILURE_WORDS: Partial<Record<ApiError['code'], string>> = {
   expired: 'this plan has expired',
   facilitator_unavailable: 'the facilitator is not answering',
   network: 'the API could not be reached',
+  replay: 'this payment was already settled once',
 };

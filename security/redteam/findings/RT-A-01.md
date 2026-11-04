@@ -5,14 +5,14 @@ module: services/api/src/flows/fulfil.ts
 threat: T-27
 severity: Med
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-wave2
 owner: builder-api
 found_at: 2026-11-04T15:05+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: services/api/test/redteam/rt-races.test.ts::two concurrent paid top-ups (two distinct payments) both land in mbTotal_RTFINDING
-regression_test:
-fix_commit:
+regression_test: services/api/test/redteam/rt-races.test.ts::two concurrent paid top-ups (two distinct payments) both land in mbTotal [RT-A-01] (+ services/api/test/regression/T-27-topup-race.test.ts::two concurrent paid top-ups ⇒ +200 MB)
+fix_commit: (uncommitted, wave-2 API fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -47,5 +47,7 @@ the key, not the pre-read payload), or make the patch relative (`mbTotal += mb`)
 regression to `services/api/test/regression/T-27-topup-race.test.ts` (case: two concurrent paid top-ups ⇒ +200 MB).
 
 ## Builder notes (optional)
+
+`fulfilTopUp` patches with the function form of `EntitlementStore.patch` (octroi A-38): `(current) => ({ mbTotal: current.mbTotal + mb, expiresAt })`, recomputed from each fresh row on every compare-and-swap attempt, so a concurrent top-up (or usage patch) is never lost. Each response reports the total its own patch produced. `src/flows/fulfil.ts`.
 
 ## Verification (red team)

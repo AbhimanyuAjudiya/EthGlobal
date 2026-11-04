@@ -91,6 +91,12 @@ export function observedLedger(
         observe(op, performance.now() - started, true);
         return result;
       } catch (error) {
+        // A-32: a lost create-if-absent / compare-and-swap is the ledger ANSWERING (a replay or a retry), not
+        // the ledger being down — counting it would mark the API degraded for 60 s after a normal replay
+        if (isAdapterError(error) && error.code === 'conflict') {
+          observe(op, performance.now() - started, true);
+          throw error;
+        }
         health.failed();
         observe(op, performance.now() - started, false);
         // a transport-level failure is the ledger being unavailable (503), never an internal error

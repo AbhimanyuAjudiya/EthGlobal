@@ -14,7 +14,6 @@ import { clockIst, formatMb, money, priceFor } from '../lib/format';
 import { useHydrated, usePlans } from '../lib/hooks';
 import { get, set } from '../lib/store';
 
-
 const enIN = new Intl.NumberFormat('en-IN');
 
 /** Pre-flight line under the button (the Airalo borrow), from the UA only. */
@@ -99,7 +98,12 @@ export function ClaimPaths() {
         <section className="landing__actions">
           <div className="paths">
             {campaign && !exhausted ? (
-              <Link href="/verify" className="ui-button ui-button--block" data-variant="primary" prefetch={false}>
+              <Link
+                href="/verify"
+                className="ui-button ui-button--block"
+                data-variant="primary"
+                prefetch={false}
+              >
                 <span lang={lang}>{t('landing.human', { mb: formatMb(freeMb) })}</span>
               </Link>
             ) : (
@@ -114,7 +118,12 @@ export function ClaimPaths() {
                 </span>
               </Link>
             )}
-            <Link href="/pay" className="ui-button ui-button--block" data-variant="secondary" prefetch={false}>
+            <Link
+              href="/pay"
+              className="ui-button ui-button--block"
+              data-variant="secondary"
+              prefetch={false}
+            >
               <span lang={lang}>{t('landing.pay', { price: stepPrice ?? '$0.40' })}</span>
             </Link>
           </div>

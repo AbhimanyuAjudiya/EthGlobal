@@ -31,7 +31,9 @@ export function IssuingRows({ facts }: { facts: IssuingFacts }) {
         <span lang={lang}>{t('issuing.verified')}</span>
       </li>
       <li data-done={Boolean(facts.tx) || undefined} data-testid="issuing-paid">
-        <span lang={lang}>{facts.paidBySponsor ? t('issuing.sponsorPaid') : t('issuing.youPaid')}</span>
+        <span lang={lang}>
+          {facts.paidBySponsor ? t('issuing.sponsorPaid') : t('issuing.youPaid')}
+        </span>
         {facts.tx ? (
           <Hash
             value={facts.tx}

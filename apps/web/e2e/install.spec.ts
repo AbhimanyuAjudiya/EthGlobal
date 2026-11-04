@@ -1,23 +1,14 @@
-import { claimFreeBundle, expect, test } from './fixtures';
+import { claimFreeBundle, expect, storedValues, test } from './fixtures';
+
+import type { Page } from '@playwright/test';
 
 const IOS_17_4 =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1';
 const ANDROID =
   'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36';
 
-async function openedLpa(page: import('@playwright/test').Page): Promise<string> {
-  return page.evaluate(async () => {
-    const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const req = indexedDB.open('recharge');
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-    const values = await new Promise<unknown[]>((resolve) => {
-      const r = db.transaction('kv').objectStore('kv').getAll();
-      r.onsuccess = () => resolve(r.result);
-    });
-    return String(values.find((v) => typeof v === 'string' && v.startsWith('LPA:1$')) ?? '');
-  });
+async function openedLpa(page: Page): Promise<string> {
+  return (await storedValues(page)).find((v) => v.startsWith('LPA:1$')) ?? '';
 }
 
 test.describe('/install — honest by platform', () => {
@@ -36,8 +27,12 @@ test.describe('/install — honest by platform', () => {
         `https://esimsetup.apple.com/esim_qrcode_provisioning?carddata=${encodeURIComponent(lpa)}`,
       );
       await expect(link).toHaveAttribute('rel', 'noreferrer');
-      await expect(page.getByText("Didn't open? Tap again — iOS sometimes fails on the first try.")).toBeVisible();
-      await expect(page.getByText('Settings → Cellular → Recharge → Data Roaming on').first()).toBeVisible();
+      await expect(
+        page.getByText("Didn't open? Tap again — iOS sometimes fails on the first try."),
+      ).toBeVisible();
+      await expect(
+        page.getByText('Settings → Cellular → Recharge → Data Roaming on').first(),
+      ).toBeVisible();
       await expect(page.locator('svg.qr-code')).toHaveCount(0);
       await expect(page.getByTestId('status-pill')).toHaveText('No Service');
       await expect(page.getByTestId('copy-activation-code')).toHaveCount(0);
@@ -74,7 +69,9 @@ test.describe('/install — honest by platform', () => {
       expect(body).not.toContain('instantly');
     });
 
-    test('second device QR only after the tap and hidden after 60 s (clock mocked)', async ({ page }) => {
+    test('second device QR only after the tap and hidden after 60 s (clock mocked)', async ({
+      page,
+    }) => {
       await page.clock.install();
       await claimFreeBundle(page);
       await page.goto('/install');
@@ -89,9 +86,13 @@ test.describe('/install — honest by platform', () => {
     });
   });
 
-  test('/install accepts no URL parameter (navigating with ?lpa= renders nothing)', async ({ page }) => {
+  test('/install accepts no URL parameter (navigating with ?lpa= renders nothing)', async ({
+    page,
+  }) => {
     const planted = 'LPA:1$evil.example$PLANTED';
-    await page.goto(`/install?lpa=${encodeURIComponent(planted)}&carddata=${encodeURIComponent(planted)}`);
+    await page.goto(
+      `/install?lpa=${encodeURIComponent(planted)}&carddata=${encodeURIComponent(planted)}`,
+    );
     await expect(page.getByText(/No activation code on this device/)).toBeVisible();
     const html = await page.content();
     expect(html).not.toContain('evil.example');

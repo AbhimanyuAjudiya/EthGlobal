@@ -1,7 +1,8 @@
 /**
  * Red team wave 2 (unscripted): authn/authz edges — SponsorLogin scope (read bearer vs register), the audit key's
  * "first read only" promise, the T-24 intent bound only to a PUBLIC session key, PIN re-redemption across the two PIN
- * routes, key confusion between /me/:key and the hashed keys, and the T-73 b status.
+ * routes, key confusion between /me/:key and the hashed keys, and the T-73 b status. RT-A-04/05/06 are fixed: their
+ * attack tests are passing regressions named `… [RT-A-0N]`.
  */
 import { describe, expect, it, vi } from 'vitest';
 
@@ -9,6 +10,7 @@ import { T0, anvilKeys, anvilRoles, fixtureProof } from '@ethglobal/adapters/tes
 import { bytesToHex, generateSessionKeypair, sha256Hex } from '@ethglobal/crypto';
 import type { Hex } from '@ethglobal/protocol/ids';
 
+import { agentPolicyPut, sponsorAuthorization, sponsorLogin } from '../support/client.js';
 import {
   DAY,
   harness,
@@ -19,7 +21,6 @@ import {
   SPONSOR,
   SPONSOR_KEY,
 } from '../support/harness.js';
-import { agentPolicyPut, sponsorAuthorization, sponsorLogin } from '../support/client.js';
 
 const POLICY = {
   maxUsd6PerDay: '1000000',
@@ -31,10 +32,9 @@ const POLICY = {
 };
 
 describe('attack: rt SponsorLogin scope', () => {
-  // RT-FINDING RT-A-04: the read-only dashboard bearer is the same EIP-712 message POST /sponsor accepts; it does not
-  // cover the campaign payload, so a captured bearer rewrites the campaign (name, bundle sizes, plan) and re-mints the
-  // audit key that GET /sponsor shows only once
-  it('a captured dashboard bearer cannot rewrite the campaign or re-read the auditKey_RTFINDING', async () => {
+  // regression RT-A-04 (fixed): registration is one-time (409 campaign_exists for a registered id, whoever signs), so
+  // the read bearer cannot rewrite the campaign or mint the audit key again
+  it('a captured dashboard bearer cannot rewrite the campaign or re-read the auditKey [RT-A-04]', async () => {
     const h = await harness();
     const issuedAt = h.clock.now();
     const bearer = await sponsorAuthorization(SPONSOR_KEY, h.deps.chainId, h.campaignId, issuedAt);
@@ -73,13 +73,14 @@ describe('attack: rt SponsorLogin scope', () => {
     const body = (await res.json()) as Record<string, unknown>;
     const after = (await h.deps.stores.campaigns.get(h.campaignId))!.payload;
     // property: a bearer for "read my dashboard" cannot write the campaign or reveal the audit key again
-    expect(res.status).not.toBe(201);
+    expect(res.status).toBe(409);
+    expect(body.error).toBe('campaign_exists');
     expect(body.auditKey).toBeUndefined();
     expect(after.name).toBe('Mumbai Welcome');
   });
 
-  // RT-FINDING RT-A-04 (Low part): the "first read only" set is process memory — a restart shows the key again
-  it('auditKey stays hidden after a restart (new deps over the same ledger)_RTFINDING', async () => {
+  // regression RT-A-04 (Low part, fixed): "audit key shown" is a ledger once-marker, not process memory
+  it('auditKey stays hidden after a restart (new deps over the same ledger) [RT-A-04]', async () => {
     const h = await harness();
     const bearer = await sponsorAuthorization(
       SPONSOR_KEY,
@@ -87,18 +88,24 @@ describe('attack: rt SponsorLogin scope', () => {
       h.campaignId,
       h.clock.now(),
     );
-    await h.get(`/sponsor/${h.campaignId}`, { authorization: bearer });
-    h.deps.auditShown.clear(); // what a process restart does to the in-memory set
-    const again = (await (
+    const first = (await (
       await h.get(`/sponsor/${h.campaignId}`, { authorization: bearer })
     ).json()) as Record<string, unknown>;
+    expect(typeof first.auditKey).toBe('string');
+    const restarted = await h.restart(); // a new process over the same ledger
+    const again = (await (
+      await restarted.app.request(`/sponsor/${h.campaignId}`, {
+        headers: { authorization: bearer, 'x-forwarded-for': '203.0.113.200' },
+      })
+    ).json()) as Record<string, unknown>;
+    expect(again.campaign).toBeDefined();
     expect(again.auditKey).toBeUndefined();
   });
 
   // property: a SponsorLogin is bound to its campaignId (control)
   it('a login signed for campaign X never authorises campaign Y', async () => {
     const h = await harness();
-    const other = `0x${'ab'.repeat(32)}` as Hex;
+    const other: Hex = `0x${'ab'.repeat(32)}`;
     const login = await sponsorLogin(SPONSOR_KEY, h.deps.chainId, other, h.clock.now());
     const auth = `Recharge-Sponsor ${Buffer.from(JSON.stringify(login)).toString('base64')}`;
     expect((await h.get(`/sponsor/${h.campaignId}`, { authorization: auth })).status).toBe(401);
@@ -106,10 +113,9 @@ describe('attack: rt SponsorLogin scope', () => {
 });
 
 describe('attack: rt T-24 intent bound to a public session key', () => {
-  // RT-FINDING RT-A-05: /challenge mints for any sessionPubKey (no proof of possession) and resumeIntent ignores the
-  // proof, so whoever knows the victim's session PUBLIC key completes the victim's pending claim with a junk proof —
-  // the victim's single LPA delivery goes to the attacker's response and the victim's own retry is a replay
-  it('a stranger with only the victim’s session public key cannot complete the victim’s pending claim_RTFINDING', async () => {
+  // regression RT-A-05 (fixed): the intent is bound to the human — the resume needs a proof with the same nullifier
+  // that the verifier accepts; a junk proof falls through to the normal lane and is judged (and refused) there
+  it('a stranger with only the victim’s session public key cannot complete the victim’s pending claim [RT-A-05]', async () => {
     const h = await harness();
     const victim = generateSessionKeypair();
     h.dataDrop.failNext.claim = true; // the victim is verified, then the chain step fails (T-24)
@@ -119,7 +125,7 @@ describe('attack: rt T-24 intent bound to a public session key', () => {
     // attacker: a fresh challenge for the victim's PUBLIC key and a proof of nobody
     const spk = bytesToHex(victim.publicKey);
     const challenge = await h.challengeFor('/claim', spk);
-    const junk = fixtureProof('device', `0x${'00'.repeat(32)}` as Hex, 'rt-intent-attacker');
+    const junk = fixtureProof('device', `0x${'00'.repeat(32)}`, 'rt-intent-attacker');
     const verify = vi.spyOn(h.adapters.personhood, 'verify');
     const stolen = await h.json('/claim', {
       proof: junk,
@@ -127,16 +133,21 @@ describe('attack: rt T-24 intent bound to a public session key', () => {
       challenge,
       sessionPubKey: spk,
     });
-    expect(verify).not.toHaveBeenCalled(); // the proof was never looked at
     // property: completing a verified-but-unserved claim needs something only the victim has
     expect(stolen.status).not.toBe(201);
+    expect(verify).toHaveBeenCalledTimes(1); // the junk proof was judged (and refused), not waved through
+    expect(h.deps.intents.size).toBe(1); // the victim's intent is untouched
+    // …and the victim's own retry (same session, same human) still completes, exactly once
+    const retry = await h.claim({ seed: 'rt-intent-victim', keys: victim });
+    expect(retry.res.status).toBe(201);
+    expect(h.dataDrop.claimedEvents).toHaveLength(1);
   });
 });
 
 describe('attack: rt PIN re-redemption across routes', () => {
-  // RT-FINDING RT-A-06: /card/redeem refuses a claimed escrow (410) but the PIN path of /gift/claim does not check
-  // state; once the entitlement has expired (VALIDITY_DAYS < claim window) the same PIN re-delivers the LPA
-  it('VALIDITY_DAYS=1: after the card’s entitlement expires the PIN never delivers a second LPA_RTFINDING', async () => {
+  // regression RT-A-06 (fixed): claimEscrow takes a ledger once-marker before delivery; every PIN/giftId route
+  // refuses an escrow whose LPA was handed out, whether or not its entitlement still lives
+  it('VALIDITY_DAYS=1: after the card’s entitlement expires the PIN never delivers a second LPA [RT-A-06]', async () => {
     const h = await harness({ env: { VALIDITY_DAYS: '1' } });
     const card = await seedCard(h, 300);
     const first = await redeemPin(h, card.pin, '/card/redeem');

@@ -6,7 +6,11 @@
 import { namehash, type Address } from 'viem';
 
 import type { Hex } from '@ethglobal/protocol/ids';
-import { GIFT_CLAIM_TYPES, GIFT_RECLAIM_TYPES, rechargeDomain } from '@ethglobal/protocol/typed-data';
+import {
+  GIFT_CLAIM_TYPES,
+  GIFT_RECLAIM_TYPES,
+  rechargeDomain,
+} from '@ethglobal/protocol/typed-data';
 
 import { api } from './api';
 import { deliver } from './deliver';
@@ -15,7 +19,10 @@ import { beginSession } from './session-key';
 
 import type { Wallet } from './wallet';
 
-export async function redeemPin(pin: string, route: '/card/redeem' | '/gift/claim'): Promise<string> {
+export async function redeemPin(
+  pin: string,
+  route: '/card/redeem' | '/gift/claim',
+): Promise<string> {
   const spk = beginSession();
   const challenge = await api.challenge(route, spk);
   const res =
@@ -25,7 +32,11 @@ export async function redeemPin(pin: string, route: '/card/redeem' | '/gift/clai
   return deliver(res.data, challenge.nonce as Hex, { you: '$0.00' });
 }
 
-export async function claimGiftBySignature(wallet: Wallet, giftId: Hex, name: string): Promise<string> {
+export async function claimGiftBySignature(
+  wallet: Wallet,
+  giftId: Hex,
+  name: string,
+): Promise<string> {
   const spk = beginSession();
   const challenge = await api.challenge('/gift/claim', spk);
   const signature = await wallet.signTypedData({

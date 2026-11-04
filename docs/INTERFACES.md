@@ -262,7 +262,7 @@ export const nonceSchema = z.object({
   exp: msSchema, consumedAt: msSchema,
 });
 // annotations: { type:'nonce', key: keys.nonce(nonce), nonce } ; expiresIn: NONCE_TTL_S (A-37); issuedAt?. Written on consume, create-if-absent (T-45, A-32).
-// claimSchema { v, key: keys.claim(digest), scope: 'free-live'|'free-campaign'|'settlement', expiresAt } ; annotations { type:'claim', key, expiresAt } (A-33)
+// claimSchema { v, key: keys.claim(digest), scope: 'free-live'|'free-campaign'|'settlement'|'once', expiresAt } ; annotations { type:'claim', key, expiresAt } (A-33; 'once': A-42)
 
 export const receiptKindSchema = z.enum(['claim', 'provision', 'topup', 'agent-topup', 'gift', 'gift-claim', 'gift-reclaim', 'card-redeem']);
 export const receiptSchema = z.object({
@@ -1188,7 +1188,9 @@ TOPUPS_PER_ICCID_PER_DAY=20
 SALES_ENABLED=false
 LEGAL_MEMO_OK=false
 TRUST_PROXY=0
-CORS_ORIGINS=http://127.0.0.1:3000,http://localhost:3000
+CORS_ORIGINS=http://127.0.0.1:3000,http://localhost:3000   # live: none by default, never localhost (A-42)
+AGENT_PAYERS=                  # X-Agent-Uaid allow-list (T-77); local Anvil #4; live none, never Anvil (A-42)
+STATE_FILE=                    # sealed durable API state; required in live, on a persistent volume (A-42)
 PRINT_TOKEN=                   # protects /print/cards (T-64)
 # Reseller
 RESELLER=mock                  # mock | esimaccess | megaesim | inventory ; RESELLER_FALLBACK=inventory
@@ -1283,6 +1285,7 @@ Nobody imports another package's `src/` or `dist/` path; package names and subpa
 | A-39 | `decideGiftReclaim` refunds `usd6 − min(fee, usd6)` (0 when fee ≥ paid) | fee ≥ paid ⇒ `deny 'nothing-to-refund'` (API: 410 `expired`) | RT-O-09: a 0n transfer still costs treasury gas and writes a receipt. |
 | A-40 | decide() validates a parsed copy of the payment and uses the raw one; verify `nonce_already_used` ends the paid lane | decide() uses ONLY the strictly parsed payload after the raw accepted-echo compare; verify `nonce_already_used` continues to settle (the facilitator's front-run recovery), deduped by the A-33 settlement marker | RT-O-02 (decoy `authorization` beside a Hedera `transaction`), T-15 (a front-run human payment answered 402). |
 | A-41 | decide()/challenge()/shouldTopUp trust their numbers | decide(): hostile request/payment/proof shapes ⇒ deny `invalid-request` (`request`/`payment`/`proof`); campaign validated with `campaignToPayload` (⇒ `campaign`), counters integers/bigints ≥ 0 (⇒ `counters`), a malformed verifier nullifier ⇒ `invalid-proof 'verifier_nullifier'`; challenge() throws `RechargeError('invalid_request')` (no RangeError); consumeChallenge with a non-integer clock ⇒ `'invalid'`; shouldTopUp: price ≤ 0 / spent < 0 / non-finite now ⇒ no buy | RT-O-07 (ARCHITECTURE §9 rule 2). |
+| A-42 | API state that must survive a restart (pending deliveries, T-24 intents, treasury day, "audit key shown") lived in process memory; one-time API events (a gift's LPA delivered, a campaign registered) had no ledger marker | protocol: `claimSchema.scope += 'once'` (an API once-only marker, `claim:` + HMAC, unlinkable). services/api: once-markers for gift delivery, sponsor registration and audit-key display; treasury day = `ReceiptStore.spentUsd6ForDay('gift-reclaim', day)`; pending deliveries and T-24 intents in a sealed local `STATE_FILE` (required in live); env: live requires `CHAIN` (≠ 31337) and `STATE_FILE`, `CORS_ORIGINS`/`AGENT_PAYERS` default to none and refuse localhost / Anvil; paid accepts carry `extra.resource` = the route path | red team wave 2 RT-A-04, RT-A-06, RT-A-08, RT-A-09, RT-A-11. Intents hold capability keys, so they never reach the world-readable ledger; one API writer process per deployment (THREAT-MODEL §8) keeps the file single-writer. |
 
 ---
 

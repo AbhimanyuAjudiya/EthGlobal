@@ -16,7 +16,6 @@ import { clockIst, dayLabel, formatMb, money } from '../lib/format';
 import { useClock, usePlans } from '../lib/hooks';
 import { plans as store, type IssuedFacts } from '../lib/store';
 
-
 type Load =
   | { kind: 'loading' }
   | { kind: 'ok'; me: MeResponse; offlineAt?: number }
@@ -94,7 +93,12 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
         <p className="plan-empty" role="status" lang={lang}>
           {load.kind === 'expired' ? t('plan.gone') : t('plan.unknown')}
         </p>
-        <Link href={`/pay?key=${k}`} className="ui-button ui-button--block" data-variant="primary" prefetch={false}>
+        <Link
+          href={`/pay?key=${k}`}
+          className="ui-button ui-button--block"
+          data-variant="primary"
+          prefetch={false}
+        >
           {t('plan.add', { price })}
         </Link>
       </Screen>
@@ -134,7 +138,9 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
         <IssuingRows
           facts={{
             verified: true,
-            ...(facts.claimTx ?? facts.settlement ? { tx: facts.claimTx ?? facts.settlement } : {}),
+            ...((facts.claimTx ?? facts.settlement)
+              ? { tx: facts.claimTx ?? facts.settlement }
+              : {}),
             ...(facts.network ? { network: facts.network } : {}),
             paidBySponsor: Boolean(facts.claimTx),
             arkivKey: m.arkivKey,
@@ -145,7 +151,8 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
         remainingMb={m.remainingMb}
         totalMb={m.mbTotal}
         usageAsOf={m.usageAsOf}
-        {...(m.usageSource === 'simulated' || (IS_LOCAL && m.usageSource === 'none' && plans?.simulated.usage)
+        {...(m.usageSource === 'simulated' ||
+        (IS_LOCAL && m.usageSource === 'none' && plans?.simulated.usage)
           ? { source: t('plan.simulated') }
           : {})}
         lang={lang === 'hi' ? 'hi' : 'en'}
@@ -173,13 +180,23 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
         networkFee="$0.00"
       />
       <div className="plan__actions">
-        <Link href="/install" className="ui-button ui-button--block" data-variant="primary" prefetch={false}>
+        <Link
+          href="/install"
+          className="ui-button ui-button--block"
+          data-variant="primary"
+          prefetch={false}
+        >
           <span lang={lang}>{t('plan.install')}</span>
         </Link>
         <p className="note" lang={lang}>
           {t('plan.later')}
         </p>
-        <Link href={`/pay?key=${k}`} className="ui-button ui-button--block" data-variant="secondary" prefetch={false}>
+        <Link
+          href={`/pay?key=${k}`}
+          className="ui-button ui-button--block"
+          data-variant="secondary"
+          prefetch={false}
+        >
           <span lang={lang}>{t('plan.add', { price })}</span>
         </Link>
         <AddToHomeScreen ready={ready} />

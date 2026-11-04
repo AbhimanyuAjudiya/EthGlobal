@@ -22,16 +22,13 @@ const flag = z
   .enum(['0', '1', 'true', 'false'])
   .default('false')
   .transform((v) => v === '1' || v === 'true');
-const csv = (fallback: string) =>
-  z
-    .string()
-    .default(fallback)
-    .transform((v) =>
-      v
-        .split(',')
-        .map((s) => s.trim())
-        .filter((s) => s !== ''),
-    );
+const splitCsv = (v: string): string[] =>
+  v
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s !== '');
+const csv = (fallback: string) => z.string().default(fallback).transform(splitCsv);
+const csvOptional = z.string().transform(splitCsv).optional();
 
 /**
  * Local-mode defaults are the public Anvil roles and fixed test secrets (INTERFACES §11, `anvilRoles`); live mode
@@ -67,10 +64,18 @@ const LOCAL_SECRETS = {
   WORLD_APP_ID: 'app_local',
 } as const;
 
+/** The public Anvil account the local agent pays from (anvilRoles.agent, #4). */
+const LOCAL_AGENT_PAYER = anvilAccounts[4];
+const LOCAL_CORS = ['http://127.0.0.1:3000', 'http://localhost:3000'];
+const LOCALHOST_ORIGIN = /^https?:\/\/(localhost|127\.\d+\.\d+\.\d+|\[::1\])(:\d+)?$/i;
+
 /** anvilRoles: attestor #2, relayer #6, treasury #8, payout #1 (INTERFACES §3.4, A-31). */
 function localDefaults() {
   return {
     ...LOCAL_SECRETS,
+    CHAIN: 31337,
+    CORS_ORIGINS: LOCAL_CORS,
+    AGENT_PAYERS: [LOCAL_AGENT_PAYER],
     ATTESTOR_PRIVATE_KEY: anvilKey(2),
     RELAYER_PRIVATE_KEY: anvilKey(6),
     TREASURY_PRIVATE_KEY: anvilKey(8),
@@ -96,8 +101,8 @@ export const envSchema = z
     MODE: z.enum(['local', 'live']).default('local'),
     PORT: z.coerce.number().int().min(1).max(65535).default(8787),
     LOG_LEVEL: z.enum(logLevels).default('info'),
-    /** Chain id of DataDrop; local mode is always Anvil (31337). */
-    CHAIN: z.coerce.number().int().positive().default(31337),
+    /** Chain id of DataDrop; local mode is always Anvil (31337); live must name it (RT-A-09). */
+    CHAIN: z.coerce.number().int().positive().optional(),
     RPC_URL: z.url().optional(),
     ANVIL_RPC_URL: z.url().default('http://127.0.0.1:8545'),
     DATADROP_ADDRESS: evmAddressSchema.optional(),
@@ -128,14 +133,17 @@ export const envSchema = z
     SALES_ENABLED: flag,
     LEGAL_MEMO_OK: flag,
     TRUST_PROXY: flag,
-    CORS_ORIGINS: csv('http://127.0.0.1:3000,http://localhost:3000'),
+    /** Exact browser origins; local default the PWA dev server, live default none (fail closed, RT-A-09). */
+    CORS_ORIGINS: csvOptional,
     /** The campaign /plans advertises (default: the first live campaign in the ledger). */
     CAMPAIGN_ID: z
       .string()
       .regex(/^0x[0-9a-fA-F]{64}$/)
       .optional(),
-    /** Payers whose X-Agent-Uaid header is recorded on receipts (T-77); local: Anvil #4. */
-    AGENT_PAYERS: csv('0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65'),
+    /** Payers whose X-Agent-Uaid header is recorded on receipts (T-77); local: Anvil #4; live default none. */
+    AGENT_PAYERS: csvOptional,
+    /** Sealed durable process state (state.ts, RT-A-11); required in live, memory-only when unset locally. */
+    STATE_FILE: z.string().min(1).max(512).optional(),
 
     RESELLER: z.enum(['mock', 'esimaccess', 'megaesim', 'inventory']).default('mock'),
     /** Reseller plan for paid and gift bundles. */
@@ -169,6 +177,19 @@ export const envSchema = z
     }
     if (env.MODE !== 'live') return;
     if (env.RPC_URL === undefined) fail('RPC_URL', 'RPC_URL is required when MODE=live');
+    // RT-A-09: nothing local is inherited — the Anvil domain, a localhost origin, a public agent payer
+    if (env.CHAIN === undefined) fail('CHAIN', 'CHAIN is required when MODE=live');
+    else if (env.CHAIN === 31337) fail('CHAIN', 'CHAIN=31337 is the Anvil domain; refused in live');
+    for (const origin of env.CORS_ORIGINS ?? []) {
+      if (LOCALHOST_ORIGIN.test(origin))
+        fail('CORS_ORIGINS', `${origin} is a local origin; refused in live (RT-A-09)`);
+    }
+    for (const payer of env.AGENT_PAYERS ?? []) {
+      if (anvilAddresses.has(payer.toLowerCase()))
+        fail('AGENT_PAYERS', `${payer} is a public Anvil account; refused in live (T-77)`);
+    }
+    if (env.STATE_FILE === undefined)
+      fail('STATE_FILE', 'STATE_FILE is required when MODE=live (RT-A-11)');
     for (const name of [
       'OCTROI_SECRET',
       'SERVER_SEAL_KEY',
@@ -221,7 +242,13 @@ export type Env = Omit<
   | 'RELAYER_PRIVATE_KEY'
   | 'TREASURY_PRIVATE_KEY'
   | 'PAYOUT_ADDRESS'
+  | 'CHAIN'
+  | 'CORS_ORIGINS'
+  | 'AGENT_PAYERS'
 > & {
+  CHAIN: number;
+  CORS_ORIGINS: string[];
+  AGENT_PAYERS: string[];
   OCTROI_SECRET: string;
   SERVER_SEAL_KEY: string;
   ATTESTOR_PRIVATE_KEY: string;
@@ -249,7 +276,10 @@ export function parseEnv(source: Record<string, string | undefined> = process.en
     );
   }
   const env = result.data;
-  const withDefaults = env.MODE === 'local' ? { ...localDefaults(), ...stripUndefined(env) } : env;
+  const withDefaults =
+    env.MODE === 'local'
+      ? { ...localDefaults(), ...stripUndefined(env) }
+      : { ...env, CORS_ORIGINS: env.CORS_ORIGINS ?? [], AGENT_PAYERS: env.AGENT_PAYERS ?? [] };
   return withDefaults as Env;
 }
 

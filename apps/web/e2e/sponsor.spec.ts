@@ -1,8 +1,8 @@
-import { apiGet, claimFreeBundle, expect, test } from './fixtures';
-
 import type { PlansResponse } from '@ethglobal/protocol/schemas';
 
-test('sponsor: create → approve → createCampaign (two OnchainAction rows, hashes shown) → register → audit key shown once with copy → table lists HMAC\'d keys only → pause via slide-to-confirm', async ({
+import { apiGet, claimFreeBundle, expect, test } from './fixtures';
+
+test("sponsor: create → approve → createCampaign (two OnchainAction rows, hashes shown) → register → audit key shown once with copy → table lists HMAC'd keys only → pause via slide-to-confirm", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -20,11 +20,15 @@ test('sponsor: create → approve → createCampaign (two OnchainAction rows, ha
   }
   const audit = page.getByTestId('audit-key');
   await expect(audit).toContainText('Audit key · shown once');
-  await expect(audit.getByRole('button', { name: /^Copy audit key 0x[0-9a-f]{64}$/ })).toBeVisible();
+  await expect(
+    audit.getByRole('button', { name: /^Copy audit key 0x[0-9a-f]{64}$/ }),
+  ).toBeVisible();
   await audit.getByRole('link', { name: 'Open Mumbai Arrivals e2e' }).click();
   await page.waitForURL(/\/sponsor\/0x[0-9a-f]{64}$/);
   await expect(page.getByTestId('sponsor-claims')).toHaveText('0 claims');
-  await expect(page.locator('.sponsor-hero__line')).toContainText('$0.00 of $50.00 · 2,000 cap · 120/h');
+  await expect(page.locator('.sponsor-hero__line')).toContainText(
+    '$0.00 of $50.00 · 2,000 cap · 120/h',
+  );
   // no KPI tile wall, no donut: tables
   await expect(page.getByRole('table')).toHaveCount(3);
   const url = page.url();
@@ -39,7 +43,9 @@ test('sponsor: create → approve → createCampaign (two OnchainAction rows, ha
   await expect(page.locator('.pill')).toHaveText('Paused');
 });
 
-test('sponsor table lists HMAC\'d claim keys only (no nullifier-looking values beyond keys)', async ({ page }) => {
+test("sponsor table lists HMAC'd claim keys only (no nullifier-looking values beyond keys)", async ({
+  page,
+}) => {
   // a claim on the suite's campaign, then the sponsor's view of it
   await claimFreeBundle(page);
   const plans = await apiGet<PlansResponse>(page, '/plans');

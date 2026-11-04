@@ -1,15 +1,15 @@
 /**
  * Red team wave 2 (unscripted): the 402 path — v1 fields smuggled past the byte filter, non-canonical amounts, duplicate
  * and re-cased headers, network/payload kind mismatch, a Hedera payload on an LPA route, prototype keys in `extra`,
- * and one payment redirected from the route it was signed for to another route.
+ * and one payment redirected from the route it was signed for to another route. RT-A-07/08 are fixed: their attack
+ * tests are passing regressions named `… [RT-A-0N]`.
  */
 import { describe, expect, it, vi } from 'vitest';
 
-import { HUMAN_KEY, buyGift, harness, provisioned } from '../support/harness.js';
-import { exactPayment } from '../support/client.js';
-
-import type { PaymentRequirements } from '@ethglobal/protocol/schemas';
 import { decodePaymentRequired, PAYMENT_SIGNATURE_HEADER } from '@ethglobal/protocol/x402';
+
+import { exactPayment } from '../support/client.js';
+import { HUMAN_KEY, buyGift, harness, provisioned } from '../support/harness.js';
 
 const b64 = (s: string) => Buffer.from(s, 'utf8').toString('base64');
 const topUpPath = (key: string, mb = 100) => `/esim/topup?key=${encodeURIComponent(key)}&mb=${mb}`;
@@ -25,15 +25,16 @@ async function setup() {
 }
 
 describe('attack: rt x402 v1 field smuggling (A-18)', () => {
-  // RT-FINDING RT-A-07: the v1 refusal is a regex over the base64-decoded BYTES; a JSON \u escape spells the same key,
-  // zod strips it, and the payment is served — A-18 says a v1 field is refused outright
-  it('"maxAmount\\u0052equired" inside accepted ⇒ 400, never served_RTFINDING', async () => {
+  // regression RT-A-07 (fixed): the v1 refusal runs on the parsed JSON (own keys at any depth), not on the bytes
+  it('"maxAmount\\u0052equired" inside accepted ⇒ 400, never served [RT-A-07]', async () => {
     const { h, key, payload } = await setup();
     const json = JSON.stringify(payload).replace(
       '"accepted":{',
       '"accepted":{"maxAmount\\u0052equired":"400000",',
     );
-    expect(JSON.parse(json).accepted.maxAmountRequired).toBe('400000');
+    expect(
+      (JSON.parse(json) as { accepted: Record<string, unknown> }).accepted.maxAmountRequired,
+    ).toBe('400000');
     const settle = vi.spyOn(h.adapters.payments, 'settle');
     const res = await h.get(topUpPath(key), { [PAYMENT_SIGNATURE_HEADER]: b64(json) });
     expect(res.status).toBe(400);
@@ -105,7 +106,7 @@ describe('attack: rt non-canonical amounts and header shapes', () => {
       payTo: '0.0.5005',
       maxTimeoutSeconds: 180,
       extra: { feePayer: '0.0.9185802' },
-    } as PaymentRequirements;
+    };
     const settle = vi.spyOn(h.adapters.payments, 'settle');
     const res = await h.get(topUpPath(key), { [PAYMENT_SIGNATURE_HEADER]: b64(JSON.stringify(p)) });
     expect(res.status).toBe(400);
@@ -165,10 +166,9 @@ describe('attack: rt prototype keys through zod records and bodies', () => {
 });
 
 describe('attack: rt one payment, two routes', () => {
-  // RT-FINDING RT-A-08: the payment is bound to (network, asset, payTo, amount, extra.mb) only — not to the route,
-  // `resource` or `?key=`. A PAYMENT-SIGNATURE signed for a 100 MB top-up of key K is accepted by POST /gift
-  // { name: <attacker>, mb: 100 }: whoever holds the header first turns the victim's top-up into a gift PIN for itself
-  it('a top-up payment for key K is refused when replayed as a gift purchase_RTFINDING', async () => {
+  // regression RT-A-08 (fixed): every route's accepts carry `extra.resource` = its path, echoed by the payer and
+  // compared by decide(); a top-up payment replayed on POST /gift no longer matches the offer
+  it('a top-up payment for key K is refused when replayed as a gift purchase [RT-A-08]', async () => {
     const { h, payload } = await setup();
     const header = b64(JSON.stringify(payload));
     const res = await h.json(
@@ -179,6 +179,7 @@ describe('attack: rt one payment, two routes', () => {
     const body = (await res.json()) as { pin?: string };
     expect(res.status).not.toBe(201);
     expect(body.pin).toBeUndefined();
+    expect(payload.accepted.extra?.resource).toBe('/esim/topup');
   });
 
   // property: once the gift used it, the victim's own top-up with the same header is refused (nonce once)

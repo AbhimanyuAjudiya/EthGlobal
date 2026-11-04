@@ -15,7 +15,9 @@ describe('device', () => {
   });
 
   it('Android installs by code only; desktop is unknown', () => {
-    const a = parseDevice('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36');
+    const a = parseDevice(
+      'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
+    );
     expect(a).toMatchObject({ os: 'android', universalLink: false, label: 'Android 14' });
     expect(a.esimReady).toBeUndefined();
     expect(parseDevice('Mozilla/5.0 (X11; Linux x86_64) Chrome/131').os).toBe('other');

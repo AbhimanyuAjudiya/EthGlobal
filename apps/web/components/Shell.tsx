@@ -111,7 +111,13 @@ export function WalletButton({
   if (wallet) return <DemoWalletPanel wallet={wallet} />;
   return (
     <div className="wallet-connect">
-      <button type="button" className="ui-button" data-variant="secondary" onClick={onInjected} disabled={busy}>
+      <button
+        type="button"
+        className="ui-button"
+        data-variant="secondary"
+        onClick={onInjected}
+        disabled={busy}
+      >
         <T k="pay.noWallet" />
       </button>
       {error ? <p className="note">{error}</p> : null}

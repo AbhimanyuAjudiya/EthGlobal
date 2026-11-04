@@ -3557,7 +3557,7 @@
     },
     "/sponsor": {
       "post": {
-        "summary": "Register a campaign (EIP-712 SponsorLogin)",
+        "summary": "Register a campaign once (EIP-712 SponsorLogin); a registered id is 409 campaign_exists",
         "operationId": "postSponsor",
         "parameters": [
           {
@@ -3743,6 +3743,30 @@
           },
           "404": {
             "description": "404",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "409",
             "content": {
               "application/json": {
                 "schema": {
@@ -4443,7 +4467,7 @@
     },
     "/facilitator/verify": {
       "post": {
-        "summary": "x402 facilitator verify",
+        "summary": "x402 facilitator verify (our terms, amount ≥ one step)",
         "operationId": "postFacilitatorVerify",
         "requestBody": {
           "required": true,
@@ -4724,13 +4748,37 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "429",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
           }
         }
       }
     },
     "/facilitator/settle": {
       "post": {
-        "summary": "x402 facilitator settle",
+        "summary": "x402 facilitator settle (our terms, amount ≥ one step; one relayer tx at a time)",
         "operationId": "postFacilitatorSettle",
         "requestBody": {
           "required": true,
@@ -5007,6 +5055,30 @@
           },
           "400": {
             "description": "400",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "429",
             "content": {
               "application/json": {
                 "schema": {

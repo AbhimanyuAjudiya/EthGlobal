@@ -7,7 +7,15 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { createPublicClient, createWalletClient, http, parseAbi, type Abi, type Address, type Hex } from 'viem';
+import {
+  createPublicClient,
+  createWalletClient,
+  http,
+  parseAbi,
+  type Abi,
+  type Address,
+  type Hex,
+} from 'viem';
 import { mnemonicToAccount } from 'viem/accounts';
 import { foundry } from 'viem/chains';
 
@@ -30,7 +38,9 @@ export interface E2eState {
 async function waitForApi(): Promise<void> {
   for (let i = 0; i < 120; i += 1) {
     try {
-      const { data } = await httpJson<{ chainId?: number }>(`${API_URL}/healthz`, { timeoutMs: 2_000 });
+      const { data } = await httpJson<{ chainId?: number }>(`${API_URL}/healthz`, {
+        timeoutMs: 2_000,
+      });
       if (data.chainId === 31337) return;
     } catch {
       // not up yet
@@ -47,7 +57,8 @@ export default async function globalSetup(): Promise<void> {
   const wallet = createWalletClient({ account: sponsor, chain: foundry, transport: http(RPC_URL) });
   const block = await reader.getBlock();
   const budget = 1_000_000_000n; // 1,000 USDC
-  const id = `0x${sponsor.address.slice(2).toLowerCase()}00000000${BigInt(Date.now()).toString(16).padStart(16, '0')}` as Hex;
+  const id =
+    `0x${sponsor.address.slice(2).toLowerCase()}00000000${BigInt(Date.now()).toString(16).padStart(16, '0')}` as Hex;
   await reader.waitForTransactionReceipt({
     hash: await wallet.writeContract({
       address: anvil.usdc as Address,
@@ -98,10 +109,13 @@ export default async function globalSetup(): Promise<void> {
 
   const cards: E2eState['cards'] = [];
   for (let i = 0; i < 3; i += 1) {
-    const { data } = await httpJson<{ serial: string; pin: string; mb: number }>(`${API_URL}/gift`, {
-      body: { name: 'card', mb: 300 },
-      headers: { 'x-seed-card-campaign': id, 'x-forwarded-for': `198.18.0.${10 + i}` },
-    });
+    const { data } = await httpJson<{ serial: string; pin: string; mb: number }>(
+      `${API_URL}/gift`,
+      {
+        body: { name: 'card', mb: 300 },
+        headers: { 'x-seed-card-campaign': id, 'x-forwarded-for': `198.18.0.${10 + i}` },
+      },
+    );
     cards.push({ serial: data.serial, pin: data.pin, mb: data.mb });
   }
   mkdirSync(path.dirname(STATE_FILE), { recursive: true });
@@ -109,7 +123,11 @@ export default async function globalSetup(): Promise<void> {
   writeFileSync(STATE_FILE, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
   writeFileSync(
     PRINT_CARDS_FILE,
-    `${JSON.stringify(cards.map((c) => ({ ...c, sponsor: campaignName })), null, 2)}\n`,
+    `${JSON.stringify(
+      cards.map((c) => ({ ...c, sponsor: campaignName })),
+      null,
+      2,
+    )}\n`,
     { mode: 0o600 },
   );
 }

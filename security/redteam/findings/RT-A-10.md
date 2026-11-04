@@ -5,14 +5,14 @@ module: services/api/src/middleware/rate-limit.ts
 threat: T-81
 severity: Low
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-wave2
 owner: builder-api
 found_at: 2026-11-04T15:05+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: services/api/test/redteam/rt-surface.test.ts::20 /world/rp-context from one IPv6 /64 within a minute ⇒ at most 10 signed_RTFINDING
-regression_test:
-fix_commit:
+regression_test: services/api/test/redteam/rt-surface.test.ts::20 /world/rp-context from one IPv6 /64 within a minute ⇒ at most 10 signed [RT-A-10]
+fix_commit: (uncommitted, wave-2 API fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -37,5 +37,7 @@ Normalise the bucket key: IPv4 as is, IPv6 truncated to its /64 (or /56), includ
 `a.b.c.d`).
 
 ## Builder notes (optional)
+
+`ipBucket()` normalises the rate-limit key: IPv4 as is, IPv4-mapped IPv6 (`::ffff:a.b.c.d`) as its IPv4, any other IPv6 address (brackets and zone ids stripped, `::` and embedded IPv4 expanded) as its /64. Both the global and the per-route limiters use it. `src/middleware/rate-limit.ts`.
 
 ## Verification (red team)

@@ -8,7 +8,6 @@
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-
 import { ClaimGift, ReclaimGift } from './ClaimGift';
 import { GiftForm } from './GiftForm';
 import { PaySheet } from './PaySheet';
@@ -83,7 +82,10 @@ export function ClaimRoute() {
   return (
     <Screen>
       <AppHeader />
-      <ClaimGift {...(id && /^0x[0-9a-f]{64}$/i.test(id) ? { giftId: id } : {})} {...(name ? { name } : {})} />
+      <ClaimGift
+        {...(id && /^0x[0-9a-f]{64}$/i.test(id) ? { giftId: id } : {})}
+        {...(name ? { name } : {})}
+      />
     </Screen>
   );
 }
@@ -96,7 +98,11 @@ export function ReceiptsRoute() {
 export function CardRoute() {
   const params = useParams<{ serial: string }>();
   const serial = param(params.serial);
-  return <ScratchRedeem {...(serial && /^[0-9a-f]{8}$/.test(serial) ? { serial } : { serial: 'invalid' })} />;
+  return (
+    <ScratchRedeem
+      {...(serial && /^[0-9a-f]{8}$/.test(serial) ? { serial } : { serial: 'invalid' })}
+    />
+  );
 }
 
 export function SponsorRoute() {

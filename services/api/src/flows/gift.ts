@@ -196,10 +196,15 @@ export async function escrowByPin(deps: Deps, pin: string): Promise<Found<Gift>>
   return found;
 }
 
+/** The ledger's once-only "this gift's LPA was handed out" marker (RT-A-06): an opaque `claim:` HMAC key. */
+export const giftDeliveredKey = (deps: Pick<Deps, 'secret'>, giftId: Hex): string =>
+  keys.claim(hmacKey(deps.secret, 'gift-delivered', giftId.toLowerCase()));
+
 /**
  * Claim or redeem one escrow: per-giftId mutex → markClaimed (idempotent for our key) → campaign-funded cards claim
  * on DataDrop → the gift-claim/card-redeem receipt (durable, BEFORE delivery; a failure here is a 503 and no LPA) →
- * fulfil() → HCS. A gift whose entitlement already exists answers 409.
+ * the once-only delivery marker → fulfil() → HCS. A gift whose entitlement exists, or whose LPA was already handed
+ * out (even if that entitlement has since expired, RT-A-06), answers 409 (gift) / 410 (card) on every route.
  */
 export async function claimEscrow(
   deps: Deps,
@@ -209,11 +214,12 @@ export async function claimEscrow(
   const gift = escrow.payload;
   const giftId = gift.giftId as Hex;
   const key = keys.entitlementGift(giftId);
+  const delivered = giftDeliveredKey(deps, giftId);
+  const refuse = () => fail(ctx.redeem ? 'expired' : 'already_claimed');
   return deps.mutex.run(`gift:${giftId.toLowerCase()}`, async () => {
-    if (gift.state === 'claimed' && gift.claimedKey !== key)
-      throw fail(ctx.redeem ? 'expired' : 'already_claimed');
-    if (await deps.stores.entitlements.getByKey(key))
-      throw fail(ctx.redeem ? 'expired' : 'already_claimed');
+    if (gift.state === 'claimed' && gift.claimedKey !== key) throw refuse();
+    if (await deps.stores.entitlements.getByKey(key)) throw refuse();
+    if (await deps.stores.claims.held(delivered)) throw refuse();
     try {
       await deps.stores.gifts.markClaimed(giftId, key);
     } catch (error) {
@@ -265,6 +271,10 @@ export async function claimEscrow(
       if (error instanceof RechargeError && error.code === 'replay') return; // a retry after a failed fulfil
       throw error;
     });
+    // one delivery per gift, ever (T-31): taken create-if-absent before the LPA can exist; fail closed — a fulfil
+    // that fails after this point leaves the gift delivered-or-pending, never deliverable twice
+    const until = Math.max(gift.claimBy, entitlement.expiresAt);
+    if (!(await deps.stores.claims.reserve(delivered, 'once', until))) throw refuse();
     const result = await fulfil(deps, entitlement, {
       nonce: ctx.nonce,
       sessionPubKey: ctx.sessionPubKey,

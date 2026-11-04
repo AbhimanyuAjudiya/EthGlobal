@@ -1,12 +1,22 @@
 import { describe, expect, it } from 'vitest';
 
-import { ANDROID_EUICC_INTENT, iosUniversalLink, isLpa, LPA_PATTERN, splitLpa } from '../lib/lpa-links';
+import {
+  ANDROID_EUICC_INTENT,
+  iosUniversalLink,
+  isLpa,
+  LPA_PATTERN,
+  splitLpa,
+} from '../lib/lpa-links';
 
 const LPA = 'LPA:1$local.test$0A1B2C3D4E5F6071';
 
 describe('lpa-links', () => {
   it('the regex gate accepts real activation codes and nothing else (T-62)', () => {
-    for (const ok of [LPA, 'LPA:1$rsp.truphone.com$QRF-BETTERROAMING-PMRDGIR2EARDEIT5', 'LPA:1$smdp.io$K2-1X9-XYZ$1.3.6.1$1'])
+    for (const ok of [
+      LPA,
+      'LPA:1$rsp.truphone.com$QRF-BETTERROAMING-PMRDGIR2EARDEIT5',
+      'LPA:1$smdp.io$K2-1X9-XYZ$1.3.6.1$1',
+    ])
       expect(isLpa(ok), ok).toBe(true);
     for (const bad of [
       '',

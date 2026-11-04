@@ -2,6 +2,7 @@ import type { Campaign, Decision } from '@ethglobal/octroi';
 import type { Hex } from '@ethglobal/protocol/ids';
 import type { PaymentPayload } from '@ethglobal/protocol/schemas';
 
+import type { Release } from './admission.js';
 import type { Deps } from './deps.js';
 import type { Logger } from './logger.js';
 import type { Context } from 'hono';
@@ -20,7 +21,7 @@ export interface Vars {
   /** Set by octroi(). */
   decision: Decision | undefined;
   campaign: Campaign | undefined;
-  releaseSlot: (() => void) | undefined;
+  releaseSlot: Release | undefined;
 }
 
 /** @hono/node-server bindings (the socket address the rate limiter and webhook IP check read). */

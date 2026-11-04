@@ -32,13 +32,13 @@ import {
   hederaTerms,
   pay,
   paymentFailureReason,
+  signingFailure,
   quote,
   type Quote,
 } from '../lib/pay402';
 import { beginSession } from '../lib/session-key';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
-import { chainNow, isUserRejection } from '../lib/wallet';
-
+import { chainNow } from '../lib/wallet';
 
 const BALANCE_ABI = parseAbi(['function balanceOf(address) view returns (uint256)']);
 const SIZES = [100, 200, 300];
@@ -50,7 +50,10 @@ const testHooks = (): TestHooks =>
   IS_LOCAL ? ((globalThis as { __RECHARGE_TEST__?: TestHooks }).__RECHARGE_TEST__ ?? {}) : {};
 
 /** The Review state's 402 (and, for a new plan, the session key the delivery will be sealed to). */
-async function fetchQuote(path: string, withSession: boolean): Promise<Quote & { at: number; spk?: Hex }> {
+async function fetchQuote(
+  path: string,
+  withSession: boolean,
+): Promise<Quote & { at: number; spk?: Hex }> {
   const spk = withSession ? beginSession() : undefined;
   const next = await quote(path, spk ? { sessionPubKey: spk } : {});
   return { ...next, at: Date.now(), ...(spk ? { spk } : {}) };
@@ -68,7 +71,10 @@ function HederaPanel({ req }: { req: PaymentRequirements }) {
         rows={[
           { label: 'Network', value: terms.network },
           { label: 'Asset (HTS USDC)', value: <span data-hash>{terms.asset}</span> },
-          { label: 'Amount', value: `${formatUsd6(BigInt(terms.amount), { unit: 'USDC' })} (${terms.amount} base units)` },
+          {
+            label: 'Amount',
+            value: `${formatUsd6(BigInt(terms.amount), { unit: 'USDC' })} (${terms.amount} base units)`,
+          },
           { label: 'Pay to', value: <span data-hash>{terms.payTo}</span> },
           { label: 'Fee payer', value: <span data-hash>{terms.feePayer ?? '—'}</span> },
           { label: 'Valid for', value: `${terms.validForS} s` },
@@ -82,14 +88,22 @@ function HederaPanel({ req }: { req: PaymentRequirements }) {
 }
 
 /** `/pay` — the 402 moment: a receipt-shaped sheet that IS the OnchainAction component. */
-export function PaySheet({ entitlementKey, initialMb }: { entitlementKey?: string; initialMb?: number }) {
+export function PaySheet({
+  entitlementKey,
+  initialMb,
+}: {
+  entitlementKey?: string;
+  initialMb?: number;
+}) {
   const { t, lang } = useLang();
   const router = useRouter();
   const { plans } = usePlans();
   const { wallet, busy, error: walletError, pickInjected } = useWallet('human');
   const { row, dispatch, now } = useOnchainAction();
   const clock = useClock(1000);
-  const [mb, setMb] = useState(initialMb && SIZES.includes(initialMb) ? initialMb : entitlementKey ? 100 : 300);
+  const [mb, setMb] = useState(
+    initialMb && SIZES.includes(initialMb) ? initialMb : entitlementKey ? 100 : 300,
+  );
   const [q, setQ] = useState<(Quote & { at: number; spk?: Hex }) | undefined>();
   const [quoteError, setQuoteError] = useState<string | undefined>();
   const [network, setNetwork] = useState<string | undefined>();
@@ -116,7 +130,8 @@ export function PaySheet({ entitlementKey, initialMb }: { entitlementKey?: strin
         setQ(next);
         setNetwork((current) => current ?? next.required.accepts[0]?.network);
       },
-      (e: unknown) => alive && setQuoteError(t(errorKey(e instanceof ApiError ? e.code : 'network'))),
+      (e: unknown) =>
+        alive && setQuoteError(t(errorKey(e instanceof ApiError ? e.code : 'network'))),
     );
     return () => {
       alive = false;
@@ -137,11 +152,18 @@ export function PaySheet({ entitlementKey, initialMb }: { entitlementKey?: strin
           functionName: 'balanceOf',
           args: [wallet.address],
         })
-        .then((v) => setBalances((b) => ({ ...b, [a.network]: v })), () => undefined);
+        .then(
+          (v) => setBalances((b) => ({ ...b, [a.network]: v })),
+          () => undefined,
+        );
     }
   }, [wallet, accepts]);
 
-  const price = chosen ? moneyUsdc(chosen.amount) : plans ? moneyUsdc(priceFor(mb, plans.paid.priceUsd6PerStep)) : '';
+  const price = chosen
+    ? moneyUsdc(chosen.amount)
+    : plans
+      ? moneyUsdc(priceFor(mb, plans.paid.priceUsd6PerStep))
+      : '';
   const shortPrice = chosen ? money(chosen.amount) : '';
   const title = entitlementKey
     ? t('pay.topup', { mb: formatMb(mb), price: shortPrice })
@@ -166,11 +188,20 @@ export function PaySheet({ entitlementKey, initialMb }: { entitlementKey?: strin
     const signer = new Signer(
       wallet,
       chosen.network,
-      (plans?.paid.accepts ?? accepts).map((a) => ({ network: a.network, asset: a.asset, payTo: a.payTo })),
+      (plans?.paid.accepts ?? accepts).map((a) => ({
+        network: a.network,
+        asset: a.asset,
+        payTo: a.payTo,
+      })),
       { tamperAmount: Boolean(testHooks().tamperAmount) },
     );
     try {
-      const paid = await pay<TopUpResponse | EntitledResponse>(q, signer, q.spk, await chainNow(wallet));
+      const paid = await pay<TopUpResponse | EntitledResponse>(
+        q,
+        signer,
+        q.spk,
+        await chainNow(wallet),
+      );
       if (paid.error || !paid.settlement?.success) {
         dispatch({ type: 'preBroadcastError', reason: paymentFailureReason(paid.error) });
         return;
@@ -180,7 +211,16 @@ export function PaySheet({ entitlementKey, initialMb }: { entitlementKey?: strin
       if (entitlementKey) {
         const body = paid.data as TopUpResponse;
         setResult(t('pay.result', { mb: formatMb(mb), total: formatMb(body.mbTotal) }));
-        setMe((m) => (m ? { ...m, mbTotal: body.mbTotal, mbUsed: body.mbUsed, remainingMb: body.mbTotal - body.mbUsed } : m));
+        setMe((m) =>
+          m
+            ? {
+                ...m,
+                mbTotal: body.mbTotal,
+                mbUsed: body.mbUsed,
+                remainingMb: body.mbTotal - body.mbUsed,
+              }
+            : m,
+        );
         setDoneKey(entitlementKey);
       } else if (q.spk) {
         const body = paid.data as EntitledResponse;
@@ -199,14 +239,19 @@ export function PaySheet({ entitlementKey, initialMb }: { entitlementKey?: strin
         dispatch,
       });
     } catch (e) {
-      if (isUserRejection(e)) dispatch({ type: 'rejected' });
-      else dispatch({ type: 'preBroadcastError', reason: paymentFailureReason(e instanceof ApiError ? e : undefined) });
+      dispatch(signingFailure(e));
     }
   }, [q, chosen, wallet, plans, accepts, dispatch, entitlementKey, mb, t, title]);
 
   const validRow = me
-    ? { label: t('pay.rowValid'), value: t('pay.validUntil', { when: `${dayLabel(me.expiresAt)} ${clockIst(me.expiresAt)}` }) }
-    : { label: t('pay.rowValid'), value: t('pay.validDays', { days: plans?.paid.validityDays ?? 7 }) };
+    ? {
+        label: t('pay.rowValid'),
+        value: t('pay.validUntil', { when: `${dayLabel(me.expiresAt)} ${clockIst(me.expiresAt)}` }),
+      }
+    : {
+        label: t('pay.rowValid'),
+        value: t('pay.validDays', { days: plans?.paid.validityDays ?? 7 }),
+      };
   const review = [
     validRow,
     { label: t('pay.rowFee'), value: t('pay.feeFacilitator') },
@@ -216,26 +261,47 @@ export function PaySheet({ entitlementKey, initialMb }: { entitlementKey?: strin
   return (
     <Screen money>
       <AppHeader />
-      <WalletButton wallet={wallet} busy={busy} error={walletError} onInjected={() => void pickInjected()} />
+      <WalletButton
+        wallet={wallet}
+        busy={busy}
+        error={walletError}
+        onInjected={() => void pickInjected()}
+      />
       {!entitlementKey ? (
         <p className="note" lang={lang}>
           {t('pay.noPlan')}
         </p>
       ) : null}
       {me ? (
-        <MbMeter remainingMb={me.remainingMb} totalMb={me.mbTotal} usageAsOf={me.usageAsOf} className="pay__meter" />
+        <MbMeter
+          remainingMb={me.remainingMb}
+          totalMb={me.mbTotal}
+          usageAsOf={me.usageAsOf}
+          className="pay__meter"
+        />
       ) : null}
       {row.state === 'idle' ? (
         <div className="segmented" role="radiogroup" aria-label={t('pay.size')}>
           {SIZES.map((size) => (
-            <button key={size} type="button" role="radio" aria-checked={size === mb} onClick={() => setMb(size)}>
+            <button
+              key={size}
+              type="button"
+              role="radio"
+              aria-checked={size === mb}
+              onClick={() => setMb(size)}
+            >
               {formatMb(size)}
             </button>
           ))}
         </div>
       ) : null}
       {accepts.length > 0 && row.state === 'idle' ? (
-        <div className="segmented" role="radiogroup" aria-label={t('pay.payFrom')} data-testid="pay-from">
+        <div
+          className="segmented"
+          role="radiogroup"
+          aria-label={t('pay.payFrom')}
+          data-testid="pay-from"
+        >
           {accepts.map((a) => (
             <button
               key={a.network}
@@ -245,7 +311,9 @@ export function PaySheet({ entitlementKey, initialMb }: { entitlementKey?: strin
               onClick={() => setNetwork(a.network)}
             >
               {networkName(a.network)}
-              {balances[a.network] !== undefined ? ` · ${formatUsd6(balances[a.network] ?? 0n)} USDC`.replace('$', '') : ''}
+              {balances[a.network] !== undefined
+                ? ` · ${formatUsd6(balances[a.network] ?? 0n)} USDC`.replace('$', '')
+                : ''}
             </button>
           ))}
         </div>
@@ -273,7 +341,12 @@ export function PaySheet({ entitlementKey, initialMb }: { entitlementKey?: strin
         className="pay__sheet"
       />
       {doneKey && (row.state === 'confirmed' || row.state === 'finalized') ? (
-        <button type="button" className="ui-button ui-button--block" data-variant="secondary" onClick={() => router.push(planHref(doneKey))}>
+        <button
+          type="button"
+          className="ui-button ui-button--block"
+          data-variant="secondary"
+          onClick={() => router.push(planHref(doneKey))}
+        >
           {t('pay.openPlan')}
         </button>
       ) : null}

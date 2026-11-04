@@ -5,14 +5,14 @@ module: services/api/src/middleware/octroi.ts
 threat: T-24
 severity: High
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-wave2
 owner: builder-api
 found_at: 2026-11-04T15:05+05:30
 due: 2026-11-04T19:05+05:30
 attack_test: services/api/test/redteam/rt-races.test.ts::budget for 3 claims, 10 concurrent humans ⇒ verify ≤ 3 and the rest refused before verify_RTFINDING; services/api/test/redteam/rt-anvil.test.ts::on-chain budget for 3 claims, 8 concurrent humans ⇒ verify ≤ 3_RTFINDING
-regression_test:
-fix_commit:
+regression_test: services/api/test/redteam/rt-races.test.ts::budget for 3 claims, 10 concurrent humans ⇒ verify ≤ 3 and the rest refused before verify [RT-A-03]; services/api/test/redteam/rt-anvil.test.ts::on-chain budget for 3 claims, 8 concurrent humans ⇒ verify ≤ 3 [RT-A-03] (+ services/api/test/regression/T-24-verified-claim-retry.test.ts::budget burst…, ::a BudgetExhausted revert after verify keeps the intent…)
+fix_commit: (uncommitted, wave-2 API fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -46,5 +46,7 @@ by a top-up of the budget or offered the paid lane without re-proving). Regressi
 `services/api/test/regression/T-24-verified-claim-retry.test.ts` (case: budget burst ⇒ verify ≤ remaining claims).
 
 ## Builder notes (optional)
+
+Admission is budget-aware: `slots = min(claimsPerHour − claimsThisHour, ⌊(budget − spent) / price⌋) − inFlight − commitsSince(read)`, computed synchronously from the `campaignState` already fetched; no slot ⇒ 409 `budget_exhausted` (or 429 `hourly_cap` when the hour binds) BEFORE `decide()` can verify. A mined claim releases its slot as a commit (`claimOnChain`), so a request that read the counters before it still counts it. Defence in depth: `BudgetExhausted` after verify is now retryable — the T-24 intent is kept and the same human completes after a budget top-up without re-proving. `src/middleware/octroi.ts` (`admit`), `src/admission.ts`, `src/flows/entitle.ts`.
 
 ## Verification (red team)

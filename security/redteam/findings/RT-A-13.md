@@ -5,14 +5,14 @@ module: services/api/src/middleware/idempotency.ts
 threat: T-74
 severity: Low
 likelihood: L
-status: open
+status: fixed
 found_by: redteam-wave2
 owner: builder-api
 found_at: 2026-11-04T15:05+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: services/api/test/redteam/rt-lpa-idem.test.ts::one Idempotency-Key, two different bodies, concurrently ⇒ at most one processed_RTFINDING
-regression_test:
-fix_commit:
+regression_test: services/api/test/redteam/rt-lpa-idem.test.ts::one Idempotency-Key, two different bodies, concurrently ⇒ at most one processed [RT-A-13]
+fix_commit: (uncommitted, wave-2 API fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -39,5 +39,7 @@ Record `bodies.set(client, { bodyHash, … })` before `next()` (and delete it on
 (route ‖ key ‖ clientIp) rather than by the full scope.
 
 ## Builder notes (optional)
+
+The in-flight lock is keyed by client (route ‖ Idempotency-Key ‖ client IP), not by the full scope, and remembers the holder's body hash: a concurrent request with the same key is 409 (`in_flight` for the same body, `idempotency_key_reused` for another). `src/middleware/idempotency.ts`.
 
 ## Verification (red team)

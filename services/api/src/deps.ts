@@ -4,7 +4,7 @@
  * local node. MODE=live: `createLiveAdapters(liveConfigSchema.parse(env))`.
  */
 import { createWalletClient, getAddress, http, type Address } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
+import { nonceManager, privateKeyToAccount } from 'viem/accounts';
 
 import { createAdapters, type Adapters, type PaymentRail } from '@ethglobal/adapters';
 import {
@@ -14,11 +14,12 @@ import {
   SelfRunFacilitator,
 } from '@ethglobal/adapters/live';
 import { hexToBytes, keccak256 } from '@ethglobal/crypto';
-import { createViemRelayer } from '@ethglobal/eip3009';
+import { createViemRelayer, type Relayer } from '@ethglobal/eip3009';
 import type { Decision, OctroiDeps } from '@ethglobal/octroi';
 import {
   AgentPolicyStore,
   CampaignStore,
+  ClaimStore,
   EntitlementStore,
   GiftStore,
   NonceStore,
@@ -36,12 +37,14 @@ import {
   createDataDropClient,
   createPublic,
   LOCAL_CHAIN_ID,
+  SerialQueue,
   type ChainIdResolver,
   type DataDropClient,
 } from './chain.js';
 import { evmNetworks, parseEnv, resolveFacilitator, type Env } from './env.js';
 import { createLogger, type Logger } from './logger.js';
 import { Metrics } from './metrics.js';
+import { DurableState, type DurableMap } from './state.js';
 
 export type ServeFreeDecision = Extract<Decision, { kind: 'serve-free' }>;
 
@@ -52,6 +55,24 @@ export interface Stores {
   campaigns: CampaignStore;
   receipts: ReceiptStore;
   policies: AgentPolicyStore;
+  /** Claim locks and once-only markers (A-33, A-42): gift delivered, campaign registered, audit key shown. */
+  claims: ClaimStore;
+}
+
+/** A pending-profile entitlement's delivery target: the session key the LPA is sealed to and its AAD nonce. */
+export interface PendingDelivery {
+  sessionPubKey: Hex;
+  nonce: Hex;
+}
+
+/** A verified-but-unserved free claim (T-24), bound to the human's nullifier (RT-A-05). */
+export interface ClaimIntent {
+  decision: ServeFreeDecision;
+  campaignId: string;
+  /** HMAC(secret, 'intent' ‖ nullifier): a resume needs a proof of the same human. */
+  nullifierTag: Hex;
+  /** The first attempt's challenge signal: a retry may resend that proof instead of proving again. */
+  signal: Hex;
 }
 
 export interface RpSigner {
@@ -86,21 +107,20 @@ export interface Deps {
   metrics: Metrics;
   mutex: KeyedMutex;
   nonceCache: Set<string>;
-  /** Pending-profile retries: the session key the LPA must be sealed to (in memory; AP6.3). */
-  pendingDelivery: Map<string, { sessionPubKey: Hex; nonce: Hex }>;
+  /** Sealed durable process state (STATE_FILE; memory-only without it). */
+  state: DurableState;
+  /** Pending-profile retries by entitlement key (durable, RT-A-11; AP6.3). */
+  pendingDelivery: DurableMap<PendingDelivery>;
   /** Polls of reseller.usage per ICCID hash (≤ 1/min, shared by ?refresh=1 and webhooks). */
   usagePolls: WindowLimiter;
   /** Order retries for pending-profile entitlements (≤ 1/min per key). */
   orderRetries: WindowLimiter;
-  /** Today's treasury outflow (TREASURY_MAX_USD6_PER_DAY). */
-  treasuryDay: { day: number; spentUsd6: bigint };
   /**
    * Verified-but-unserved free claims (T-24, AP5.3): the decision of a human whose chain step failed after
-   * verify, keyed by the session key the challenge MAC binds; a retry from that session completes it.
+   * verify, keyed by the session key the challenge MAC binds; a retry from that session with a proof of the same
+   * human completes it (durable, RT-A-11; expires with INTENT_TTL_MS).
    */
-  intents: Map<string, { decision: ServeFreeDecision; campaignId: string; exp: number }>;
-  /** The audit key is shown once on the first authenticated dashboard read (AP13.4). */
-  auditShown: Set<string>;
+  intents: DurableMap<ClaimIntent>;
   /** Set when deps seeded a campaign (tests and the local seed). */
   seedCampaignId?: Hex;
 }
@@ -149,7 +169,14 @@ export async function buildDeps(
     campaigns: new CampaignStore(ledger, now),
     receipts: new ReceiptStore(ledger, now),
     policies: new AgentPolicyStore(ledger, now),
+    claims: new ClaimStore(ledger, now),
   };
+  const sealKey = hexToBytes(env.SERVER_SEAL_KEY as Hex);
+  const state = new DurableState({
+    ...(env.STATE_FILE === undefined ? {} : { file: env.STATE_FILE }),
+    sealKey,
+    now,
+  });
   const secret = hexToBytes(env.OCTROI_SECRET as Hex);
   const nonceCache = new Set<string>();
   const accepts = buildAcceptTemplates({
@@ -187,22 +214,21 @@ export async function buildDeps(
     facilitator: overrides.facilitator ?? wired.facilitator,
     accepts,
     secret,
-    sealKey: hexToBytes(env.SERVER_SEAL_KEY as Hex),
+    sealKey,
     chainId: env.MODE === 'live' ? env.CHAIN : LOCAL_CHAIN_ID,
     getChainId: overrides.getChainId ?? createChainIdResolver(env),
     cache: new MeCache(now),
     health,
-    admission: new Admission(),
+    admission: new Admission(now),
     anomaly: new AnomalyGuard(dataDrop, logger, now),
     metrics,
     mutex: new KeyedMutex(),
     nonceCache,
-    pendingDelivery: new Map(),
+    state,
+    pendingDelivery: state.map<PendingDelivery>('pending-delivery'),
     usagePolls: new WindowLimiter(1, 60_000, now),
     orderRetries: new WindowLimiter(1, 60_000, now),
-    treasuryDay: { day: -1, spentUsd6: 0n },
-    auditShown: new Set(),
-    intents: new Map(),
+    intents: state.map<ClaimIntent>('intents'),
   };
 }
 
@@ -311,6 +337,19 @@ function rpSignerFor(env: Env, now: () => number): RpSigner {
   });
 }
 
+/**
+ * One relayer transaction at a time (RT-A-12, T-75): viem's nonce manager plus the same SerialQueue the attestor
+ * uses (chain.ts), so two concurrent settlements — two buyers, or a stranger's /facilitator/settle racing a buyer —
+ * never sign with one nonce. `submit` resolves after the receipt, so the queue also orders simulate → send.
+ */
+export function serialRelayer(relayer: Relayer): Relayer {
+  const queue = new SerialQueue();
+  return {
+    ...(relayer.address === undefined ? {} : { address: relayer.address }),
+    submit: (token, data) => queue.run(() => relayer.submit(token, data)),
+  };
+}
+
 function selfRun(
   env: Env,
   rpcUrl: string,
@@ -319,7 +358,7 @@ function selfRun(
   now: () => number,
 ): Facilitator {
   const publicClient = createPublic(rpcUrl, chainId);
-  const account = privateKeyToAccount(env.RELAYER_PRIVATE_KEY as Hex);
+  const account = privateKeyToAccount(env.RELAYER_PRIVATE_KEY as Hex, { nonceManager });
   const walletClient = createWalletClient({
     account,
     chain: publicClient.chain,
@@ -327,7 +366,7 @@ function selfRun(
   });
   const rail = new SelfRunFacilitator({
     publicClient,
-    relayer: createViemRelayer({ walletClient, publicClient, simulate: true }),
+    relayer: serialRelayer(createViemRelayer({ walletClient, publicClient, simulate: true })),
     token: getAddress(token),
     chainId,
     network: `eip155:${chainId}`,

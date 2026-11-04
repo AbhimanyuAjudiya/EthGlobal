@@ -5,14 +5,14 @@ module: services/api/src/routes/claim.ts
 threat: T-30
 severity: Low
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-wave2
 owner: builder-api
 found_at: 2026-11-04T15:05+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: services/api/test/redteam/rt-races.test.ts::TOPUPS_PER_ICCID_PER_DAY=2: five concurrent paid top-ups settle at most 2_RTFINDING
-regression_test:
-fix_commit:
+regression_test: services/api/test/redteam/rt-races.test.ts::TOPUPS_PER_ICCID_PER_DAY=2: five concurrent paid top-ups settle at most 2 [RT-A-02] (+ services/api/test/regression/T-27-topup-race.test.ts::a refused or failed top-up frees its slot…, ::Admission: a commit after the counter read…)
+fix_commit: (uncommitted, wave-2 API fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -40,5 +40,7 @@ Reserve a slot synchronously before settle (an in-process counter per `iccidHash
 when the request fails before settlement, and keep the receipt count as the cross-process floor.
 
 ## Builder notes (optional)
+
+`topUpGuard` takes a synchronous reservation (`Admission.take('topup:<sha256(key)>:<day>', cap, receiptsToday, mark)`) before any 402 or settlement. A slot is released when the request ends; a served (200) top-up is recorded as a commit, which is still subtracted from any request whose receipt read began before it. The ledger receipts stay the cross-process floor. Shared with RT-A-03 (one primitive, `src/admission.ts`).
 
 ## Verification (red team)

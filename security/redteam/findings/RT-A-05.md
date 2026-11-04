@@ -5,14 +5,14 @@ module: services/api/src/middleware/octroi.ts
 threat: T-24
 severity: Low
 likelihood: L
-status: open
+status: fixed
 found_by: redteam-wave2
 owner: builder-api
 found_at: 2026-11-04T15:05+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: services/api/test/redteam/rt-authz.test.ts::a stranger with only the victim’s session public key cannot complete the victim’s pending claim_RTFINDING
-regression_test:
-fix_commit:
+regression_test: services/api/test/redteam/rt-authz.test.ts::a stranger with only the victim’s session public key cannot complete the victim’s pending claim [RT-A-05] (+ services/api/test/regression/T-24-verified-claim-retry.test.ts::same session, another human’s valid proof…)
+fix_commit: (uncommitted, wave-2 API fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -44,5 +44,7 @@ request's proof to verify-or-replay for the same nullifier (`nullifier_replayed`
 `quotaKey`).
 
 ## Builder notes (optional)
+
+A T-24 intent is bound to the human, not just the session public key: it stores `HMAC(secret,'intent'‖nullifier)` and the first attempt's signal. A resume requires (1) a proof naming the same nullifier and (2) the verifier accepting it as that human — fresh, or `already_verified` (the one-time proof was spent on the first attempt) — bound to the new challenge's signal or the first one's. Anything else falls through to the normal lane, which judges the proof on its own (a junk proof ⇒ 401, another human ⇒ their own claim), and the victim's intent is untouched. Only the served human's intent is cleared. Note: the resume now calls `personhood.verify` once (expecting `already_verified`), so two builder tests that pinned "verify is not called on retry" were updated (`test/attack/cap-race.attack.test.ts`, `test/regression/T-24-verified-claim-retry.test.ts`); the World cloud verifier must answer `nullifier_replayed` only after checking the proof **[verify Wed]**.
 
 ## Verification (red team)

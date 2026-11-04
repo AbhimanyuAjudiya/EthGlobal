@@ -3,6 +3,7 @@ import { serve } from '@hono/node-server';
 import { createApp } from './app.js';
 import { buildDeps } from './deps.js';
 import { parseEnv } from './env.js';
+import { retryPendingOnBoot } from './flows/fulfil.js';
 import { createLogger } from './logger.js';
 import { LocalClock } from './seed.js';
 
@@ -15,6 +16,8 @@ const deps = await buildDeps(process.env, {
   ...(localClock ? { now: localClock.now } : {}),
 });
 const app = createApp(deps, localClock ? { localClock } : {});
+// RT-A-11: pending-profile deliveries that survived a restart are retried once now (then on /me, ≤ 1/min)
+void retryPendingOnBoot(deps);
 
 const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
   logger.info(

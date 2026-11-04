@@ -41,7 +41,10 @@ export function parseDevice(ua: string): DeviceInfo {
 }
 
 /** The pre-flight line under the first button. */
-export function preflightLine(device: DeviceInfo): { key: 'preflight.ready' | 'preflight.unknown'; label: string } {
+export function preflightLine(device: DeviceInfo): {
+  key: 'preflight.ready' | 'preflight.unknown';
+  label: string;
+} {
   return device.esimReady
     ? { key: 'preflight.ready', label: device.label }
     : { key: 'preflight.unknown', label: device.label };

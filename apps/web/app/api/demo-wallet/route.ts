@@ -4,13 +4,20 @@
  * stack); nothing here is a NEXT_PUBLIC_ value, so no key reaches the browser bundle (T-63). In any other mode,
  * or without the variable, every request answers 404. web never imports @ethglobal/adapters for this.
  */
-import { createPublicClient, createWalletClient, http, type Hex, type TypedDataDefinition } from 'viem';
+import {
+  createPublicClient,
+  createWalletClient,
+  http,
+  type Hex,
+  type TypedDataDefinition,
+} from 'viem';
 import { mnemonicToAccount } from 'viem/accounts';
 
 const ROLE_INDEX = { human: 5, sponsor: 3, recipient: 9 } as const;
 type Role = keyof typeof ROLE_INDEX;
 
-const notFound = () => Response.json({ error: { code: 4200, message: 'not found' } }, { status: 404 });
+const notFound = () =>
+  Response.json({ error: { code: 4200, message: 'not found' } }, { status: 404 });
 
 function enabled(): string | undefined {
   if (process.env.NEXT_PUBLIC_MODE !== 'local') return undefined;
@@ -18,11 +25,15 @@ function enabled(): string | undefined {
   return mnemonic && mnemonic.split(' ').length >= 12 ? mnemonic : undefined;
 }
 
-interface Field { name: string; type: string }
+interface Field {
+  name: string;
+  type: string;
+}
 
 /** JSON typed data → viem values: (u)int fields back to bigint, recursively through struct types. */
 function revive(types: Record<string, Field[]>, type: string, value: unknown): unknown {
-  if (type.endsWith('[]')) return (value as unknown[]).map((v) => revive(types, type.slice(0, -2), v));
+  if (type.endsWith('[]'))
+    return (value as unknown[]).map((v) => revive(types, type.slice(0, -2), v));
   if (/^u?int\d*$/.test(type)) return BigInt(value as string);
   const fields = types[type];
   if (!fields || typeof value !== 'object' || value === null) return value;
@@ -40,7 +51,8 @@ export async function POST(request: Request) {
     params?: unknown[];
   };
   const role = (body.role ?? '') as Role;
-  if (!(role in ROLE_INDEX)) return Response.json({ error: { code: -32602, message: 'unknown role' } }, { status: 400 });
+  if (!(role in ROLE_INDEX))
+    return Response.json({ error: { code: -32602, message: 'unknown role' } }, { status: 400 });
   const account = mnemonicToAccount(mnemonic, { addressIndex: ROLE_INDEX[role] });
   const rpc = process.env.NEXT_PUBLIC_ANVIL_RPC_URL ?? 'http://127.0.0.1:8545';
   const transport = http(rpc);
@@ -77,7 +89,12 @@ export async function POST(request: Request) {
           to: tx.to,
           ...(tx.data ? { data: tx.data } : {}),
           ...(tx.value ? { value: BigInt(tx.value) } : {}),
-          chain: { id: chainId, name: 'anvil', nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [rpc] } } },
+          chain: {
+            id: chainId,
+            name: 'anvil',
+            nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+            rpcUrls: { default: { http: [rpc] } },
+          },
         });
         return Response.json({ result: hash });
       }
@@ -92,7 +109,12 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     return Response.json(
-      { error: { code: -32603, message: error instanceof Error ? error.message.split('\n')[0] : 'error' } },
+      {
+        error: {
+          code: -32603,
+          message: error instanceof Error ? error.message.split('\n')[0] : 'error',
+        },
+      },
       { status: 500 },
     );
   }

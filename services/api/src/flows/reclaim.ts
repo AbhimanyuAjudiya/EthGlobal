@@ -3,7 +3,11 @@
  * from the separate treasury wallet. Absence must be PROVEN: the escrow read and the receipt read both have to
  * succeed (a ledger error is a 503, never a refund). A pending `gift-reclaim` receipt with a per-gift logical key is
  * written BEFORE treasury.refund — it is the cross-process lock and the "already reclaimed" evidence; a refund that
- * throws leaves it pending (operator reconciles) and a retry never refunds twice.
+ * throws leaves it pending (operator reconciles) and a retry never refunds twice. On success the same receipt is
+ * patched with the refund tx and HCS reference (`ReceiptStore.patch`, A-38). TREASURY_MAX_USD6_PER_DAY is summed
+ * from today's `gift-reclaim` receipts on the ledger (`spentUsd6ForDay`), so a restart or a crash loop does not
+ * reset it (RT-A-11); the check and the pending write run under one in-process lock, so two reclaims cannot both
+ * pass the last dollar of the cap.
  */
 import { pad, type Address } from 'viem';
 
@@ -85,30 +89,34 @@ export async function reclaim(deps: Deps, req: GiftReclaimRequest): Promise<Gift
     if (verdict.kind === 'deny')
       throw fail(RECLAIM_DENY_CODES[verdict.reason], { reason: verdict.reason });
 
-    const day = dayBucket(deps.now());
-    if (deps.treasuryDay.day !== day) deps.treasuryDay = { day, spentUsd6: 0n };
-    if (deps.treasuryDay.spentUsd6 + verdict.usd6 > deps.env.TREASURY_MAX_USD6_PER_DAY) {
-      deps.logger.warn(
-        { event: 'settle', op: 'reclaim', reason: 'treasury_cap' },
-        'treasury daily cap reached',
-      );
-      throw fail('chain_unavailable', { reason: 'treasury_cap' });
-    }
     const usd6 = usd6ToWire(verdict.usd6);
-    const draft = {
-      kind: 'gift-reclaim' as const,
-      usd6,
-      network: verdict.network,
-      payer: verdict.to,
-    };
-    try {
-      await addReceipt(deps, ent, { ...draft, key: `rcpt:ledger:gift-reclaim:${giftId}` });
-    } catch (error) {
-      if (error instanceof RechargeError && error.code === 'replay')
-        throw fail('replay', { reason: 'already-reclaimed' });
-      throw error;
-    }
-    deps.treasuryDay.spentUsd6 += verdict.usd6;
+    const pendingKey = `rcpt:ledger:gift-reclaim:${giftId}`;
+    await deps.mutex.run('treasury-day', async () => {
+      const spent = await deps.stores.receipts.spentUsd6ForDay(
+        'gift-reclaim',
+        dayBucket(deps.now()),
+      );
+      if (spent + verdict.usd6 > deps.env.TREASURY_MAX_USD6_PER_DAY) {
+        deps.logger.warn(
+          { event: 'settle', op: 'reclaim', reason: 'treasury_cap' },
+          'treasury daily cap reached',
+        );
+        throw fail('chain_unavailable', { reason: 'treasury_cap' });
+      }
+      try {
+        await addReceipt(deps, ent, {
+          key: pendingKey,
+          kind: 'gift-reclaim',
+          usd6,
+          network: verdict.network,
+          payer: verdict.to,
+        });
+      } catch (error) {
+        if (error instanceof RechargeError && error.code === 'replay')
+          throw fail('replay', { reason: 'already-reclaimed' });
+        throw error;
+      }
+    });
     let tx: string;
     try {
       ({ tx } = await deps.adapters.treasury.refund({
@@ -132,16 +140,17 @@ export async function reclaim(deps: Deps, req: GiftReclaimRequest): Promise<Gift
       usd6,
       feeUsd6: usd6ToWire(verdict.feeUsd6),
     });
-    // the settled twin of the pending receipt (ReceiptStore has no patch): same kind, keyed by the refund tx
-    const receiptKey = await addReceipt(deps, ent, { ...draft, tx }, hcs).catch(
-      (error: unknown) => {
+    // the pending receipt becomes the settled one (A-38): same key, now carrying the refund tx and HCS reference
+    const receiptKey = await deps.stores.receipts
+      .patch(pendingKey, { tx, ...(hcs ? { hcs } : {}) })
+      .then((r) => r.key)
+      .catch((error: unknown) => {
         deps.logger.error(
-          { event: 'ledger.op', op: 'receipt.add', kind: 'gift-reclaim', err: errName(error) },
+          { event: 'ledger.op', op: 'receipt.patch', kind: 'gift-reclaim', err: errName(error) },
           'reclaim receipt write failed',
         );
         return undefined;
-      },
-    );
+      });
     deps.logger.info(
       { event: 'settle', op: 'reclaim', network: verdict.network },
       'gift reclaimed',

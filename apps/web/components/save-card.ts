@@ -8,7 +8,6 @@ import { encode } from 'uqr';
 import type { GiftResponse } from '@ethglobal/protocol/schemas';
 import { dateTime, formatData, pinGroups } from '@ethglobal/ui/components';
 
-
 const W = 1080;
 const H = 1920;
 

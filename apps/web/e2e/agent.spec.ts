@@ -1,8 +1,10 @@
-import { apiGet, claimFreeBundle, expect, test } from './fixtures';
-
 import type { AgentPolicyView } from '@ethglobal/protocol/schemas';
 
-test('agent: policy sheet persists via signed PUT; sentence updates; receipts rows show the UAID', async ({ page }) => {
+import { apiGet, claimFreeBundle, expect, test } from './fixtures';
+
+test('agent: policy sheet persists via signed PUT; sentence updates; receipts rows show the UAID', async ({
+  page,
+}) => {
   const key = await claimFreeBundle(page);
   await page.goto('/agent');
   const sentence = page.getByTestId('agent-sentence');
@@ -10,7 +12,9 @@ test('agent: policy sheet persists via signed PUT; sentence updates; receipts ro
     /^When your plan drops below 20 % or expires, your agent buys 100 MB for \$0\.40 on .+, up to \$10\.00 a day\.$/,
   );
   await page.getByTestId('agent-cap').getByRole('radio', { name: '≤ $5 / day' }).click();
-  await expect(page.getByTestId('agent-status')).toHaveText(/^Saved · signed by 0x[0-9a-fA-F]{4}…[0-9a-fA-F]{4}$/);
+  await expect(page.getByTestId('agent-status')).toHaveText(
+    /^Saved · signed by 0x[0-9a-fA-F]{4}…[0-9a-fA-F]{4}$/,
+  );
   await expect(sentence).toContainText('up to $5.00 a day');
 
   const saved = await apiGet<AgentPolicyView>(page, `/agent/policy/${encodeURIComponent(key)}`);
@@ -21,7 +25,11 @@ test('agent: policy sheet persists via signed PUT; sentence updates; receipts ro
   await expect(sentence).toHaveText('Your agent is paused. It buys nothing until you resume it.');
   await expect(page.getByRole('button', { name: 'Resume' })).toBeVisible();
   await expect
-    .poll(async () => (await apiGet<AgentPolicyView>(page, `/agent/policy/${encodeURIComponent(key)}`)).policy.paused)
+    .poll(
+      async () =>
+        (await apiGet<AgentPolicyView>(page, `/agent/policy/${encodeURIComponent(key)}`)).policy
+          .paused,
+    )
     .toBe(true);
 
   // persisted: a reload reads the signed policy back from the API

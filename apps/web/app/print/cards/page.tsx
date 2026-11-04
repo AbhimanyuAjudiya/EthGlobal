@@ -38,6 +38,24 @@ function readCards(): z.infer<typeof cardsFileSchema> {
   }
 }
 
+/**
+ * The origin the printed QR encodes (`<origin>/card/<serial>`): NEXT_PUBLIC_PUBLIC_ORIGIN, the public host the
+ * cards are handed out for. Only MODE=local falls back to the request host (a local print run encodes 127.0.0.1).
+ */
+async function printOrigin(): Promise<string | undefined> {
+  const configured = process.env.NEXT_PUBLIC_PUBLIC_ORIGIN;
+  if (configured) {
+    try {
+      return new URL(configured).origin;
+    } catch {
+      return undefined;
+    }
+  }
+  if (process.env.NEXT_PUBLIC_MODE !== 'local') return undefined;
+  const host = (await headers()).get('host') ?? 'localhost';
+  return `${host.startsWith('localhost') || host.startsWith('127.') ? 'http' : 'https'}://${host}`;
+}
+
 const first = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 
 async function Sheet({ searchParams }: { searchParams: SearchParams }) {
@@ -45,23 +63,28 @@ async function Sheet({ searchParams }: { searchParams: SearchParams }) {
   const expected = process.env.PRINT_TOKEN ?? '';
   // proxy.ts already 404s; this is the second lock for any path that skips it
   if (expected.length < 16 || first(params.token) !== expected) notFound();
-  const host = (await headers()).get('host') ?? 'localhost';
-  const scheme = host.startsWith('localhost') || host.startsWith('127.') ? 'http' : 'https';
+  const origin = await printOrigin();
+  if (!origin)
+    return (
+      <p className="print-chrome">
+        Set NEXT_PUBLIC_PUBLIC_ORIGIN: the QR must point at the public host.
+      </p>
+    );
   const requested = Number.parseInt(first(params.count) ?? '', 10);
   const all = readCards();
-  const cards: PrintCard[] = (Number.isFinite(requested) && requested > 0 ? all.slice(0, requested) : all).map(
-    (c) => ({
-      mb: c.mb,
-      ...(c.sponsor ? { sponsor: c.sponsor } : {}),
-      validity: 'Mumbai · 7 days',
-      pin: c.pin,
-      serial: c.serial,
-      expires: c.expires ?? 'Expires 30 Nov 2026',
-      qrUrl: `${scheme}://${host}/card/${c.serial}`,
-      sponsorPaid: c.sponsorPaid ?? '$0.50',
-      networkFee: '$0.00',
-    }),
-  );
+  const cards: PrintCard[] = (
+    Number.isFinite(requested) && requested > 0 ? all.slice(0, requested) : all
+  ).map((c) => ({
+    mb: c.mb,
+    ...(c.sponsor ? { sponsor: c.sponsor } : {}),
+    validity: 'Mumbai · 7 days',
+    pin: c.pin,
+    serial: c.serial,
+    expires: c.expires ?? 'Expires 30 Nov 2026',
+    qrUrl: `${origin}/card/${c.serial}`,
+    sponsorPaid: c.sponsorPaid ?? '$0.50',
+    networkFee: '$0.00',
+  }));
   if (cards.length === 0) return <p className="print-chrome">No cards in PRINT_CARDS_FILE.</p>;
   return (
     <>

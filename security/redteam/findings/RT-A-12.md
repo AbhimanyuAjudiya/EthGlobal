@@ -5,14 +5,14 @@ module: services/api/src/deps.ts
 threat: T-75
 severity: Med
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-wave2
 owner: builder-api
 found_at: 2026-11-04T15:05+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: services/api/test/redteam/rt-anvil.test.ts::two concurrent real top-ups (two payers) on the self-run facilitator ⇒ both served_RTFINDING; services/api/test/redteam/rt-anvil.test.ts::a 1-unit /facilitator/settle racing a real top-up never makes the top-up fail_RTFINDING
-regression_test:
-fix_commit:
+regression_test: services/api/test/redteam/rt-anvil.test.ts::two concurrent real top-ups (two payers) on the self-run facilitator ⇒ both served [RT-A-12]; ::a 1-unit /facilitator/settle racing a real top-up never makes the top-up fail [RT-A-12] (+ services/api/test/regression/T-75-facilitator-relayer.test.ts)
+fix_commit: (uncommitted, wave-2 API fix pass; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -45,5 +45,7 @@ Give the relayer account viem's `nonceManager` and run `relayer.submit` through 
 concurrent settlements on Anvil.
 
 ## Builder notes (optional)
+
+The relayer account uses viem's `nonceManager`, and every `relayer.submit` runs through one `SerialQueue` (`serialRelayer` in `src/deps.ts`, the same queue class the attestor uses), so concurrent settlements never share a nonce. The public `/facilitator/verify|settle` refuses an amount below one step (`PRICE_USD6_PER_STEP`, the smallest thing we sell) and limits each payer (`authorization.from`) to 10/min on top of 30/min/IP. The attack test's 1-unit settle is now refused (400) — the test asserts that, plus a full-price stranger settlement racing a buyer: both 200.
 
 ## Verification (red team)

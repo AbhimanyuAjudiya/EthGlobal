@@ -26,11 +26,14 @@ interface Stored {
  * `Idempotency-Key` on POST (T-74, N9). The cache scope is sha256(route ‖ key ‖ sha256(rawBody) ‖
  * sha256(PAYMENT-SIGNATURE) ‖ clientIp) — never the header alone — so another client with the same key is processed
  * independently. Only 2xx responses are stored. Same client + key + different body ⇒ 409; an in-flight duplicate ⇒
- * 409. Money paths are also idempotent by their natural keys (payment nonce, nullifier, giftId).
+ * 409. The in-flight lock is per CLIENT (route ‖ key ‖ clientIp), not per scope, so two concurrent requests with one
+ * key and two bodies are never both processed (RT-A-13). Money paths are also idempotent by their natural keys
+ * (payment nonce, nullifier, giftId).
  */
 export function idempotency(now: () => number) {
   const done = new Map<string, Stored>();
-  const inFlight = new Set<string>();
+  /** client → bodyHash of the request holding that client's key right now. */
+  const inFlight = new Map<string, string>();
   const bodies = new Map<string, { bodyHash: string; expiresAt: number }>();
   return createMiddleware<AppEnv>(async (c, next) => {
     const key = c.req.header(IDEMPOTENCY_KEY_HEADER);
@@ -55,8 +58,12 @@ export function idempotency(now: () => number) {
       if (hit.paymentResponse !== undefined) headers[PAYMENT_RESPONSE_HEADER] = hit.paymentResponse;
       return c.body(hit.body, hit.status as 200, headers);
     }
-    if (inFlight.has(scope)) throw fail('replay', { detail: 'in_flight' });
-    inFlight.add(scope);
+    const holder = inFlight.get(client);
+    if (holder !== undefined)
+      throw fail('replay', {
+        detail: holder === bodyHash ? 'in_flight' : 'idempotency_key_reused',
+      });
+    inFlight.set(client, bodyHash);
     try {
       await next();
       const status = c.res.status;
@@ -72,7 +79,7 @@ export function idempotency(now: () => number) {
         bounded(bodies, client, { bodyHash, expiresAt: t + DAY_MS });
       }
     } finally {
-      inFlight.delete(scope);
+      inFlight.delete(client);
     }
   });
 }

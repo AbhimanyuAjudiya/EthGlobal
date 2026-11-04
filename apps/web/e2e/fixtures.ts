@@ -56,6 +56,22 @@ export async function apiGet<T>(page: Page, path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+/** Every value the app keeps in IndexedDB ('recharge' / 'kv'), as strings (the T-60 storage checks). */
+export async function storedValues(page: Page): Promise<string[]> {
+  return page.evaluate(async () => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open('recharge');
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error ?? new Error('indexeddb'));
+    });
+    const values = await new Promise<unknown[]>((resolve) => {
+      const r = db.transaction('kv').objectStore('kv').getAll();
+      r.onsuccess = () => resolve(r.result);
+    });
+    return values.map((v) => (typeof v === 'string' ? v : JSON.stringify(v)));
+  });
+}
+
 /** The page never scrolls sideways at this width. */
 export async function expectNoHorizontalScroll(page: Page): Promise<void> {
   const overflow = await page.evaluate(

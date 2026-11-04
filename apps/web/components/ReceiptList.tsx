@@ -12,20 +12,26 @@ import { explorerName, explorerTemplate, networkName } from '../lib/env';
 import { clockIst, dayLabel, formatMb, money } from '../lib/format';
 import { plans } from '../lib/store';
 
-
 const SPONSORED = new Set(['claim', 'card-redeem']);
 
 function lines(r: ReceiptPublic) {
   const amount = r.usd6 ? money(r.usd6) : '$0.00';
-  return SPONSORED.has(r.kind)
-    ? { you: '$0.00', sponsor: amount }
-    : { you: amount, sponsor: '—' };
+  return SPONSORED.has(r.kind) ? { you: '$0.00', sponsor: amount } : { you: amount, sponsor: '—' };
 }
 
 function csv(receipts: readonly ReceiptPublic[]): string {
   const head = 'at,kind,mb,usd6,network,tx,hcs_topic,hcs_sequence';
   const rows = receipts.map((r) =>
-    [new Date(r.at).toISOString(), r.kind, r.mb ?? '', r.usd6 ?? '', r.network ?? '', r.tx ?? '', r.hcs?.topic ?? '', r.hcs?.sequence ?? '']
+    [
+      new Date(r.at).toISOString(),
+      r.kind,
+      r.mb ?? '',
+      r.usd6 ?? '',
+      r.network ?? '',
+      r.tx ?? '',
+      r.hcs?.topic ?? '',
+      r.hcs?.sequence ?? '',
+    ]
       .map((v) => String(v).replace(/[",\n]/g, ' '))
       .join(','),
   );
@@ -74,7 +80,12 @@ export function ReceiptList({ entitlementKey }: { entitlementKey?: string }) {
         <div className="skeleton skeleton--line" aria-hidden="true" />
       ) : receipts.length === 0 ? (
         <div className="ghost-row">
-          <Receipt you="—" sponsor="—" networkFee="—" heading={<span lang={lang}>{t('receipts.empty')}</span>} />
+          <Receipt
+            you="—"
+            sponsor="—"
+            networkFee="—"
+            heading={<span lang={lang}>{t('receipts.empty')}</span>}
+          />
         </div>
       ) : (
         days.map(([day, rows]) => {
@@ -89,7 +100,11 @@ export function ReceiptList({ entitlementKey }: { entitlementKey?: string }) {
                 const template = explorerTemplate(r.network);
                 const name = explorerName(r.network);
                 return (
-                  <article key={`${r.kind}-${r.at}-${r.tx ?? ''}`} className="receipt-row" data-kind={r.kind}>
+                  <article
+                    key={`${r.kind}-${r.at}-${r.tx ?? ''}`}
+                    className="receipt-row"
+                    data-kind={r.kind}
+                  >
                     <Receipt
                       heading={`${r.mb ? `+${formatMb(r.mb)}` : r.kind} · ${day} ${clockIst(r.at)} · ${networkName(r.network)} · ${t('receipts.final')}`}
                       {...lines(r)}

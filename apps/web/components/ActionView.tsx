@@ -79,10 +79,24 @@ export function ActionView(p: ActionViewProps) {
       );
     case 'confirmed':
       return (
-        <OnchainAction {...common} state="confirmed" hash={hash} result={p.result ?? ''} elapsedMs={ms} />
+        <OnchainAction
+          {...common}
+          state="confirmed"
+          hash={hash}
+          result={p.result ?? ''}
+          elapsedMs={ms}
+        />
       );
     case 'finalized':
-      return <OnchainAction {...common} state="finalized" hash={hash} result={p.result ?? ''} elapsedMs={ms} />;
+      return (
+        <OnchainAction
+          {...common}
+          state="finalized"
+          hash={hash}
+          result={p.result ?? ''}
+          elapsedMs={ms}
+        />
+      );
     case 'failed':
       return (
         <OnchainAction

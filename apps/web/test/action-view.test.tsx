@@ -40,7 +40,9 @@ describe('ActionView — the reducer row rendered through ui OnchainAction', () 
     expect(onConfirm).toHaveBeenCalledOnce();
     expect(el?.textContent).toContain('$0.00 — paid by the facilitator');
     expect(el?.textContent).toContain('This approval expires in 5:00');
-    const blocked = view(initialRow, { blocked: 'This account holds $0.10 USDC; the price is $0.40 USDC.' });
+    const blocked = view(initialRow, {
+      blocked: 'This account holds $0.10 USDC; the price is $0.40 USDC.',
+    });
     expect(blocked?.querySelector('button')?.hasAttribute('disabled')).toBe(true);
   });
 
@@ -48,7 +50,9 @@ describe('ActionView — the reducer row rendered through ui OnchainAction', () 
     expect(view(walk(start))?.textContent).toContain('Approve in demo wallet · Anvil #5…');
     const declined = view(walk(start, { type: 'rejected' }));
     expect(declined?.getAttribute('data-state')).toBe('idle');
-    expect(declined?.textContent).toContain('You declined in demo wallet · Anvil #5. Nothing was sent.');
+    expect(declined?.textContent).toContain(
+      'You declined in demo wallet · Anvil #5. Nothing was sent.',
+    );
   });
 
   it('Sending shows the hash the moment it exists, with copy, and elapsed time — never a bare spinner', () => {
@@ -66,7 +70,12 @@ describe('ActionView — the reducer row rendered through ui OnchainAction', () 
   });
 
   it('Confirmed carries the "settling" tag; Final says "Paid · Final"', () => {
-    const confirmed = walk(start, signed, { type: 'seen' }, { type: 'confirmed', confirmations: 1 });
+    const confirmed = walk(
+      start,
+      signed,
+      { type: 'seen' },
+      { type: 'confirmed', confirmations: 1 },
+    );
     expect(view(confirmed)?.textContent).toContain('+100 MB · settled · 400 MB total settling');
     const final = view(reducer(confirmed, { type: 'finalized' }));
     expect(final?.textContent).toContain('Paid · Final');
@@ -74,17 +83,30 @@ describe('ActionView — the reducer row rendered through ui OnchainAction', () 
   });
 
   it('Failed: the decoded reason in plain words and the honest fee note, with a retry', () => {
-    const before = view(walk(start, { type: 'preBroadcastError', reason: 'the signed amount did not match the price' }));
+    const before = view(
+      walk(start, {
+        type: 'preBroadcastError',
+        reason: 'the signed amount did not match the price',
+      }),
+    );
     expect(before?.textContent).toContain(
       "Didn't go through: the signed amount did not match the price. Nothing left your account.",
     );
-    const after = view(walk(start, signed, { type: 'revert', reason: 'the contract reverted the transaction', feeCharged: '0.00002 ETH' }));
+    const after = view(
+      walk(start, signed, {
+        type: 'revert',
+        reason: 'the contract reverted the transaction',
+        feeCharged: '0.00002 ETH',
+      }),
+    );
     expect(after?.textContent).toContain('except the 0.00002 ETH network fee');
     expect(screen.getAllByRole('button', { name: 'Try again' }).length).toBeGreaterThan(0);
   });
 
   it('Replaced names the replacement hash', () => {
-    const el = view(walk(start, signed, { type: 'replaced', hash: `0x${'cd'.repeat(32)}`, kind: 'speed-up' }));
+    const el = view(
+      walk(start, signed, { type: 'replaced', hash: `0x${'cd'.repeat(32)}`, kind: 'speed-up' }),
+    );
     expect(el?.getAttribute('data-state')).toBe('replaced');
     expect(el?.textContent).toContain('Replaced');
   });

@@ -16,7 +16,6 @@ import { planHref } from '../lib/deliver';
 import { dayLabel, formatMb } from '../lib/format';
 import { redeemPin } from '../lib/redeem';
 
-
 /**
  * `/card/[serial]` (and `/card`): preview (GET is read-only, T-47) → type the PIN from under the latex →
  * Verhoeff check on the device → scratch (or "Reveal PIN") → Redeem. The page never knows the PIN until typed
@@ -130,7 +129,12 @@ export function ScratchRedeem({ serial }: { serial?: string }) {
         </p>
       ) : null}
       {checked ? (
-        <Button block disabled={!revealed || working} onClick={() => void redeem()} data-testid="card-redeem">
+        <Button
+          block
+          disabled={!revealed || working}
+          onClick={() => void redeem()}
+          data-testid="card-redeem"
+        >
           {t('card.redeem', { mb: formatMb(mb) })}
         </Button>
       ) : null}

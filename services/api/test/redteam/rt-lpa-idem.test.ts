@@ -1,18 +1,24 @@
 /**
  * Red team wave 2 (unscripted): LPA secrecy along the AP6.3 pending-profile path (the retry on /me, its blob, logs,
- * metrics, receipts), the in-process state that a restart loses, and Idempotency-Key under concurrency.
+ * metrics, receipts), the in-process state that a restart loses, and Idempotency-Key under concurrency. RT-A-11/13
+ * are fixed: their attack tests are passing regressions named `… [RT-A-NN]`.
  */
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { AdapterError } from '@ethglobal/adapters';
 
+import { retryPendingOnBoot } from '../../src/flows/fulfil.js';
 import { harness, seedCard, type Harness } from '../support/harness.js';
 
 const LPA_RE = /LPA:1\$/;
 
 /** A free claim whose reseller order fails once ⇒ 202 pending-profile. */
-async function pendingClaim(seed: string) {
-  const h = await harness();
+async function pendingClaim(seed: string, env: Record<string, string> = {}) {
+  const h = await harness({ env });
   vi.spyOn(h.adapters.reseller, 'order').mockRejectedValueOnce(
     new AdapterError('reseller', 'unavailable', 'down'),
   );
@@ -45,7 +51,7 @@ describe('attack: rt pending-profile LPA path (AP6.3)', () => {
       const r = await h.get(p);
       texts.push(await r.text());
     }
-    expect(JSON.parse(texts[0]!).status).toBe('ready');
+    expect((JSON.parse(texts[0]!) as { status: string }).status).toBe('ready');
     for (const t of texts) {
       expect(t).not.toMatch(LPA_RE);
       expect(t).not.toMatch(/sealedLpa|"ephemeralPublicKey"|"ciphertext"/);
@@ -55,18 +61,26 @@ describe('attack: rt pending-profile LPA path (AP6.3)', () => {
     expect(dump).not.toMatch(LPA_RE);
   });
 
-  // RT-FINDING RT-A-11: the pending-profile delivery target (pendingDelivery), the T-24 intents, the treasury day
-  // counter, the audit-key-shown set and the idempotency cache live only in process memory; after a restart a
-  // pending-profile entitlement is never retried (retryPending returns early) — the human proved once and is stuck
-  it('a pending-profile entitlement still completes after a process restart_RTFINDING', async () => {
-    const { h, body } = await pendingClaim('rt-pending-restart');
+  // regression RT-A-11 (fixed): the delivery target (and the T-24 intents) are sealed durable state (STATE_FILE);
+  // the treasury day total and "audit key shown" are on the ledger. A new process finds the pending delivery, retries
+  // it on boot, and /me then reads ready — the human proved once and is served
+  it('a pending-profile entitlement still completes after a process restart [RT-A-11]', async () => {
+    const STATE_FILE = join(mkdtempSync(join(tmpdir(), 'rt-a-11-')), 'api.state');
+    const { h, body } = await pendingClaim('rt-pending-restart', { STATE_FILE });
     const { entitlementKey } = body;
-    h.deps.pendingDelivery.clear(); // what a restart does to the in-memory map
     h.clock.advance(61_000);
-    const me = (await (await h.get(`/me/${encodeURIComponent(entitlementKey)}`)).json()) as {
-      status: string;
-    };
-    expect(me.status).toBe('ready');
+    const restarted = await h.restart(); // new process: every in-memory map is empty, the state file is read back
+    expect(restarted.deps.pendingDelivery.has(entitlementKey)).toBe(true);
+    expect(await retryPendingOnBoot(restarted.deps)).toEqual({ retried: 1, ready: 1 });
+    const res = await restarted.app.request(`/me/${encodeURIComponent(entitlementKey)}`, {
+      headers: { 'x-forwarded-for': '203.0.113.130' },
+    });
+    expect(((await res.json()) as { status: string }).status).toBe('ready');
+    expect(restarted.deps.pendingDelivery.has(entitlementKey)).toBe(false);
+    // without the state file the same restart would have stranded it (the pre-fix behaviour)
+    const { h: volatile, body: b2 } = await pendingClaim('rt-pending-volatile');
+    const fresh = await volatile.restart();
+    expect(fresh.deps.pendingDelivery.has(b2.entitlementKey)).toBe(false);
   });
 
   // property: a non-reseller failure after sealing (blob store down) answers 5xx with no LPA anywhere
@@ -82,16 +96,15 @@ describe('attack: rt pending-profile LPA path (AP6.3)', () => {
 });
 
 describe('attack: rt Idempotency-Key under concurrency (AP12)', () => {
-  // RT-FINDING RT-A-13: "same client + same key + different body ⇒ 409" is recorded only AFTER the
-  // first response; two concurrent requests with one key and different bodies are both processed
-  it('one Idempotency-Key, two different bodies, concurrently ⇒ at most one processed_RTFINDING', async () => {
+  // regression RT-A-13 (fixed): the in-flight lock is per client (route ‖ key ‖ IP), whatever the body
+  it('one Idempotency-Key, two different bodies, concurrently ⇒ at most one processed [RT-A-13]', async () => {
     const h = await harness();
     const [a, b] = await Promise.all([seedCard(h, 300), seedCard(h, 300)]);
     const ip = '203.0.113.120';
     const withKey = (pin: string) => redeemWithKey(h, pin, ip, 'rt-same-key');
     const [ra, rb] = await Promise.all([withKey(a.pin), withKey(b.pin)]);
     const statuses = [ra.status, rb.status].sort();
-    expect(statuses).toContain(409);
+    expect(statuses).toEqual([201, 409]);
   });
 
   // property: sequentially, the same key with a different body is 409 and the cached body is never served

@@ -2,7 +2,6 @@ import path from 'node:path';
 
 import { defineConfig, devices } from '@playwright/test';
 
-
 /**
  * Playwright in MODE=local against the REAL stack: Anvil + Deploy.s.sol + services/api (self-run facilitator,
  * real EIP-3009 settlement) + this app's production build. `scripts/e2e-local.sh --web` brings up chain and API
@@ -17,9 +16,11 @@ const BASE_URL = external ?? `http://127.0.0.1:${WEB_PORT}`;
 const webEnv = {
   PORT: String(WEB_PORT),
   PLAYWRIGHT_API_URL: process.env.PLAYWRIGHT_API_URL ?? 'http://127.0.0.1:8788',
-  PLAYWRIGHT_RPC_URL: process.env.PLAYWRIGHT_RPC_URL ?? process.env.RPC_URL ?? 'http://127.0.0.1:8546',
+  PLAYWRIGHT_RPC_URL:
+    process.env.PLAYWRIGHT_RPC_URL ?? process.env.RPC_URL ?? 'http://127.0.0.1:8546',
   PRINT_TOKEN: process.env.PRINT_TOKEN ?? 'local-e2e-print-token-0001',
-  PRINT_CARDS_FILE: process.env.PRINT_CARDS_FILE ?? path.join(repoRoot, '.e2e', 'web-print-cards.json'),
+  PRINT_CARDS_FILE:
+    process.env.PRINT_CARDS_FILE ?? path.join(repoRoot, '.e2e', 'web-print-cards.json'),
 };
 
 export default defineConfig({

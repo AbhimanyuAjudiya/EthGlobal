@@ -16,7 +16,6 @@ import { useHydrated } from '../lib/hooks';
 import { ANDROID_EUICC_INTENT, iosUniversalLink, isLpa, splitLpa } from '../lib/lpa-links';
 import { plans } from '../lib/store';
 
-
 const SECOND_DEVICE_MS = 60_000;
 const TROUBLE_AFTER_MS = 3 * 60_000;
 
@@ -30,7 +29,12 @@ function StatusPill({ status }: { status: MeResponse['status'] | undefined }) {
         ? t('status.searching')
         : t('status.noService');
   return (
-    <p className="status-pill" role="status" data-state={status ?? 'ready'} data-testid="status-pill">
+    <p
+      className="status-pill"
+      role="status"
+      data-state={status ?? 'ready'}
+      data-testid="status-pill"
+    >
       <span className="status-pill__dot" aria-hidden="true" />
       <span key={text} className="status-pill__text">
         {text}
@@ -138,7 +142,9 @@ export function ConnectionCheck() {
         </p>
       ) : null}
       <p className="note" lang={lang}>
-        {config.attachMedianS ? t('check.expectMedian', { s: config.attachMedianS }) : t('check.expect')}
+        {config.attachMedianS
+          ? t('check.expectMedian', { s: config.attachMedianS })
+          : t('check.expect')}
       </p>
     </section>
   );

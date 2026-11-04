@@ -77,8 +77,11 @@ function CopyCode({ lpa }: { lpa: string }) {
   );
 }
 
-/** The QR for a second device: only behind an explicit tap, with the warning, hidden again after 60 s (T-61). */
-function SecondDevice({ lpa }: { lpa: string }) {
+/**
+ * The QR (and, on a desktop, the code as text) for a second device: only behind an explicit tap, with the warning,
+ * hidden again after 60 s (T-61). A shared laptop never prints the activation code on load (RT-W-01).
+ */
+function SecondDevice({ lpa, withCode = false }: { lpa: string; withCode?: boolean }) {
   const { t, lang } = useLang();
   const [shownAt, setShownAt] = useState<number | undefined>();
   useEffect(() => {
@@ -98,6 +101,7 @@ function SecondDevice({ lpa }: { lpa: string }) {
         <Icon name="warning" /> {t('install.anotherWarn')}
       </p>
       <QrCode url={lpa} sizeMm={40} label={t('install.code')} />
+      {withCode ? <CodeBlock lpa={lpa} /> : null}
       <Button variant="quiet" onClick={() => setShownAt(undefined)}>
         {t('install.anotherHide')}
       </Button>
@@ -196,6 +200,8 @@ export function InstallSteps() {
   const [me, setMe] = useState<MeResponse | undefined>();
   const [late, setLate] = useState(false);
 
+  const [removed, setRemoved] = useState(false);
+
   useEffect(() => {
     void (async () => {
       const key = await plans.latest();
@@ -206,6 +212,15 @@ export function InstallSteps() {
     const timer = setTimeout(() => setLate(true), TROUBLE_AFTER_MS);
     return () => clearTimeout(timer);
   }, []);
+
+  // installed (webhook `installed` / `active`): the activation code leaves this device for good (T-76, RT-W-01)
+  useEffect(() => {
+    if (!me || (me.status !== 'installed' && me.status !== 'active')) return;
+    void plans.forgetLpa(me.entitlementKey).then(() => {
+      setLpa(null);
+      setRemoved(true);
+    });
+  }, [me]);
 
   useEffect(() => {
     if (!me || me.status === 'active') return;
@@ -219,12 +234,16 @@ export function InstallSteps() {
   return (
     <Screen>
       <AppHeader />
-      <h1 className="screen__title" lang={lang}>
+      <h1 className="install__title" lang={lang}>
         {t('install.title')}
       </h1>
       <StatusPill status={me?.status} />
       {lpa === undefined || !device ? (
         <div className="skeleton skeleton--line" aria-hidden="true" />
+      ) : removed ? (
+        <p className="note" role="status" lang={lang} data-testid="lpa-removed">
+          {t('install.done')}
+        </p>
       ) : lpa === null ? (
         <p className="note" role="status" lang={lang}>
           {t('install.noLpa')}
@@ -251,17 +270,11 @@ export function InstallSteps() {
           ) : device.os === 'android' ? (
             <AndroidSteps lpa={lpa} />
           ) : (
-            <>
-              <p className="note" lang={lang}>
-                {t('install.other')}
-              </p>
-              <CodeBlock lpa={lpa} />
-            </>
+            <p className="note" lang={lang}>
+              {t('install.other')}
+            </p>
           )}
-          <p className="note note--quiet" lang={lang}>
-            {t('install.screenshotNote')}
-          </p>
-          <SecondDevice lpa={lpa} />
+          <SecondDevice lpa={lpa} withCode={device.os === 'other'} />
         </>
       )}
       <ConnectionCheck />

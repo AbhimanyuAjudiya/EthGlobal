@@ -91,6 +91,8 @@ contract DataDrop is IDataDrop, Ownable2Step, ReentrancyGuardTransient {
     mapping(bytes32 => mapping(uint64 => uint32)) private _claimsInHour;
     /// @notice LEDGER_ONLY only: accounts the owner allows to declare (unbacked-on-chain) budgets (RT-C-01).
     mapping(address => bool) public ledgerSponsor;
+    /// @notice Tokens whose `associateHts` returned SUCCESS (22). Read back by the deploy script.
+    mapping(address => bool) public htsAssociated;
 
     /// @notice Deploys a DataDrop. Emits `ModeSet(usdc_ == address(0))` and `AttestorSet(attestor_)`.
     /// @param usdc_ The 6-decimal USDC token, or address(0) for LEDGER_ONLY mode. Immutable.
@@ -266,15 +268,31 @@ contract DataDrop is IDataDrop, Ownable2Step, ReentrancyGuardTransient {
     function associateHts(address token) external onlyOwner {
         if (block.chainid != HEDERA_MAINNET && block.chainid != HEDERA_TESTNET) revert NotHedera();
         if (address(_usdc) != address(0) && token != address(_usdc)) revert NotUsdc();
+        // effects first: a non-SUCCESS response reverts the whole call, undoing the flag and the event
+        htsAssociated[token] = true;
+        emit HtsAssociated(token);
         // slither-disable-next-line low-level-calls
         (bool ok, bytes memory ret) =
             HTS_PRECOMPILE.call(abi.encodeCall(IHederaTokenService.associateToken, (address(this), token)));
         int64 rc = (ok && ret.length >= 32) ? abi.decode(ret, (int64)) : HTS_UNKNOWN;
         if (rc != HTS_SUCCESS) revert HtsAssociationFailed(rc);
-        emit HtsAssociated(token);
     }
 
     // ───────────────────────────────────────────── views ─────────────────────────────────────────────
+
+    /// @notice Association read-back for the deploy script: true when `associateHts(token)` succeeded here AND the
+    ///         token does not deny it. The HIP-719 facade `isAssociated()` answers for `msg.sender` (this contract)
+    ///         [verify Wed]; a token that does not answer (no code, or no such function) leaves the recorded flag as
+    ///         the result.
+    /// @param token HTS token EVM address.
+    /// @return Whether this contract is associated with `token`.
+    function isHtsAssociated(address token) external view returns (bool) {
+        if (!htsAssociated[token]) return false;
+        // slither-disable-next-line low-level-calls
+        (bool ok, bytes memory ret) = token.staticcall(abi.encodeWithSignature("isAssociated()"));
+        if (!ok || ret.length < 32) return true;
+        return abi.decode(ret, (bool));
+    }
 
     /// @notice A sponsor-scoped campaign id: `sponsor (20 bytes) ‖ 0x00000000 ‖ salt (8 bytes)`. Only `sponsor` can
     ///         create it, so it cannot be squatted or front-run (RT-C-02). Use these for every production campaign.

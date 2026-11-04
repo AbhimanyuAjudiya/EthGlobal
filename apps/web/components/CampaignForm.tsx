@@ -9,6 +9,7 @@ import { ActionView } from './ActionView';
 import { DemoWalletPanel } from './Shell';
 import { api, ApiError } from '../lib/api';
 import { networkName } from '../lib/env';
+import { moneyUsdc } from '../lib/format';
 import { useHydrated, useWallet } from '../lib/hooks';
 import {
   approveCall,
@@ -181,7 +182,13 @@ export function CampaignForm() {
   }, [wallet, draft, approve.dispatch, create.dispatch]);
 
   const network = wallet?.network ?? 'eip155:31337';
-  const budgetText = `${draft.budgetUsd} USDC`;
+  // money says its unit and two decimals, grouped en-IN: "$1,000.00 USDC" (RT design review #9)
+  let budgetText = `${draft.budgetUsd} USDC`;
+  try {
+    budgetText = moneyUsdc(usd6(draft.budgetUsd));
+  } catch {
+    // a half-typed amount stays as typed
+  }
 
   return (
     <div className="sponsor-create">
@@ -192,10 +199,7 @@ export function CampaignForm() {
         </Button>
       ) : null}
       {walletError ? <p className="note">{walletError}</p> : null}
-      <section aria-labelledby="campaigns-title">
-        <h2 id="campaigns-title" className="pane__title">
-          Campaigns
-        </h2>
+      <section aria-label="Your campaigns">
         <table className="data-table">
           <thead>
             <tr>
@@ -256,7 +260,7 @@ export function CampaignForm() {
       <ActionView
         row={approve.row}
         now={approve.now}
-        title={`Allow DataDrop to use up to ${budgetText}`}
+        title={`Allow the Recharge contract to use up to ${budgetText}`}
         network={network}
         networkLabel={networkName(network)}
         actionLabel="Step 1 of 2"

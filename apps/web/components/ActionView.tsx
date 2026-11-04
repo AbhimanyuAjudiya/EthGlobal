@@ -1,6 +1,6 @@
 'use client';
 
-import { OnchainAction, type ReviewRow } from '@ethglobal/ui/components';
+import { OnchainAction, type CouponLang, type ReviewRow } from '@ethglobal/ui/components';
 
 import { explorerName, explorerTemplate } from '../lib/env';
 import { elapsed, type ActionRow } from '../lib/onchain-action';
@@ -22,6 +22,8 @@ export interface ActionViewProps {
   onConfirm?: () => void;
   onCancel?: () => void;
   onRetry?: () => void;
+  /** The component's own status lines follow the page language (RT-W-08). */
+  lang?: CouponLang;
   className?: string;
 }
 
@@ -39,6 +41,7 @@ export function ActionView(p: ActionViewProps) {
     network: p.networkLabel,
     ...(url ? { explorerUrl: url } : {}),
     ...(xName ? { explorerName: xName } : {}),
+    ...(p.lang ? { lang: p.lang } : {}),
     ...(p.className ? { className: p.className } : {}),
   };
   const ms = elapsed(p.row, p.now);

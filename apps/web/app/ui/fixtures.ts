@@ -1,29 +1,30 @@
 /**
- * Fixed data for the component gallery and the print sheet (tooling only). Every PIN is 16 digits with a
- * valid Verhoeff check digit (generated once with @ethglobal/protocol's generatePin); the first is the spec's.
- * Times are frozen so server and client render the same text.
+ * Fixed data for the component gallery and the print sheet (tooling only, MODE=local only: app/ui/layout.tsx).
+ * Every PIN is 16 digits whose last digit is one off a valid Verhoeff check digit, so it FAILS the on-device check
+ * on purpose: a printout of /ui/print can never pass for a real card (RT-W-10). Times are frozen so server and
+ * client render the same text.
  */
 export const PINS = [
-  '4821993011275064',
-  '2950595390095615',
-  '4176728488628584',
-  '4327483739731849',
-  '0579089972398836',
-  '0615201634337366',
-  '9284398591735669',
-  '9090232849336877',
-  '7583508288037667',
-  '4810148859894711',
-  '3433015463023532',
-  '6427953180639179',
-  '0305016938406866',
-  '8334886076041255',
-  '7028453339405871',
-  '3865931997583623',
-  '4398387813057515',
-  '6268509295691518',
-  '7643095607933313',
-  '5479126724223786',
+  '4821993011275065',
+  '2950595390095616',
+  '4176728488628585',
+  '4327483739731840',
+  '0579089972398837',
+  '0615201634337367',
+  '9284398591735660',
+  '9090232849336878',
+  '7583508288037668',
+  '4810148859894712',
+  '3433015463023533',
+  '6427953180639170',
+  '0305016938406867',
+  '8334886076041256',
+  '7028453339405872',
+  '3865931997583624',
+  '4398387813057516',
+  '6268509295691519',
+  '7643095607933314',
+  '5479126724223787',
 ] as const;
 
 export const HASH = '0x1a2b80f6cd88a88474e7c4db5d3de758f33eeaf3368b639ab1f4681d81789f3e';

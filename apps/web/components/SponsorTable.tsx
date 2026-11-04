@@ -380,6 +380,7 @@ export function SponsorTable({ id }: { id: string }) {
         ) : (
           <SlideToConfirm
             label="Slide to pause claims"
+            releaseLabel="Release to pause"
             disabled={!wallet}
             onConfirm={() => void runTx('Pause the campaign', pauseCall(campaign.id as Hex, true))}
           />

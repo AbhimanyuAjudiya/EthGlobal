@@ -5,7 +5,7 @@ module: services/api/src/routes/sponsor.ts
 threat: T-72
 severity: Med
 likelihood: M
-status: fixed
+status: verified
 found_by: redteam-wave2
 owner: builder-api
 found_at: 2026-11-04T15:05+05:30
@@ -13,7 +13,7 @@ due: 2026-11-05T20:59+05:30
 attack_test: services/api/test/redteam/rt-authz.test.ts::a captured dashboard bearer cannot rewrite the campaign or re-read the auditKey_RTFINDING; services/api/test/redteam/rt-authz.test.ts::auditKey stays hidden after a restart (new deps over the same ledger)_RTFINDING
 regression_test: services/api/test/redteam/rt-authz.test.ts::a captured dashboard bearer cannot rewrite the campaign or re-read the auditKey [RT-A-04]; ::auditKey stays hidden after a restart (new deps over the same ledger) [RT-A-04] (+ services/api/test/regression/T-72-sponsor-scope.test.ts)
 fix_commit: (uncommitted, wave-2 API fix pass; orchestrator commits)
-verified_at:
+verified_at: 2026-11-04 (redteam-verify, Claude)
 duplicate_of:
 sign_off:
 ---
@@ -56,3 +56,12 @@ derive "first read" from a ledger flag) instead of process memory. Add the case 
 Read and write are separated by making registration a one-time write: `POST /sponsor` for an id that is already registered is 409 `campaign_exists` whoever signs (per-id mutex + a ledger once-marker `claim:HMAC('sponsor-registered'‖id)`, scope `'once'`, protocol A-42), so the dashboard bearer can no longer rewrite a campaign or mint its audit key; the audit key appears only in the first registration's 201. "Audit key shown" on `GET /sponsor/:id` is a ledger once-marker (`claim:HMAC('sponsor-audit-shown'‖id)`), so a restart (or a second process) does not show it again. **Residual (Low):** registration itself is still authorised by a `SponsorLogin` signature because the PWA (`apps/web/lib/sponsor.ts`, being edited by another builder) signs that; a bearer captured before the sponsor's first registration could register first. The full fix is a `SponsorRegister{campaignId, sponsor, issuedAt, campaignHash}` typed message in protocol + the PWA; the API side is then a one-line verifier swap.
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): VERIFIED.**
+
+- Regression: `rt-authz.test.ts` `[RT-A-04]` cases and `T-72-sponsor-scope.test.ts` pass. (re-run 2026-11-04, green under the CI `_RTFINDING` filter).
+- Variant (new, not covered by the regression): the once-only markers under another spelling: after the audit key was shown, `GET /sponsor/<UPPER-CASE id>` (with a bearer for either spelling) never shows it again; two concurrent `POST /sponsor` for the registered campaign with an upper-case id are never 201 and do not rewrite it. (Residual in builder notes — first registration with a pre-captured bearer — unchanged.)
+
+```sh
+cd services/api && npx vitest run test/redteam/verify-rt-a-04-05-06-authz.test.ts -t RT-A-04
+```

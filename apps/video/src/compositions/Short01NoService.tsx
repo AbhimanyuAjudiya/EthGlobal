@@ -25,7 +25,7 @@ export const short01Defaults: Short01Props = {
   s6Cut: false,
   screens: {},
   screenIn: { s2: 0, s3: 70, s4: 180, s5: 285 },
-  headlessIn: { s2: 75, s3: 30, s4: 140, s5: 15 },
+  headlessIn: { s2: 75, s3: 30, s4: 140, s5: 30 },
   endLine: "300 MB · because you're human",
   theme: 'light',
 };

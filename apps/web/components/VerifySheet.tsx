@@ -15,7 +15,7 @@ import { useLang } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
 import { deliver, planHref } from '../lib/deliver';
-import { config, IS_LOCAL } from '../lib/env';
+import { config } from '../lib/env';
 import { formatMb, mmss, money, priceFor } from '../lib/format';
 import { useClock, usePlans } from '../lib/hooks';
 import { beginSession } from '../lib/session-key';
@@ -158,9 +158,10 @@ export function VerifySheet() {
       for (let attempt = 0; attempt < 2; attempt += 1) {
         // the backend-signed rp_context, after the challenge and before IDKit opens (A-25)
         const rp = await api.rpContext('/claim');
-        if (IS_LOCAL) {
-          const proof = await api.simulatedProof(s.challenge.signal as Hex, 'orb', simulatedSeed());
-          await claim(proof);
+        if (process.env.NEXT_PUBLIC_MODE === 'local') {
+          // compiled out of a live build (RT-W-12): the simulator call lives in lib/local/world-sim.ts
+          const { simulatedProof } = await import('../lib/local/world-sim');
+          await claim(await simulatedProof(s.challenge.signal as Hex, 'orb', simulatedSeed()));
           return;
         }
         const done = await openIdkit(s.challenge, rp, (uri) =>
@@ -260,24 +261,24 @@ export function VerifySheet() {
       <AppHeader />
       {plans?.campaign ? (
         <div className="verify__coupon" aria-hidden="true">
-          <Coupon mb={mb} sponsor={plans.campaign.name} variant="notification" />
+          <Coupon mb={mb} sponsor={plans.campaign.name} variant="notification" lang={lang} />
         </div>
       ) : null}
       <section className="sheet" aria-labelledby="verify-title">
-        <h1 id="verify-title" className="sheet__title" lang={lang}>
+        <h1 id="verify-title" className="sheet__kicker" lang={lang}>
           {t('verify.title')}
         </h1>
-        <p className="sheet__lede" lang={lang}>
+        <p className="sheet__lede sheet__lede--dominant" lang={lang}>
           {t('verify.lede')}
         </p>
         <div className="verify__status">{status}</div>
         <div className="sheet__actions">
           {canStart ? (
             <Button block onClick={() => void start()} disabled={!plans?.campaign}>
-              {IS_LOCAL ? t('verify.simulated') : t('verify.open')}
+              {process.env.NEXT_PUBLIC_MODE === 'local' ? t('verify.simulated') : t('verify.open')}
             </Button>
           ) : null}
-          {phase.kind === 'waiting' && !IS_LOCAL ? (
+          {phase.kind === 'waiting' && process.env.NEXT_PUBLIC_MODE !== 'local' ? (
             <Button variant="quiet" onClick={() => setPhase({ kind: 'ready' })}>
               {t('verify.cancel')}
             </Button>
@@ -295,7 +296,7 @@ export function VerifySheet() {
             </Link>
           ) : null}
         </div>
-        {IS_LOCAL ? (
+        {process.env.NEXT_PUBLIC_MODE === 'local' ? (
           <p className="note" lang={lang}>
             {t('verify.simulatedNote')}
           </p>

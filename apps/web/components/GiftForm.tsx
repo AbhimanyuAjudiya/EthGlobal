@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 
 import { GIFT_RECLAIM_WINDOW_S } from '@ethglobal/protocol/ids';
 import type { GiftResponse } from '@ethglobal/protocol/schemas';
@@ -11,10 +11,9 @@ import { ActionView } from './ActionView';
 import { renderQr } from './QrCode';
 import { saveCardPng } from './save-card';
 import { WalletButton } from './Shell';
-import { useLang } from '../i18n/lang';
+import { useLang, useNetworkName } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
-import { networkName } from '../lib/env';
 import { dayLabel, formatMb, money, moneyUsdc, priceFor } from '../lib/format';
 import { usePlans, useWallet } from '../lib/hooks';
 import {
@@ -51,6 +50,7 @@ export const sentGifts = {
 /** `/gift` — "Who gets it?" resolving live, one price per size, the reclaim rule stated BEFORE paying (D-7). */
 export function GiftForm({ onSent }: { onSent?: () => void }) {
   const { t, lang } = useLang();
+  const netName = useNetworkName();
   const { plans } = usePlans();
   const { wallet, busy, error: walletError, pickInjected } = useWallet('human');
   const { row, dispatch, now } = useOnchainAction();
@@ -179,7 +179,12 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
                   ? t('gift.unresolved', { name: shownName })
                   : ' '}
           </p>
-          <div className="segmented" role="radiogroup" aria-label={t('gift.size')}>
+          <div
+            className="segmented segmented--even"
+            role="radiogroup"
+            aria-label={t('gift.size')}
+            style={{ '--segments': SIZES_MB.length } as CSSProperties}
+          >
             {SIZES_MB.map((size) => (
               <button
                 key={size}
@@ -188,43 +193,55 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
                 aria-checked={size === mb}
                 onClick={() => setMb(size)}
               >
-                {formatMb(size)} · {money(priceFor(size, step))}
+                <span className="segmented__main">{formatMb(size)}</span>
+                <span className="ui-visually-hidden"> · </span>
+                <span className="segmented__sub">{money(priceFor(size, step))}</span>
               </button>
             ))}
           </div>
           <p className="gift__rule" data-testid="gift-rule" lang={lang}>
-            {t('gift.rule', { claimBy: dayLabel(claimBy), reclaimUntil: dayLabel(reclaimUntil) })}
+            {t('gift.rule', {
+              claimBy: dayLabel(claimBy, lang),
+              reclaimUntil: dayLabel(reclaimUntil, lang),
+            })}
           </p>
         </>
       ) : null}
       <ActionView
         row={row}
         now={now}
-        title={t('gift.button', { mb: formatMb(mb), name: shownName || '…', price: money(price) })}
+        title={
+          shownName && resolution === 'resolves'
+            ? t('gift.button', { mb: formatMb(mb), name: shownName, price: money(price) })
+            : t('gift.buttonNoName', { mb: formatMb(mb), price: money(price) })
+        }
         network={network}
-        networkLabel={networkName(network)}
+        networkLabel={netName(network)}
         review={[
-          { label: t('pay.rowTo'), value: shownName || '—' },
+          { label: t('pay.rowTo'), value: <span data-hash>{shownName || '—'}</span> },
           { label: t('pay.rowFee'), value: t('pay.feeFacilitator') },
         ]}
         worstCase={t('gift.rule', {
-          claimBy: dayLabel(claimBy),
-          reclaimUntil: dayLabel(reclaimUntil),
+          claimBy: dayLabel(claimBy, lang),
+          reclaimUntil: dayLabel(reclaimUntil, lang),
         })}
         actionLabel={t('pay.button', { price: moneyUsdc(price) })}
-        walletName={wallet?.name ?? 'your wallet'}
-        result={gift ? t('gift.sent', { name: gift.name, claimBy: dayLabel(gift.claimBy) }) : ''}
+        walletName={wallet?.name ?? t('pay.yourWallet')}
+        result={
+          gift ? t('gift.sent', { name: gift.name, claimBy: dayLabel(gift.claimBy, lang) }) : ''
+        }
         {...(resolution !== 'resolves'
           ? {
               blocked:
                 resolution === 'unresolved'
                   ? t('gift.unresolved', { name: shownName })
-                  : t('gift.title'),
+                  : t('gift.needName'),
             }
           : {})}
         expectedMs={expectedMsFor(network)}
         onConfirm={() => void send()}
         onRetry={() => dispatch({ type: 'retry' })}
+        lang={lang}
       />
       {gift ? (
         <section className="gift__result" data-testid="gift-result">

@@ -121,6 +121,11 @@ deployer; required elsewhere), `LEDGER_ONLY` (default `false`), `ANVIL_MNEMONIC`
   record has no `usdc` refuses to deploy unless `LEDGER_ONLY=true` is explicit (THREAT-MODEL §6.1 rule 5 — echo it into
   `DISCLOSURE.md`). On 295/296 in token mode the script deploys owned by the broadcaster, calls `associateHts(usdc)` in
   the same broadcast, then `transferOwnership(OWNER_ADDRESS)` — **the owner must then call `acceptOwnership()`**.
+- Before any broadcast or file write the script checks that the chain record it was given is `chains.json`'s record
+  for the connected `block.chainid`, with a slug matching `[a-z0-9_]+`. An unknown chain id, another chain's record or an
+  unsafe slug reverts.
+- On Hedera token mode, after `associateHts(usdc)` the script requires `isHtsAssociated(usdc)`: SUCCESS was recorded and
+  the token's HIP-719 `isAssociated()` (answered for DataDrop) does not deny it [verify Wed]. Otherwise the broadcast fails.
 - Live token mode refuses a `usdc` without code or with `decimals() != 6` (RT-C-04). On Hedera a codeless HTS
   long-zero alias is tolerated ([verify Wed]; check decimals on the mirror node), but a contract that answers
   `decimals()` must answer 6.
@@ -193,13 +198,12 @@ now passing. Gate: `security/redteam/run-wave.sh contracts`.
 No high or medium findings (`--fail-medium` exits 0, also with `security/redteam/tools/slither.config.json`). Low /
 informational, justified:
 
-| Detector                  | Where                                     | Why it stays                                                                                                   |
-| ------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `shadowing-local`         | `IDataDrop.setAttestor(address attestor)` | parameter name is verbatim from INTERFACES §6.1 (the implementation uses `attestor_`)                          |
-| `reentrancy-events`       | `associateHts` emits after the HTS call   | the event reports the call's success; callee is the Hedera system contract; owner-only; no state written after |
-| `timestamp`               | expiry, 24 h pause, EIP-3009 windows      | inherent to the spec; granularity is seconds–hours, far above validator skew                                   |
-| `naming-convention`       | `DOMAIN_SEPARATOR()`                      | EIP-2612/FiatToken name that tooling expects                                                                   |
-| `unindexed-event-address` | `AttestorSet(address)`                    | verbatim INTERFACES §6.1 event; changing it would break consumers' topic decoding                              |
+| Detector                  | Where                                     | Why it stays                                                                          |
+| ------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------- |
+| `shadowing-local`         | `IDataDrop.setAttestor(address attestor)` | parameter name is verbatim from INTERFACES §6.1 (the implementation uses `attestor_`) |
+| `timestamp`               | expiry, 24 h pause, EIP-3009 windows      | inherent to the spec; granularity is seconds–hours, far above validator skew          |
+| `naming-convention`       | `DOMAIN_SEPARATOR()`                      | EIP-2612/FiatToken name that tooling expects                                          |
+| `unindexed-event-address` | `AttestorSet(address)`                    | verbatim INTERFACES §6.1 event; changing it would break consumers' topic decoding     |
 
 ## Offline compiler
 

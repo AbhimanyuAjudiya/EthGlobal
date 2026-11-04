@@ -5,7 +5,7 @@ module: packages/octroi/src/store/entitlement.ts
 threat: T-37
 severity: High
 likelihood: H
-status: fixed
+status: open
 found_by: redteam-octroi
 owner: builder-octroi
 found_at: 2026-11-04T05:40+05:30
@@ -67,3 +67,32 @@ asserting the safe behaviour. The red-team attack tests are marked `// RT-FINDIN
 Capability ≠ index (INTERFACES A-34). `EntitlementStore` writes `entitlementIndex(key) = 'hk:' + sha256(utf8(key))` as the `key` annotation AND as `payload.key`; `getByKey(capability)` hashes first and refuses an `hk:` value (so a key read off Arkiv opens nothing). Free capability = `ent:v1:HMAC(secret,'entfree'‖campaignId‖nullifier)` — per campaign; the global `quotaKey` never leaves the process (it keys only the claim locks, A-33, which are day-keyed, so two claims ≥ 1 day apart share no identifier). Paid capability = `paid:<payer>:HMAC(secret,'paid'‖network‖payer‖nonce)`. API `MeCache` is keyed by the index so a webhook's invalidation (which only knows the index) still hits. sha256 instead of an HMAC for the index: stores are constructed without the secret (API, agent, these tests) and every capability is ≥ 256 bits of HMAC output; the index equals receipts' `entitlementKeyHash`. Test adaptation: case 2 now ignores A's own entities re-read in B's dump (A's campaign claim record legitimately outlives A's bundle) and compares only what was written for B. Residuals (octroi README Decision 16): `giftent:<giftId>` is derivable from the public gift entity; `AgentPolicyWire.entitlementKey` is still in clear. rt-store forges now target the index.
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): REOPENED.** The octroi regression holds (`rt-keys.test.ts` [RT-O-01] cases and
+`test/regression/redteam-wave1.test.ts::RT-O-01` pass; `EntitlementStore.getByKey('hk:…')` returns null), but the
+system-level property "a key read off Arkiv opens nothing" is broken by the API's `MeCache`.
+
+### Repro (verification variant)
+
+```sh
+cd services/api && npx vitest run test/redteam/verify-rt-o-01-index-cache.test.ts
+```
+
+1. Victim provisions a free entitlement and opens `/me/<key>` (the PWA does this on every load) → `MeCache.remember(key, me)`
+   stores the response under `entitlementIndex(key)` = `hk:<sha256(key)>`.
+2. Attacker reads `hk:<sha256(key)>` off the ledger (annotation `key` / `payload.key`) and calls `GET /me/hk:<sha256(key)>`
+   within 60 s. `KEY` (`/^[\x21-\x7E]{8,160}$/`) admits it; `deps.cache.fresh('hk:…')` → `entitlementIndex('hk:…')` is
+   idempotent on an index (`keys.ts:76`) → **cache hit**; `getByKey` (which would refuse the index) is never called.
+3. Response: **200** with the victim's `MeResponse` — including **`entitlementKey`** (the capability itself), plan, usage,
+   expiry. The same applies to `cache.stale()` while the ledger is degraded (any age), and `cache.expired('hk:…')` turns the
+   index into a 410-vs-404 liveness oracle.
+
+Failing test (marked `// RT-FINDING`, suffixed `_RTFINDING`):
+`services/api/test/redteam/verify-rt-o-01-index-cache.test.ts::/me/<hk:index> after the owner read /me/<key> ⇒ 404, never the owner’s entitlement_RTFINDING`.
+
+Impact: the RT-O-01 impact list in full (capability theft → T-73 b policy squat, top-up target, `/me` privacy) for every
+user who has opened `/me` in the last minute — a ledger watcher polling new `hk:` indexes wins reliably.
+
+Suggested fix (builder's choice): in `GET /me/:key` refuse an `INDEX_PREFIX` key before touching the cache (`404`), or key
+the cache's capability-facing methods (`fresh`/`stale`/`expired`/`remember`) by a value an index cannot produce (e.g.
+reject `hk:` inputs in those methods and keep `invalidate(index)` for webhooks). Not fixed here (red team does not edit `src/`).

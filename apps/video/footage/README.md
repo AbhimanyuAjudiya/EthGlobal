@@ -13,7 +13,7 @@ bash apps/video/scripts/conform.sh --audio room.m4a 01-room.wav                 
 
 Room sound: when `NN-room.wav` exists it runs under the whole short and every clip is muted; otherwise each OTS/macro clip plays its own camera-phone audio and screen recordings stay silent. Screen recordings are always captured with **Microphone off**.
 
-Path note: SCRIPTS.md §2–§5 "Aftercare" says `apps/video/public/capture/NN/`; the pipeline reads this folder instead (served to the bundle as `public/footage/` through a symlink). Keep writing `notes.md` per video here (`NN-notes.md`) with the HashScan URL, the Arkiv entity key, the HCS sequence and the times; they replace the placeholder values in `src/seed/index.ts`.
+Path note: SCRIPTS.md §2–§5 "Aftercare" says `apps/video/public/capture/NN/`; the pipeline reads this folder instead (served to the bundle as `public/footage/` through a symlink). Keep writing `notes.md` per video here (`NN-notes.md`) with the HashScan URL, the Arkiv entity key, the HCS sequence and the times; they replace the values in `src/seed/saturday.json`, the one props file the team edits on Saturday.
 
 ## Headless captures of the real PWA (`screen/`)
 

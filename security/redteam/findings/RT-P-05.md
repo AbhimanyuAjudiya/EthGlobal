@@ -5,7 +5,7 @@ module: package.json; services/api/package.json; services/agent/package.json; ap
 threat: T-65
 severity: Med
 likelihood: L
-status: fixed
+status: verified
 found_by: redteam-wave3-ops
 owner: builder-ops-demo
 found_at: 2026-11-04T16:10+05:30
@@ -13,7 +13,7 @@ due: 2026-11-05T20:59+05:30
 attack_test: security/redteam/wave3-ops/run.sh::every_direct_dependency_pinned_exact_RTFINDING
 regression_test: scripts/test/regression/T-65-supply-chain.test.ts (no ^/~/*/latest in any workspace package.json; catalog exact; installed == pinned) + security/redteam/wave3-ops/run.sh::no ^/~/latest range in any package.json
 fix_commit: (uncommitted, wave-3 ops fix pass on claude/ethglobal-mumbai-build; orchestrator commits)
-verified_at:
+verified_at: 2026-11-04 (redteam-verify, Claude)
 duplicate_of:
 sign_off:
 ---
@@ -45,3 +45,14 @@ tests ran on); change the runbook to `pnpm install --frozen-lockfile` once RT-P-
 ## Builder notes
 
 All 25 ranged specifiers (root devDependencies, services/api, services/agent, apps/web, packages/ui, apps/video's `@types/react` only) now say `catalog:`; 21 new exact catalog entries were added at the versions the installed node_modules and the lockfile already had (no version changed: eslint 10.14.0, prettier 3.9.10, hono 4.13.16, @hono/node-server 2.1.6, pino 10.4.0, pino-pretty 13.2.0, react/react-dom/@types/react(-dom) 19.3.0, tailwindcss + @tailwindcss/turbopack 4.3.4, …). peerDependencies stay ranges by design. ONSITE-RUNBOOK §0 and README now say `pnpm install --frozen-lockfile`.
+
+## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): VERIFIED.**
+
+- Regression: `T-65-supply-chain.test.ts` and `wave3-ops/run.sh` pass. (re-run 2026-11-04, green under the CI `_RTFINDING` filter).
+- Variant (new, not covered by the regression): EVERY tracked package.json (incl. the non-workspace `apps/web/e2e`, `apps/web/test/redteam`) pins exactly — no range, tag, git/url/file/link spec; no `pnpm.overrides` / `resolutions` range; no ranged named catalog.
+
+```sh
+cd scripts && npx vitest run test/regression/verify-rt-p-03-05-06-07-static.test.ts -t RT-P-05
+```

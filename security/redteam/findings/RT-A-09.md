@@ -5,7 +5,7 @@ module: services/api/src/env.ts
 threat: T-77
 severity: Low
 likelihood: M
-status: fixed
+status: open
 found_by: redteam-wave2
 owner: builder-api
 found_at: 2026-11-04T15:05+05:30
@@ -44,3 +44,27 @@ Anvil address in `AGENT_PAYERS` (same `anvilAddresses` set as the key check); re
 Live inherits nothing local: `CHAIN` has no schema default and is required in live (and refused if 31337); `CORS_ORIGINS` and `AGENT_PAYERS` default to empty in live and refuse localhost origins / Anvil accounts; the local defaults (31337, the PWA dev origins, Anvil #4) are applied only in `localDefaults()`. `src/env.ts`; `.env.example` and INTERFACES §11 document it (A-42).
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): REOPENED (Low, narrow).** The named regressions pass and the inherited defaults are
+gone (no CHAIN default, empty CORS_ORIGINS / AGENT_PAYERS in live; `0x7a69`, `031337`, `eip155:31337` and every spelling of
+an Anvil payer are refused — `verify-rt-a-09-a-10.test.ts`). The explicit-origin guard the fix added does not cover every
+loopback spelling.
+
+### Repro (verification variant)
+
+```sh
+cd services/api && npx vitest run test/redteam/verify-rt-a-09-a-10.test.ts -t 'CORS_ORIGINS'
+```
+
+`parseEnv({ ...liveEnv, CORS_ORIGINS })` **boots MODE=live** with each of: `http://localhost.:3000` (FQDN trailing dot),
+`http://app.localhost:3000` (browsers resolve `*.localhost` to loopback), `http://0.0.0.0:3000`, `http://127.1:3000`.
+`LOCALHOST_ORIGIN` (`src/env.ts:70`) only matches `localhost`, `127.d.d.d` and `[::1]` exactly.
+
+Failing tests (marked `// RT-FINDING`, suffixed `_RTFINDING`):
+`services/api/test/redteam/verify-rt-a-09-a-10.test.ts::CORS_ORIGINS=<spelling> ⇒ refused or no loopback origin_RTFINDING` (4 cases).
+
+Impact: Low — needs an operator to type such a value; the original "inherited default" root cause is fixed. It defeats the
+guard that is meant to catch exactly that mistake.
+
+Suggested fix: parse each origin with `new URL()`, strip one trailing dot from the hostname, and refuse `localhost`,
+`*.localhost`, any address in 127.0.0.0/8 (incl. short forms `inet_aton` accepts), `0.0.0.0` and `::1`/`::`.

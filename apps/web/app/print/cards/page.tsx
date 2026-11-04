@@ -21,6 +21,8 @@ const cardsFileSchema = z
       mb: z.number().int().positive(),
       sponsor: z.string().max(64).optional(),
       expires: z.string().max(40).optional(),
+      /** "Mumbai · 14 days" from the campaign; omitted rather than guessed (RT-W-09). */
+      validity: z.string().max(40).optional(),
       sponsorPaid: z.string().max(16).optional(),
     }),
   )
@@ -77,7 +79,7 @@ async function Sheet({ searchParams }: { searchParams: SearchParams }) {
   ).map((c) => ({
     mb: c.mb,
     ...(c.sponsor ? { sponsor: c.sponsor } : {}),
-    validity: 'Mumbai · 7 days',
+    ...(c.validity ? { validity: c.validity } : {}),
     pin: c.pin,
     serial: c.serial,
     expires: c.expires ?? 'Expires 30 Nov 2026',

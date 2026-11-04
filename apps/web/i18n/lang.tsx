@@ -11,6 +11,7 @@ import {
 } from 'react';
 
 import { LANG_NAMES, LANGS, t, type Lang, type Params, type StringKey } from './strings';
+import { networkName } from '../lib/env';
 
 const STORAGE_KEY = 'recharge.lang';
 const listeners = new Set<() => void>();
@@ -106,6 +107,20 @@ export function T({ k, params, className }: { k: StringKey; params?: Params; cla
     <span lang={lang} className={className}>
       {tr(k, params)}
     </span>
+  );
+}
+
+/** Network names for travellers in the page's language: "Hedera", "Base", "लोकल चेन" — never a chain id. */
+export function useNetworkName(): (network: string | undefined) => string {
+  const { t: tr } = useLang();
+  return useCallback(
+    (network) =>
+      network === 'eip155:31337'
+        ? tr('network.local')
+        : network
+          ? networkName(network)
+          : tr('network.unknown'),
+    [tr],
   );
 }
 

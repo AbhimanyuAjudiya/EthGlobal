@@ -5,7 +5,7 @@ module: services/api/src/middleware/idempotency.ts
 threat: T-74
 severity: Low
 likelihood: L
-status: fixed
+status: verified
 found_by: redteam-wave2
 owner: builder-api
 found_at: 2026-11-04T15:05+05:30
@@ -13,7 +13,7 @@ due: 2026-11-05T20:59+05:30
 attack_test: services/api/test/redteam/rt-lpa-idem.test.ts::one Idempotency-Key, two different bodies, concurrently ⇒ at most one processed_RTFINDING
 regression_test: services/api/test/redteam/rt-lpa-idem.test.ts::one Idempotency-Key, two different bodies, concurrently ⇒ at most one processed [RT-A-13]
 fix_commit: (uncommitted, wave-2 API fix pass; orchestrator commits)
-verified_at:
+verified_at: 2026-11-04 (redteam-verify, Claude)
 duplicate_of:
 sign_off:
 ---
@@ -43,3 +43,12 @@ Record `bodies.set(client, { bodyHash, … })` before `next()` (and delete it on
 The in-flight lock is keyed by client (route ‖ Idempotency-Key ‖ client IP), not by the full scope, and remembers the holder's body hash: a concurrent request with the same key is 409 (`in_flight` for the same body, `idempotency_key_reused` for another). `src/middleware/idempotency.ts`.
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): VERIFIED.**
+
+- Regression: `rt-lpa-idem.test.ts` `[RT-A-13]` passes. (re-run 2026-11-04, green under the CI `_RTFINDING` filter).
+- Variant (new, not covered by the regression): nine concurrent `/card/redeem` with one Idempotency-Key from one client — six different PINs plus three repeats of one — ⇒ exactly one 201, the rest 409.
+
+```sh
+cd services/api && npx vitest run test/redteam/verify-rt-a-11-13-state-idem.test.ts -t RT-A-13
+```

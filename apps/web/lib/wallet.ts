@@ -15,9 +15,7 @@ import {
   type TypedDataDefinition,
 } from 'viem';
 
-import { httpJson } from '@ethglobal/protocol/http';
-
-import { config, IS_LOCAL } from './env';
+import { config } from './env';
 
 export interface Eip1193 {
   request(args: { method: string; params?: unknown }): Promise<unknown>;
@@ -73,29 +71,9 @@ export function discoverInjected(timeoutMs = 250): Promise<Announced[]> {
   });
 }
 
-/** The demo wallet's EIP-1193 transport: every request goes to the local-only route handler. */
-export function demoProvider(role: DemoRole): Eip1193 {
-  return {
-    async request({ method, params }) {
-      const res = await httpJson<{ result?: unknown; error?: { code: number; message: string } }>(
-        '/api/demo-wallet',
-        { body: { role, method, params: params ?? [] }, allowStatus: [400, 404, 500] },
-      );
-      if (res.data.error || res.status >= 400) {
-        const err = new Error(res.data.error?.message ?? `demo wallet ${res.status}`) as Error & {
-          code?: number;
-        };
-        err.code = res.data.error?.code ?? -32603;
-        throw err;
-      }
-      return res.data.result;
-    },
-  };
-}
-
 function readerFor(provider: Eip1193): PublicClient {
   // Local: Anvil directly (1 s blocks); live: the wallet's own RPC.
-  return IS_LOCAL
+  return process.env.NEXT_PUBLIC_MODE === 'local'
     ? createPublicClient({ transport: http(config.anvilRpcUrl), pollingInterval: 250 })
     : createPublicClient({ transport: custom(provider), pollingInterval: 1000 });
 }
@@ -123,8 +101,17 @@ export async function connect(
   };
 }
 
-export const connectDemo = (role: DemoRole): Promise<Wallet> =>
-  connect(demoProvider(role), 'demo', `demo wallet · Anvil #${DEMO_ROLE_INDEX[role]}`);
+/**
+ * MODE=local only: the labelled demo wallet. The transport lives in lib/local/demo-wallet.ts and is imported only
+ * behind a literal `process.env.NEXT_PUBLIC_MODE === 'local'`, so a live build compiles it out (RT-W-12, T-63).
+ */
+export async function connectDemo(role: DemoRole): Promise<Wallet> {
+  if (process.env.NEXT_PUBLIC_MODE === 'local') {
+    const { demoProvider } = await import('./local/demo-wallet');
+    return connect(demoProvider(role), 'demo', `demo wallet · Anvil #${DEMO_ROLE_INDEX[role]}`);
+  }
+  throw new Error('the demo wallet exists only in MODE=local');
+}
 
 /** True when the wallet declined (EIP-1193 4001) rather than failed. */
 export const isUserRejection = (error: unknown): boolean => {
@@ -138,7 +125,7 @@ export const isUserRejection = (error: unknown): boolean => {
  * API's local clock and Anvil's time together (POST /__local/clock + evm_increaseTime).
  */
 export async function chainNow(wallet: Pick<Wallet, 'reader'>): Promise<number> {
-  if (!IS_LOCAL) return Date.now();
+  if (process.env.NEXT_PUBLIC_MODE !== 'local') return Date.now();
   try {
     const block = await wallet.reader.getBlock();
     return Math.max(Number(block.timestamp) * 1000, Date.now());

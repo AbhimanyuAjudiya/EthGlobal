@@ -20,6 +20,9 @@ export const SHORT02_FOOTAGE: readonly FootageKey[] = [
   'planSr02',
   'back',
 ];
+/** In-point (frames) of S3 in the headless /card capture: just before the first stroke on the latex. */
+const CARD_IN = 195;
+
 export const SHORT02_SCREENS: readonly ScreenKey[] = ['card', 'plan'];
 
 export type Short02Props = ShortBaseProps & { serial: string };
@@ -62,7 +65,7 @@ export function Short02Scratch(p: Short02Props) {
       to: 250,
       type: 'REAL SR /card/<serial>',
       clip: 'cardSr',
-      screen: { key: 'card', trimBefore: 120 },
+      screen: { key: 'card', trimBefore: CARD_IN },
       picture: `QR scanned with the phone camera; /card/${p.serial} opens the digital Coupon in lang="hi"; thumb scratches 1:1; Redeem; tap.`,
       mustSee: ['the same serial in the URL bar or header', 'the latex in Hindi', 'Redeem'],
     },
@@ -72,7 +75,7 @@ export function Short02Scratch(p: Short02Props) {
       to: 340,
       type: 'REAL SR /plan/[key]',
       clip: 'planSr02',
-      screen: { key: 'plan', trimBefore: 60 },
+      screen: { key: 'plan', trimBefore: 90 },
       picture:
         'Odometer 0 → 300 once; the meter fills once; usage as of 14:02; Expires in … IST; Why it expires by itself opened to show the entity key.',
       mustSee: ['usage as of', 'the Expires in … IST line', 'the entity key'],

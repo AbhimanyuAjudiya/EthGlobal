@@ -5,7 +5,7 @@ module: packages/octroi/src/decide.ts
 threat: T-27
 severity: Med
 likelihood: M
-status: fixed
+status: verified
 found_by: redteam-octroi
 owner: builder-octroi
 found_at: 2026-11-04T05:40+05:30
@@ -13,7 +13,7 @@ due: 2026-11-05T20:59+05:30
 attack_test: packages/octroi/test/redteam/rt-payment.test.ts::two concurrent decide() with the SAME signed payment serve at most once (front-run-recovering rail)_RTFINDING
 regression_test: packages/octroi/test/redteam/rt-payment.test.ts::two concurrent decide() with the SAME signed payment serve at most once (front-run-recovering rail) [RT-O-05] (+ the Hedera case; packages/octroi/test/regression/redteam-wave1.test.ts::RT-O-05 / T-15)
 fix_commit: (uncommitted, wave-1 octroi fix pass; orchestrator commits)
-verified_at:
+verified_at: 2026-11-04 (redteam-verify, Claude)
 duplicate_of:
 sign_off:
 ---
@@ -59,3 +59,12 @@ duplicate payment with a front-run-recovering rail ⇒ exactly one `serve-paid`)
 Settlement marker (A-33): after a successful settle, `decide()` creates-if-absent `claim:HMAC(secret,'settle'‖network‖tx)` (lifetime RECEIPT_TTL_S) before `serve-paid`; a second request for the same transaction — concurrent, sequential or cross-process — is denied (`invalid-payment 'nonce_already_used'` if verify had said so, else `replay 'settlement'`). Chosen: deny, not "the same entitlement again", because the top-up path ignores the returned key. Combined with the coordinator's T-15 item: verify `nonce_already_used` now continues to `settle()` so a front-run human is served exactly once (API test `x402.attack.test.ts` front-run case flipped to 200 then 402). MockPaymentRail still has no recovery path (stricter locally; noted in octroi README Decision 14).
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): VERIFIED.**
+
+- Regression: `rt-payment.test.ts` `[RT-O-05]` cases and `redteam-wave1.test.ts::RT-O-05` pass. (re-run 2026-11-04, green under the CI `_RTFINDING` filter).
+- Variant (new, not covered by the regression): 8 concurrent requests for one signed payment split across TWO octroi instances (separate deps, one networked ledger, one front-running relayer), 20 rounds, and again with the relayer's recovery answer spelling the tx hash in upper case: one submission, ≤ 1 `serve-paid` every round.
+
+```sh
+cd packages/octroi && npx vitest run test/redteam/verify-rt-o-05-cross-instance.test.ts
+```

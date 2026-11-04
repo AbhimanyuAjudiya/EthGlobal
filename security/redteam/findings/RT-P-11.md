@@ -5,7 +5,7 @@ module: scripts/demo-seed.ts; scripts/print-cards.ts
 threat: T-64
 severity: Low
 likelihood: L
-status: fixed
+status: verified
 found_by: redteam-wave3-ops
 owner: builder-ops-demo
 found_at: 2026-11-04T16:10+05:30
@@ -13,7 +13,7 @@ due: next report (Low: opportunistic, PLAN §6.3)
 attack_test: security/redteam/wave3-ops/run.sh::seed_secrets_written_0600_RTFINDING; security/redteam/wave3-ops/run.sh::seed_checks_target_is_local_RTFINDING; security/redteam/wave3-ops/run.sh::print_token_length_checked_RTFINDING
 regression_test: scripts/test/regression/T-85-local-stack.test.ts (demo-seed --reset refuses mode=live with only GET /healthz sent and nothing deleted; PRINT_TOKEN < 43 refused; SIGKILL watchdog deletes the PIN temp dir) + security/redteam/wave3-ops/run.sh::demo-seed writes PINs/keys/audit key 0600 / refuses an API whose /healthz is not MODE=local / print-cards refuses a short PRINT_TOKEN
 fix_commit: (uncommitted, wave-3 ops fix pass on claude/ethglobal-mumbai-build; orchestrator commits)
-verified_at:
+verified_at: 2026-11-04 (redteam-verify, Claude)
 duplicate_of:
 sign_off:
 ---
@@ -50,3 +50,14 @@ fallback; `stopWithParent` already exists — also remove the secret dir from th
 ## Builder notes
 
 demo-seed writes state/keys/gift/cards/audit-key with `{ mode: 0o600 }` + chmod into a 0700 dir; e2e-local runs under `umask 077` and tightens legacy `.e2e/*` files to 0600. `--reset` first calls `GET /healthz` and refuses unless `mode: 'local'` on chain 31337 (before any delete or Anvil tx). Without `--reset` the seed keeps failing at its first hook against a live API, which the red team's OP2 probe relies on. print-cards refuses a `PRINT_TOKEN` shorter than 43 base64url chars; the fallback is 32 CSPRNG bytes; the PIN temp dir is registered with the harness watchdog (`removeOnDeath`), so a SIGKILLed print run no longer leaves it behind, and its `next` child is reaped with the stack.
+
+## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): VERIFIED.**
+
+- Regression: `T-85-local-stack.test.ts` (live /healthz refused, PRINT_TOKEN, watchdog) and `wave3-ops/run.sh` pass. (re-run 2026-11-04, green under the CI `_RTFINDING` filter).
+- Variant (new, not covered by the regression): `/healthz` spellings `Local`, `'local '`, `chainId: '31337'`, `['local']`, no chainId ⇒ refused before any RPC call; an API answering exactly local/31337 with `RPC_URL` on chain 84532: the seed broadcasts, but every raw transaction is EIP-155-signed for 31337 (unexecutable on that chain). Observation: the seed never asks the RPC's `eth_chainId`; a check there would refuse before broadcasting.
+
+```sh
+cd scripts && npx vitest run test/regression/verify-rt-p-11-seed-target.test.ts
+```

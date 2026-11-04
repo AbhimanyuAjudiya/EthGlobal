@@ -1034,6 +1034,7 @@ interface IDataDrop {
 - **Refund recipient (RT-C-03).** `refund(bytes32 id, address to)`: sponsor-only, `to != 0`, same eligibility rules as `refund(id)`.
 - **`renounceOwnership()` (RT-C-06)** is `pure` and always reverts `RenounceDisabled()`.
 - **Over-budget check (RT-C-07).** `claim` checks `price > budget − spent` first, so it reports `BudgetExhausted` across the whole `uint128` range.
+- **HTS read-back.** `htsAssociated(address) → bool` (SUCCESS recorded by `associateHts`) and `isHtsAssociated(address) → bool` (the recorded flag, and the token's HIP-719 `isAssociated()` must not deny it [verify Wed]). `Deploy.s.sol` requires the latter after associating.
 - **Extra errors in the ABI** (outside `DATADROP_ERRORS`): `ZeroAddress`, `HtsAssociationFailed(int64)`, `NotUsdc`, `BudgetNotReceived`, `RenounceDisabled`. **Extra events:** `HtsAssociated(address indexed token)`, `CampaignFunded`, `LedgerSponsorSet`.
 
 ### 6.2 `src/interfaces/IEIP3009.sol` (implemented by `MockUSDC3009`; mirrors Circle FiatTokenV2_2)

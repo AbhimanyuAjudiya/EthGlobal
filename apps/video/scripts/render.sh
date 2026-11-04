@@ -8,7 +8,8 @@
 #   scripts/render.sh --qa-only          # just probe what is already in marketing/videos/renders/
 #
 # Remotion never downloads a browser: the sandbox's only Chrome is passed explicitly (REMOTION_BROWSER overrides).
-# Output: marketing/videos/renders/<file>.mp4 (git-ignored); raw pre-loudnorm files in renders/raw/.
+# Output: marketing/videos/renders/<file>.mp4 (git-ignored); raw pre-loudnorm files in renders/raw/; the probe table
+# is also written to renders/index.json (the one tracked file there), with the footage each render used.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PKG="$(cd "$HERE/.." && pwd)"
@@ -75,6 +76,7 @@ fi
 probe() { ffprobe -v error -select_streams "$2" -show_entries "$3" -of default=nw=1:nk=1 "$1" | head -1; }
 printf '\n%-30s %9s %7s %10s %6s %6s %8s %6s %8s %8s  %s\n' file duration frames resolution fps vcodec pix_fmt acodec LUFS size_MB check
 status=0
+rows=()
 for row in "${VIDEOS[@]}"; do
   IFS=: read -r id file frames w h <<<"$row"
   selected "$id" || continue
@@ -95,6 +97,27 @@ for row in "${VIDEOS[@]}"; do
     awk -v d="$dur" 'BEGIN{exit !(d <= 180.05)}' || check="FAIL >3:00"
     [[ "$check" == ok ]] || status=1
     printf '%-30s %8.2fs %7s %10s %6s %6s %8s %6s %8s %8s  %s\n' "$(basename "$f")" "$dur" "$nb" "$res" "$fps" "$vc" "$pf" "$ac" "${lufs:--}" "$size" "$check"
+    tp=$(ffmpeg -hide_banner -nostats -i "$f" -af ebur128=peak=true -f null - 2>&1 | awk '/True peak:/{getline; print $2}' | tail -1)
+    num() { [[ "$1" =~ ^-?[0-9]+(\.[0-9]+)?$ ]] && echo "$1" || echo null; } # silent tracks report -inf
+    rows+=("$(printf '{"composition":"%s","file":"%s","durationS":%.3f,"frames":%s,"resolution":"%s","fps":"%s","video":"%s/%s","audio":"%s","lufs":%s,"truePeakDbtp":%s,"sizeBytes":%s,"sizeMB":%s,"renderedAt":"%s","check":"%s"}' \
+      "$id" "$(basename "$f")" "$dur" "$nb" "$res" "$fps" "$vc" "$pf" "$ac" "$(num "${lufs:-}")" "$(num "${tp:-}")" "$(stat -c %s "$f")" "$size" \
+      "$(date -u -r "$f" +%Y-%m-%dT%H:%M:%SZ)" "$check")")
   done
 done
+if [[ ${#rows[@]} -gt 0 ]]; then
+  # merge: rows for files probed now replace their old rows; other renders (e.g. after --only) are kept
+  printf '%s\n' "${rows[@]}" | node -e '
+    const fs = require("node:fs");
+    const [out, footageFile] = process.argv.slice(1);
+    const fresh = fs.readFileSync(0, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    let old = [];
+    try { old = JSON.parse(fs.readFileSync(out, "utf8")).renders ?? []; } catch {}
+    let footage = [];
+    try { footage = JSON.parse(fs.readFileSync(footageFile, "utf8")); } catch {}
+    const renders = [...old.filter((o) => !fresh.some((f) => f.file === o.file)), ...fresh]
+      .sort((a, b) => a.file.localeCompare(b.file));
+    fs.writeFileSync(out, JSON.stringify({ generatedBy: "apps/video/scripts/render.sh", footage, renders }, null, 2) + "\n");
+  ' "$OUT/index.json" "$PKG/footage/index.json"
+  echo "render: index → $OUT/index.json"
+fi
 exit $status

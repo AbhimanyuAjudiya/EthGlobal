@@ -5,7 +5,7 @@ module: services/agent/src/journal.ts
 threat: T-30
 severity: High
 likelihood: L
-status: fixed
+status: verified
 found_by: redteam-wave2
 owner: builder-agent
 found_at: 2026-11-04T15:05+05:30
@@ -13,7 +13,7 @@ due: 2026-11-04T19:05+05:30
 attack_test: services/agent/test/redteam/rt-agent.test.ts::a claim file that exists but is not yet written is never treated as dead_RTFINDING; services/agent/test/redteam/rt-agent.test.ts::two real processes racing 300 triggers ⇒ no trigger won by both_RTFINDING; services/agent/test/redteam/rt-agent.test.ts::200 races of claimTrigger between two state instances ⇒ never two winners_RTFINDING
 regression_test: services/agent/test/redteam/rt-agent.test.ts::a claim file that exists but is not yet written is never treated as dead; services/agent/test/redteam/rt-agent.test.ts::200 races of claimTrigger between two state instances ⇒ never two winners; services/agent/test/redteam/rt-agent.test.ts::two real processes racing 300 triggers ⇒ no trigger won by both; services/agent/test/regression/T-30-agent-cap.test.ts::RT-G-01 — a trigger record another process is still writing (empty file) ⇒ this tick backs off, no signature; services/agent/test/lock.test.ts
 fix_commit: (uncommitted, wave-2 agent fix pass; orchestrator commits)
-verified_at:
+verified_at: 2026-11-04 (redteam-verify, Claude)
 duplicate_of:
 sign_off:
 ---
@@ -69,3 +69,12 @@ tick-level case in `regression/T-30-agent-cap.test.ts`. Residual: assumes a loca
 O_EXCL honoured); `AGENT_STATE_DIR` on NFS is unsupported (README).
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): VERIFIED.**
+
+- Regression: `rt-agent.test.ts` RT-G-01 cases, `T-30-agent-cap.test.ts::RT-G-01` and `lock.test.ts` pass. (re-run 2026-11-04, green under the CI `_RTFINDING` filter).
+- Variant (new, not covered by the regression): THREE processes × 200 triggers with every core saturated by busy-loop processes (3 rounds): no trigger won twice. Plus the regression's two-process / 300-trigger race run 500× with all cores saturated — result: `DONE runs=500 duplicate_runs=0 worker_failures=0 triggers_won_total=150000 (of 150000)`.
+
+```sh
+cd services/agent && VERIFY_G01_ROUNDS=3 npx vitest run test/redteam/verify-rt-g-01-load.test.ts
+```

@@ -6,9 +6,9 @@ import type { ReceiptPublic } from '@ethglobal/protocol/schemas';
 import { Hash, Receipt } from '@ethglobal/ui/components';
 
 import { AppHeader, Screen, TabBar } from './Shell';
-import { useLang } from '../i18n/lang';
+import { useLang, useNetworkName } from '../i18n/lang';
 import { api } from '../lib/api';
-import { explorerName, explorerTemplate, networkName } from '../lib/env';
+import { explorerName, explorerTemplate } from '../lib/env';
 import { clockIst, dayLabel, formatMb, money } from '../lib/format';
 import { plans } from '../lib/store';
 
@@ -18,6 +18,10 @@ function lines(r: ReceiptPublic) {
   const amount = r.usd6 ? money(r.usd6) : '$0.00';
   return SPONSORED.has(r.kind) ? { you: '$0.00', sponsor: amount } : { you: amount, sponsor: '—' };
 }
+
+/** What the traveller paid that day: the "You" column only — a sponsor's cost is not the traveller's spend. */
+const youPaid = (rows: readonly ReceiptPublic[]): bigint =>
+  rows.reduce((sum, r) => (SPONSORED.has(r.kind) ? sum : sum + BigInt(r.usd6 ?? '0')), 0n);
 
 function csv(receipts: readonly ReceiptPublic[]): string {
   const head = 'at,kind,mb,usd6,network,tx,hcs_topic,hcs_sequence';
@@ -41,12 +45,15 @@ function csv(receipts: readonly ReceiptPublic[]): string {
 /** `/receipts` — the per-day ledger of three-line receipts; rows, not cards. */
 export function ReceiptList({ entitlementKey }: { entitlementKey?: string }) {
   const { t, lang } = useLang();
+  const netName = useNetworkName();
   const [receipts, setReceipts] = useState<ReceiptPublic[] | undefined>();
+  const [foreign, setForeign] = useState(false);
 
   useEffect(() => {
     void (async () => {
       const key = entitlementKey ?? (await plans.latest());
       if (!key) return setReceipts([]);
+      setForeign(!(await plans.owns(key)));
       setReceipts(await api.receipts(key).catch(() => []));
     })();
   }, [entitlementKey]);
@@ -54,11 +61,11 @@ export function ReceiptList({ entitlementKey }: { entitlementKey?: string }) {
   const days = useMemo(() => {
     const groups = new Map<string, ReceiptPublic[]>();
     for (const r of [...(receipts ?? [])].sort((a, b) => b.at - a.at)) {
-      const day = dayLabel(r.at);
+      const day = dayLabel(r.at, lang);
       groups.set(day, [...(groups.get(day) ?? []), r]);
     }
     return [...groups.entries()];
-  }, [receipts]);
+  }, [receipts, lang]);
 
   const download = () => {
     const blob = new Blob([csv(receipts ?? [])], { type: 'text/csv' });
@@ -76,6 +83,11 @@ export function ReceiptList({ entitlementKey }: { entitlementKey?: string }) {
       <h1 className="screen__title" lang={lang}>
         {t('receipts.title')}
       </h1>
+      {foreign ? (
+        <p className="note" role="note" data-testid="receipts-foreign">
+          {t('receipts.foreign')}
+        </p>
+      ) : null}
       {receipts === undefined ? (
         <div className="skeleton skeleton--line" aria-hidden="true" />
       ) : receipts.length === 0 ? (
@@ -85,16 +97,18 @@ export function ReceiptList({ entitlementKey }: { entitlementKey?: string }) {
             sponsor="—"
             networkFee="—"
             heading={<span lang={lang}>{t('receipts.empty')}</span>}
+            lang={lang}
           />
         </div>
       ) : (
         days.map(([day, rows]) => {
-          const total = rows.reduce((sum, r) => sum + BigInt(r.usd6 ?? '0'), 0n);
           return (
             <section key={day} className="receipt-day">
               <h2 className="receipt-day__head">
                 <span>{day}</span>
-                <span className="tnum">{money(total)}</span>
+                <span className="tnum">
+                  {t('receipts.dayYou', { amount: money(youPaid(rows)) })}
+                </span>
               </h2>
               {rows.map((r) => {
                 const template = explorerTemplate(r.network);
@@ -106,9 +120,10 @@ export function ReceiptList({ entitlementKey }: { entitlementKey?: string }) {
                     data-kind={r.kind}
                   >
                     <Receipt
-                      heading={`${r.mb ? `+${formatMb(r.mb)}` : r.kind} · ${day} ${clockIst(r.at)} · ${networkName(r.network)} · ${t('receipts.final')}`}
+                      heading={`${r.mb ? `+${formatMb(r.mb)}` : r.kind} · ${day} ${clockIst(r.at)} · ${netName(r.network)} · ${t('receipts.final')}`}
                       {...lines(r)}
                       networkFee="$0.00"
+                      lang={lang}
                     />
                     <details className="disclosure">
                       <summary lang={lang}>{t('receipts.details')}</summary>

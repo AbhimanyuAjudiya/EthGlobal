@@ -5,7 +5,7 @@ module: packages/contracts/src/DataDrop.sol
 threat: T-04
 severity: Med
 likelihood: M
-status: fixed
+status: verified
 found_by: redteam-contracts
 owner: builder-contracts
 found_at: 2026-11-04T02:45+05:30
@@ -13,7 +13,7 @@ due: 2026-11-05T20:59+05:30
 attack_test: packages/contracts/test/redteam/RT_DataDrop.t.sol::test_RT_IdSquatBlocksIntendedSponsor_RTFINDING
 regression_test: packages/contracts/test/regression/T04_CampaignIdHijack.t.sol::test_Regression_RTC02_SquatterCannotPreemptScopedId
 fix_commit: (uncommitted, wave-1 fix pass; orchestrator commits)
-verified_at:
+verified_at: 2026-11-04 (redteam-verify, Claude)
 duplicate_of:
 sign_off:
 ---
@@ -51,3 +51,12 @@ Regression test to add (builder): `packages/contracts/test/regression/T04_Campai
 Sponsor-scoped ids: `scopedCampaignId(sponsor, uint64 salt) = sponsor(20 bytes) ‖ 0x00000000 ‖ salt(8)`. A scoped id can be created only by its sponsor (anyone else gets `NotSponsor()`), so it cannot be squatted or front-run. Unscoped ids (e.g. keccak) keep the old rule (first come, never reusable, never overwritten), which keeps the red-team suite's raw-id fixtures valid. Production campaigns and the demo seed must use scoped ids, and the API pins `(id, sponsor)` and rejects a campaign whose `sponsor` differs (INTERFACES §6.1 note). The attack test is adapted to the fix (the squat itself now reverts). More cases: `T04_CampaignIdHijack.t.sol` (layout, fuzz only-own-sponsor, unscoped first-come, LEDGER_ONLY). The red-team `_RTFINDING` test was moved from `test/redteam/` to the regression above, adapted to assert the fixed behaviour; a comment marks its old place.
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): VERIFIED.**
+
+- Regression: `T04_CampaignIdHijack.t.sol::test_Regression_RTC02_SquatterCannotPreemptScopedId` + fuzz cases pass. (re-run 2026-11-04, green under the CI `_RTFINDING` filter).
+- Variant (new, not covered by the regression): crafted-salt collisions: fuzzed `(a, saltA) ≠ (b, saltB)` never collide across sponsors (512 runs); salt calldata with dirty high bits reverts (no truncation onto another sponsor's id); a look-alike id (victim prefix + salt, non-zero marker) is a different, unscoped id and never blocks the victim's scoped one; ids scoped to address(0) are uncreatable.
+
+```sh
+cd packages/contracts && forge test --match-path test/regression/verify-RTC02_ScopedIdCollision.t.sol
+```

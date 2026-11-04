@@ -65,7 +65,9 @@ export const JUDGE_FOOTAGE: readonly FootageKey[] = [
 ];
 export const JUDGE_SCREENS: readonly ScreenKey[] = [
   'verify',
+  'receipts',
   'pay',
+  'plan-topped',
   'agent',
   'plan',
   'sponsor-desktop',
@@ -261,9 +263,28 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="phone"
         clip="verifySr"
-        screen={{ key: 'verify', trimBefore: 20 }}
+        screen={{ key: 'verify', trimBefore: 15 }}
         sources={f}
         from={900}
+        to={1240}
+        picture="/verify → World App (a non-team Orb-verified human) → Checking · 2 s."
+      />
+      {/* Until the human take exists the headless clips continue: the issued plan, then its receipt. */}
+      <Capture
+        pane="phone"
+        clip="verifySr"
+        screen={{ key: 'plan', trimBefore: 10 }}
+        sources={f}
+        from={1240}
+        to={1640}
+        picture="/verify → World App (a non-team Orb-verified human) → Checking · 2 s."
+      />
+      <Capture
+        pane="phone"
+        clip="verifySr"
+        screen={{ key: 'receipts', trimBefore: 30 }}
+        sources={f}
+        from={1640}
         to={1800}
         picture="/verify → World App (a non-team Orb-verified human) → Checking · 2 s."
       />
@@ -305,9 +326,18 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="phone"
         clip="paySr"
-        screen={{ key: 'pay', trimBefore: 20 }}
+        screen={{ key: 'pay', trimBefore: 0 }}
         sources={f}
         from={2250}
+        to={2600}
+        picture="A judge pays on Hedera from /pay: Add 100 MB · $0.40 → Pay → Approve → Sending → Final. Strip visible."
+      />
+      <Capture
+        pane="phone"
+        clip="paySr"
+        screen={{ key: 'plan-topped', trimBefore: 15 }}
+        sources={f}
+        from={2600}
         to={2700}
         picture="A judge pays on Hedera from /pay: Add 100 MB · $0.40 → Pay → Approve → Sending → Final. Strip visible."
       />
@@ -335,7 +365,7 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="phone"
         clip="agentSr"
-        screen={{ key: 'agent', trimBefore: 20 }}
+        screen={{ key: 'agent', trimBefore: 45 }}
         sources={f}
         from={3000}
         to={3300}
@@ -364,7 +394,7 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="phone"
         clip="planSrJudge"
-        screen={{ key: 'plan', trimBefore: 150 }}
+        screen={{ key: 'plan', trimBefore: 120 }}
         sources={f}
         from={3750}
         to={3900}
@@ -408,7 +438,7 @@ export function JudgeVideo(p: JudgeProps) {
       {/* SCRIPTS.md §6 drew a RENDERED BoardingPassCard here; it is the real pass /gift issues. */}
       <Capture
         pane="phone"
-        screen={{ key: 'gift', trimBefore: 390 }}
+        screen={{ key: 'gift', trimBefore: 360 }}
         sources={f}
         from={4560}
         to={4680}
@@ -417,7 +447,7 @@ export function JudgeVideo(p: JudgeProps) {
       <Capture
         pane="phone"
         clip="receiver"
-        screen={{ key: 'gift-claim', trimBefore: 60 }}
+        screen={{ key: 'gift-claim', trimBefore: 75 }}
         sources={f}
         from={4680}
         to={4800}
@@ -444,7 +474,7 @@ export function JudgeVideo(p: JudgeProps) {
           repo={p.judge.repo}
           scale={S}
         />
-        <SeedTag />
+        <SeedTag source="endpoint from src/seed/saturday.json" />
       </At>
       <At from={240} to={5160} name="ChapterRail">
         <AbsoluteFill style={{ pointerEvents: 'none' }}>

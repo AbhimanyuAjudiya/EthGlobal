@@ -5,7 +5,7 @@ module: services/agent/src/deps.ts
 threat: T-73
 severity: Med
 likelihood: L
-status: fixed
+status: open
 found_by: redteam-wave2
 owner: builder-agent
 found_at: 2026-11-04T15:05+05:30
@@ -55,3 +55,27 @@ not pinned; keep the local default but log a warning when no owner is pinned.
 The `_RTFINDING` test was renamed in place and passes; the control test is unchanged.
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): REOPENED.** The named regressions pass (stranger-owned policy ⇒ no purchase without a
+pinned owner; live refuses a missing `AGENT_OWNER`). The pin itself accepts a key everyone has.
+
+### Repro (verification variant)
+
+```sh
+cd services/agent && npx vitest run test/redteam/verify-rt-g-02-03-04.test.ts -t 'RT-G-04|AGENT_OWNER'
+```
+
+`loadConfig({ ...liveEnv, AGENT_OWNER: <any of the ten public Anvil accounts> })` **boots MODE=live** (the builder's own live
+fixture in `test/config.test.ts` pins Anvil #5, `0x9965…A4dc`). `loadConfig` refuses a public Anvil key as the agent's PAYER
+(`isAnvilKey`) but has no such check for the OWNER. Whoever holds the published Anvil key signs `PUT /agent/policy` as "the
+owner" — `tick` then sees `policy.owner == deps.owner` and pays under the stranger's policy: the T-73 b squat this finding
+closes, back through configuration.
+
+Failing test (marked `// RT-FINDING`, suffixed `_RTFINDING`):
+`services/agent/test/redteam/verify-rt-g-02-03-04.test.ts::live with AGENT_OWNER = any public Anvil account ⇒ refused_RTFINDING`.
+
+Impact: needs an operator to copy a local value into live (the shipped fixture does exactly that), then the original RT-G-04
+impact (the agent's wallet spent under a squatted policy, bounded by the policy's daily cap).
+
+Suggested fix: in `loadConfig`, refuse `AGENT_OWNER` that is one of `anvilAccounts` when `MODE=live` (as for
+`AGENT_EVM_PRIVATE_KEY`), and move the live fixture to a non-public address.

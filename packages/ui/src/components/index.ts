@@ -36,5 +36,5 @@ export {
 export { Receipt, type ReceiptProps } from './Receipt';
 export { RuledList, type RuledRow } from './RuledList';
 export { ScratchCard, usePrefersReducedMotion, type ScratchCardProps } from './ScratchCard';
-export { couponStrings, RUB_HERE, type CouponLang } from './strings';
+export { couponStrings, RUB_HERE, uiStrings, type CouponLang, type UiStrings } from './strings';
 export { UsageAsOf, type UsageAsOfProps } from './UsageAsOf';

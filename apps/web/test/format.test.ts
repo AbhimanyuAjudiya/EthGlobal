@@ -9,6 +9,7 @@ import {
   money,
   moneyUsdc,
   priceFor,
+  usdcBalance,
 } from '../lib/format';
 
 // Sun 15 Nov 2026 09:12 IST
@@ -32,9 +33,18 @@ describe('format', () => {
     expect(money(priceFor(1000, '400000'))).toBe('$4.00');
   });
 
+  it('money groups en-IN (web.md §8): lakhs, not millions', () => {
+    expect(money(999_986_800_000n)).toBe('$9,99,986.80');
+    expect(moneyUsdc(1_000_000_000n)).toBe('$1,000.00 USDC');
+    expect(usdcBalance(999_986_800_000n)).toBe('9,99,986.80 USDC');
+  });
+
   it('times are 24-hour IST; days read "Sun 15 Nov" without a comma', () => {
     expect(clockIst(AT)).toBe('09:12');
     expect(dayLabel(AT)).toBe('Sun 15 Nov');
+    // Hindi / Marathi day and month names, numerals stay Latin
+    expect(dayLabel(AT, 'hi')).toMatch(/^[\u0900-\u097F]+ 15 [\u0900-\u097F]+/);
+    expect(dayLabel(AT, 'mr')).not.toMatch(/[०-९]/);
     expect(mmss(300_000)).toBe('5:00');
     expect(mmss(42_000)).toBe('0:42');
     expect(mmss(-5)).toBe('0:00');

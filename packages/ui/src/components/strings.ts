@@ -133,7 +133,7 @@ export const uiStrings: Readonly<Record<CouponLang, UiStrings>> = {
     left: (left, of) => `${of} पैकी ${left} शिल्लक`,
     unused: (of) => `${of} · अजून काहीही वापरले नाही`,
     dataLeft: 'शिल्लक डेटा',
-    receipt: { label: 'पावती', you: 'तुम्ही', sponsor: 'स्पॉन्सर', networkFee: 'नेटवर्क शुल्क' },
+    receipt: { label: 'पावती', you: 'तुम्ही', sponsor: 'प्रायोजक', networkFee: 'नेटवर्क शुल्क' },
     units: { d: 'दिवस', h: 'तास', m: 'मिनिटे', s: 'सेकंद' },
     copied: 'कॉपी झाले',
     selectToCopy: 'कॉपी करण्यासाठी निवडा',

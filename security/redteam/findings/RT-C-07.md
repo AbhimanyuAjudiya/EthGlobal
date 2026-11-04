@@ -5,7 +5,7 @@ module: packages/contracts/src/DataDrop.sol
 threat: T-07
 severity: Low
 likelihood: L
-status: fixed
+status: verified
 found_by: redteam-contracts
 owner: builder-contracts
 found_at: 2026-11-04T02:45+05:30
@@ -13,7 +13,7 @@ due: next report (Low: opportunistic, PLAN §6.3)
 attack_test: packages/contracts/test/redteam/RT_DataDrop.t.sol::test_RT_MaxBudgetAndPriceNoOverflow_RTFINDING
 regression_test: packages/contracts/test/regression/T07_BudgetAccounting.t.sol::test_Regression_RTC07_MaxBudgetAndPriceReportsBudgetExhausted
 fix_commit: (uncommitted, wave-1 fix pass; orchestrator commits)
-verified_at:
+verified_at: 2026-11-04 (redteam-verify, Claude)
 duplicate_of:
 sign_off:
 ---
@@ -47,3 +47,12 @@ Regression test to add (builder): `packages/contracts/test/regression/T07_Budget
 `claim` now compares against the remainder, `if (price > budget - spent) revert BudgetExhausted()`, before the add (`budget ≥ spent` is invariant), so the top of the range reports `BudgetExhausted()` and never `Panic(0x11)`. Fuzzed in `testFuzz_NoPanicAtTheTopOfTheRange`. The red-team `_RTFINDING` test was moved from `test/redteam/` to the regression above, adapted to assert the fixed behaviour; a comment marks its old place.
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): VERIFIED.**
+
+- Regression: `T07_BudgetAccounting.t.sol::test_Regression_RTC07_*` + `testFuzz_NoPanicAtTheTopOfTheRange` pass. (re-run 2026-11-04, green under the CI `_RTFINDING` filter).
+- Variant (new, not covered by the regression): same overflow class on the other counters: the hourly counter stored at `uint32.max − 1` with `claimsPerHour = uint32.max` reaches max then reports `HourlyCap`; a refund at `spent == budget == 2^128−1` reports `NotRefundable` — never `Panic(0x11)`.
+
+```sh
+cd packages/contracts && forge test --match-path test/regression/verify-RTC07_TopOfRange.t.sol
+```

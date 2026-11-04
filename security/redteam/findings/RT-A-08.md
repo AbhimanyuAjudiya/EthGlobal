@@ -5,7 +5,7 @@ module: packages/octroi/src/decide.ts
 threat: T-26
 severity: Low
 likelihood: L
-status: fixed
+status: open
 found_by: redteam-wave2
 owner: builder-api
 found_at: 2026-11-04T15:05+05:30
@@ -45,3 +45,30 @@ resource (path + query).
 Each paid route decides against accepts bound to its path: `extra.resource = c.req.path` (`/esim/provision`, `/esim/topup`, `/gift`) is added per request to the templates handed to `decide()` (no octroi change). The payer echoes `accepted`, and `decide()` compares the raw echo, so a payment made against one route's 402 is `requirements_mismatch` on another. Clients (protocol `fetchWithPayment`, agent, PWA) echo the offered entry unchanged, so nothing else changed (e2e I-7…I-12 and the agent pass). **Residual (Low, as AP7.8):** EIP-3009 signs only the authorization, so the binding stops replay of an unmodified captured header, not a thief who edits the unsigned JSON; a cryptographic binding needs the route in the EIP-3009 nonce (protocol change).
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): REOPENED (Low).** The named regression passes (a top-up payment replayed as a gift
+purchase is refused; the control in `verify-rt-a-01-02-08-topup.test.ts` shows `/esim/provision` refuses it too). The fix's
+stated guarantee — "the binding stops replay of an unmodified captured header" — does not hold on the top-up route itself.
+
+### Repro (verification variant)
+
+```sh
+cd services/api && npx vitest run test/redteam/verify-rt-a-01-02-08-topup.test.ts -t 'RT-A-08'
+```
+
+1. Victim (entitlement K) gets the 402 for `GET /esim/topup?key=K&mb=100` and signs `PAYMENT-SIGNATURE` (accepts carry
+   `extra.resource = "/esim/topup"`).
+2. Attacker who sees the header first (on-path, a log, a shared device) sends it **unmodified** to
+   `GET /esim/topup?key=K2&mb=100` (K2 = the attacker's own entitlement).
+3. **200**: the victim's payment settles and K2's `mbTotal` grows by 100 MB; the victim's own request then fails as a replay.
+
+`routeAccepts` binds `c.req.path` only; the entitlement the payment is for lives in the query string and is not part of the
+echoed `accepted`, so `decide()`'s raw echo compare cannot tell K from K2. Top-ups are not LPA routes, so no session-key nonce
+binding applies either.
+
+Failing test (marked `// RT-FINDING`, suffixed `_RTFINDING`):
+`services/api/test/redteam/verify-rt-a-01-02-08-topup.test.ts::a top-up payment for K replayed unmodified for K2 on /esim/topup ⇒ refused_RTFINDING`.
+
+Suggested fix (builder's choice): bind the target into the offer — e.g. `extra.resource = "/esim/topup?key=<entitlementIndex(K)>&mb=<mb>"`
+(the index, not the capability, so the 402 does not echo the key) or `extra.target = entitlementIndex(K)` — and compare it in
+`decide()` like the path; or, for a cryptographic binding, derive the EIP-3009 nonce from the target (as `sessionNonce` does).

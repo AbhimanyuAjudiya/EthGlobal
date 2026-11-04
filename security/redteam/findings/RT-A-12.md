@@ -5,7 +5,7 @@ module: services/api/src/deps.ts
 threat: T-75
 severity: Med
 likelihood: M
-status: fixed
+status: verified
 found_by: redteam-wave2
 owner: builder-api
 found_at: 2026-11-04T15:05+05:30
@@ -13,7 +13,7 @@ due: 2026-11-05T20:59+05:30
 attack_test: services/api/test/redteam/rt-anvil.test.ts::two concurrent real top-ups (two payers) on the self-run facilitator ⇒ both served_RTFINDING; services/api/test/redteam/rt-anvil.test.ts::a 1-unit /facilitator/settle racing a real top-up never makes the top-up fail_RTFINDING
 regression_test: services/api/test/redteam/rt-anvil.test.ts::two concurrent real top-ups (two payers) on the self-run facilitator ⇒ both served [RT-A-12]; ::a 1-unit /facilitator/settle racing a real top-up never makes the top-up fail [RT-A-12] (+ services/api/test/regression/T-75-facilitator-relayer.test.ts)
 fix_commit: (uncommitted, wave-2 API fix pass; orchestrator commits)
-verified_at:
+verified_at: 2026-11-04 (redteam-verify, Claude)
 duplicate_of:
 sign_off:
 ---
@@ -49,3 +49,12 @@ concurrent settlements on Anvil.
 The relayer account uses viem's `nonceManager`, and every `relayer.submit` runs through one `SerialQueue` (`serialRelayer` in `src/deps.ts`, the same queue class the attestor uses), so concurrent settlements never share a nonce. The public `/facilitator/verify|settle` refuses an amount below one step (`PRICE_USD6_PER_STEP`, the smallest thing we sell) and limits each payer (`authorization.from`) to 10/min on top of 30/min/IP. The attack test's 1-unit settle is now refused (400) — the test asserts that, plus a full-price stranger settlement racing a buyer: both 200.
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): VERIFIED.**
+
+- Regression: `rt-anvil.test.ts` `[RT-A-12]` cases and `T-75-facilitator-relayer.test.ts` pass. (re-run 2026-11-04, green under the CI `_RTFINDING` filter).
+- Variant (new, not covered by the regression): on Anvil: four buyers top up one entitlement at once WHILE two strangers post full-price authorizations to the public `/facilitator/settle` and a human claims (attestor chain writes): every buyer 200, the claim 201, payout grows by exactly the settled amounts + the claim price (3 runs).
+
+```sh
+cd services/api && npx vitest run test/redteam/verify-rt-a-12-anvil.test.ts   # real relayer on Anvil
+```

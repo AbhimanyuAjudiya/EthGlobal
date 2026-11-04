@@ -5,7 +5,7 @@ module: packages/contracts/src/DataDrop.sol
 threat: T-10
 severity: Low
 likelihood: L
-status: fixed
+status: verified
 found_by: redteam-contracts
 owner: builder-contracts
 found_at: 2026-11-04T02:45+05:30
@@ -13,7 +13,7 @@ due: next report (Low: opportunistic, PLAN §6.3)
 attack_test: packages/contracts/test/redteam/RT_DataDrop.t.sol::test_RT_BlacklistedSponsorCanStillRecoverFunds_RTFINDING
 regression_test: packages/contracts/test/regression/T10_RefundRecipient.t.sol::test_Regression_RTC03_BlacklistedSponsorRefundsToAlternateAddress
 fix_commit: (uncommitted, wave-1 fix pass; orchestrator commits)
-verified_at:
+verified_at: 2026-11-04 (redteam-verify, Claude)
 duplicate_of:
 sign_off:
 ---
@@ -49,3 +49,12 @@ Regression test to add (builder): `packages/contracts/test/regression/T10_Refund
 Added `refund(bytes32 id, address to)`: sponsor-only, `to != 0`, same eligibility rules, and it shares one internal `_refund` with `refund(id)`. The recipient is the sponsor's choice, never an owner power; there is still no sweep (T-10). The README runbook now checks that `payout` is HTS-associated before the first claim. The red-team `_RTFINDING` test was moved from `test/redteam/` to the regression above, adapted to assert the fixed behaviour; a comment marks its old place.
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): VERIFIED.**
+
+- Regression: `T10_RefundRecipient.t.sol::test_Regression_RTC03_*` + `test_RefundToKeepsEveryRefundRule` pass. (re-run 2026-11-04, green under the CI `_RTFINDING` filter).
+- Variant (new, not covered by the regression): a blacklisted ALTERNATE recipient reverts and leaves the budget intact for a retry to a good address; mixing `refund(id,to)` and `refund(id)` on a 24 h-paused campaign never pays twice; fuzzed non-sponsor callers × recipients always `NotSponsor`.
+
+```sh
+cd packages/contracts && forge test --match-path test/regression/verify-RTC03_RefundRecipient.t.sol
+```

@@ -147,6 +147,7 @@ contract Deploy is Script {
     /// @param cfg Roles and mode.
     /// @return result The deployed addresses.
     function deploy(ChainRecord memory chain, Config memory cfg) public returns (Result memory result) {
+        _checkChain(chain);
         bool anvil = block.chainid == ANVIL;
         bool hedera = block.chainid == 295 || block.chainid == 296;
         address usdc;
@@ -177,6 +178,8 @@ contract Deploy is Script {
             // associateHts is onlyOwner: deploy owned by the broadcaster, associate, then hand over (2-step).
             dataDrop = new DataDrop(IERC20(usdc), cfg.payout, cfg.attestor, deployer);
             dataDrop.associateHts(usdc);
+            // read back: fail the broadcast unless the association is recorded and the token does not deny it
+            require(dataDrop.isHtsAssociated(usdc), "HTS association of usdc not recorded on DataDrop");
             // OWNER_ADDRESS must call acceptOwnership(); until then the addresses file says so (RT-C-05)
             if (intendedOwner != deployer) dataDrop.transferOwnership(intendedOwner);
         } else {
@@ -206,6 +209,24 @@ contract Deploy is Script {
                 result.pendingOwner,
                 block.chainid
             );
+        }
+    }
+
+    /// @dev The record handed to `deploy` must be the chains.json record of the chain we are actually connected to,
+    ///      with a safe slug (it names deploy/addresses.<slug>.json). Checked before any broadcast or file write.
+    function _checkChain(ChainRecord memory chain) internal view {
+        ChainRecord memory expected = loadChain(block.chainid); // reverts for a chain id chains.json does not know
+        require(
+            keccak256(bytes(chain.slug)) == keccak256(bytes(expected.slug)),
+            string.concat(
+                "chain record slug '", chain.slug, "' is not chains.json's slug for chain ", vm.toString(block.chainid)
+            )
+        );
+        bytes memory b = bytes(chain.slug);
+        require(b.length > 0 && b.length <= 64, "chain slug must be 1-64 chars");
+        for (uint256 i = 0; i < b.length; i++) {
+            bytes1 c = b[i];
+            require((c >= "a" && c <= "z") || (c >= "0" && c <= "9") || c == "_", "chain slug must match [a-z0-9_]+");
         }
     }
 

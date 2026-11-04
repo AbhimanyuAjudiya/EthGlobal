@@ -5,7 +5,7 @@ module: packages/contracts/src/DataDrop.sol
 threat: T-09
 severity: Med
 likelihood: M
-status: fixed
+status: verified
 found_by: redteam-contracts
 owner: builder-contracts
 found_at: 2026-11-04T02:45+05:30
@@ -13,7 +13,7 @@ due: 2026-11-05T20:59+05:30
 attack_test: packages/contracts/test/redteam/RT_DataDrop.t.sol::test_RT_LedgerOnlyStrangerCannotDeclareUnbackedBudget_RTFINDING
 regression_test: packages/contracts/test/regression/T09_HtsAssociation.t.sol::test_Regression_RTC01_LedgerOnlyStrangerCannotDeclareUnbackedBudget
 fix_commit: (uncommitted, wave-1 fix pass; orchestrator commits)
-verified_at:
+verified_at: 2026-11-04 (redteam-verify, Claude)
 duplicate_of:
 sign_off:
 ---
@@ -62,3 +62,12 @@ Regression test to add (builder): `packages/contracts/test/regression/T09_HtsAss
 LEDGER_ONLY `createCampaign` now requires `ledgerSponsor[msg.sender]`, an owner-managed allow-list (`setLedgerSponsor(address,bool)`, event `LedgerSponsorSet`); otherwise `NotSponsor()`. The owner allow-lists a sponsor only after seeing its native HTS funding. Token mode stays permissionless. Every create (both modes) also emits `CampaignFunded(id, funder, amount)`. More cases: `T09_HtsAssociation.t.sol` (allow-list lifecycle, owner-only, token mode unaffected). `test/redteam/RT_ModelInvariant.t.sol` setUp now allow-lists the handler's three sponsors on the LEDGER_ONLY twin: parity is compared on funded input, which is the property this finding asked for. The red-team `_RTFINDING` test was moved from `test/redteam/` to the regression above, adapted to assert the fixed behaviour; a comment marks its old place.
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): VERIFIED.**
+
+- Regression: `T09_HtsAssociation.t.sol::test_Regression_RTC01_*` + the allow-list lifecycle cases pass. (re-run 2026-11-04, green under the CI `_RTFINDING` filter).
+- Variant (new, not covered by the regression): a nominated-but-unaccepted (2-step) owner cannot allow-list itself; a stranger's own scoped id still needs the allow-list in LEDGER_ONLY; allow-listing on a token-mode drop gives no unfunded create. All refused (`NotSponsor` / `OwnableUnauthorizedAccount`).
+
+```sh
+cd packages/contracts && forge test --match-path test/regression/verify-RTC01_LedgerSponsor.t.sol
+```

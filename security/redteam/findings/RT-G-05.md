@@ -5,7 +5,7 @@ module: services/agent/src/deps.ts
 threat: T-63
 severity: Low
 likelihood: H
-status: fixed
+status: verified
 found_by: redteam-wave2
 owner: builder-agent
 found_at: 2026-11-04T15:05+05:30
@@ -13,7 +13,7 @@ due: 2026-11-05T20:59+05:30
 attack_test: security/redteam/tools/scan.sh services/agent (src/deps.ts:27)
 regression_test: services/agent/test/regression/T-63-no-test-mnemonic.test.ts; security/redteam/tools/scan.sh services/agent (clean)
 fix_commit: (uncommitted, wave-2 agent fix pass; orchestrator commits)
-verified_at:
+verified_at: 2026-11-04 (redteam-verify, Claude)
 duplicate_of:
 sign_off:
 ---
@@ -48,3 +48,12 @@ the local default payer is Anvil #4. `security/redteam/tools/scan.sh services/ag
 entry was added.
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): VERIFIED.**
+
+- Regression: `T-63-no-test-mnemonic.test.ts` passes; `scan.sh services/agent` clean. (re-run 2026-11-04, green under the CI `_RTFINDING` filter).
+- Variant (new, not covered by the regression): a FRESH build (`tsc -p tsconfig.build.json --outDir <tmp>`) emits no test phrase and no 32-byte hex key, and the only reference to `@ethglobal/adapters/testing` is the dynamic import after `mode !== 'local'`. Observation: the checked-out `services/agent/dist/` (git-ignored, built 00:34 before the fix) still contains the Anvil phrase and `ANVIL_AGENT_INDEX`; `scan.sh` skips `*/dist/*`, so it does not see it — rebuild before any `pnpm --filter @ethglobal/agent start`.
+
+```sh
+cd services/agent && npx vitest run test/regression/verify-rt-g-05-dist.test.ts
+```

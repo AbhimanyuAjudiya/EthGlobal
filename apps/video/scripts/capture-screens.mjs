@@ -405,9 +405,16 @@ async function captureTheme(browser, theme) {
     await page.mouse.move(box.x + 6, box.y + 6);
     await page.mouse.down();
     const redeem = page.getByTestId('card-redeem');
+    // ≈ 1.2 s per stroke pair: the thumb's pace, so the latex visibly comes off before the rest fades
+    const stroke = async (x, y) => {
+      for (let i = 1; i <= 24; i += 1) {
+        await page.mouse.move(x.from + ((x.to - x.from) * i) / 24, box.y + y);
+        await hold(page, 25);
+      }
+    };
     for (let y = 6; y < box.height; y += 14) {
-      await page.mouse.move(box.x + box.width - 6, box.y + y, { steps: 14 });
-      await page.mouse.move(box.x + 6, box.y + y + 7, { steps: 14 });
+      await stroke({ from: box.x + 6, to: box.x + box.width - 6 }, y);
+      await stroke({ from: box.x + box.width - 6, to: box.x + 6 }, y + 7);
       if (await redeem.isEnabled()) break;
     }
     await page.mouse.up();

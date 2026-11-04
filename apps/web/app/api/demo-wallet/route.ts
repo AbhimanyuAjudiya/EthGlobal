@@ -19,6 +19,53 @@ type Role = keyof typeof ROLE_INDEX;
 const notFound = () =>
   Response.json({ error: { code: 4200, message: 'not found' } }, { status: 404 });
 
+/**
+ * RT-W-05 (T-85): only the PWA itself may drive the demo wallet. A browser sends Sec-Fetch-Site on every request;
+ * anything but `same-origin` (a page on another port, a LAN host, any site) is refused, and without that header
+ * the Origin must equal this app's own origin. JSON only: a "simple" text/plain or form POST never reaches a
+ * signer. The one-request-per-call check runs before any key is derived.
+ */
+function refused(request: Request): Response | undefined {
+  const site = request.headers.get('sec-fetch-site');
+  const origin = request.headers.get('origin');
+  const own = new URL(request.url).origin;
+  const host = request.headers.get('host');
+  let originHost: string | undefined;
+  try {
+    originHost = origin ? new URL(origin).host : undefined;
+  } catch {
+    originHost = undefined; // "null" (sandboxed frames, file:) is never same-origin
+  }
+  const sameOrigin =
+    site !== null
+      ? site === 'same-origin'
+      : origin === own || (originHost !== undefined && host !== null && originHost === host);
+  if (!sameOrigin)
+    return Response.json({ error: { code: 4100, message: 'same-origin only' } }, { status: 403 });
+  if (!(request.headers.get('content-type') ?? '').toLowerCase().startsWith('application/json'))
+    return Response.json({ error: { code: -32600, message: 'JSON only' } }, { status: 415 });
+  return undefined;
+}
+
+/**
+ * Reads the PWA's EIP-1193 calls may pass through to the node. No anvil_* / evm_* / hardhat_* cheat method, no
+ * personal_* or eth_sign: the methods with their own case below are the only writes.
+ */
+const READS = new Set([
+  'eth_chainId',
+  'eth_blockNumber',
+  'eth_getBalance',
+  'eth_call',
+  'eth_estimateGas',
+  'eth_getTransactionReceipt',
+  'eth_getTransactionByHash',
+  'eth_getBlockByNumber',
+  'eth_getTransactionCount',
+  'eth_gasPrice',
+  'eth_maxPriorityFeePerGas',
+  'eth_feeHistory',
+]);
+
 function enabled(): string | undefined {
   if (process.env.NEXT_PUBLIC_MODE !== 'local') return undefined;
   const mnemonic = process.env.DEMO_WALLET_MNEMONIC;
@@ -45,6 +92,8 @@ function revive(types: Record<string, Field[]>, type: string, value: unknown): u
 export async function POST(request: Request) {
   const mnemonic = enabled();
   if (!mnemonic) return notFound();
+  const refusal = refused(request);
+  if (refusal) return refusal;
   const body = (await request.json().catch(() => ({}))) as {
     role?: string;
     method?: string;
@@ -99,7 +148,12 @@ export async function POST(request: Request) {
         return Response.json({ result: hash });
       }
       default: {
-        // reads go straight to the local node
+        if (!READS.has(method))
+          return Response.json(
+            { error: { code: -32601, message: `method not allowed: ${method.slice(0, 40)}` } },
+            { status: 400 },
+          );
+        // allow-listed reads go straight to the local node
         const result = await createPublicClient({ transport }).request({
           method: method as never,
           params: params as never,

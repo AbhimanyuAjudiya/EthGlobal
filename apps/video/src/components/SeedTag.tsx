@@ -19,8 +19,9 @@ export function SeedTag({ source = 'local-stack capture' }: { source?: string })
       style={{
         position: 'absolute',
         left: 64 * unit,
-        // Portrait: just above the lower-caption band (y ≈ 1380), clear of captions and platform chrome.
-        bottom: (height > width ? 560 : 48) * unit,
+        // Portrait: just below the top platform chrome (y 250) and above the hook band (y ≈ 380), where it covers
+        // only the app's header row, never a must-see line or a caption. Landscape panes: bottom-left.
+        ...(height > width ? { top: 262 * unit } : { bottom: 48 * unit }),
         fontSize: 24 * unit,
         padding: `${8 * unit}px ${12 * unit}px`,
         color: v.text,

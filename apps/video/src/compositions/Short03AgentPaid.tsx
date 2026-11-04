@@ -51,7 +51,7 @@ export function Short03AgentPaid(p: Short03Props) {
       to: 180,
       type: 'REAL SR /agent',
       clip: 'agentSr',
-      screen: { key: 'agent', trimBefore: 20 },
+      screen: { key: 'agent', trimBefore: 150 },
       picture:
         'One sheet, two controls: ≤ $10 / day stepper, Pause; the policy sentence; the row 03:12 · +100 MB · $0.40 · agent uaid:hcs-14:… ↗',
       mustSee: ['the TESTNET strip', 'the policy sentence', 'uaid:hcs-14:', 'the cap and Pause'],
@@ -72,7 +72,7 @@ export function Short03AgentPaid(p: Short03Props) {
       to: 390,
       type: 'REAL SR /plan/[key]',
       clip: 'planSr03',
-      screen: { key: 'plan-topped', trimBefore: 45 },
+      screen: { key: 'plan-topped', trimBefore: 15 },
       picture: simulated
         ? 'The meter extends once; 400 MB total; the simulated usage label; Expires in 5 d 06 h.'
         : 'The meter extends once; 400 MB total; usage as of 03:12; Expires in 5 d 06 h.',
@@ -84,7 +84,7 @@ export function Short03AgentPaid(p: Short03Props) {
       to: 480,
       // SCRIPTS.md §4 drew this as a RENDERED ReceiptThreeLine; it is now the real /receipts page.
       type: 'SCREEN',
-      screen: { key: 'receipts', trimBefore: 40 },
+      screen: { key: 'receipts', trimBefore: 30 },
       picture:
         '/receipts: the three-line receipt of the top-up, You · Sponsor · Network fee, Final.',
     },

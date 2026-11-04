@@ -5,7 +5,7 @@ module: packages/contracts/script/Deploy.s.sol
 threat: T-08
 severity: Low
 likelihood: L
-status: fixed
+status: verified
 found_by: redteam-contracts
 owner: builder-contracts
 found_at: 2026-11-04T02:45+05:30
@@ -13,7 +13,7 @@ due: next report (Low: opportunistic, PLAN §6.3)
 attack_test: packages/contracts/test/redteam/RT_Deploy.t.sol::test_RT_DeployRejectsUsdcWithoutCode_RTFINDING; packages/contracts/test/redteam/RT_Deploy.t.sol::test_RT_DeployRejectsEighteenDecimalUsdc_RTFINDING
 regression_test: packages/contracts/test/regression/T08_Decimals.t.sol::test_Regression_RTC04_DeployRejectsUsdcWithoutCode; packages/contracts/test/regression/T08_Decimals.t.sol::test_Regression_RTC04_DeployRejectsEighteenDecimalUsdc
 fix_commit: (uncommitted, wave-1 fix pass; orchestrator commits)
-verified_at:
+verified_at: 2026-11-04 (redteam-verify, Claude)
 duplicate_of:
 sign_off:
 ---
@@ -49,3 +49,12 @@ Regression test to add (builder): `packages/contracts/test/regression/T08_Decima
 `Deploy.deploy` now checks a live token-mode `usdc`: it must have code and `decimals() == 6`, otherwise it reverts with a message. On Hedera (295/296) a codeless HTS long-zero alias is tolerated, because `extcodesize` of HTS tokens is [verify Wed] and the runbook checks decimals on the mirror node; any contract that answers `decimals()` must answer 6 (`test_HederaRejectsEighteenDecimalContractAtTheUsdcAlias`). The builder's Base Sepolia deploy test now installs a 6-decimal token at 0x036C… first. The red-team `_RTFINDING` test was moved from `test/redteam/` to the regression above, adapted to assert the fixed behaviour; a comment marks its old place.
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): VERIFIED.**
+
+- Regression: `T08_Decimals.t.sol::test_Regression_RTC04_*` pass. (re-run 2026-11-04, green under the CI `_RTFINDING` filter).
+- Variant (new, not covered by the regression): a code-bearing `usdc` with no `decimals()` and one whose `decimals()` returns a dirty word (`0x106`, low byte 6) are both refused. Observation (not a reopen): on Hedera (295/296) a codeless `usdc` is tolerated by design (builder note); against the repo's `HtsPrecompileMock` even a typo'd EOA deploys because the mock accepts any `associateToken` — the real precompile would reject a non-token. Worth a `[verify Wed]` check of the real HTS response.
+
+```sh
+cd packages/contracts && forge test --match-path test/regression/verify-RTC04_DeployUsdc.t.sol
+```

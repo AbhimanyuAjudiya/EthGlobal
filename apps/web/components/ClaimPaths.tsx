@@ -18,7 +18,7 @@ const enIN = new Intl.NumberFormat('en-IN');
 
 /** Pre-flight line under the button (the Airalo borrow), from the UA only. */
 function Preflight() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const hydrated = useHydrated();
   const device = hydrated ? parseDevice(navigator.userAgent) : undefined;
   const line = device
@@ -27,7 +27,7 @@ function Preflight() {
       : t('preflight.unknown')
     : undefined;
   return (
-    <p className="preflight" data-testid="preflight">
+    <p className="preflight" data-testid="preflight" lang={lang}>
       {line ?? ' '}
     </p>
   );
@@ -61,10 +61,10 @@ export function ClaimPaths() {
   let status: string | undefined;
   if (exhausted) status = t('landing.exhausted');
   else if (live && campaign)
+    // the sponsor is already named on the coupon's line; the stub carries only the count
     status = t('landing.left', {
       left: enIN.format(campaign.remainingClaims),
       max: enIN.format(campaign.maxClaims),
-      sponsor: campaign.name,
     });
   else if (!live && cached && error) status = t('landing.asOf', { time: clockIst(cached.at) });
 
@@ -80,20 +80,25 @@ export function ClaimPaths() {
             {t('landing.sub', { mb: formatMb(freeMb) })}
           </p>
         </section>
+        {/* no validity line: /plans does not carry the campaign's validity, and a guess is fake specificity */}
         <section className="landing__coupon" aria-live="polite">
           {plans ? (
             <Coupon
               mb={freeMb}
               {...(campaign ? { sponsor: campaign.name } : {})}
-              validity={`Mumbai · ${plans.paid.validityDays} days`}
               {...(status ? { status } : {})}
-              lang={lang === 'hi' ? 'hi' : 'en'}
+              sealed
+              lang={lang}
               id="landing-coupon"
             />
           ) : (
             <div className="skeleton skeleton--coupon" aria-label="Loading the sponsor bundle" />
           )}
-          {plans && !campaign ? <p className="note">{t('landing.noCampaign')}</p> : null}
+          {plans && !campaign ? (
+            <p className="note" lang={lang}>
+              {t('landing.noCampaign')}
+            </p>
+          ) : null}
         </section>
         <section className="landing__actions">
           <div className="paths">

@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { LangSwitch, T } from '../i18n/lang';
-import { IS_LOCAL } from '../lib/env';
 import { plans } from '../lib/store';
 import { DEMO_ROLE_INDEX, type Wallet } from '../lib/wallet';
 
@@ -21,7 +20,7 @@ export function TestnetStrip() {
 export function AppHeader({ right }: { right?: ReactNode }) {
   return (
     <header className="app-header">
-      <Link href="/" className="wordmark">
+      <Link href="/" className="wordmark" lang="en">
         Recharge
       </Link>
       <div className="app-header__right">
@@ -62,7 +61,10 @@ export function TabBar({ active }: { active: 'plan' | 'add' | 'gift' | 'receipts
   );
 }
 
-/** Page frame: one column, 16 px gutters, primary action in the bottom quarter. */
+/**
+ * Page frame: one column, 16 px gutters, primary action in the bottom quarter. The TabBar is the frame's last
+ * child and sticks to the bottom, so it never covers the screen's own primary action (RT design review #1).
+ */
 export function Screen({
   children,
   money = false,
@@ -84,7 +86,7 @@ export function Screen({
 
 /** MODE=local only: the visible "demo wallet · Anvil #5" banner. Compiled out of live builds. */
 export function DemoWalletPanel({ wallet }: { wallet: Wallet | undefined }) {
-  if (!IS_LOCAL || wallet?.kind !== 'demo') return null;
+  if (process.env.NEXT_PUBLIC_MODE !== 'local' || wallet?.kind !== 'demo') return null;
   const index = Number(/#(\d+)/.exec(wallet.name)?.[1] ?? DEMO_ROLE_INDEX.human);
   return (
     <p className="demo-wallet" role="note" data-testid="demo-wallet">

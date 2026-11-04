@@ -5,7 +5,7 @@ module: services/agent/src/journal.ts
 threat: T-30
 severity: Low
 likelihood: L
-status: fixed
+status: verified
 found_by: redteam-wave2
 owner: builder-agent
 found_at: 2026-11-04T15:05+05:30
@@ -13,7 +13,7 @@ due: 2026-11-05T20:59+05:30
 attack_test: services/agent/test/redteam/rt-agent.test.ts::purchase on day D, one at a skewed D+1, back to D ⇒ own spend for D is still remembered_RTFINDING
 regression_test: services/agent/test/redteam/rt-agent.test.ts::purchase on day D, one at a skewed D+1, back to D ⇒ own spend for D is still remembered; services/agent/test/lock.test.ts::RT-G-03 monotonic guard — a purchase on file from the future ⇒ the tick buys nothing (clock-behind)
 fix_commit: (uncommitted, wave-2 agent fix pass; orchestrator commits)
-verified_at:
+verified_at: 2026-11-04 (redteam-verify, Claude)
 duplicate_of:
 sign_off:
 ---
@@ -46,3 +46,12 @@ skips `clock-behind` (no purchase) until the clock passes it again — fail clos
 `_RTFINDING` test was renamed in place and passes.
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): VERIFIED.**
+
+- Regression: `rt-agent.test.ts` skewed-day case and `lock.test.ts` monotonic guard pass. (re-run 2026-11-04, green under the CI `_RTFINDING` filter).
+- Variant (new, not covered by the regression): clock steps +2 d, −1 d and back: each day keeps exactly its own spend; 23:59:59.999 and 00:00:00.000 UTC are filed under different days.
+
+```sh
+cd services/agent && npx vitest run test/redteam/verify-rt-g-02-03-04.test.ts -t RT-G-03
+```

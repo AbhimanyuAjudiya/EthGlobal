@@ -7,7 +7,6 @@ import { isValidPin } from '@ethglobal/protocol/pin';
 import type { CardPreview } from '@ethglobal/protocol/schemas';
 import { Button, Coupon, Field, ScratchCard } from '@ethglobal/ui/components';
 
-import { renderQr } from './QrCode';
 import { AppHeader, Screen } from './Shell';
 import { useLang } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
@@ -37,7 +36,6 @@ export function ScratchRedeem({ serial }: { serial?: string }) {
     api.card(serial).then(setPreview, () => setPreview(null));
   }, [serial]);
 
-  const origin = typeof window === 'undefined' ? '' : window.location.origin;
   const mb = preview?.mb ?? 300;
   const closed = preview && preview.state !== 'open';
 
@@ -65,13 +63,14 @@ export function ScratchRedeem({ serial }: { serial?: string }) {
     }
   };
 
+  // No on-screen QR: it would encode the page you are on (RT design review #10); the printed card and the
+  // gift's boarding pass carry it. No invented validity: the card preview has none (RT-W-09).
   const coupon = {
     mb,
     ...(preview?.sponsorName ? { sponsor: preview.sponsorName } : {}),
-    ...(serial ? { serial, qrUrl: `${origin}/card/${serial}`, renderQr } : {}),
-    ...(preview ? { expires: `Claim by ${dayLabel(preview.claimBy)}` } : {}),
-    validity: 'Mumbai · 7 days',
-    lang: lang === 'hi' ? ('hi' as const) : ('en' as const),
+    ...(serial ? { serial } : {}),
+    ...(preview ? { expires: t('card.claimBy', { day: dayLabel(preview.claimBy, lang) }) } : {}),
+    lang,
   };
 
   return (
@@ -91,7 +90,10 @@ export function ScratchRedeem({ serial }: { serial?: string }) {
           onReveal={() => setRevealed(true)}
         />
       ) : (
-        <Coupon {...coupon} {...(closed ? { status: t(`card.state.${preview.state}`) } : {})} />
+        <Coupon
+          {...coupon}
+          {...(closed ? { status: t(`card.state.${preview.state}`) } : { sealed: true })}
+        />
       )}
       {preview ? (
         <p className="card__state" data-testid="card-state" data-state={preview.state} lang={lang}>
@@ -113,6 +115,7 @@ export function ScratchRedeem({ serial }: { serial?: string }) {
             inputMode="numeric"
             autoComplete="off"
             maxLength={19}
+            placeholder="0000 0000 0000 0000"
             value={pin}
             onChange={(e) => setPin(e.target.value)}
             {...(pinError ? { error: pinError } : {})}

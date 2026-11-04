@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import type { PlansResponse } from '@ethglobal/protocol/schemas';
 
 import { api, ApiError } from './api';
-import { IS_LOCAL } from './env';
 import { connect, connectDemo, discoverInjected, type DemoRole, type Wallet } from './wallet';
 
 let plansCache: Promise<PlansResponse> | undefined;
@@ -41,7 +40,7 @@ export function useWallet(role: DemoRole = 'human') {
   const [busy, setBusy] = useState(false);
 
   const pickDemo = useCallback(async () => {
-    if (!IS_LOCAL) return;
+    if (process.env.NEXT_PUBLIC_MODE !== 'local') return;
     setBusy(true);
     try {
       setWallet(await connectDemo(role));
@@ -68,7 +67,7 @@ export function useWallet(role: DemoRole = 'human') {
   }, []);
 
   useEffect(() => {
-    if (!IS_LOCAL) return;
+    if (process.env.NEXT_PUBLIC_MODE !== 'local') return;
     let alive = true;
     connectDemo(role).then(
       (w) => alive && setWallet(w),

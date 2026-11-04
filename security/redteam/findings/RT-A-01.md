@@ -5,7 +5,7 @@ module: services/api/src/flows/fulfil.ts
 threat: T-27
 severity: Med
 likelihood: M
-status: fixed
+status: verified
 found_by: redteam-wave2
 owner: builder-api
 found_at: 2026-11-04T15:05+05:30
@@ -13,7 +13,7 @@ due: 2026-11-05T20:59+05:30
 attack_test: services/api/test/redteam/rt-races.test.ts::two concurrent paid top-ups (two distinct payments) both land in mbTotal_RTFINDING
 regression_test: services/api/test/redteam/rt-races.test.ts::two concurrent paid top-ups (two distinct payments) both land in mbTotal [RT-A-01] (+ services/api/test/regression/T-27-topup-race.test.ts::two concurrent paid top-ups ⇒ +200 MB)
 fix_commit: (uncommitted, wave-2 API fix pass; orchestrator commits)
-verified_at:
+verified_at: 2026-11-04 (redteam-verify, Claude)
 duplicate_of:
 sign_off:
 ---
@@ -51,3 +51,12 @@ regression to `services/api/test/regression/T-27-topup-race.test.ts` (case: two 
 `fulfilTopUp` patches with the function form of `EntitlementStore.patch` (octroi A-38): `(current) => ({ mbTotal: current.mbTotal + mb, expiresAt })`, recomputed from each fresh row on every compare-and-swap attempt, so a concurrent top-up (or usage patch) is never lost. Each response reports the total its own patch produced. `src/flows/fulfil.ts`.
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): VERIFIED.**
+
+- Regression: `rt-races.test.ts` `[RT-A-01]` and `T-27-topup-race.test.ts` pass. (re-run 2026-11-04, green under the CI `_RTFINDING` filter).
+- Variant (new, not covered by the regression): FOUR distinct payers top up one entitlement concurrently while a usage webhook lands: all four 200, `mbTotal == 300 + 400`, the webhook's `mbUsed` survives.
+
+```sh
+cd services/api && npx vitest run test/redteam/verify-rt-a-01-02-08-topup.test.ts -t RT-A-01
+```

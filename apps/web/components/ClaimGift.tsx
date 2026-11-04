@@ -85,6 +85,8 @@ export function ClaimGift({ giftId, name }: { giftId?: string; name?: string }) 
           mono
           inputMode="numeric"
           autoComplete="off"
+          maxLength={19}
+          placeholder="0000 0000 0000 0000"
           value={pin}
           onChange={(e) => setPin(e.target.value)}
           {...(pinError ? { error: pinError } : {})}
@@ -127,13 +129,14 @@ export function ReclaimGift({ refreshKey = 0 }: { refreshKey?: number }) {
           return (
             <li key={g.giftId} data-testid="reclaim-row">
               <span>
-                {g.name} · {formatMb(g.mb)} · {dayLabel(g.claimBy)}
+                {g.name} · {formatMb(g.mb)} · {dayLabel(g.claimBy, lang)}
               </span>
               {refunded ? (
                 <Receipt
                   heading={t('gift.reclaimed', { amount: money(refunded.refundedUsd6) })}
                   you={money(refunded.refundedUsd6)}
                   networkFee={money(refunded.feeUsd6)}
+                  lang={lang}
                 />
               ) : (
                 <Button

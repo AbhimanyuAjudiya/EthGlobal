@@ -5,7 +5,7 @@ module: packages/octroi/src/store/common.ts
 threat: T-18
 severity: Med
 likelihood: M
-status: fixed
+status: open
 found_by: redteam-octroi
 owner: builder-octroi
 found_at: 2026-11-04T05:40+05:30
@@ -76,3 +76,32 @@ claims ⇒ one serve-free) and `T-20-challenge.test.ts` (case: two caches ⇒ on
 Ledger port gains create-if-absent (`put({ ifAbsent: true })`, A-32) implemented by `InMemoryLedger` (one synchronous check-and-write) and `ArkivLedger` (per-key serialisation in-process; create-then-re-read, oldest wins, loser tombstones across processes `[verify Wed]`), pinned by five new `describeLedger` contract tests both adapters run. Every `Repo.create` uses it (two creates ⇒ one row, the other `replay`); `NonceStore.consume` too (two instances ⇒ one `ok`). The free lane now reserves, create-if-absent and before `serve-free`, the human's live lock (`claim:HMAC('live'‖quotaKey‖day)`) and the campaign claim record (A-33), so the second concurrent campaign is `deny: replay 'claim_lock'` before any sponsor pays. Cross-process residual (Arkiv indexing lag) is in THREAT-MODEL §8: wave 2 runs one writer process.
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): REOPENED.** The named regressions pass (rt-economics / rt-store / rt-challenge
+`[RT-O-03]`, `test/regression/redteam-wave1.test.ts::RT-O-03`), and same-day concurrency holds. The fix does not hold
+across a UTC day boundary, in ONE process (not the documented cross-process / Arkiv-lag residual).
+
+### Repro (verification variant)
+
+```sh
+cd packages/octroi && npx vitest run test/redteam/verify-rt-o-03-midnight.test.ts
+```
+
+1. One human (one nullifier), two live campaigns A and B, one API process, a networked ledger (every call yields).
+2. Request 1 claims A with `now = 23:59:59.999 UTC` (day D); request 2 claims B with `now = 00:00:00.001 UTC` (day D+1),
+   concurrently.
+3. Both `alreadyServed()` reads run before either `reserve()`: every `live(day)` for `day ∈ [today−30, today]` is absent.
+4. Request 1 reserves `live(D)`, request 2 reserves `live(D+1)` — different keys, so both create-if-absent writes succeed —
+   and each reserves its own campaign record ⇒ **two `serve-free`**, two sponsors pay, two live free bundles for one human.
+
+The control cases in the same file (sequential across midnight ⇒ `replay`; concurrent on the same day ⇒ one serve) pass.
+Failing test (marked `// RT-FINDING`, suffixed `_RTFINDING`):
+`packages/octroi/test/redteam/verify-rt-o-03-midnight.test.ts::concurrent claims on campaigns A and B straddling UTC midnight ⇒ at most one serve-free_RTFINDING`.
+
+Impact: the original RT-O-03 impact, on a timer anyone can hit (fire two claims ~1 s either side of 00:00 UTC; with Arkiv RPC
+latency the read→reserve window is seconds wide). Bounded by one extra bundle per human per midnight.
+
+Suggested fix (builder's choice): make the lock key independent of the request instant for the window that matters, e.g.
+after reserving `live(D)` re-read `live(D−1)` and `live(D+1)` (and every day in the validity window) and release/deny on a
+collision, or key the live lock by a coarser, collision-forcing bucket and check both neighbours inside `reserve()`, or a
+per-quotaKey create-if-absent "live" entity whose lifetime is the entitlement's.

@@ -5,7 +5,7 @@ module: packages/contracts/script/fill-deploy-txs.mjs; packages/contracts/script
 threat: T-10
 severity: Low
 likelihood: L
-status: fixed
+status: open
 found_by: redteam-wave3-ops
 owner: builder-contracts
 found_at: 2026-11-04T16:10+05:30
@@ -48,3 +48,26 @@ owner reads and validate both outputs as addresses. In Deploy.s.sol, `require` t
 ## Builder notes
 
 `fill-deploy-txs.mjs`: CHAIN must be decimal and an own key of chains.json; the slug must match `^[a-z0-9_]+$`; the resolved addresses path must sit directly in `deploy/`; with `RPC_URL`, `cast chain-id` must equal CHAIN before `owner()`/`pendingOwner()` are read, and both answers must be addresses. Not done here: the `Deploy.s.sol` slug/`usdcHts` `require`s (builder-contracts; they would change gas snapshots and forge tests outside this pass). The committed chains.json is already safe (run.sh checks every slug and usdcHts).
+
+## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): REOPENED (Low).** The named regression passes, and so do the spelling variants in
+`scripts/test/regression/verify-rt-p-12-deploy-txs.test.ts` (CHAIN `031337` / `+31337` / `0x7a69` / padded, and hex or
+concatenated `eth_chainId` answers are all refused). The "writes only inside deploy/" property fails through a symlink.
+
+### Repro (verification variant)
+
+```sh
+cd scripts && npx vitest run test/regression/verify-rt-p-12-deploy-txs.test.ts -t symlinked
+```
+
+1. chains.json is clean (`31337 → slug "anvil"`); `deploy/addresses.anvil.json` is a **symlink** to a JSON file outside
+   `deploy/` (a symlink is ordinary repo content — git stores it — exactly like the slug the original finding abused).
+2. `CHAIN=31337 node script/fill-deploy-txs.mjs` passes the path check (the path string sits directly in `deploy/`), reads the
+   target through the link and **rewrites the outside file** (txs merged, reformatted).
+
+Failing test (marked `// RT-FINDING`, suffixed `_RTFINDING`):
+`scripts/test/regression/verify-rt-p-12-deploy-txs.test.ts::deploy/addresses.<slug>.json symlinked outside deploy/ ⇒ refused or the outside file untouched_RTFINDING`.
+
+Suggested fix: `lstat` the addresses path and refuse a symlink (or compare `realpath(file)`'s directory with
+`realpath(deploy/)`), and write via a temp file in `deploy/` + `rename` (which replaces the link rather than following it).

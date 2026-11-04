@@ -28,14 +28,36 @@ export function PlanRoute() {
   return <PlanView key={key} entitlementKey={key} />;
 }
 
-/** `/plan` (the manifest's start_url): resolves to the plan stored on this device. */
+/** The key in `/plan/<key>` when this shell was served for it (the service worker's offline answer). */
+function keyFromAddressBar(): string | undefined {
+  const match = /^\/plan\/([^/?#]+)/.exec(window.location.pathname);
+  if (!match?.[1]) return undefined;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * `/plan` (the manifest's start_url): resolves to the plan stored on this device. Offline, the service worker
+ * answers every `/plan/<key>` navigation with this precached shell (RT-W-06); it then renders that plan directly
+ * from the IndexedDB snapshot instead of a client navigation that would need the network.
+ */
 export function PlanIndex() {
   const router = useRouter();
   const { t, lang } = useLang();
   const [none, setNone] = useState(false);
+  const [shellKey, setShellKey] = useState<string | undefined>();
   useEffect(() => {
+    const fromUrl = keyFromAddressBar();
+    if (fromUrl) {
+      setShellKey(fromUrl);
+      return;
+    }
     void plans.latest().then((key) => (key ? router.replace(planHref(key)) : setNone(true)));
   }, [router]);
+  if (shellKey) return <PlanView key={shellKey} entitlementKey={shellKey} />;
   return (
     <Screen>
       <AppHeader />

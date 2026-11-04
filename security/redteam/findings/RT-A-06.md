@@ -5,7 +5,7 @@ module: services/api/src/flows/gift.ts
 threat: T-53
 severity: Med
 likelihood: L
-status: fixed
+status: verified
 found_by: redteam-wave2
 owner: builder-api
 found_at: 2026-11-04T15:05+05:30
@@ -13,7 +13,7 @@ due: 2026-11-05T20:59+05:30
 attack_test: services/api/test/redteam/rt-authz.test.ts::VALIDITY_DAYS=1: after the card’s entitlement expires the PIN never delivers a second LPA_RTFINDING
 regression_test: services/api/test/redteam/rt-authz.test.ts::VALIDITY_DAYS=1: after the card’s entitlement expires the PIN never delivers a second LPA [RT-A-06]
 fix_commit: (uncommitted, wave-2 API fix pass; orchestrator commits)
-verified_at:
+verified_at: 2026-11-04 (redteam-verify, Claude)
 duplicate_of:
 sign_off:
 ---
@@ -47,3 +47,12 @@ it exists. Optionally refuse `VALIDITY_DAYS < GIFT_CLAIM_WINDOW_S / 86400` at bo
 Delivery is bound to a once-only ledger marker, not to a live entitlement: `claimEscrow` (shared by `/gift/claim` by giftId, `/gift/claim` by PIN and `/card/redeem`) refuses an escrow whose marker `claim:HMAC('gift-delivered'‖giftId)` exists, and reserves it create-if-absent (scope `'once'`, until max(claimBy, entitlement expiry)) right before `fulfil()` — after the durable gift-claim/card-redeem receipt, before any LPA exists. Fail closed: a fulfil that fails after the marker leaves the gift delivered-or-pending, never deliverable twice. `src/flows/gift.ts`.
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): VERIFIED.**
+
+- Regression: `rt-authz.test.ts` `[RT-A-06]` passes. (re-run 2026-11-04, green under the CI `_RTFINDING` filter).
+- Variant (new, not covered by the regression): `VALIDITY_DAYS=1`, redeemed card, +1 day: four CONCURRENT redeems (two on `/card/redeem`, two on `/gift/claim`, fresh session keys) ⇒ no 201 and no `sealedLpa`.
+
+```sh
+cd services/api && npx vitest run test/redteam/verify-rt-a-04-05-06-authz.test.ts -t RT-A-06
+```

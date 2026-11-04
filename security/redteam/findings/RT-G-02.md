@@ -5,7 +5,7 @@ module: services/agent/src/journal.ts
 threat: T-30
 severity: Med
 likelihood: L
-status: fixed
+status: verified
 found_by: redteam-wave2
 owner: builder-agent
 found_at: 2026-11-04T15:05+05:30
@@ -13,7 +13,7 @@ due: 2026-11-05T20:59+05:30
 attack_test: services/agent/test/redteam/rt-agent.test.ts::two real processes record 40 purchases each ⇒ own spend today counts all 80_RTFINDING
 regression_test: services/agent/test/redteam/rt-agent.test.ts::two real processes record 40 purchases each ⇒ own spend today counts all 80; services/agent/test/lock.test.ts::own spend — concurrent appends are all counted; a torn line is skipped; a legacy state.json still counts
 fix_commit: (uncommitted, wave-2 agent fix pass; orchestrator commits)
-verified_at:
+verified_at: 2026-11-04 (redteam-verify, Claude)
 duplicate_of:
 sign_off:
 ---
@@ -48,3 +48,12 @@ never swallows the next). `own(key, now)` reduces the file (Σ usd6 for the key 
 there is nothing to lose between processes. The `_RTFINDING` test was renamed in place and passes (80 × 400 000).
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): VERIFIED.**
+
+- Regression: `rt-agent.test.ts` 80-purchase case and `lock.test.ts` own-spend cases pass. (re-run 2026-11-04, green under the CI `_RTFINDING` filter).
+- Variant (new, not covered by the regression): FOUR real processes append 30 purchases each around a crash-torn line (no trailing newline) planted mid-journal: own spend counts all 121 (the torn line swallows nothing).
+
+```sh
+cd services/agent && npx vitest run test/redteam/verify-rt-g-02-03-04.test.ts -t RT-G-02
+```

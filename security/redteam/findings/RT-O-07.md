@@ -5,7 +5,7 @@ module: packages/octroi/src
 threat: T-30
 severity: Low
 likelihood: L
-status: fixed
+status: verified
 found_by: redteam-octroi
 owner: builder-octroi
 found_at: 2026-11-04T05:40+05:30
@@ -13,7 +13,7 @@ due: 2026-11-05T20:59+05:30
 attack_test: packages/octroi/test/redteam/rt-topup-gift.test.ts::a non-positive stepPriceUsd6 (%s) is refused, not a buy that bypasses the cap_RTFINDING
 regression_test: packages/octroi/test/redteam/rt-topup-gift.test.ts::a non-positive stepPriceUsd6 (%s) is refused, not a buy that bypasses the cap [RT-O-07] (+ six other [RT-O-07] cases in rt-challenge/rt-fuzz/rt-topup-gift; packages/octroi/test/regression/redteam-wave1.test.ts::RT-O-07)
 fix_commit: (uncommitted, wave-1 octroi fix pass; orchestrator commits)
-verified_at:
+verified_at: 2026-11-04 (redteam-verify, Claude)
 duplicate_of:
 sign_off:
 ---
@@ -62,3 +62,12 @@ plus the typed-throw cases next to the existing unit tests.
 `challenge()` throws `RechargeError('invalid_request')` for a > 255-byte field or a clock that is not a non-negative safe integer; `consumeChallenge` returns `'invalid'` for such a clock (NaN used to pass both comparisons). `decide()`: non-object request/payment/proof ⇒ `deny invalid-request`; the campaign is validated with `campaignToPayload` (validityDays 0, claimsPerHour ≤ 0, NaN ⇒ `invalid-request 'campaign'`), counters must be integers/bigints ≥ 0 (`'counters'`), both before the nonce is consumed; a malformed verifier nullifier ⇒ `invalid-proof 'verifier_nullifier'` (no throw after verify). `shouldTopUp`: step price ≤ 0, spent < 0 or non-finite `now` ⇒ `{ buy: false, reason: 'ok' }` (A-41).
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): VERIFIED.**
+
+- Regression: `rt-topup-gift` / `rt-challenge` / `rt-fuzz` `[RT-O-07]` cases and `redteam-wave1.test.ts::RT-O-07` pass. (re-run 2026-11-04, green under the CI `_RTFINDING` filter).
+- Variant (new, not covered by the regression): `shouldTopUp` fuzzed over the whole bigint range (price ±2^200, spent −2^64…2^200, cap 0…2^64, now ±Infinity/NaN; 2 000 runs): a buy never exceeds the cap, never costs ≤ 0, never after expiry; the paid lane with `mb` NaN/±Infinity/−100/1e21/100.5/0/'100' is `deny invalid-request`, no throw; a wire policy with hostile numbers throws `RechargeError(invalid_request)`.
+
+```sh
+cd packages/octroi && npx vitest run test/redteam/verify-rt-o-07-o-09-boundaries.test.ts
+```

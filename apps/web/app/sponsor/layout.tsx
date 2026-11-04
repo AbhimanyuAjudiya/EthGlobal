@@ -9,11 +9,12 @@ export const metadata = { title: { default: 'Sponsor', template: '%s · Sponsor 
 /** Sponsor console shell: a labelled rail and the TESTNET rail; density per design-foundations §5a. */
 export default function SponsorLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="console">
+    // the console is English-only: it carries its own lang so a traveller's हिं choice does not mislabel it
+    <div className="console" lang="en">
       <TestnetStrip />
       <div className="console__body">
         <nav className="console__rail" aria-label="Sponsor console">
-          <Link href="/" className="wordmark">
+          <Link href="/" className="wordmark console__home">
             Recharge
           </Link>
           <Link href="/sponsor">Campaigns</Link>

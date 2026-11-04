@@ -186,9 +186,13 @@ case "$wave" in
   *) echo "usage: run-wave.sh 1|2|3|wave3-ops|wave3-web|all|static|contracts" >&2; exit 2 ;;
 esac
 bash "$TOOLS/findings-index.sh" > /dev/null 2>&1 || true
-open_blocking="$(grep -l -E '^severity: (Critical|High)' security/redteam/findings/RT-*.md 2>/dev/null | xargs -r grep -L -E '^status: (verified|closed)' 2>/dev/null)"
+findings=(security/redteam/findings/RT-*.md)
+if [[ "$wave" == "contracts" ]]; then   # the contracts gate judges only findings filed against packages/contracts
+  mapfile -t findings < <(grep -l -E '^module: packages/contracts/' security/redteam/findings/RT-*.md 2>/dev/null)
+fi
+open_blocking="$(printf '%s\n' "${findings[@]}" | xargs -r grep -l -E '^severity: (Critical|High)' 2>/dev/null | xargs -r grep -L -E '^status: (verified|closed)' 2>/dev/null)"
 if [[ -n "$open_blocking" ]]; then ko "open Critical/High findings: $(echo "$open_blocking" | xargs -n1 basename | tr '\n' ' ')"; fi
-missing_reg="$(grep -l -E '^status: (fixed|verified|closed)' security/redteam/findings/RT-*.md 2>/dev/null | xargs -r grep -L -E '^regression_test: *[^ #]' 2>/dev/null)"
+missing_reg="$(printf '%s\n' "${findings[@]}" | xargs -r grep -l -E '^status: (fixed|verified|closed)' 2>/dev/null | xargs -r grep -L -E '^regression_test: *[^ #]' 2>/dev/null)"
 if [[ -n "$missing_reg" ]]; then ko "findings marked fixed without regression_test: $(echo "$missing_reg" | xargs -n1 basename | tr '\n' ' ')"; fi
 echo
 echo "summary: $passed passed, $failed failed"

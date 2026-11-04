@@ -5,7 +5,7 @@ module: docs/ONSITE-RUNBOOK.md; services/api/src/flows/gift.ts
 threat: T-85
 severity: Med
 likelihood: M
-status: fixed
+status: open
 found_by: redteam-wave3-ops
 owner: builder-api + builder-ops-demo (Founder decides)
 found_at: 2026-11-04T16:10+05:30
@@ -46,3 +46,35 @@ that MODE=local on the VPS is forbidden.
 ## Builder notes
 
 `POST /sponsor/:id/cards` (INTERFACES §7 row + amendment A-43). Body `{ count 1–200, mb 100–3000 step 100, auth: { sponsor, nonce, issuedAt, signature } }`; the signature is EIP-712 `SponsorCards{campaignId, sponsor, count, mb, nonce, issuedAt}` (protocol `SPONSOR_CARDS_TYPES`), ≤ 10 min old, by the registered AND on-chain sponsor (a SponsorLogin read bearer is 401). Unpaused, unexpired, count ≤ (budget − spent) / pricePerClaim; nonce one-shot via a ledger once-marker (409 replay); 5 batches/min/campaign after the signature check; degraded-ledger guard; deliberately not idempotent (a cached replay would re-show PINs). 201 `{ campaignId, mb, claimBy, cards: [{ serial, pin, mb }] }`: PINs exist only in that body; the ledger holds serial + PIN HMAC (shared `mintCard`, the seed hook uses it too); the log holds `op: card.mint, count, mb`. `scripts/print-cards.ts --mint N --campaign <id> --mb 300 --save <file>` calls it (live: `cast wallet sign --data --account $SPONSOR_ACCOUNT` from the Foundry keystore, verified byte-identical to viem's signature; local: the Anvil sponsor role) and writes the PINs 0600 before rendering. Runbook Thu 09:00 rewritten; MODE=local on the VPS explicitly forbidden.
+
+## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): REOPENED.** The live minting path exists and the named regressions pass
+(`services/api/test/sponsor-cards.test.ts`, incl. "more cards than the remaining budget pays for → 409"). The budget bound
+holds per batch only.
+
+### Repro (verification variant)
+
+```sh
+cd services/api && npx vitest run test/verify-rt-p-08-cards-budget.test.ts
+```
+
+Campaign budget 3 USDC at 0.50 per claim (pays for 6 claims):
+
+1. `POST /sponsor/:id/cards {count: 4}` → 201; then `{count: 4}` again (fresh nonce, e.g. the print step re-run after a PDF
+   failure) → **201** ⇒ 8 PINs for 6 claims.
+2. Two concurrent batches of 4 → both **201** ⇒ 8 PINs.
+
+`src/routes/sponsor.ts:192` computes `(budget − spent) / pricePerClaim` from the chain; minted-but-unredeemed cards are not
+`spent` yet, so nothing subtracts them, and there is no in-flight reservation.
+
+Failing tests (marked `// RT-FINDING`, suffixed `_RTFINDING`):
+`services/api/test/verify-rt-p-08-cards-budget.test.ts::budget for 6 claims: 4 cards, then 4 more ⇒ at most 6 cards in total_RTFINDING`
+and `::budget for 6 claims: two concurrent batches of 4 ⇒ at most 6 cards in total_RTFINDING`.
+
+Impact: printed cards whose redemption fails with `BudgetExhausted` at the venue (the Thu 09:00 run prints 200; one re-run
+doubles the outstanding PINs). Users hold a card that looks valid and cannot be served.
+
+Suggested fix: subtract the campaign's open (unclaimed, unexpired) campaign-funded gifts from the remaining claims — e.g.
+count `GiftStore` open escrows with `fundedBy: 'campaign'` for the id — and take an `Admission`-style synchronous reservation
+for the batch before minting.

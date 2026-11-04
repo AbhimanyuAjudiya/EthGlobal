@@ -13,18 +13,25 @@ import type {
   PaymentRequirements,
   TopUpResponse,
 } from '@ethglobal/protocol/schemas';
-import { formatUsd6 } from '@ethglobal/protocol/units';
 import { sessionNonce } from '@ethglobal/protocol/x402';
-import { MbMeter, RuledList } from '@ethglobal/ui/components';
+import { Button, MbMeter, RuledList } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
 import { AppHeader, Screen, TabBar, WalletButton } from './Shell';
-import { useLang } from '../i18n/lang';
+import { useLang, useNetworkName } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
 import { deliver, planHref } from '../lib/deliver';
-import { IS_LOCAL, networkName } from '../lib/env';
-import { dayLabel, clockIst, formatMb, mmss, money, moneyUsdc, priceFor } from '../lib/format';
+import {
+  clockIst,
+  dayLabel,
+  formatMb,
+  mmss,
+  money,
+  moneyUsdc,
+  priceFor,
+  usdcBalance,
+} from '../lib/format';
 import { useClock, usePlans, useWallet } from '../lib/hooks';
 import {
   DemoWalletSigner,
@@ -37,17 +44,21 @@ import {
   type Quote,
 } from '../lib/pay402';
 import { beginSession } from '../lib/session-key';
+import { plans as store } from '../lib/store';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
 import { chainNow } from '../lib/wallet';
 
 const BALANCE_ABI = parseAbi(['function balanceOf(address) view returns (uint256)']);
 const SIZES = [100, 200, 300];
 
-interface TestHooks {
-  tamperAmount?: boolean;
+/** MODE=local only: the e2e tamper hook, compiled out of a live build (lib/local/test-hooks.ts, RT-W-12). */
+async function tamperAmount(): Promise<boolean> {
+  if (process.env.NEXT_PUBLIC_MODE === 'local') {
+    const { testHooks } = await import('../lib/local/test-hooks');
+    return Boolean(testHooks().tamperAmount);
+  }
+  return false;
 }
-const testHooks = (): TestHooks =>
-  IS_LOCAL ? ((globalThis as { __RECHARGE_TEST__?: TestHooks }).__RECHARGE_TEST__ ?? {}) : {};
 
 /** The Review state's 402 (and, for a new plan, the session key the delivery will be sealed to). */
 async function fetchQuote(
@@ -69,15 +80,20 @@ function HederaPanel({ req }: { req: PaymentRequirements }) {
       <p lang={lang}>{t('pay.hederaBody')}</p>
       <RuledList
         rows={[
-          { label: 'Network', value: terms.network },
-          { label: 'Asset (HTS USDC)', value: <span data-hash>{terms.asset}</span> },
+          { label: t('pay.hNetwork'), value: terms.network, mono: true },
+          { label: t('pay.hAsset'), value: <span data-hash>{terms.asset}</span>, mono: true },
           {
-            label: 'Amount',
-            value: `${formatUsd6(BigInt(terms.amount), { unit: 'USDC' })} (${terms.amount} base units)`,
+            label: t('pay.hAmount'),
+            value: `${moneyUsdc(BigInt(terms.amount))} · ${terms.amount}`,
+            mono: true,
           },
-          { label: 'Pay to', value: <span data-hash>{terms.payTo}</span> },
-          { label: 'Fee payer', value: <span data-hash>{terms.feePayer ?? '—'}</span> },
-          { label: 'Valid for', value: `${terms.validForS} s` },
+          { label: t('pay.hPayTo'), value: <span data-hash>{terms.payTo}</span>, mono: true },
+          {
+            label: t('pay.hFeePayer'),
+            value: <span data-hash>{terms.feePayer ?? '—'}</span>,
+            mono: true,
+          },
+          { label: t('pay.hValidFor'), value: `${terms.validForS} s`, mono: true },
         ]}
       />
       <p className="note" lang={lang}>
@@ -87,8 +103,59 @@ function HederaPanel({ req }: { req: PaymentRequirements }) {
   );
 }
 
-/** `/pay` — the 402 moment: a receipt-shaped sheet that IS the OnchainAction component. */
-export function PaySheet({
+/**
+ * `/pay?key=` for a key this device does not hold (RT-W-03): say whose plan it is — its size and expiry — and ask
+ * before any 402 is fetched. Topping up someone else's plan is legitimate (a gift); doing it silently is not.
+ */
+function ForeignPlanGate({ entitlementKey, onConfirm }: { entitlementKey: string; onConfirm: () => void }) {
+  const { t, lang } = useLang();
+  const [me, setMe] = useState<MeResponse | null | undefined>();
+  useEffect(() => {
+    api.me(entitlementKey).then(setMe, () => setMe(null));
+  }, [entitlementKey]);
+  return (
+    <Screen money>
+      <AppHeader />
+      {me === undefined ? (
+        <div className="skeleton skeleton--line" aria-hidden="true" />
+      ) : me === null ? (
+        <p className="note" role="status" data-testid="pay-foreign">
+          {t('pay.notHereUnknown')}
+        </p>
+      ) : (
+        <section className="sheet" data-testid="pay-foreign">
+          <p className="sheet__lede">
+            {t('pay.notHere', {
+              mb: formatMb(me.mbTotal),
+              when: `${dayLabel(me.expiresAt, lang)} ${clockIst(me.expiresAt)}`,
+            })}
+          </p>
+          <Button block onClick={onConfirm} data-testid="pay-foreign-confirm">
+            {t('pay.notHereButton')}
+          </Button>
+        </section>
+      )}
+      <TabBar active="add" />
+    </Screen>
+  );
+}
+
+/** `/pay` — the 402 moment, after the plan check: a top-up of another device's plan is asked for first. */
+export function PaySheet(props: { entitlementKey?: string; initialMb?: number }) {
+  const key = props.entitlementKey;
+  const [owned, setOwned] = useState<boolean | undefined>(key ? undefined : true);
+  const [confirmed, setConfirmed] = useState(false);
+  useEffect(() => {
+    if (key) void store.owns(key).then(setOwned);
+  }, [key]);
+  if (owned === undefined) return null;
+  if (key && !owned && !confirmed)
+    return <ForeignPlanGate entitlementKey={key} onConfirm={() => setConfirmed(true)} />;
+  return <PaySheetBody {...props} />;
+}
+
+/** The receipt-shaped sheet that IS the OnchainAction component. */
+function PaySheetBody({
   entitlementKey,
   initialMb,
 }: {
@@ -96,6 +163,7 @@ export function PaySheet({
   initialMb?: number;
 }) {
   const { t, lang } = useLang();
+  const netName = useNetworkName();
   const router = useRouter();
   const { plans } = usePlans();
   const { wallet, busy, error: walletError, pickInjected } = useWallet('human');
@@ -177,9 +245,13 @@ export function PaySheet({
   else if (isHedera) blocked = t('pay.hederaSoon');
   else if (!wallet) blocked = t('pay.noWallet');
   else if (chosen && wallet.network !== chosen.network)
-    blocked = `${wallet.name} is on ${networkName(wallet.network)}; this payment is on ${networkName(chosen.network)}.`;
+    blocked = t('pay.wrongNetwork', {
+      wallet: wallet.name,
+      have: netName(wallet.network),
+      want: netName(chosen.network),
+    });
   else if (chosen && balance !== undefined && balance < BigInt(chosen.amount))
-    blocked = `This account holds ${formatUsd6(balance, { unit: 'USDC' })}; the price is ${price}.`;
+    blocked = t('pay.lowBalance', { balance: usdcBalance(balance), price });
 
   const onConfirm = useCallback(async () => {
     if (!q || !chosen || !wallet) return;
@@ -193,7 +265,7 @@ export function PaySheet({
         asset: a.asset,
         payTo: a.payTo,
       })),
-      { tamperAmount: Boolean(testHooks().tamperAmount) },
+      { tamperAmount: await tamperAmount() },
     );
     try {
       const paid = await pay<TopUpResponse | EntitledResponse>(
@@ -246,7 +318,9 @@ export function PaySheet({
   const validRow = me
     ? {
         label: t('pay.rowValid'),
-        value: t('pay.validUntil', { when: `${dayLabel(me.expiresAt)} ${clockIst(me.expiresAt)}` }),
+        value: t('pay.validUntil', {
+          when: `${dayLabel(me.expiresAt, lang)} ${clockIst(me.expiresAt)}`,
+        }),
       }
     : {
         label: t('pay.rowValid'),
@@ -255,7 +329,7 @@ export function PaySheet({
   const review = [
     validRow,
     { label: t('pay.rowFee'), value: t('pay.feeFacilitator') },
-    ...(wallet ? [{ label: t('pay.rowFrom'), value: wallet.name }] : []),
+    ...(wallet ? [{ label: t('pay.rowFrom'), value: <span lang="en">{wallet.name}</span> }] : []),
   ];
 
   return (
@@ -277,6 +351,7 @@ export function PaySheet({
           remainingMb={me.remainingMb}
           totalMb={me.mbTotal}
           usageAsOf={me.usageAsOf}
+          lang={lang}
           className="pay__meter"
         />
       ) : null}
@@ -310,9 +385,9 @@ export function PaySheet({
               aria-checked={a.network === chosen?.network}
               onClick={() => setNetwork(a.network)}
             >
-              {networkName(a.network)}
+              {netName(a.network)}
               {balances[a.network] !== undefined
-                ? ` · ${formatUsd6(balances[a.network] ?? 0n)} USDC`.replace('$', '')
+                ? ` · ${usdcBalance(balances[a.network] ?? 0n)}`
                 : ''}
             </button>
           ))}
@@ -324,11 +399,11 @@ export function PaySheet({
         now={now}
         title={title}
         network={chosen?.network ?? ''}
-        networkLabel={networkName(chosen?.network)}
+        networkLabel={netName(chosen?.network)}
         review={review}
         worstCase={t('pay.worst', { mmss: mmss(approvalLeft) })}
         actionLabel={t('pay.button', { price })}
-        walletName={wallet?.name ?? 'your wallet'}
+        walletName={wallet?.name ?? t('pay.yourWallet')}
         simulation={t('pay.simulation', { price, mb: formatMb(mb) })}
         {...(result ? { result } : {})}
         {...(blocked ? { blocked } : {})}
@@ -338,6 +413,7 @@ export function PaySheet({
           dispatch({ type: 'retry' });
           setQuoteRound((n) => n + 1);
         }}
+        lang={lang}
         className="pay__sheet"
       />
       {doneKey && (row.state === 'confirmed' || row.state === 'finalized') ? (

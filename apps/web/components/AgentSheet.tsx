@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { toBytes } from 'viem';
 
 import { keccak256 } from '@ethglobal/crypto';
@@ -14,10 +14,10 @@ import { AGENT_POLICY_TYPES, canonicalJson, rechargeDomain } from '@ethglobal/pr
 import { Button, Hash } from '@ethglobal/ui/components';
 
 import { AppHeader, Screen, TabBar, WalletButton } from './Shell';
-import { useLang } from '../i18n/lang';
+import { useLang, useNetworkName } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
-import { config, explorerTemplate, networkName } from '../lib/env';
+import { config, explorerTemplate } from '../lib/env';
 import { clockIst, formatMb, money } from '../lib/format';
 import { usePlans, useWallet } from '../lib/hooks';
 import { plans as store } from '../lib/store';
@@ -40,6 +40,7 @@ export function defaultPolicy(me: MeResponse | undefined): TopUpPolicyWire {
 /** `/agent` — one sheet, two controls; the policy as a sentence; persisted by a signed PUT /agent/policy. */
 export function AgentSheet() {
   const { t, lang } = useLang();
+  const netName = useNetworkName();
   const { plans } = usePlans();
   const { wallet, busy, error: walletError, pickInjected } = useWallet('human');
   const [key, setKey] = useState<string | null | undefined>();
@@ -125,7 +126,7 @@ export function AgentSheet() {
     ? t('agent.sentencePaused')
     : t('agent.sentence', {
         price: money(step),
-        network: networkName(agentNetwork),
+        network: netName(agentNetwork),
         cap: money(capUsd6),
       });
 
@@ -147,22 +148,28 @@ export function AgentSheet() {
         </p>
         {policy ? (
           <>
+            {/* one row of four equal segments: "$1 · $5 · $10 · $25", the "/ day" said once (no orphan chip) */}
+            <p className="segmented__legend" id="agent-cap-legend">
+              {t('agent.capLegend')}
+            </p>
             <div
-              className="segmented"
+              className="segmented segmented--even"
               role="radiogroup"
-              aria-label={t('agent.cap')}
+              aria-labelledby="agent-cap-legend"
               data-testid="agent-cap"
+              style={{ '--segments': CAPS_USD.length } as CSSProperties}
             >
               {CAPS_USD.map((usd) => (
                 <button
                   key={usd}
                   type="button"
                   role="radio"
+                  aria-label={t('agent.capAria', { cap: `$${usd}` })}
                   aria-checked={capUsd6 === BigInt(usd * USD6)}
                   disabled={status === 'signing' || status === 'saving' || !wallet}
                   onClick={() => void save({ ...policy, maxUsd6PerDay: String(usd * USD6) })}
                 >
-                  {`≤ $${usd} / day`}
+                  {`$${usd}`}
                 </button>
               ))}
             </div>

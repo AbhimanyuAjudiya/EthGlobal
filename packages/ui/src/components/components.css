@@ -431,6 +431,16 @@
   line-height: var(--leading-devanagari);
   color: var(--text-primary);
 }
+/* The notch colour is the page canvas around the coupon (dark in dark mode), not the coupon's own light paper:
+   a registered <color> resolves at :root, before the coupon pins its scheme. */
+@property --notch {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: transparent;
+}
+:root {
+  --notch: var(--bg-canvas);
+}
 /* The perforated stub under the screen coupon: a dashed tear line with two notches, the live count below it. */
 .coupon__status[data-stub] {
   position: relative;
@@ -450,7 +460,7 @@
   height: 1.25rem;
   border: 1px solid var(--border-subtle);
   border-radius: 50%;
-  background: var(--notch, var(--bg-canvas));
+  background: var(--notch);
 }
 .coupon__status[data-stub]::before {
   left: -0.6875rem;

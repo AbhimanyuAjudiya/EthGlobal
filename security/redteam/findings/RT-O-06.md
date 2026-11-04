@@ -5,7 +5,7 @@ module: packages/octroi/src/store/gift.ts
 threat: T-53
 severity: High
 likelihood: M
-status: fixed
+status: verified
 found_by: redteam-octroi
 owner: builder-octroi
 found_at: 2026-11-04T05:40+05:30
@@ -13,7 +13,7 @@ due: 2026-11-04T09:40+05:30
 attack_test: packages/octroi/test/redteam/rt-store.test.ts::GiftStore.markClaimed: two concurrent claims of one gift with different entitlement keys → at most one succeeds_RTFINDING
 regression_test: packages/octroi/test/redteam/rt-store.test.ts::GiftStore.markClaimed: two concurrent claims of one gift with different entitlement keys → at most one succeeds [RT-O-06] (+ `EntitlementStore.patch … lost update [RT-O-06]`; packages/octroi/test/regression/redteam-wave1.test.ts::RT-O-06)
 fix_commit: (uncommitted, wave-1 octroi fix pass; orchestrator commits)
-verified_at:
+verified_at: 2026-11-04 (redteam-verify, Claude)
 duplicate_of:
 sign_off:
 ---
@@ -58,3 +58,12 @@ Regression test to add (builder): `packages/octroi/test/regression/T-53-gift-sin
 Compare-and-swap on the port (A-32): `LedgerEntity.version` + `update(key, { …, ifVersion })` ⇒ `AdapterError('conflict')` on a stale version. `Repo.mutate` re-reads and re-applies the change to the FRESH row up to 8 times; `GiftStore.markClaimed`, `EntitlementStore.patch`, `upsert` and the new `ReceiptStore.patch` use it. `EntitlementStore.patch` also accepts `(current) => Partial<Entitlement>` so relative top-ups (`mbTotal + mb`) cannot lose a concurrent one (the API's own RT `two concurrent paid top-ups` still computes the absolute value outside the store — switching `fulfilTopUp` to the function form is the API builder's change). Exhaustion surfaces the conflict (tested).
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): VERIFIED.**
+
+- Regression: `rt-store.test.ts` `[RT-O-06]` cases and `redteam-wave1.test.ts::RT-O-06` pass. (re-run 2026-11-04, green under the CI `_RTFINDING` filter).
+- Variant (new, not covered by the regression): CAS_ATTEMPTS (8) driven to exhaustion by a rival writer that bumps the version before every conditional write: `markClaimed` and `patch` reject with `conflict`, exactly 8 CAS writes, the gift stays open / the row unchanged, and the next uncontended claimer wins; 7 lost rounds then success applies the change once; 32 concurrent different-key claims × 20 rounds ⇒ ≤ 1 winner and the stored key is the winner's; 64 concurrent `+100 MB` function patches ⇒ `mbTotal == 300 + 100 × fulfilled` (losers only `conflict`).
+
+```sh
+cd packages/octroi && npx vitest run test/redteam/verify-rt-o-06-cas-exhaustion.test.ts
+```

@@ -5,7 +5,7 @@ module: packages/octroi/src/decide.ts
 threat: T-32
 severity: High
 likelihood: M
-status: fixed
+status: verified
 found_by: redteam-octroi
 owner: builder-octroi
 found_at: 2026-11-04T05:40+05:30
@@ -13,7 +13,7 @@ due: 2026-11-04T09:40+05:30
 attack_test: packages/octroi/test/redteam/rt-payment.test.ts::a Hedera payment with a decoy `authorization` beside `transaction` is still refused on an LPA route_RTFINDING
 regression_test: packages/octroi/test/redteam/rt-payment.test.ts::a Hedera payment with a decoy `authorization` beside `transaction` is still refused on an LPA route [RT-O-02] (+ the no-`from` case; packages/protocol/test/redteam-octroi-regressions.test.ts::RT-O-02)
 fix_commit: (uncommitted, wave-1 octroi fix pass; orchestrator commits)
-verified_at:
+verified_at: 2026-11-04 (redteam-verify, Claude)
 duplicate_of:
 sign_off:
 ---
@@ -65,3 +65,12 @@ on an LPA route ⇒ deny; decoy without `from` ⇒ deny, no throw). The `_RTFIND
 Validate, then use (A-40): after the raw accepted-echo compare, `paidLane` uses only `paymentPayloadSchema.safeParse(raw).data` for `sessionBound`, the EVM checks, `verify`/`settle` and the entitlement key. protocol: `evmExactPayloadSchema` / `hederaExactPayloadSchema` are `z.strictObject` (A-32 row / protocol D-29), so the hybrid payload is `malformed_payload` and the decoy-without-`from` case is a deny, not a TypeError. `services/api/openapi.json` regenerated (`additionalProperties: false`).
 
 ## Verification (red team)
+
+**2026-11-04 — redteam-verify (Claude): VERIFIED.**
+
+- Regression: `rt-payment.test.ts` `[RT-O-02]` cases and `packages/protocol/test/redteam-octroi-regressions.test.ts::RT-O-02` pass. (re-run 2026-11-04, green under the CI `_RTFINDING` filter).
+- Variant (new, not covered by the regression): fast-check, 300 + 300 runs: an extra key (incl. own `__proto__`, `constructor`, `authorization`, `transaction`, `signature`, v1 names) added at every nesting level (top, accepted, accepted.extra, payload, payload.authorization) of an EVM and of a Hedera-on-LPA-route payment, JSON round-tripped. `decide()` never throws; Hedera on an LPA route is never served or settled; an EVM payment that is served hands the rail exactly the honest validated payload and mints the honest key; a `payload`-level extra is always refused.
+
+```sh
+cd packages/octroi && npx vitest run test/redteam/verify-rt-o-02-payload-fuzz.test.ts
+```

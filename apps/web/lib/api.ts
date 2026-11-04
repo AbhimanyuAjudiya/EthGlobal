@@ -21,7 +21,6 @@ import {
   sponsorViewSchema,
   type AgentPolicyPut,
   type ChallengeWire,
-  type PersonhoodProof,
 } from '@ethglobal/protocol/schemas';
 
 import { config } from './env';
@@ -123,13 +122,6 @@ export const api = {
         schema: rpContextSchema,
       })
     ).data,
-  /** MODE=local only: the API's simulated IDKit result (never built in the browser). */
-  simulatedProof: async (
-    signal: Hex,
-    level: 'orb' | 'document' | 'device',
-    seed: string,
-  ): Promise<PersonhoodProof> =>
-    (await call<PersonhoodProof>('/__local/world-proof', { body: { signal, level, seed } })).data,
   claim: (body: {
     proof: unknown;
     campaignId: Hex;

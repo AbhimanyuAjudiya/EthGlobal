@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { example } from './helpers.js';
 import { ADAPTER_CODE_MAP } from '../src/errors.js';
 import {
   CHALLENGE_TTL_S,
@@ -17,7 +18,6 @@ import {
   hederaExactPayloadSchema,
   paymentPayloadSchema,
 } from '../src/schemas/index.js';
-import { example } from './helpers.js';
 
 const TX_B64 = Buffer.from('partially-signed-hts-transfer').toString('base64');
 

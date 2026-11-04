@@ -48,9 +48,10 @@ describe('verify RT-O-01: a ledger-read hk: index is never a capability (API)', 
       404, 404, 404, 404,
     ]);
     const bodies = await Promise.all(
-      [unknown, degraded, expired, expiredCap].map(
-        async (r) => ({ ...((await r.json()) as object), requestId: undefined }),
-      ),
+      [unknown, degraded, expired, expiredCap].map(async (r) => ({
+        ...((await r.json()) as object),
+        requestId: undefined,
+      })),
     );
     for (const b of bodies) expect(b).toEqual(bodies[0]);
   });

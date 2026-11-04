@@ -1,7 +1,8 @@
 /**
  * decide(): request → serve-free | serve-paid | payment-required | deny (INTERFACES §5; brief §4.4).
  * The order is the specification: everything that can fail cheaply fails before a verification is burned
- * (T-24). Nothing is persisted here except the consumed-nonce entity; reseller, chain and HCS are the API's.
+ * (T-24). The only writes here are replay guards: the consumed-nonce entity, the free lane's claim locks
+ * (reserve) and the paid lane's settlement marker (servedOnce); reseller, chain and HCS are the API's.
  */
 import type { Ledger, PaymentRail, Personhood, PersonhoodResult } from '@ethglobal/adapters';
 import { utf8 } from '@ethglobal/crypto';
@@ -353,7 +354,10 @@ function freeInputInvalid(c: Campaign, counters: CampaignCounters, now: number):
     campaignToPayload(c);
     assertCampaignLifetime(c.expiresAt, now);
   } catch (error) {
-    return deny('invalid-request', error instanceof CampaignTooLongError ? error.message : 'campaign');
+    return deny(
+      'invalid-request',
+      error instanceof CampaignTooLongError ? error.message : 'campaign',
+    );
   }
   const ok =
     typeof counters.paused === 'boolean' &&

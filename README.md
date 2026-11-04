@@ -74,6 +74,9 @@ secrets. Measured on the build machine: **all steps passed in 23.4 s**.
 | `pnpm dev:chain` · `pnpm dev`               | Anvil + deploy on :8545 · the web and API dev servers                                        |
 | `pnpm schema:gen` · `pnpm schema:check`     | `docs/arkiv.schema.json` from the protocol schemas                                           |
 
+`pnpm lint` runs type-aware ESLint over every workspace project; with Node's default heap it aborts out of memory, so
+run it as `NODE_OPTIONS=--max-old-space-size=8192 pnpm lint` (security/AUDIT.md, AUD-01).
+
 `MODE=live` is configuration, not code. Copy `.env.example` to `.env` and fill in the live block: `MODE=live`,
 `CHAIN=296`, `RPC_URL`, `OCTROI_SECRET`, `SERVER_SEAL_KEY`, `ATTESTOR_PRIVATE_KEY`, `RELAYER_PRIVATE_KEY`,
 `PAYOUT_ADDRESS`, `PAYOUT_HEDERA_ACCOUNT`, `TREASURY_*`, `X402_FACILITATOR=remote`, `X402_FACILITATOR_URL_*`,

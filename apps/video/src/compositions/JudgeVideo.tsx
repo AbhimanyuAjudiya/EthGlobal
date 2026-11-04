@@ -294,7 +294,7 @@ export function JudgeVideo(p: JudgeProps) {
         sources={f}
         from={900}
         to={1200}
-        picture="API log: POST developer.worldcoin.org/api/v2/verify/<app_id> action=recharge-welcome nullifier=<hashed> level=orb"
+        picture="API log: POST developer.worldcoin.org/api/v4/verify/<app_id> action=recharge-welcome nullifier=<hashed> level=orb"
       />
       <At from={1200} to={1500} name="TierTable">
         <Pane {...EVIDENCE}>

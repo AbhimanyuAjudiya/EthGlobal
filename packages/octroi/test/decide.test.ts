@@ -551,7 +551,13 @@ describe('decide — paid lane', () => {
     await paid(d);
     const all = await d.ledger.query({});
     // free: nonce + live locks (today, tomorrow: A-44) + campaign record; paid: settlement marker. Never an entitlement.
-    expect(all.map((e) => e.annotations.type)).toEqual(['nonce', 'claim', 'claim', 'claim', 'claim']);
+    expect(all.map((e) => e.annotations.type)).toEqual([
+      'nonce',
+      'claim',
+      'claim',
+      'claim',
+      'claim',
+    ]);
     expect(all.map((e) => (JSON.parse(e.payload) as { scope: string }).scope).slice(1)).toEqual([
       'free-live',
       'free-live',

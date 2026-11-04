@@ -53,6 +53,8 @@ jobs:
       - name: Build (tsc per package, next build, forge build)
         run: pnpm -r run build
       - run: pnpm lint
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
       - run: pnpm typecheck
       - name: vitest (every package except contracts; open _RTFINDING attack tests excluded)
         run: pnpm -r --filter '!@ethglobal/contracts' --if-present run test -t "$RTFINDING_FILTER"

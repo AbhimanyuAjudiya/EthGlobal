@@ -70,9 +70,7 @@ export class MeCache {
 
   /** Write-through invalidation from fulfil, top-ups (capability) and webhooks (the ledger index). */
   invalidate(keyOrIndex: string): void {
-    const slot = isIndex(keyOrIndex)
-      ? this.#slotsByIndex.get(keyOrIndex)
-      : this.#slot(keyOrIndex);
+    const slot = isIndex(keyOrIndex) ? this.#slotsByIndex.get(keyOrIndex) : this.#slot(keyOrIndex);
     if (slot !== undefined) this.#entries.delete(slot);
   }
 

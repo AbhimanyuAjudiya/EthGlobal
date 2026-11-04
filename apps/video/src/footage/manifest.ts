@@ -142,7 +142,7 @@ export const FOOTAGE = {
     file: 'judge-verify-log.mp4',
     video: 'judge',
     kind: 'SC',
-    what: 'API log line POST …/api/v2/verify/<app_id> action=recharge-welcome',
+    what: 'API log line POST …/api/v4/verify/<app_id> action=recharge-welcome',
   },
   claimHashscan: {
     file: 'judge-claim-hashscan.mp4',

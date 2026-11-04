@@ -9,6 +9,11 @@
  * App layer (apps/web): layout and the few app-only pieces. Tokens only; one radius per family
  * (controls --radius-control, objects/sheets --radius-object); motion = transform/opacity at token durations.
  */
+:root {
+  /* the tab bar's height: sticky bars and docks above it offset by this */
+  --tab-h: 3.5rem;
+}
+
 body {
   background: var(--bg-canvas);
   color: var(--text-primary);
@@ -33,8 +38,12 @@ a {
   width: 100%;
   max-width: 34rem;
   margin: 0 auto;
-  padding: 0 1rem calc(5.5rem + env(safe-area-inset-bottom));
+  padding: 0 1rem calc(1.5rem + env(safe-area-inset-bottom));
   min-height: 100dvh;
+}
+/* With the TabBar the frame ends in the bar itself (sticky, in flow): nothing ever sits under it. */
+.screen:has(> .tab-bar) {
+  padding-bottom: 0;
 }
 .screen--wide {
   max-width: 72rem;
@@ -61,6 +70,9 @@ a {
   gap: 0.5rem;
 }
 .wordmark {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
   font-family: var(--font-display);
   font-size: var(--text-20);
   font-weight: 700;
@@ -85,11 +97,21 @@ a {
   font-size: var(--text-14);
   cursor: pointer;
 }
+/* The switch's Devanagari labels use the system face, so an English page never downloads a Devanagari file. */
+.lang-switch button[lang='hi'],
+.lang-switch button[lang='mr'] {
+  font-family: system-ui, 'Noto Sans Devanagari', 'Kohinoor Devanagari', sans-serif;
+}
 .lang-switch button[aria-pressed='true'] {
   background: var(--bg-sunken);
   color: var(--text-primary);
 }
 
+/* Devanagari never sits in the mono face (RT-W-08): these mono lines switch to the text face in hi/mr. */
+:where(:lang(hi), :lang(mr))
+  :is(.testnet-strip, .onchain-action__tag, .resolve-line, .demo-wallet) {
+  font-family: var(--font-text);
+}
 .testnet-strip {
   margin: 0 -1rem;
   padding: 0.25rem 1rem;
@@ -105,8 +127,9 @@ a {
 }
 
 .tab-bar {
-  position: fixed;
-  inset: auto 0 0 0;
+  position: sticky;
+  bottom: 0;
+  margin: auto -1rem 0;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   padding-bottom: env(safe-area-inset-bottom);
@@ -118,7 +141,7 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 3.5rem;
+  min-height: var(--tab-h);
   font-size: var(--text-14);
   color: var(--text-secondary);
   text-decoration: none;
@@ -225,10 +248,16 @@ a {
   color: var(--text-secondary);
   max-width: 34ch;
 }
+/* Stacked full-width at phone width (no two-line CTA at 360 px), side by side from 560 px. */
 .paths {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 0.5rem;
+}
+@media (min-width: 560px) {
+  .paths {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 .paths .ui-button {
   text-decoration: none;
@@ -250,9 +279,22 @@ a {
 .quiet-rows a {
   display: inline-flex;
   align-items: center;
+  gap: 0.375rem;
   min-height: 3rem;
   color: var(--text-secondary);
   text-underline-offset: 3px;
+}
+/* a chevron says "this goes somewhere" (RT design review: quiet rows read as body text) */
+.quiet-rows a::after,
+.disclosure summary::after {
+  content: '';
+  flex: none;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--duration-state) var(--ease-standard);
 }
 @media (min-width: 900px) {
   .landing__grid {
@@ -290,6 +332,19 @@ a {
 .sheet__lede {
   margin: 0;
   font-size: var(--text-16);
+}
+/* /verify: the sentence is the dominant element; the title is its label (RT design review #8) */
+.sheet__kicker {
+  margin: 0;
+  font-size: var(--text-14);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.sheet__lede--dominant {
+  font-family: var(--font-display);
+  font-size: var(--text-24);
+  font-weight: 600;
+  line-height: var(--leading-display);
 }
 .sheet__actions,
 .row-actions {
@@ -341,6 +396,39 @@ a {
   margin: 2rem 0 0;
   font-size: var(--text-16);
 }
+/* The screen's one primary action, docked above the tab bar while the page scrolls (RT design review #1). */
+.action-dock {
+  position: sticky;
+  bottom: calc(var(--tab-h) + env(safe-area-inset-bottom));
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0 -1rem;
+  padding: 0.5rem 1rem;
+  background: var(--bg-canvas);
+}
+.action-dock .ui-button {
+  text-decoration: none;
+}
+.screen:has(> .tab-bar) .onchain-action[data-state='idle'] .onchain-action__actions {
+  position: sticky;
+  bottom: calc(var(--tab-h) + env(safe-area-inset-bottom));
+  z-index: 4;
+  margin: 0 -0.5rem;
+  padding: 0.5rem;
+  background: var(--bg-surface);
+}
+.foreign-plan,
+.offline-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-start;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
 
 .issuing-rows {
   list-style: none;
@@ -372,29 +460,51 @@ a {
   min-height: 2.75rem;
   display: flex;
   align-items: center;
+  gap: 0.5rem;
   cursor: pointer;
   color: var(--text-secondary);
+  list-style: none;
+}
+.disclosure summary::-webkit-details-marker {
+  display: none;
+}
+.disclosure summary::after {
+  transform: rotate(45deg);
+}
+.disclosure[open] summary::after {
+  transform: rotate(-135deg);
 }
 .disclosure p {
   margin: 0.25rem 0;
 }
 
 /* ── Install ─────────────────────────────────────────────────────────────── */
+.install__title {
+  margin: 0.5rem 0 0;
+  font-size: var(--text-16);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+/* The hero: the OS's own words at display size (design-references §1d, RT design review #8). */
 .status-pill {
   align-self: flex-start;
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
   margin: 0;
-  padding: 0.375rem 0.875rem;
-  border: 1px solid var(--border-subtle);
+  padding: 0.5rem 1.125rem;
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-control);
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: var(--text-32);
+  font-variation-settings: 'wdth' 110;
+  font-weight: 700;
+  line-height: var(--leading-display);
   color: var(--text-tertiary);
 }
 .status-pill__dot {
-  width: 6px;
-  height: 6px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: var(--text-disabled);
   transform: scale(0.6);
@@ -484,19 +594,41 @@ a {
 .segmented button {
   min-height: 3rem;
   padding: 0 0.875rem;
-  border: 1px solid var(--border-input);
-  border-radius: var(--radius-control);
-  background: var(--bg-surface);
-  color: var(--text-primary);
   font: inherit;
   font-size: var(--text-14);
   font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-control);
   cursor: pointer;
 }
 .segmented button[aria-checked='true'] {
   border-color: var(--text-primary);
   background: var(--bg-sunken);
   font-weight: 600;
+}
+/* Equal segments in one row: no chip ever wraps alone (RT design review #7). */
+.segmented--even {
+  display: grid;
+  grid-template-columns: repeat(var(--segments, 3), minmax(0, 1fr));
+}
+.segmented--even button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem 0.375rem;
+  line-height: 1.2;
+}
+.segmented__sub {
+  font-size: var(--text-13);
+  color: var(--text-secondary);
+}
+.segmented__legend {
+  margin: 0 0 -0.5rem;
+  font-size: var(--text-13);
+  color: var(--text-secondary);
 }
 .segmented button:disabled {
   color: var(--text-disabled);
@@ -561,7 +693,7 @@ a {
 .resolve-line {
   margin: 0;
   min-height: 1.5rem;
-  font-family: var(--font-mono);
+  font-family: var(--font-text);
   font-size: var(--text-14);
   color: var(--text-secondary);
 }
@@ -620,19 +752,32 @@ a {
   display: grid;
   grid-template-columns: 1fr;
 }
+/* One row at phone width (it scrolls inside itself, the page never does); a column rail from 900 px. */
 .console__rail {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0 1rem;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 0;
   align-items: center;
   padding: 0 1rem;
   border-bottom: 1px solid var(--border-subtle);
   font-size: var(--text-13);
 }
+.console__rail a {
+  flex: none;
+  white-space: nowrap;
+}
+.console__home {
+  margin-right: 0.5rem;
+}
 .console__rail a:not(.wordmark) {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-height: 3rem;
+  min-width: 48px;
+  padding-inline: 0.5rem;
+  box-sizing: border-box;
   color: var(--text-secondary);
   text-decoration: none;
 }
@@ -657,6 +802,7 @@ a {
   }
   .console__rail {
     flex-direction: column;
+    overflow-x: visible;
     align-items: stretch;
     border-bottom: 0;
     border-right: 1px solid var(--border-subtle);
@@ -682,6 +828,13 @@ a {
   font-size: var(--text-14);
   font-weight: 600;
   color: var(--text-secondary);
+}
+/* the two create-campaign steps are rows of the form, not page headings (RT design review #8) */
+.sponsor-step .onchain-action__title {
+  font-family: var(--font-text);
+  font-size: var(--text-16);
+  font-stretch: 100%;
+  font-weight: 600;
 }
 .campaign-form {
   display: flex;
@@ -806,6 +959,15 @@ a {
 .slide-confirm__label {
   font-size: var(--text-14);
 }
+.slide-confirm[data-armed] .slide-confirm__label {
+  color: var(--accent);
+  font-weight: 600;
+}
+.slide-confirm__hint {
+  margin: 0;
+  font-size: var(--text-12);
+  color: var(--text-tertiary);
+}
 .slide-confirm input {
   width: 100%;
   min-height: 3rem;
@@ -840,6 +1002,7 @@ body [lang='mr'] {
 @media print {
   .app-header,
   .tab-bar,
+  .action-dock,
   .testnet-strip,
   .demo-wallet,
   .onchain-action,

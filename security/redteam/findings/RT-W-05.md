@@ -5,14 +5,14 @@ module: apps/web/app/api/demo-wallet/route.ts; scripts/dev-chain.sh (Anvil CORS)
 threat: T-85
 severity: Low
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-wave3-web
 owner: builder-web (route), builder-ops-demo (dev-chain.sh)
 found_at: 2026-11-04T17:25+05:30
 due: 2026-11-05T20:59+05:30
-attack_test: apps/web/test/redteam/rt-console-and-sw.spec.ts::a cross-origin no-cors POST cannot drive /api/demo-wallet_RTFINDING; apps/web/test/redteam/rt-console-and-sw.spec.ts::/api/demo-wallet refuses anvil_/evm_ cheat methods_RTFINDING
-regression_test:
-fix_commit:
+attack_test: apps/web/test/redteam/rt-console-and-sw.spec.ts::a cross-origin no-cors POST cannot drive /api/demo-wallet; apps/web/test/redteam/rt-console-and-sw.spec.ts::/api/demo-wallet refuses anvil_/evm_ cheat methods
+regression_test: apps/web/test/redteam/rt-console-and-sw.spec.ts::a cross-origin no-cors POST cannot drive /api/demo-wallet; apps/web/test/redteam/rt-console-and-sw.spec.ts::/api/demo-wallet refuses anvil_/evm_ cheat methods; apps/web/test/redteam/rt-console-and-sw.spec.ts::demo wallet GET exposes no key material
+fix_commit: (uncommitted: wave-3 web fix pass in the working tree; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -51,3 +51,7 @@ app's own origin) **and** `content-type` is `application/json`; replace the `def
 eth_getTransactionCount, eth_gasPrice, eth_maxPriorityFeePerGas, eth_feeHistory`). In `scripts/dev-chain.sh`: pass
 `--no-cors` (the PWA reaches Anvil through viem `http()`; check the reader still works, else allow only the PWA origin via
 a tiny proxy).
+
+## Builder notes
+
+`app/api/demo-wallet/route.ts`: refuses (403) unless `Sec-Fetch-Site: same-origin` (without that header, `Origin` must equal the app's own origin/host), refuses (415) anything but `application/json`, and the `default:` passthrough is an allow-list of reads (`eth_chainId, eth_blockNumber, eth_getBalance, eth_call, eth_estimateGas, eth_getTransactionReceipt, eth_getTransactionByHash, eth_getBlockByNumber, eth_getTransactionCount, eth_gasPrice, eth_maxPriorityFeePerGas, eth_feeHistory`); anything else is `-32601`. **Not changed:** `scripts/dev-chain.sh --no-cors` (owner builder-ops-demo) — the PWA's local reader still calls Anvil from the browser, so Anvil's `ACAO: *` needs the reader moved behind a same-origin proxy first; handed back to ops.

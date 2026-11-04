@@ -3,21 +3,18 @@
  * Runs the real claim flow against the real local API, captures the sealed box and the opened LPA from the wire,
  * then inspects every browser store, every outgoing request, console and page errors.
  */
-import { expect, test as base, type Page } from '@playwright/test';
-
 import { LOCAL_LPA } from './rt-payloads';
 import { API_URL } from '../../e2e/env';
-import { claimFreeBundle, distinctClient, state, storedValues } from '../../e2e/fixtures';
+import {
+  claimFreeBundle,
+  distinctClient,
+  expect,
+  state,
+  storedValues,
+  test,
+} from '../../e2e/fixtures';
 
-const test = base.extend<{ client: void }>({
-  client: [
-    async ({ context }, use) => {
-      await distinctClient(context);
-      await use();
-    },
-    { auto: true },
-  ],
-});
+import type { Page } from '@playwright/test';
 
 const IOS_17_4 =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1';
@@ -158,9 +155,8 @@ test.describe('W5 storage after a claim (T-60, T-61)', () => {
   });
 
   // Property (T-76): once /me reports the eSIM installed (or active), the opened LPA is deleted from IndexedDB.
-  // FINDING RT-W-01: nothing in apps/web ever deletes `lpa:<key>`; the LPA outlives the install indefinitely.
-  // RT-FINDING
-  test('opened LPA is deleted once /me says installed_RTFINDING', async ({ page }) => {
+  // Regression for RT-W-01 (fixed; was: nothing in apps/web ever deleted `lpa:<key>`, so the LPA outlived the install).
+  test('opened LPA is deleted once /me says installed', async ({ page }) => {
     const key = await claimFreeBundle(page);
     await page.route(`${API_URL}/me/**`, async (route) => {
       const res = await route.fetch();
@@ -178,10 +174,7 @@ test.describe('W5 storage after a claim (T-60, T-61)', () => {
   });
 
   // Property (T-76, THREAT-MODEL §8 "one LPA at a time"): a second plan on the device does not leave the first LPA behind.
-  // RT-FINDING
-  test("a second plan does not keep the first plan's LPA (one LPA at a time)_RTFINDING", async ({
-    page,
-  }) => {
+  test("a second plan does not keep the first plan's LPA (one LPA at a time)", async ({ page }) => {
     await claimFreeBundle(page);
     const card = state().cards.at(-1);
     test.skip(!card, 'no seeded card');
@@ -197,6 +190,16 @@ test.describe('W5 storage after a claim (T-60, T-61)', () => {
   });
 });
 
+/** /install renders no install link, and no href on the page matches `forbidden`. */
+async function expectNoInstallLink(page: Page, forbidden: RegExp) {
+  await page.waitForLoadState('networkidle');
+  await expect(page.getByTestId('ios-universal-link')).toHaveCount(0);
+  const hrefs = await page
+    .locator('a[href]')
+    .evaluateAll((as) => as.map((a) => a.getAttribute('href') ?? ''));
+  expect(hrefs.filter((h) => forbidden.test(h))).toEqual([]);
+}
+
 test.describe('W6 /install accepts nothing from the URL (T-62)', () => {
   test.use({ userAgent: IOS_17_4 });
   // Property: no link is ever built from a URL parameter or fragment; with no stored LPA nothing actionable renders.
@@ -208,12 +211,7 @@ test.describe('W6 /install accepts nothing from the URL (T-62)', () => {
   ]) {
     test(`/install${q.slice(0, 18)}… renders no link`, async ({ page }) => {
       await page.goto(`/install${q}`);
-      await page.waitForLoadState('networkidle');
-      await expect(page.getByTestId('ios-universal-link')).toHaveCount(0);
-      const hrefs = await page
-        .locator('a[href]')
-        .evaluateAll((as) => as.map((a) => a.getAttribute('href') ?? ''));
-      expect(hrefs.filter((h) => /esimsetup|attacker|EVIL|carddata|LPA/i.test(h))).toEqual([]);
+      await expectNoInstallLink(page, /esimsetup|attacker|EVIL|carddata|LPA/i);
     });
   }
 
@@ -245,12 +243,7 @@ test.describe('W6 /install accepts nothing from the URL (T-62)', () => {
         });
       }, bad);
       await page.goto('/install');
-      await page.waitForLoadState('networkidle');
-      await expect(page.getByTestId('ios-universal-link')).toHaveCount(0);
-      const hrefs = await page
-        .locator('a[href]')
-        .evaluateAll((as) => as.map((a) => a.getAttribute('href') ?? ''));
-      expect(hrefs.filter((h) => /esimsetup|javascript:|evil/i.test(h))).toEqual([]);
+      await expectNoInstallLink(page, /esimsetup|javascript:|evil/i);
     });
   }
 });
@@ -261,6 +254,9 @@ test.describe('Android intent link is a constant (no LPA string reaches an inten
   test('intent href is constant and carries no LPA', async ({ page }) => {
     await claimFreeBundle(page);
     await page.goto('/install');
+    // the steps render once this device's LPA is read from IndexedDB (async): wait for the screen, not a race
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByTestId('copy-activation-code')).toBeVisible();
     const intents = await page
       .locator('a[href^="intent:"]')
       .evaluateAll((as) => as.map((a) => a.getAttribute('href')));
@@ -273,11 +269,8 @@ test.describe('Android intent link is a constant (no LPA string reaches an inten
 test.describe('The plan pointer cannot be moved by a link (capability hygiene, T-73)', () => {
   test.use({ userAgent: IOS_17_4 });
   // Property: visiting a crafted /plan/<other key> link does not silently re-point this device's "current plan"
-  // (which /install, /agent and the Add-data tab act on). FINDING RT-W-03.
-  // RT-FINDING
-  test('a crafted /plan/<garbage> link does not hijack /install and the tabs_RTFINDING', async ({
-    page,
-  }) => {
+  // (which /install, /agent and the Add-data tab act on). Regression for RT-W-03 (fixed: the pointer only names a plan this device holds).
+  test('a crafted /plan/<garbage> link does not hijack /install and the tabs', async ({ page }) => {
     await claimFreeBundle(page);
     await page.goto('/install');
     await expect(page.getByTestId('ios-universal-link')).toBeVisible();

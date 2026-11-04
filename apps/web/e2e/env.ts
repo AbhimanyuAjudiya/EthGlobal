@@ -11,7 +11,8 @@ export const PRINT_TOKEN = process.env.PRINT_TOKEN ?? 'local-e2e-print-token-000
 export const PRINT_CARDS_FILE =
   process.env.PRINT_CARDS_FILE ?? path.join(repoRoot, '.e2e', 'web-print-cards.json');
 /** Cards (serial, pin) and the campaign the global setup created, for the card and print specs. */
-export const STATE_FILE = path.join(repoRoot, '.e2e', 'web-e2e-state.json');
+export const STATE_FILE =
+  process.env.E2E_STATE_FILE ?? path.join(repoRoot, '.e2e', 'web-e2e-state.json');
 /** The public Anvil test mnemonic (the demo wallet's server-side source). */
 export const ANVIL_MNEMONIC =
   process.env.DEMO_WALLET_MNEMONIC ?? 'test test test test test test test test test test test junk';

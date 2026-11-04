@@ -65,8 +65,21 @@ describe('i18n', () => {
   });
 
   it('fills placeholders as text', () => {
-    expect(t('landing.left', { left: '1,214', max: '2,000', sponsor: 'Hedera' })).toBe(
-      '1,214 of 2,000 sponsor bundles left · Hedera',
+    expect(t('landing.left', { left: '1,214', max: '2,000' })).toBe(
+      '1,214 of 2,000 sponsor bundles left',
     );
+    expect(t('gift.button', { mb: '1 GB', name: '<b>x</b>.eth', price: '$4.00' })).toBe(
+      'Gift 1 GB to <b>x</b>.eth · $4.00',
+    );
+  });
+
+  it('copy matches the physical card and ships no internal note (RT-W-09)', () => {
+    for (const table of [en, hi, mr]) {
+      expect(Object.keys(table)).not.toContain('install.screenshotNote');
+      for (const value of Object.values(table)) expect(value).not.toMatch(/Mumbai · 7 days/);
+    }
+    expect(t('card.pinHint')).toBe('16 digits under the silver strip');
+    expect(t('card.pinHint', undefined, 'hi')).not.toContain('पीछे');
+    expect(t('card.pinHint', undefined, 'mr')).not.toContain('मागे');
   });
 });

@@ -18,8 +18,17 @@ test.describe('claim: / → /verify → /plan', () => {
     expect(campaign).not.toBeNull();
     const fmt = new Intl.NumberFormat('en-IN');
     await expect(page.locator('#landing-coupon .coupon__status')).toHaveText(
-      `${fmt.format(campaign?.remainingClaims ?? 0)} of ${fmt.format(campaign?.maxClaims ?? 0)} sponsor bundles left · ${campaign?.name}`,
+      `${fmt.format(campaign?.remainingClaims ?? 0)} of ${fmt.format(campaign?.maxClaims ?? 0)} sponsor bundles left`,
     );
+    // the sponsor is named once, on the coupon's line (not again in the count stub, RT design review #2)
+    await expect(page.locator('#landing-coupon .coupon__line').first()).toContainText(
+      `from ${campaign?.name}`,
+    );
+    // the unscratched coupon: latex over a ghost PIN row, "rub here" in both scripts, no second wordmark
+    await expect(page.locator('#landing-coupon .coupon__latex')).toContainText(
+      'rub here · यहाँ रगड़ें',
+    );
+    await expect(page.locator('#landing-coupon .coupon__wordmark')).toHaveCount(0);
     await expect(page.locator('#landing-coupon .coupon__value')).toHaveText('300');
     await expect(page.getByTestId('preflight')).toContainText(/eSIM/);
     // no AddToHomeScreen on launch, never "Connect Wallet" as the only CTA

@@ -235,7 +235,8 @@ export function AgentSheet() {
           </ul>
         )}
       </section>
-      <TabBar active="add" />
+      {/* the agent is its own screen, not the Add-data tab (RT design review: wrong active tab) */}
+      <TabBar />
     </Screen>
   );
 }

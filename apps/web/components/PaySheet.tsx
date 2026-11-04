@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { parseAbi, type Address } from 'viem';
 
 import { keccak256 } from '@ethglobal/crypto';
@@ -17,7 +17,7 @@ import { sessionNonce } from '@ethglobal/protocol/x402';
 import { Button, MbMeter, RuledList } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
-import { AppHeader, Screen, TabBar, WalletButton } from './Shell';
+import { AppHeader, Screen, TabBar, useWalletLabel, WalletButton } from './Shell';
 import { useLang, useNetworkName } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
@@ -107,7 +107,13 @@ function HederaPanel({ req }: { req: PaymentRequirements }) {
  * `/pay?key=` for a key this device does not hold (RT-W-03): say whose plan it is — its size and expiry — and ask
  * before any 402 is fetched. Topping up someone else's plan is legitimate (a gift); doing it silently is not.
  */
-function ForeignPlanGate({ entitlementKey, onConfirm }: { entitlementKey: string; onConfirm: () => void }) {
+function ForeignPlanGate({
+  entitlementKey,
+  onConfirm,
+}: {
+  entitlementKey: string;
+  onConfirm: () => void;
+}) {
   const { t, lang } = useLang();
   const [me, setMe] = useState<MeResponse | null | undefined>();
   useEffect(() => {
@@ -164,6 +170,7 @@ function PaySheetBody({
 }) {
   const { t, lang } = useLang();
   const netName = useNetworkName();
+  const walletLabel = useWalletLabel();
   const router = useRouter();
   const { plans } = usePlans();
   const { wallet, busy, error: walletError, pickInjected } = useWallet('human');
@@ -246,7 +253,7 @@ function PaySheetBody({
   else if (!wallet) blocked = t('pay.noWallet');
   else if (chosen && wallet.network !== chosen.network)
     blocked = t('pay.wrongNetwork', {
-      wallet: wallet.name,
+      wallet: walletLabel(wallet),
       have: netName(wallet.network),
       want: netName(chosen.network),
     });
@@ -329,7 +336,7 @@ function PaySheetBody({
   const review = [
     validRow,
     { label: t('pay.rowFee'), value: t('pay.feeFacilitator') },
-    ...(wallet ? [{ label: t('pay.rowFrom'), value: <span lang="en">{wallet.name}</span> }] : []),
+    ...(wallet ? [{ label: t('pay.rowFrom'), value: walletLabel(wallet) }] : []),
   ];
 
   return (
@@ -356,7 +363,12 @@ function PaySheetBody({
         />
       ) : null}
       {row.state === 'idle' ? (
-        <div className="segmented" role="radiogroup" aria-label={t('pay.size')}>
+        <div
+          className="segmented segmented--even"
+          role="radiogroup"
+          aria-label={t('pay.size')}
+          style={{ '--segments': SIZES.length } as CSSProperties}
+        >
           {SIZES.map((size) => (
             <button
               key={size}
@@ -403,7 +415,7 @@ function PaySheetBody({
         review={review}
         worstCase={t('pay.worst', { mmss: mmss(approvalLeft) })}
         actionLabel={t('pay.button', { price })}
-        walletName={wallet?.name ?? t('pay.yourWallet')}
+        walletName={walletLabel(wallet)}
         simulation={t('pay.simulation', { price, mb: formatMb(mb) })}
         {...(result ? { result } : {})}
         {...(blocked ? { blocked } : {})}

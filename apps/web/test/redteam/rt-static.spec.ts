@@ -13,7 +13,8 @@ import en from '../../i18n/en.json' with { type: 'json' };
 
 const WEB = path.join(import.meta.dirname, '../..');
 const ROOT = path.join(WEB, '../..');
-const STATIC = path.join(WEB, '.next/static');
+// NEXT_DIST_DIR: a verification build beside a served .next (next.config.ts)
+const STATIC = path.join(WEB, process.env.NEXT_DIST_DIR ?? '.next', 'static');
 
 function walk(dir: string, keep: (f: string) => boolean, out: string[] = []): string[] {
   if (!existsSync(dir)) return out;
@@ -91,10 +92,9 @@ test.describe('W10 client bundle (local build on disk)', () => {
   });
 
   // Property (W2.2, T-81): the browser never carries rp_context signing code — idkit-core's signRequest
-  // (signingKeyHex) is not in any client chunk. FINDING RT-W-11: the root '@worldcoin/idkit-core' entry
-  // re-exports ./signing and has no sideEffects flag, so the dynamic import ships the signer.
-  // RT-FINDING
-  test('no rp_context signer code (signRequest / signingKeyHex) in client chunks_RTFINDING', () => {
+  // (signingKeyHex) is not in any client chunk. Regression for RT-W-11 (fixed by a browser alias; was: the root '@worldcoin/idkit-core' entry
+  // re-exports ./signing and has no sideEffects flag, so the dynamic import shipped the signer).
+  test('no rp_context signer code (signRequest / signingKeyHex) in client chunks', () => {
     test.skip(!existsSync(STATIC), 'no build on disk');
     const hits = walk(STATIC, (x) => x.endsWith('.js'))
       .filter((f) => /signingKeyHex|signRequest expects/.test(readFileSync(f, 'utf8')))
@@ -156,9 +156,8 @@ test.describe('T-64 the print route is linked from nowhere', () => {
 
 test.describe('copy hygiene (design-foundations §7, design-references §6)', () => {
   // Property: no internal build note reaches a traveller ("from memory", "checked … on Wednesday", "Local mode"
-  // outside the local-only keys). FINDING RT-W-09 (install.screenshotNote).
-  // RT-FINDING
-  test('no internal dev note in shipped UI strings_RTFINDING', () => {
+  // outside the local-only keys). Regression for RT-W-09 (fixed: install.screenshotNote deleted).
+  test('no internal dev note in shipped UI strings', () => {
     const LOCAL_ONLY = new Set([
       'verify.simulated',
       'verify.simulatedNote',
@@ -173,14 +172,12 @@ test.describe('copy hygiene (design-foundations §7, design-references §6)', ()
   });
 
   // Property: hint copy matches the physical card (design-references §3: the PIN is on the FRONT, under the latex).
-  // RT-FINDING
-  test('PIN hint does not send people to the back of the card_RTFINDING', () => {
+  test('PIN hint does not send people to the back of the card', () => {
     expect((en as Record<string, string>)['card.pinHint']).not.toMatch(/back of the card/i);
   });
 
   // Property: no hard-coded English sentence in a component that renders on a translated screen.
-  // RT-FINDING
-  test('no hard-coded English copy in consumer components_RTFINDING', () => {
+  test('no hard-coded English copy in consumer components', () => {
     const hits: string[] = [];
     for (const f of [
       'components/PlanView.tsx',

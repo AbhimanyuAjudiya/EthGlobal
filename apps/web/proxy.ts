@@ -3,10 +3,11 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { contentSecurityPolicy, newNonce } from './lib/csp';
 
 /**
- * Two jobs, on every route except Next's hashed static files:
+ * Three jobs, on every route except Next's hashed static files:
  * 1. A fresh CSP nonce per request (RT-W-02, lib/csp.ts). The policy goes on the request, where Next reads the
  *    nonce while rendering, and on the response.
- * 2. /print/cards is not public (T-64): without `?token=` equal to PRINT_TOKEN it answers a bare 404, before any
+ * 2. /install drops any query string (T-62), by redirect.
+ * 3. /print/cards is not public (T-64): without `?token=` equal to PRINT_TOKEN it answers a bare 404, before any
  *    render, so the route's existence and the cards' serials never leak. Constant-length compare.
  */
 function same(a: string, b: string): boolean {
@@ -41,6 +42,16 @@ export function proxy(request: NextRequest) {
         },
       });
     }
+  }
+  // /install takes no URL parameter (T-62): a link carrying one is sent to the bare route, so nothing from the
+  // query ever reaches the page, its RSC payload or the history entry
+  if (request.nextUrl.pathname === '/install' && request.nextUrl.search) {
+    const clean = request.nextUrl.clone();
+    clean.search = '';
+    return NextResponse.redirect(clean, {
+      status: 308,
+      headers: { 'content-security-policy': csp },
+    });
   }
   const headers = new Headers(request.headers);
   headers.set('content-security-policy', csp);

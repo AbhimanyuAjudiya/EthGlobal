@@ -5,14 +5,14 @@ module: apps/web/app/ui/**
 threat: T-64
 severity: Low
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-wave3-web
 owner: builder-web
 found_at: 2026-11-04T17:25+05:30
 due: 2026-11-05T20:59+05:30
-attack_test: security/redteam/wave3-web/run.sh::live_ui_tooling_routes_RTFINDING
-regression_test:
-fix_commit:
+attack_test: security/redteam/wave3-web/run.sh::live_ui_tooling_routes
+regression_test: 'security/redteam/wave3-web/run.sh::live: /ui tooling routes are not served (RT-W-10 fixed); apps/web/test/ui-fixtures.test.ts::every gallery PIN is 16 digits and void on purpose'
+fix_commit: (uncommitted: wave-3 web fix pass in the working tree; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -40,3 +40,7 @@ The real PINs are safe (T-64's token holds — 17 bypass variants incl. the CVE-
 Gate `app/ui/layout.tsx` with `if (process.env.NEXT_PUBLIC_MODE !== 'local') notFound()` (or exclude `app/ui` from the
 live build); give the gallery fixtures an obviously void PIN (`0000 0000 0000 000x` fails Verhoeff on purpose) and a
 "SPECIMEN" overprint.
+
+## Builder notes
+
+`app/ui/layout.tsx` calls `notFound()` unless `NEXT_PUBLIC_MODE === 'local'`: the live build answers 404 for `/ui`, `/ui/print`, `/ui/print?count=20`, `/ui/tokens`. The gallery's fixture PINs are now one digit off a valid Verhoeff check digit, so a printout fails the on-device check on purpose.

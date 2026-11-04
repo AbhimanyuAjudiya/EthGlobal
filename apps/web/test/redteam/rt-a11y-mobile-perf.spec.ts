@@ -85,9 +85,8 @@ test.describe('accessibility in both themes incl. error states', () => {
   });
 
   // Property (web.md §8: 48 px targets; WCAG 2.5.5 floor 44 px): every visible control is ≥ 44 × 44 CSS px.
-  // FINDING RT-W-07 lists the offenders.
-  // RT-FINDING
-  test('touch targets ≥ 44 px on every consumer route_RTFINDING', async ({ page }) => {
+  // Regression for RT-W-07 (fixed: 48 px wordmark, 44 px Hash copy/explorer boxes, 48 px sponsor rail links).
+  test('touch targets ≥ 44 px on every consumer route', async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 780 });
     const small: string[] = [];
     for (const route of await routesWithPlan(page)) {
@@ -163,57 +162,55 @@ test.describe('i18n: Hindi / Marathi rendering', () => {
     );
   }
 
+  type Audit = Awaited<ReturnType<typeof audit>>;
+
+  /** Switch to `lang` with the header's own control, then audit every route; returns the de-duplicated issues. */
+  async function walkIn(
+    page: Page,
+    lang: 'hi' | 'mr',
+    routes: readonly string[],
+    collect: (route: string, a: Audit) => string[],
+  ): Promise<string[]> {
+    await page.goto('/');
+    await page.getByRole('button', { name: lang === 'hi' ? 'हिं' : 'मरा' }).click();
+    const issues: string[] = [];
+    for (const route of routes) {
+      await settle(page, route);
+      issues.push(...collect(route, await audit(page, lang)));
+    }
+    return [...new Set(issues)];
+  }
+
   for (const lang of ['hi', 'mr'] as const) {
     // Property: no raw key id ("plan.install") ever renders; numerals stay Latin in hi/mr.
     test(`${lang}: no raw key ids, Latin numerals`, async ({ page }) => {
-      const routes = await routesWithPlan(page);
-      await page.goto('/');
-      await page.getByRole('button', { name: lang === 'hi' ? 'हिं' : 'मरा' }).click();
-      const issues: string[] = [];
-      for (const route of routes) {
-        await settle(page, route);
-        const a = await audit(page, lang);
-        issues.push(
-          ...a.rawIds.map((x) => `${route} raw id ${x}`),
-          ...a.devanagariDigits.map((x) => `${route} Devanagari digits ${x}`),
-        );
-      }
+      const issues = await walkIn(page, lang, await routesWithPlan(page), (route, a) => [
+        ...a.rawIds.map((x) => `${route} raw id ${x}`),
+        ...a.devanagariDigits.map((x) => `${route} Devanagari digits ${x}`),
+      ]);
       expect(issues, issues.join('\n')).toEqual([]);
     });
 
     // Property (web.md §7, design-references §6): every Devanagari string sits under lang="hi"|"mr" so fonts.css
-    // applies leading 1.6 and screen readers switch voice. FINDING RT-W-08: buttons, field labels, review rows,
-    // receipts and the pre-flight line render Devanagari under the page's lang="en".
-    // RT-FINDING
-    test(`${lang}: Devanagari text carries its lang attribute_RTFINDING`, async ({ page }) => {
-      const routes = await routesWithPlan(page);
-      await page.goto('/');
-      await page.getByRole('button', { name: lang === 'hi' ? 'हिं' : 'मरा' }).click();
-      const issues: string[] = [];
-      for (const route of routes) {
-        await settle(page, route);
-        issues.push(
-          ...(await audit(page, lang)).wrongLang.map((x) => `${route.slice(0, 40)} ${x}`),
-        );
-      }
-      expect([...new Set(issues)], [...new Set(issues)].join('\n')).toEqual([]);
+    // applies leading 1.6 and screen readers switch voice. Regression for RT-W-08 (fixed; was: buttons, field labels, review rows,
+    // receipts and the pre-flight line rendered Devanagari under the page's lang="en").
+    test(`${lang}: Devanagari text carries its lang attribute`, async ({ page }) => {
+      const issues = await walkIn(page, lang, await routesWithPlan(page), (route, a) =>
+        a.wrongLang.map((x) => `${route.slice(0, 40)} ${x}`),
+      );
+      expect(issues, issues.join('\n')).toEqual([]);
     });
 
     // Property: a consumer screen in hi/mr carries no untranslated English sentence fragments
-    // ("Expires in", "Claim by", "Mumbai · 7 days", "Network fee", sponsor-console excepted). FINDING RT-W-08.
-    // RT-FINDING
-    test(`${lang}: no untranslated English on consumer screens_RTFINDING`, async ({ page }) => {
+    // ("Expires in", "Claim by", "Mumbai · 7 days", "Network fee", sponsor-console excepted). Regression for RT-W-08 (fixed).
+    test(`${lang}: no untranslated English on consumer screens`, async ({ page }) => {
       const routes = (await routesWithPlan(page)).filter(
         (r) => !r.startsWith('/sponsor') && r !== '/this-route-does-not-exist',
       );
-      await page.goto('/');
-      await page.getByRole('button', { name: lang === 'hi' ? 'हिं' : 'मरा' }).click();
-      const left: string[] = [];
-      for (const route of routes) {
-        await settle(page, route);
-        left.push(...(await audit(page, lang)).english.map((x) => `${route}: ${x}`));
-      }
-      expect([...new Set(left)], [...new Set(left)].join('\n')).toEqual([]);
+      const left = await walkIn(page, lang, routes, (route, a) =>
+        a.english.map((x) => `${route}: ${x}`),
+      );
+      expect(left, left.join('\n')).toEqual([]);
     });
   }
 });

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState, type ReactNode } from 'react';
 
-import { LangSwitch, T } from '../i18n/lang';
+import { LangSwitch, T, useLang } from '../i18n/lang';
 import { plans } from '../lib/store';
 import { DEMO_ROLE_INDEX, type Wallet } from '../lib/wallet';
 
@@ -31,8 +31,8 @@ export function AppHeader({ right }: { right?: ReactNode }) {
   );
 }
 
-/** Four labelled tabs, shown only once a bundle exists on this device. */
-export function TabBar({ active }: { active: 'plan' | 'add' | 'gift' | 'receipts' }) {
+/** Four labelled tabs, shown only once a bundle exists on this device; `active` omitted on a screen none owns. */
+export function TabBar({ active }: { active?: 'plan' | 'add' | 'gift' | 'receipts' }) {
   const [key, setKey] = useState<string | undefined>();
   useEffect(() => {
     void plans.latest().then(setKey);
@@ -84,10 +84,24 @@ export function Screen({
   );
 }
 
+const demoIndex = (wallet: Wallet) =>
+  Number(/#(\d+)/.exec(wallet.name)?.[1] ?? DEMO_ROLE_INDEX.human);
+
+/** The paying account's name in the page language: "डेमो वॉलेट · Anvil #5"; an injected wallet keeps its brand. */
+export function useWalletLabel(): (wallet: Wallet | undefined) => string {
+  const { t } = useLang();
+  return (wallet) =>
+    !wallet
+      ? t('pay.yourWallet')
+      : wallet.kind === 'demo'
+        ? t('demo.banner', { n: demoIndex(wallet) })
+        : wallet.name;
+}
+
 /** MODE=local only: the visible "demo wallet · Anvil #5" banner. Compiled out of live builds. */
 export function DemoWalletPanel({ wallet }: { wallet: Wallet | undefined }) {
   if (process.env.NEXT_PUBLIC_MODE !== 'local' || wallet?.kind !== 'demo') return null;
-  const index = Number(/#(\d+)/.exec(wallet.name)?.[1] ?? DEMO_ROLE_INDEX.human);
+  const index = demoIndex(wallet);
   return (
     <p className="demo-wallet" role="note" data-testid="demo-wallet">
       <T k="demo.banner" params={{ n: index }} />

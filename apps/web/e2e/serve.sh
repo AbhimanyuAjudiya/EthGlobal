@@ -8,10 +8,12 @@ export NEXT_PUBLIC_MODE=local
 export NEXT_PUBLIC_API_URL="${PLAYWRIGHT_API_URL:-http://127.0.0.1:8788}"
 export NEXT_PUBLIC_ANVIL_RPC_URL="${PLAYWRIGHT_RPC_URL:-http://127.0.0.1:8546}"
 export NEXT_TELEMETRY_DISABLED=1
+# NEXT_DIST_DIR (next.config.ts) builds and serves a second copy beside a .next another process is serving
+DIST="${NEXT_DIST_DIR:-.next}"
 STAMP="local|$NEXT_PUBLIC_API_URL|$NEXT_PUBLIC_ANVIL_RPC_URL"
-if [[ ! -f .next/BUILD_ID || "$(cat .next/e2e-stamp 2>/dev/null)" != "$STAMP" || -n "${E2E_REBUILD:-}" ]]; then
+if [[ ! -f "$DIST/BUILD_ID" || "$(cat "$DIST/e2e-stamp" 2>/dev/null)" != "$STAMP" || -n "${E2E_REBUILD:-}" ]]; then
   ./node_modules/.bin/next build
-  echo "$STAMP" > .next/e2e-stamp
+  echo "$STAMP" > "$DIST/e2e-stamp"
 fi
 # the public Anvil test mnemonic, server-side only (app/api/demo-wallet); never NEXT_PUBLIC_ (T-63)
 export DEMO_WALLET_MNEMONIC="${DEMO_WALLET_MNEMONIC:-test test test test test test test test test test test junk}"

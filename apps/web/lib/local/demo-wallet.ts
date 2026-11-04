@@ -27,4 +27,3 @@ export function demoProvider(role: DemoRole): Eip1193 {
     },
   };
 }
-

@@ -6,9 +6,10 @@ import { useEffect, useState } from 'react';
 import type { Hex } from '@ethglobal/protocol/ids';
 import { isValidPin } from '@ethglobal/protocol/pin';
 import type { GiftReclaimResponse } from '@ethglobal/protocol/schemas';
-import { Button, Field, Hash, Receipt } from '@ethglobal/ui/components';
+import { Button, Hash, Receipt } from '@ethglobal/ui/components';
 
 import { sentGifts, type SentGift } from './GiftForm';
+import { PinField } from './PinField';
 import { WalletButton } from './Shell';
 import { useLang } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
@@ -79,18 +80,12 @@ export function ClaimGift({ giftId, name }: { giftId?: string; name?: string }) 
           void run(() => redeemPin(digits, '/gift/claim'));
         }}
       >
-        <Field
+        <PinField
           label={t('gift.claimPin')}
-          hint={t('card.pinHint')}
-          mono
-          inputMode="numeric"
-          autoComplete="off"
-          maxLength={19}
-          placeholder="0000 0000 0000 0000"
           value={pin}
-          onChange={(e) => setPin(e.target.value)}
-          {...(pinError ? { error: pinError } : {})}
-          data-testid="gift-pin"
+          onChange={setPin}
+          error={pinError}
+          testId="gift-pin"
         />
         <Button type="submit" variant="secondary" disabled={working}>
           {t('gift.claimButton')}

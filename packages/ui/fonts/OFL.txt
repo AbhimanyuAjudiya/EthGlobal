@@ -2,8 +2,7 @@ The fonts in this folder are subsets of the upstream families (google/fonts `mai
 and subset with fontTools (`varLib.instancer` + `pyftsubset --layout-features='*' --flavor=woff2`):
 
 - anek-devanagari-latin.woff2              Anek Devanagari, wdth 100–110, wght 400–700, Latin + punctuation + ₹
-- anek-devanagari-devanagari-400.woff2     Anek Devanagari, wdth 100, wght 400, Devanagari (U+0900–097F and companions)
-- anek-devanagari-devanagari-700.woff2     Anek Devanagari, wdth 100, wght 700, Devanagari
+- anek-devanagari-devanagari.woff2         Anek Devanagari, wdth 100, wght 400–700, Devanagari (U+0900–097F and companions)
 - chivo-mono-latin.woff2                   Chivo Mono, wght 400–700, Latin + punctuation + ₹
 - baloo-2-rub.woff2                        Baloo 2, wght 600, only the glyphs of "rub here · यहाँ रगड़ें" / "इथे घासा"
 

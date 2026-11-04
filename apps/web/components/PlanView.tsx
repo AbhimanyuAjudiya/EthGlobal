@@ -12,6 +12,7 @@ import {
   MbMeter,
   Receipt,
   uiStrings,
+  type CouponLang,
 } from '@ethglobal/ui/components';
 
 import { AddToHomeScreen, NotificationAsk } from './AddToHomeScreen';
@@ -22,8 +23,6 @@ import { api, ApiError } from '../lib/api';
 import { clockIst, dayLabel, formatMb, money } from '../lib/format';
 import { useClock, usePlans } from '../lib/hooks';
 import { plans as store, type IssuedFacts } from '../lib/store';
-
-import type { CouponLang } from '@ethglobal/ui/components';
 
 type Load =
   | { kind: 'loading' }

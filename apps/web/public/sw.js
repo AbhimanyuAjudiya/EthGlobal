@@ -1,4 +1,4 @@
-/* global self, caches, fetch, URL, Promise */
+/* global self, caches */
 /*
  * Recharge service worker (web.md §5, T-61): precaches the app shell and serves it when the network is gone. API
  * calls are network-only and NEVER cached — /claim, /esim/*, /card/*, /me/*, /gift/*, /agent/*, /sponsor/* carry

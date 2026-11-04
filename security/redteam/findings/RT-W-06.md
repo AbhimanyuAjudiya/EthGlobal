@@ -5,14 +5,14 @@ module: apps/web/public/sw.js; apps/web/components/routes.tsx (PlanIndex)
 threat: T-61
 severity: Med
 likelihood: H
-status: open
+status: fixed
 found_by: redteam-wave3-web
 owner: builder-web
 found_at: 2026-11-04T17:25+05:30
 due: 2026-11-05T20:59+05:30
-attack_test: apps/web/test/redteam/rt-console-and-sw.spec.ts::offline /plan/<key> renders the snapshot, not an API replay_RTFINDING
-regression_test:
-fix_commit:
+attack_test: apps/web/test/redteam/rt-console-and-sw.spec.ts::offline /plan/<key> renders the snapshot, not an API replay
+regression_test: apps/web/test/redteam/rt-console-and-sw.spec.ts::offline /plan/<key> renders the snapshot, not an API replay; apps/web/test/redteam/rt-console-and-sw.spec.ts::caches hold the shell only after a claim and an install visit
+fix_commit: (uncommitted: wave-3 web fix pass in the working tree; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -44,3 +44,7 @@ key is read client-side via `useParams`), precache one instance (e.g. `/plan/_`)
 `/plan/<anything>` navigation with that cached shell (`caches.match('/plan/_')`) so `PlanRoute` hydrates with the real
 URL and `readPlan` falls back to the snapshot. Add a Playwright spec with `serviceWorkers: 'allow'` + `setOffline(true)`
 asserting "Offline · as of HH:MM" and the MB number.
+
+## Builder notes
+
+`public/sw.js` (cache v2) precaches `/`, `/offline`, `/plan` **and the `/_next/static` scripts, styles and fonts those documents reference** (read from the cached HTML), and answers every `/plan/<anything>` navigation offline with the `/plan` shell — no per-key document is stored. The `/plan` page (`PlanIndex`) reads the key from the address bar after hydration and renders `PlanView` directly, which falls back to the IndexedDB snapshot ("Offline · as of HH:MM" + the MB) or, with no snapshot, an honest offline card. `/offline` gained the app header.

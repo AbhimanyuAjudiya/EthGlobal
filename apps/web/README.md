@@ -20,8 +20,8 @@ octroi or services.
 | `/receipts`                              | per-day three-line receipts                                                          | CSV download                                                                                                                                                                                  |
 | `/sponsor`, `/sponsor/[id]`              | "1,214 claims" beside spend · cap · rate                                             | approve + createCampaign from the sponsor's wallet → `POST /sponsor` → audit key once; tables; slide-to-confirm pause; refund after expiry                                                    |
 | `/print/cards?token=`                    | the print sheet                                                                      | 404 without `PRINT_TOKEN` (`proxy.ts`); PINs only from the server-side `PRINT_CARDS_FILE`; N pages + 1 keyline                                                                                |
-| `/offline`                               | —                                                                                    | service-worker fallback                                                                                                                                                                       |
-| `/ui`, `/ui/print`, `/ui/tokens`         | tooling (noindex)                                                                    | component gallery, print sheet, token sheet                                                                                                                                                   |
+| `/offline`                               | —                                                                                    | service-worker fallback; offline `/plan/<key>` is served the precached `/plan` shell, which renders the IndexedDB snapshot                                                                    |
+| `/ui`, `/ui/print`, `/ui/tokens`         | tooling (noindex)                                                                    | component gallery, print sheet, token sheet — **MODE=local only** (404 in live, RT-W-10); fixture PINs fail Verhoeff on purpose                                                               |
 
 ## Environment
 
@@ -32,11 +32,26 @@ Public (inlined at build time): `NEXT_PUBLIC_MODE` (`local` compiles in the demo
 (the host printed QR codes encode; required outside local). Server-only: `DEMO_WALLET_MNEMONIC` (local only),
 `PRINT_TOKEN` (≥ 16 chars), `PRINT_CARDS_FILE`.
 
+## Security headers and local-only code
+
+- **CSP with per-request nonces** (`proxy.ts` + `lib/csp.ts`, RT-W-02): `script-src 'self' 'nonce-…' 'strict-dynamic'`,
+  no `'unsafe-inline'`. Every document therefore renders per request (`cacheComponents` is off, the root layout is
+  `force-dynamic`). `proxy.ts` also 404s `/print/*` without the token and redirects `/install?…` to bare `/install`.
+- **Fonts** are the bazaar faces only, self-hosted from `packages/ui/fonts` (Latin + Devanagari subsets, `swap`).
+- **Local-only code is compiled out of live builds** (RT-W-12): guard with the literal
+  `process.env.NEXT_PUBLIC_MODE === 'local'` and put the code in `lib/local/*`, imported with `await import()` inside
+  the guard. There is no exported `IS_LOCAL` constant on purpose. `LIVE_BUNDLE_DIR=<live dist> pnpm --filter
+@ethglobal/web test` greps a live build for `/api/demo-wallet`, `__local/world-proof`, `__RECHARGE_TEST__` and the
+  idkit signer (`@worldcoin/idkit-server` is aliased to a throwing stand-in for the browser, RT-W-11).
+- **The plan pointer** (`currentKey`) only names a plan this device claimed, bought or explicitly kept (RT-W-03); the
+  opened LPA is one-at-a-time and deleted once `/me` says `installed`/`active` (RT-W-01).
+
 ## The demo wallet (MODE=local only)
 
 `lib/wallet.ts` `demoProvider(role)` is an EIP-1193 transport to `app/api/demo-wallet` (404 unless
 `NEXT_PUBLIC_MODE=local` and `DEMO_WALLET_MNEMONIC` is set). The route derives Anvil #5 (human), #3 (sponsor) and #9
-(rahul.eth) from the mnemonic on the server, so no key is in the bundle (`test/no-anvil-key-in-bundle.test.ts`).
+(rahul.eth) from the mnemonic on the server, so no key is in the bundle (`test/no-anvil-key-in-bundle.test.ts`). The
+route answers same-origin JSON only and allow-lists read methods (no `anvil_*`/`evm_*`, RT-W-05).
 Every screen shows "demo wallet · Anvil #n". Injected wallets (EIP-6963) use the same code path.
 
 ## Tests
@@ -48,8 +63,13 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000 pnpm --filter @ethglobal/web e2e   # a
 ```
 
 Playwright expects the API on `PLAYWRIGHT_API_URL` (default `:8788`) and Anvil on `PLAYWRIGHT_RPC_URL`/`RPC_URL`
-(`:8546`). `e2e/global-setup.ts` registers a campaign and seeds three cards; `zz-clock.spec.ts` moves the API and
-chain clocks and runs last. Screenshots: `e2e/__screenshots__/<route>-<light|dark>-360.png`.
+(`:8546`). `e2e/global-setup.ts` registers a campaign and seeds three cards (`E2E_STATE_FILE` / `PRINT_CARDS_FILE`
+move its outputs); `zz-clock.spec.ts` moves the API and chain clocks and runs last. Screenshots:
+`e2e/__screenshots__/<name>-<light|dark>-360.png` — every route, `*-hi` (Hindi via `?lang=hi`), `error-*`,
+`sponsor-campaign`, `install-ios` / `install-android`, captured on a phone as tall as the page.
+
+A second build beside a served `.next`: `NEXT_DIST_DIR=.next-fix next build` (and `next start`, `e2e/serve.sh`, the
+red-team static checks all honour it). The API must list that origin in `CORS_ORIGINS`.
 Icons: `pnpm --filter @ethglobal/web icons` (generated, no stock art).
 
 ## `[screenshot Wed]` strings the human team must confirm on real devices

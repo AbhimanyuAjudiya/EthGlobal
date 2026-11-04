@@ -5,8 +5,9 @@ import { useEffect, useState } from 'react';
 
 import { isValidPin } from '@ethglobal/protocol/pin';
 import type { CardPreview } from '@ethglobal/protocol/schemas';
-import { Button, Coupon, Field, ScratchCard } from '@ethglobal/ui/components';
+import { Button, Coupon, ScratchCard } from '@ethglobal/ui/components';
 
+import { PinField } from './PinField';
 import { AppHeader, Screen } from './Shell';
 import { useLang } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
@@ -108,18 +109,12 @@ export function ScratchRedeem({ serial }: { serial?: string }) {
             check();
           }}
         >
-          <Field
+          <PinField
             label={t('card.pin')}
-            hint={t('card.pinHint')}
-            mono
-            inputMode="numeric"
-            autoComplete="off"
-            maxLength={19}
-            placeholder="0000 0000 0000 0000"
             value={pin}
-            onChange={(e) => setPin(e.target.value)}
-            {...(pinError ? { error: pinError } : {})}
-            data-testid="card-pin"
+            onChange={setPin}
+            error={pinError}
+            testId="card-pin"
           />
           <Button type="submit" variant="secondary">
             {t('card.check')}

@@ -5,14 +5,14 @@ module: apps/web/lib/env.ts (IS_LOCAL); apps/web/lib/wallet.ts; apps/web/lib/api
 threat: T-63
 severity: Low
 likelihood: L
-status: open
+status: fixed
 found_by: redteam-wave3-web
 owner: builder-web
 found_at: 2026-11-04T17:25+05:30
 due: 2026-11-05T20:59+05:30
-attack_test: security/redteam/wave3-web/run.sh::live_local_code_not_compiled_out_RTFINDING
-regression_test:
-fix_commit:
+attack_test: security/redteam/wave3-web/run.sh::live_local_code_not_compiled_out
+regression_test: 'security/redteam/wave3-web/run.sh::live client chunks: local-only code compiled out; apps/web/test/no-anvil-key-in-bundle.test.ts::live client bundle (LIVE_BUNDLE_DIR) compiles out the demo wallet, the World ID simulator call and the e2e hook'
+fix_commit: (uncommitted: wave-3 web fix pass in the working tree; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -42,3 +42,7 @@ Read `process.env.NEXT_PUBLIC_MODE === 'local'` inline at each guard (Next inlin
 the branch), or move `demoProvider`, `api.simulatedProof` and the test hook into a `lib/local/*` module imported only
 inside `if (process.env.NEXT_PUBLIC_MODE === 'local') {{ await import('./local/…') }}`. Extend
 `test/no-anvil-key-in-bundle.test.ts` to a live build grep for `/api/demo-wallet` and `__local/`.
+
+## Builder notes
+
+No exported `IS_LOCAL` binding any more: every guard is the literal `process.env.NEXT_PUBLIC_MODE === 'local'` (Next inlines the string, the minifier folds the branch), and the local-only code moved to `lib/local/{demo-wallet,world-sim,test-hooks}.ts`, imported only with `await import()` inside such a guard. A `NEXT_PUBLIC_MODE=live` build carries none of `/api/demo-wallet`, `__local/world-proof`, `__RECHARGE_TEST__` in `.next/static` (run.sh part 3: 18/18 ✓; `LIVE_BUNDLE_DIR=… vitest` 2/2).

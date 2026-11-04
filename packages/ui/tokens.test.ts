@@ -72,7 +72,12 @@ describe('fonts.css', () => {
     expect(fontsCss).not.toMatch(/@import/);
     const faces = fontsCss.match(/@font-face\s*\{[^}]*\}/g) ?? [];
     const families = new Set(faces.map((f) => /font-family:\s*'([^']+)'/.exec(f)?.[1]));
-    expect([...families].sort()).toEqual(['Anek Devanagari', 'Baloo 2', 'Bazaar Middot', 'Chivo Mono']);
+    expect([...families].sort()).toEqual([
+      'Anek Devanagari',
+      'Baloo 2',
+      'Bazaar Middot',
+      'Chivo Mono',
+    ]);
     for (const face of faces.filter((f) => f.includes("url('./fonts/"))) {
       expect(face).toContain('font-display: swap');
       expect(face).toMatch(/format\('woff2'\)/);
@@ -80,7 +85,7 @@ describe('fonts.css', () => {
       expect(existsSync(path.join(import.meta.dirname, 'fonts', file)), file).toBe(true);
     }
     // Latin and Devanagari are separate files: an English page never downloads the Devanagari ones
-    expect(faces.filter((f) => f.includes('U+0900-097F'))).toHaveLength(2);
+    expect(faces.filter((f) => f.includes('U+0900-097F'))).toHaveLength(1);
     expect(fontsCss).toMatch(/html\s*\{[^}]*font-variant-numeric: tabular-nums/);
   });
 });

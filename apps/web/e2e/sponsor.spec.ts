@@ -33,8 +33,10 @@ test("sponsor: create → approve → createCampaign (two OnchainAction rows, ha
   await expect(page.getByRole('table')).toHaveCount(3);
   const url = page.url();
 
-  // pause via slide-to-confirm → the DataDrop.pause transaction through the same eight-state row
-  await page.getByTestId('slide-to-confirm').fill('100');
+  // pause via slide-to-confirm: a gesture, not a value (RT-W-04) — ten deliberate → presses, then the release
+  const slider = page.getByTestId('slide-to-confirm');
+  await slider.focus();
+  for (let i = 0; i < 10; i += 1) await page.keyboard.press('ArrowRight', { delay: 40 });
   const action = page.locator('.onchain-action').last();
   await expect(action).toHaveAttribute('data-state', 'finalized', { timeout: 30_000 });
   await expect(page.locator('.pill')).toHaveText('Paused');

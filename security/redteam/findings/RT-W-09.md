@@ -5,14 +5,14 @@ module: apps/web/i18n/en.json (install.screenshotNote, card.pinHint); apps/web/c
 threat: n/a (design-foundations §1.10, §7)
 severity: Low
 likelihood: H
-status: open
+status: fixed
 found_by: redteam-wave3-web
 owner: builder-web
 found_at: 2026-11-04T17:25+05:30
 due: 2026-11-05T20:59+05:30
-attack_test: apps/web/test/redteam/rt-static.spec.ts::no internal dev note in shipped UI strings_RTFINDING; apps/web/test/redteam/rt-static.spec.ts::PIN hint does not send people to the back of the card_RTFINDING; apps/web/test/redteam/rt-static.spec.ts::no hard-coded English copy in consumer components_RTFINDING
-regression_test:
-fix_commit:
+attack_test: apps/web/test/redteam/rt-static.spec.ts::no internal dev note in shipped UI strings; apps/web/test/redteam/rt-static.spec.ts::PIN hint does not send people to the back of the card; apps/web/test/redteam/rt-static.spec.ts::no hard-coded English copy in consumer components
+regression_test: apps/web/test/redteam/rt-static.spec.ts::no internal dev note in shipped UI strings; apps/web/test/redteam/rt-static.spec.ts::PIN hint does not send people to the back of the card; apps/web/test/redteam/rt-static.spec.ts::no hard-coded English copy in consumer components; apps/web/test/i18n.test.ts::copy matches the physical card and ships no internal note (RT-W-09)
+fix_commit: (uncommitted: wave-3 web fix pass in the working tree; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -42,3 +42,7 @@ screenshots.
 Delete `install.screenshotNote` (keep the `[screenshot Wed]` list in the README, where it already is); `card.pinHint`
 → "16 digits under the silver strip"; derive the validity line from the campaign (`validityDays` on `/plans` and the card
 preview) and the city from config, or omit it.
+
+## Builder notes
+
+`install.screenshotNote` deleted (the `[screenshot Wed]` list stays in the README). `card.pinHint` → "16 digits under the silver strip" (hi/mr too). No component invents a validity line: `/plans` carries no campaign validity and the card preview none, so the landing and `/card` coupons omit it (the "Claim by" line is real, from `claimBy`); `/print/cards` prints `validity` only when `PRINT_CARDS_FILE` provides it.

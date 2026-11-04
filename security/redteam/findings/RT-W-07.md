@@ -5,14 +5,14 @@ module: apps/web/components/Shell.tsx; packages/ui/components/Hash.tsx; apps/web
 threat: n/a (web.md §8 "48 px targets")
 severity: Low
 likelihood: H
-status: open
+status: fixed
 found_by: redteam-wave3-web
 owner: builder-web
 found_at: 2026-11-04T17:25+05:30
 due: 2026-11-05T20:59+05:30
-attack_test: apps/web/test/redteam/rt-a11y-mobile-perf.spec.ts::touch targets ≥ 44 px on every consumer route_RTFINDING
-regression_test:
-fix_commit:
+attack_test: apps/web/test/redteam/rt-a11y-mobile-perf.spec.ts::touch targets ≥ 44 px on every consumer route
+regression_test: apps/web/test/redteam/rt-a11y-mobile-perf.spec.ts::touch targets ≥ 44 px on every consumer route
+fix_commit: (uncommitted: wave-3 web fix pass in the working tree; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -39,3 +39,7 @@ explorer link. web.md §8 requires 48 px; WCAG 2.5.5 is 44 px.
 `.wordmark { min-height: 48px; display: inline-flex; align-items: center }`; `.hash__copy` keeps its 16 px icon but
 gets a 48 × 48 hit area (`padding` or a `::before` inset of −10 px); the sponsor rail links `min-width: 48px; padding-inline: 8px`.
 Add the 44 px check to `e2e/a11y.spec.ts`.
+
+## Builder notes
+
+`.wordmark` is a 48 px-tall inline-flex; `Hash` copy button is a real 44 × 44 box (negative margins keep the text line tight; the old `::after` hit area did not change the measured box) and the explorer link 44 px tall; the sponsor rail links are ≥ 48 px wide with 8 px padding, on one row at 360 px.

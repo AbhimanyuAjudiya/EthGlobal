@@ -18,6 +18,7 @@ import { AppHeader, Screen, TabBar } from './Shell';
 import { SponsorTable } from './SponsorTable';
 import { useLang } from '../i18n/lang';
 import { planHref } from '../lib/deliver';
+import { useHydrated } from '../lib/hooks';
 import { plans } from '../lib/store';
 
 const param = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
@@ -48,15 +49,13 @@ export function PlanIndex() {
   const router = useRouter();
   const { t, lang } = useLang();
   const [none, setNone] = useState(false);
-  const [shellKey, setShellKey] = useState<string | undefined>();
+  // read after hydration only: the server rendered this shell for /plan, whatever the address bar says
+  const hydrated = useHydrated();
+  const shellKey = hydrated ? keyFromAddressBar() : undefined;
   useEffect(() => {
-    const fromUrl = keyFromAddressBar();
-    if (fromUrl) {
-      setShellKey(fromUrl);
-      return;
-    }
+    if (!hydrated || shellKey) return;
     void plans.latest().then((key) => (key ? router.replace(planHref(key)) : setNone(true)));
-  }, [router]);
+  }, [router, hydrated, shellKey]);
   if (shellKey) return <PlanView key={shellKey} entitlementKey={shellKey} />;
   return (
     <Screen>

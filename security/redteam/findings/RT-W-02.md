@@ -5,14 +5,14 @@ module: apps/web/next.config.ts
 threat: T-58
 severity: Med
 likelihood: L
-status: open
+status: fixed
 found_by: redteam-wave3-web
 owner: builder-web
 found_at: 2026-11-04T17:25+05:30
 due: 2026-11-05T20:59+05:30
-attack_test: apps/web/test/redteam/rt-xss.spec.ts::injected inline handler does not execute (CSP backstop)_RTFINDING
-regression_test:
-fix_commit:
+attack_test: apps/web/test/redteam/rt-xss.spec.ts::injected inline handler does not execute (CSP backstop)
+regression_test: 'apps/web/test/redteam/rt-xss.spec.ts::injected inline handler does not execute (CSP backstop); apps/web/test/redteam/rt-headers.spec.ts::headers: <every route> (CSP on documents, 404s and the print 404)'
+fix_commit: (uncommitted: wave-3 web fix pass in the working tree; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -50,3 +50,7 @@ Pick one and record it in `next.config.ts`:
    experimental SRI); drop `'unsafe-inline'`.
    At minimum add `require-trusted-types-for 'script'` (the app has no HTML sinks — `rt-static` proves it — so it costs
    nothing) so a DOM-XSS sink cannot be introduced silently. Regression: `apps/web/e2e/regression/T-58-xss.spec.ts`.
+
+## Builder notes
+
+Chose **nonces** (the finding's option 1). `proxy.ts` now runs on every route except `/_next/static|image`, makes a 128-bit nonce per request (`lib/csp.ts`) and sets `script-src 'self' 'nonce-…' 'strict-dynamic' 'wasm-unsafe-eval'` on the request (Next stamps the nonce on its inline RSC/bootstrap scripts) and on the response. No `'unsafe-inline'` in `script-src`; `font-src 'self'` (fonts are self-hosted now), and the Google Fonts hosts left `connect-src`/`style-src`. The price: `cacheComponents`/partial prerendering is off and the root layout is `force-dynamic`, so every document renders per request (the pages were client-rendered shells already; the service worker still precaches `/`, `/offline`, `/plan` with their own nonce'd CSP). Hashes were rejected: the inline scripts carry each page's RSC payload and change per build and per dynamic hole. `require-trusted-types-for 'script'` is not set: Turbopack's chunk loader assigns plain strings to `script.src`. Rationale in `lib/csp.ts` and `next.config.ts`.

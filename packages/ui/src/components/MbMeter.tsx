@@ -17,7 +17,7 @@ export interface MbMeterProps {
    */
   fillOnce?: boolean;
   /**
-   * When nothing is used the text twin reads "300 MB · nothing used yet" instead of "300 MB left of 300 MB", so
+   * When nothing is used the text twin reads "Nothing used yet" instead of "300 MB left of 300 MB", so
    * a screen whose hero already says 300 MB does not say it three times (RT design review #8).
    */
   quietWhenFull?: boolean;
@@ -51,7 +51,7 @@ export function MbMeter({
     <div className={cx('mb-meter', className)} data-warning={warning || undefined}>
       <p className="mb-meter__text">
         <span className="mb-meter__left">
-          {quietWhenFull && remaining === total && total > 0 ? s.unused(of) : s.left(left, of)}
+          {quietWhenFull && remaining === total && total > 0 ? s.unused() : s.left(left, of)}
         </span>
         {source ? <span className="mb-meter__source"> · {source}</span> : null}
       </p>

@@ -5,14 +5,14 @@ module: apps/web/components/PlanView.tsx; apps/web/lib/store.ts (plans.latest/se
 threat: T-73
 severity: Med
 likelihood: L
-status: open
+status: fixed
 found_by: redteam-wave3-web
 owner: builder-web
 found_at: 2026-11-04T17:25+05:30
 due: 2026-11-05T20:59+05:30
-attack_test: apps/web/test/redteam/rt-lpa-plumbing.spec.ts::a crafted /plan/<garbage> link does not hijack /install and the tabs_RTFINDING
-regression_test:
-fix_commit:
+attack_test: apps/web/test/redteam/rt-lpa-plumbing.spec.ts::a crafted /plan/<garbage> link does not hijack /install and the tabs
+regression_test: apps/web/test/redteam/rt-lpa-plumbing.spec.ts::a crafted /plan/<garbage> link does not hijack /install and the tabs
+fix_commit: (uncommitted: wave-3 web fix pass in the working tree; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -45,3 +45,7 @@ capability"); here a URL parameter is trusted to rewrite device state. Likelihoo
 - `/pay?key=` and `/receipts?key=` for a key not in `plans.keys()`: show "This plan isn't on this phone — top up
   rahul's plan?" with the plan's MB and expiry before any 402 (gifting a top-up is legitimate, silent is not).
 - Regression: Playwright case "visiting /plan/<foreign key> leaves currentKey and /install unchanged".
+
+## Builder notes
+
+`plans.latest()` only ever returns a key this device holds (a stale or planted `currentKey` is ignored); `setCurrent` refuses a key the device does not hold and `PlanView` calls it only after `/me` answered (online) for an owned key. A foreign `/plan/<key>` renders read-only with "This plan isn't saved on this phone" and an explicit "Keep this plan on this phone" (`plans.adopt`). `/pay?key=<foreign>` shows the plan's size and expiry and asks "Top it up anyway?" before any 402 is fetched (unknown key: "No plan with this key. Nothing will be charged."); `/receipts?key=<foreign>` says so. Claims, purchases and gift/card redeems adopt their plan in `deliver()`.

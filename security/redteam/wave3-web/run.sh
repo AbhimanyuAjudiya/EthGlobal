@@ -13,10 +13,12 @@
 #   security/redteam/wave3-web/run.sh            # everything (reuses a running stack on :8546/:8788/:3000, else starts one)
 #   security/redteam/wave3-web/run.sh --no-live  # skip part 3 (keeps apps/web/.next as the local build)
 #   security/redteam/wave3-web/run.sh --live-only
+#   NEXT_DIST_DIR=.next-fix PLAYWRIGHT_BASE_URL=http://127.0.0.1:3200 PLAYWRIGHT_API_URL=http://127.0.0.1:8808 \
+#     security/redteam/wave3-web/run.sh --no-live   # against a verification build served beside apps/web/.next
 #
-# Part 3 never touches apps/web/.next (other sessions serve it): Next has no distDir override, so the live build is made
-# in a git-ignored copy at tmp/rt-web-live (same depth as apps/web, node_modules symlinked, so the relative pnpm links
-# and next.config's repo root still resolve).
+# Part 3 never touches apps/web/.next (other sessions serve it): the live build is made in a git-ignored copy at
+# tmp/rt-web-live (same depth as apps/web, node_modules symlinked, so the relative pnpm links and next.config's repo
+# root still resolve). Part 1's static checks read NEXT_DIST_DIR (default .next) like next.config.ts does.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
@@ -79,7 +81,7 @@ if [[ $LIVE -eq 1 ]]; then
   LPORT="${RT_LIVE_PORT:-3100}"
   LW="$ROOT/tmp/rt-web-live"
   rm -rf "$LW"; mkdir -p "$LW"
-  (cd "$WEB" && tar --exclude=./node_modules --exclude=./.next --exclude=./test --exclude=./e2e/__screenshots__ -cf - .) | (cd "$LW" && tar -xf -)
+  (cd "$WEB" && tar --exclude=./node_modules --exclude='./.next*' --exclude=./test --exclude=./e2e/__screenshots__ -cf - .) | (cd "$LW" && tar -xf -)
   ln -s ../../apps/web/node_modules "$LW/node_modules"
   # Tailwind's automatic source scan follows the node_modules symlink out of the copy (turbopack then refuses a loader
   # "outside configured roots"); pin the scan to the app sources in the COPY only — apps/web is never edited.
@@ -105,12 +107,12 @@ if [[ $LIVE -eq 1 ]]; then
       grep -q 'Simulated World ID' "$RT_OUT/live-body.txt" && regress "live: /verify HTML offers the Simulated World ID button" || ok "live: /verify has no Simulated World ID button"
       # tooling routes: the component gallery and a counterfeit-ready print sheet with Verhoeff-valid fixture PINs
       tooling=""; for p in /ui /ui/print /ui/print?count=20 /ui/tokens; do c="$(code "$L$p")"; [[ "$c" == 200 ]] && tooling+="$p "; done
-      [[ -z "$tooling" ]] && ok "live: /ui tooling routes are not served" || finding RT-W-10 live_ui_tooling_routes "live build serves $tooling(200; /ui/print renders 20 Verhoeff-valid PINs on recharge-branded cards)"
+      [[ -z "$tooling" ]] && ok "live: /ui tooling routes are not served (RT-W-10 fixed)" || regress "live build serves $tooling(RT-W-10: app/ui/layout.tsx must 404 outside MODE=local)"
       curl -s -D "$RT_OUT/live-headers.txt" -o /dev/null "$L/"
       grep -qi '^x-powered-by' "$RT_OUT/live-headers.txt" && echo "  (info) live responses carry X-Powered-By: Next.js — poweredByHeader: false is cheap hygiene"
     else regress "live next start did not come up (see $RT_OUT/live-start.log)"; fi
     # bundle grep: client chunks AND server output. Key VALUES, the mnemonic and server secret names are a regression;
-    # the idkit-core signer CODE (signRequest/signingKeyHex) in a client chunk is finding RT-W-11 (W2.2, T-81).
+    # the idkit-core signer CODE (signRequest/signingKeyHex) in a client chunk was RT-W-11 (W2.2, T-81): now a regression.
     keys='ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80|8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba|5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a|test test test test test test test test test test test junk|RP_SIGNING_KEY|WORLD_RP_SIGNING_KEY|OCTROI_SECRET|ESIMACCESS|sk-ant-'
     hits="$(grep -R -l -E "$keys" "$LW/.next/static" "$LW/.next/server" 2>/dev/null | sed "s|$LW/||" | head -5)"
     [[ -z "$hits" ]] && ok "live bundle (.next/static + .next/server): no key, mnemonic, RP key or server-secret name" || regress "live bundle carries a secret: $hits"
@@ -120,9 +122,9 @@ if [[ $LIVE -eq 1 ]]; then
     pt="$(grep -R -l -F "$PRINT_TOKEN" "$LW/.next/static" "$LW/.next/server" 2>/dev/null | head -3)"
     [[ -z "$pt" ]] && ok "live bundle: PRINT_TOKEN value absent" || regress "live bundle carries the PRINT_TOKEN value: $pt"
     signer="$(grep -R -l -E 'signingKeyHex|signRequest expects' "$LW/.next/static" 2>/dev/null | sed "s|$LW/||" | head -3)"
-    [[ -z "$signer" ]] && ok "live client chunks: no rp_context signer code (idkit-core signRequest)" || finding RT-W-11 live_client_rp_signer_code "idkit-core signRequest/signingKeyHex ships in $(echo "$signer" | tr '\n' ' ')"
+    [[ -z "$signer" ]] && ok "live client chunks: no rp_context signer code (idkit-core signRequest; RT-W-11 fixed)" || regress "RT-W-11: idkit-core signRequest/signingKeyHex ships in $(echo "$signer" | tr '\n' ' ')"
     client_local="$(grep -R -l -E '__local/world-proof|/api/demo-wallet|__RECHARGE_TEST__' "$LW/.next/static" 2>/dev/null | sed "s|$LW/||" | head -5)"
-    [[ -z "$client_local" ]] && ok "live client chunks: local-only code compiled out (simulator call, demo-wallet transport, test hook)" || finding RT-W-12 live_local_code_not_compiled_out "runtime-gated only: $(echo "$client_local" | tr '\n' ' ')"
+    [[ -z "$client_local" ]] && ok "live client chunks: local-only code compiled out (simulator call, demo-wallet transport, test hook; RT-W-12 fixed)" || regress "RT-W-12: local-only code in the live client bundle: $(echo "$client_local" | tr '\n' ' ')"
     maps="$(find "$LW/.next/static" -name '*.map' | wc -l)"; [[ "$maps" == 0 ]] && ok "live: no client source maps" || regress "live: $maps client source maps published"
     if bash "$TOOLS/scan.sh" "$LW/.next/static" > "$RT_OUT/live-scan.txt" 2>&1; then ok "forbidden-pattern scan of the live .next/static is clean"; else regress "scan.sh .next/static (see $RT_OUT/live-scan.txt)"; fi
   else regress "live build failed (see $RT_OUT/live-build.log)"; fi

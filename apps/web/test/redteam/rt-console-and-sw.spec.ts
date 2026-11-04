@@ -63,11 +63,8 @@ test.describe('W11 sponsor console', () => {
     ).toHaveCount(0);
   });
 
-  // Property (W11.4): focus + one keystroke (End) is not a slide either. FINDING RT-W-04.
-  // RT-FINDING
-  test('one End keystroke on the focused slider does not pause the campaign_RTFINDING', async ({
-    page,
-  }) => {
+  // Property (W11.4): focus + one keystroke (End) is not a slide either. Regression for RT-W-04 (fixed: a gesture of ≥ 3 moves over ≥ 300 ms, fired on release).
+  test('one End keystroke on the focused slider does not pause the campaign', async ({ page }) => {
     const id = await seedCampaign('RT slide key');
     await page.goto(`/sponsor/${id}`);
     const slider = page.getByTestId('slide-to-confirm');
@@ -131,11 +128,7 @@ test.describe('W5.2 service worker (T-61)', () => {
 
   // Property (web.md §5): offline, /plan/<key> shows the IndexedDB snapshot ("as of HH:MM") — no LPA, no replayed
   // API response — instead of a blank or a different route.
-  // RT-FINDING
-  test('offline /plan/<key> renders the snapshot, not an API replay_RTFINDING', async ({
-    page,
-    context,
-  }) => {
+  test('offline /plan/<key> renders the snapshot, not an API replay', async ({ page, context }) => {
     await distinctClient(context);
     await page.goto('/');
     await page.evaluate(async () => {
@@ -149,7 +142,7 @@ test.describe('W5.2 service worker (T-61)', () => {
     await page.waitForTimeout(2_000);
     const text = await page.locator('body').innerText();
     expect(text).not.toContain('LPA:1$');
-    expect(text, 'offline plan view (blank shell = FINDING RT-W-06)').toMatch(/MB/);
+    expect(text, 'offline plan view (a blank shell was RT-W-06)').toMatch(/MB/);
     await context.setOffline(false);
   });
 });
@@ -240,12 +233,8 @@ test.describe('W9 /print/cards (T-64)', () => {
 
 test.describe('MODE=local demo plumbing (T-63, T-85)', () => {
   // Property: the demo wallet's EIP-1193 route signs only for the PWA itself — a cross-site text/plain POST (any
-  // page the demo laptop opens) must not make Anvil #3 send a transaction. FINDING RT-W-05.
-  // RT-FINDING
-  test('a cross-origin no-cors POST cannot drive /api/demo-wallet_RTFINDING', async ({
-    page,
-    baseURL,
-  }) => {
+  // page the demo laptop opens) must not make Anvil #3 send a transaction. Regression for RT-W-05 (fixed: same-origin + JSON only, method allow-list).
+  test('a cross-origin no-cors POST cannot drive /api/demo-wallet', async ({ page, baseURL }) => {
     const sponsor = mnemonicToAccount(ANVIL_MNEMONIC, { addressIndex: 3 }).address;
     const before = await reader.getTransactionCount({ address: sponsor, blockTag: 'pending' });
     // a real loopback server (a route-fulfilled page counts as "public" for Chromium's local-network checks)
@@ -277,8 +266,7 @@ test.describe('MODE=local demo plumbing (T-63, T-85)', () => {
   });
 
   // Property: the demo wallet is not a general Anvil RPC proxy (anvil_* / evm_* cheat methods are refused).
-  // RT-FINDING
-  test('/api/demo-wallet refuses anvil_/evm_ cheat methods_RTFINDING', async ({ request }) => {
+  test('/api/demo-wallet refuses anvil_/evm_ cheat methods', async ({ request }) => {
     const res = await request.post('/api/demo-wallet', {
       headers: { 'content-type': 'text/plain' },
       data: JSON.stringify({ role: 'human', method: 'anvil_nodeInfo', params: [] }),

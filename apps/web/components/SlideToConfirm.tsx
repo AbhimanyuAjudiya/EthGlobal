@@ -64,7 +64,11 @@ export function SlideToConfirm({
   };
 
   return (
-    <div className="slide-confirm" data-disabled={disabled || undefined} data-armed={armed || undefined}>
+    <div
+      className="slide-confirm"
+      data-disabled={disabled || undefined}
+      data-armed={armed || undefined}
+    >
       <label htmlFor={id} className="slide-confirm__label">
         {armed ? releaseLabel : label}
       </label>

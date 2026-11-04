@@ -5,14 +5,14 @@ module: apps/web/lib/store.ts; apps/web/lib/deliver.ts; apps/web/components/Inst
 threat: T-76
 severity: Med
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-wave3-web
 owner: builder-web
 found_at: 2026-11-04T17:25+05:30
 due: 2026-11-05T20:59+05:30
-attack_test: apps/web/test/redteam/rt-lpa-plumbing.spec.ts::opened LPA is deleted once /me says installed_RTFINDING; apps/web/test/redteam/rt-lpa-plumbing.spec.ts::a second plan does not keep the first plan's LPA (one LPA at a time)_RTFINDING
-regression_test:
-fix_commit:
+attack_test: apps/web/test/redteam/rt-lpa-plumbing.spec.ts::opened LPA is deleted once /me says installed; apps/web/test/redteam/rt-lpa-plumbing.spec.ts::a second plan does not keep the first plan's LPA (one LPA at a time)
+regression_test: 'apps/web/test/redteam/rt-lpa-plumbing.spec.ts::opened LPA is deleted once /me says installed; apps/web/test/redteam/rt-lpa-plumbing.spec.ts::a second plan does not keep the first plan''s LPA (one LPA at a time); apps/web/test/redteam/rt-lpa-plumbing.spec.ts::claim → install: no key material, no sealed box, LPA only in IndexedDB'
+fix_commit: (uncommitted: wave-3 web fix pass in the working tree; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -45,3 +45,7 @@ of secret is not.
 - In `deliver()`, before `saveLpa(key, lpa)`, delete every other `lpa:*` (one LPA at a time, §8).
 - On `device.os === 'other'`, hide the code behind the same explicit "For another phone" tap and warning as the QR.
 - Regression: `apps/web/e2e/regression/T-61-lpa-plumbing.spec.ts` (THREAT-MODEL §5.12) with both cases above.
+
+## Builder notes
+
+`lib/store.ts`: `saveLpa` deletes every other `lpa:*` before it writes (one opened LPA per device, THREAT-MODEL §8), and `forgetLpa` deletes the plan's code. `InstallSteps` and `PlanView` call it as soon as `/me` reports `installed` or `active`; `/install` then reads "Installed · code removed from this device". `deliver()` makes the claimed plan the current one. On a desktop UA (`device.os === 'other'`) `/install` prints no code on load: the code text sits behind the same "For another phone" tap, warning and 60 s auto-hide as the QR.

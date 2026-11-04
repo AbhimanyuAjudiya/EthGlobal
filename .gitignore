@@ -20,6 +20,8 @@ broadcast/**/31337/
 *.key
 # build outputs
 .next/
+# verification builds next to a served one (NEXT_DIST_DIR, apps/web/next.config.ts)
+.next-*/
 dist/
 build/
 coverage/

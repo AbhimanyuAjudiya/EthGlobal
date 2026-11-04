@@ -182,10 +182,9 @@ test.describe('W1 XSS — a hostile API answer', () => {
 
 test.describe('W1.4 CSP as the backstop if an injection ever lands', () => {
   // Property (wave3-web-ops.md W1.4): even with markup injected into the DOM, script does not run.
-  // FINDING RT-W-02: script-src carries 'unsafe-inline' (documented in next.config.ts), so an inline event
-  // handler executes — the CSP is no backstop for the IndexedDB-held LPA (T-76 names CSP as its primary control).
-  // RT-FINDING
-  test('injected inline handler does not execute (CSP backstop)_RTFINDING', async ({ page }) => {
+  // Regression for RT-W-02 (fixed: per-request nonce + 'strict-dynamic', lib/csp.ts; was: 'unsafe-inline', so an inline event
+  // handler executed — the CSP was no backstop for the IndexedDB-held LPA; T-76 names CSP as its primary control).
+  test('injected inline handler does not execute (CSP backstop)', async ({ page }) => {
     await page.goto('/offline');
     await page.evaluate(() => {
       document.body.insertAdjacentHTML('beforeend', '<img src="data:," onerror="window.__xss=1">');

@@ -5,14 +5,14 @@ module: apps/web/components/VerifySheet.tsx (import('@worldcoin/idkit-core'))
 threat: T-81
 severity: Low
 likelihood: H
-status: open
+status: fixed
 found_by: redteam-wave3-web
 owner: builder-web
 found_at: 2026-11-04T17:25+05:30
 due: 2026-11-05T20:59+05:30
-attack_test: apps/web/test/redteam/rt-static.spec.ts::no rp_context signer code (signRequest / signingKeyHex) in client chunks_RTFINDING; security/redteam/wave3-web/run.sh::live_client_rp_signer_code_RTFINDING
-regression_test:
-fix_commit:
+attack_test: apps/web/test/redteam/rt-static.spec.ts::no rp_context signer code (signRequest / signingKeyHex) in client chunks; security/redteam/wave3-web/run.sh::live_client_rp_signer_code
+regression_test: 'apps/web/test/redteam/rt-static.spec.ts::no rp_context signer code (signRequest / signingKeyHex) in client chunks; security/redteam/wave3-web/run.sh::live client chunks: no rp_context signer code; apps/web/test/no-anvil-key-in-bundle.test.ts::live client bundle (LIVE_BUNDLE_DIR) carries no rp_context signer code'
+fix_commit: (uncommitted: wave-3 web fix pass in the working tree; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -42,3 +42,7 @@ Import only what the browser needs (`IDKit`, `documentLegacy`) from a subpath th
 exposes one, or add `experimental.optimizePackageImports: ['@worldcoin/idkit-core']`/a `sideEffects` override so the
 unused export is dropped; re-run the grep. If neither works, the lead may narrow the run-wave 3 pattern to key values and
 accept this as Low with a THREAT-MODEL §8 line.
+
+## Builder notes
+
+idkit-core's root re-exports `signRequest`/`getSessionCommitment` from `@worldcoin/idkit-server`. `next.config.ts` `turbopack.resolveAlias` maps `@worldcoin/idkit-server` to `lib/idkit-server.browser.ts` **for browser targets only** — a server-only boundary: the stand-in throws ("server-only: the rp_context is signed by the API"), server bundles keep the real package, and the `/nullifier` subpath idkit-core needs is untouched. `signingKeyHex` / `signRequest expects` are absent from both the local and the live `.next/static`.

@@ -5,14 +5,14 @@ module: apps/web/components/*.tsx; packages/ui/components (Button, Field, RuledL
 threat: T-70
 severity: Low
 likelihood: H
-status: open
+status: fixed
 found_by: redteam-wave3-web
 owner: builder-web
 found_at: 2026-11-04T17:25+05:30
 due: 2026-11-05T20:59+05:30
-attack_test: 'apps/web/test/redteam/rt-a11y-mobile-perf.spec.ts::hi: Devanagari text carries its lang attribute_RTFINDING; apps/web/test/redteam/rt-a11y-mobile-perf.spec.ts::mr: Devanagari text carries its lang attribute_RTFINDING; apps/web/test/redteam/rt-a11y-mobile-perf.spec.ts::hi: no untranslated English on consumer screens_RTFINDING; apps/web/test/redteam/rt-a11y-mobile-perf.spec.ts::mr: no untranslated English on consumer screens_RTFINDING'
-regression_test:
-fix_commit:
+attack_test: 'apps/web/test/redteam/rt-a11y-mobile-perf.spec.ts::hi: Devanagari text carries its lang attribute; apps/web/test/redteam/rt-a11y-mobile-perf.spec.ts::mr: Devanagari text carries its lang attribute; apps/web/test/redteam/rt-a11y-mobile-perf.spec.ts::hi: no untranslated English on consumer screens; apps/web/test/redteam/rt-a11y-mobile-perf.spec.ts::mr: no untranslated English on consumer screens'
+regression_test: 'apps/web/test/redteam/rt-a11y-mobile-perf.spec.ts::hi: Devanagari text carries its lang attribute; apps/web/test/redteam/rt-a11y-mobile-perf.spec.ts::mr: Devanagari text carries its lang attribute; apps/web/test/redteam/rt-a11y-mobile-perf.spec.ts::hi: no untranslated English on consumer screens; apps/web/test/redteam/rt-a11y-mobile-perf.spec.ts::mr: no untranslated English on consumer screens; apps/web/e2e/visual.spec.ts (landing/plan/pay/card -hi baselines)'
+fix_commit: (uncommitted: wave-3 web fix pass in the working tree; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -50,3 +50,7 @@ Hindi-speaking judge sees a half-translated product.
 'numeric', month: 'short', numberingSystem: 'latn' }})`.
 - Coupon/MbMeter: pass `lang` through for `mr` as well.
 - Never set Devanagari in Chivo Mono: right-column review values that are sentences use the text face.
+
+## Builder notes
+
+`<html lang>` follows the chosen language (`LangProvider`; `?lang=hi|mr` links work), so every Devanagari node — buttons, field labels, review rows, receipts — is under `hi`/`mr`; English-only islands (wordmark, hashes, the sponsor console) carry `lang="en"`. `@ethglobal/ui` components take `lang` with `en`/`hi`/`mr` tables (`strings.ts`: Coupon, MbMeter, UsageAsOf, Receipt, Countdown units, OnchainAction status lines, Hash). New/changed keys: `plan.expiresIn` (sentence order per language), `card.claimBy`, `network.local`, `pay.*` blocked messages, `agent.capAria/capLegend`, `install.done`, `receipts.dayYou`, status-pill words in hi/mr. Day names use `Intl` `hi-IN`/`mr-IN` with Latin numerals. `RuledList` values are prose in the text face (mono only for figures), and the mono lines (TESTNET strip, settling tag, resolve line) switch to the text face under hi/mr: Devanagari is never set in Chivo Mono. The validity line "Mumbai · 7 days" is gone (see RT-W-09).

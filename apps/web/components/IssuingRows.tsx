@@ -40,6 +40,7 @@ export function IssuingRows({ facts }: { facts: IssuingFacts }) {
             kind="transaction hash"
             {...(template ? { explorerHref: template.replace('{hash}', facts.tx) } : {})}
             {...(name ? { explorerName: name } : {})}
+            lang={lang}
           />
         ) : null}
       </li>

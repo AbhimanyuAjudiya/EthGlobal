@@ -7,7 +7,9 @@
  * resolve the real package. The `/nullifier` subpath idkit-core needs is a separate module and is not aliased.
  */
 const serverOnly = (name: string) => (): never => {
-  throw new Error(`${name} is server-only: the rp_context is signed by the API, never in the browser`);
+  throw new Error(
+    `${name} is server-only: the rp_context is signed by the API, never in the browser`,
+  );
 };
 
 export const signRequest = serverOnly('signRequest');

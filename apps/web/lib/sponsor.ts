@@ -18,7 +18,8 @@ const DATADROP = DataDropAbi as Abi;
 const ERC20 = parseAbi(['function approve(address spender, uint256 amount) returns (bool)']);
 
 export function dataDropAddress(): Address {
-  const address = config.dataDropAddress ||
+  const address =
+    config.dataDropAddress ||
     (process.env.NEXT_PUBLIC_MODE === 'local' ? anvilAddresses.dataDrop : '');
   if (!/^0x[0-9a-fA-F]{40}$/.test(address)) throw new Error('DataDrop address is not configured');
   return address as Address;

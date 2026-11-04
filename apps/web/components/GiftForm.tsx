@@ -10,7 +10,7 @@ import { BoardingPass, Button, Field, Hash } from '@ethglobal/ui/components';
 import { ActionView } from './ActionView';
 import { renderQr } from './QrCode';
 import { saveCardPng } from './save-card';
-import { WalletButton } from './Shell';
+import { useWalletLabel, WalletButton } from './Shell';
 import { useLang, useNetworkName } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
@@ -51,6 +51,7 @@ export const sentGifts = {
 export function GiftForm({ onSent }: { onSent?: () => void }) {
   const { t, lang } = useLang();
   const netName = useNetworkName();
+  const walletLabel = useWalletLabel();
   const { plans } = usePlans();
   const { wallet, busy, error: walletError, pickInjected } = useWallet('human');
   const { row, dispatch, now } = useOnchainAction();
@@ -226,7 +227,7 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
           reclaimUntil: dayLabel(reclaimUntil, lang),
         })}
         actionLabel={t('pay.button', { price: moneyUsdc(price) })}
-        walletName={wallet?.name ?? t('pay.yourWallet')}
+        walletName={walletLabel(wallet)}
         result={
           gift ? t('gift.sent', { name: gift.name, claimBy: dayLabel(gift.claimBy, lang) }) : ''
         }

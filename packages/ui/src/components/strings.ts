@@ -14,7 +14,7 @@ export interface UiStrings {
   /** MbMeter's text twin: "212 MB left of 300 MB". */
   left: (left: string, of: string) => string;
   /** MbMeter when nothing is used yet, so the hero's number is not repeated: "Nothing used yet". */
-  unused: (of: string) => string;
+  unused: () => string;
   dataLeft: string;
   receipt: { label: string; you: string; sponsor: string; networkFee: string };
   units: DurationUnits;
@@ -53,7 +53,7 @@ export const uiStrings: Readonly<Record<CouponLang, UiStrings>> = {
     human: "because you're human",
     usageAsOf: (time) => `usage as of ${time}`,
     left: (left, of) => `${left} left of ${of}`,
-    unused: (of) => `${of} · nothing used yet`,
+    unused: () => 'Nothing used yet',
     dataLeft: 'Data left',
     receipt: { label: 'Receipt', you: 'You', sponsor: 'Sponsor', networkFee: 'Network fee' },
     units: { d: 'd', h: 'h', m: 'm', s: 's' },
@@ -92,7 +92,7 @@ export const uiStrings: Readonly<Record<CouponLang, UiStrings>> = {
     human: 'क्योंकि आप इंसान हैं',
     usageAsOf: (time) => `${time} तक का उपयोग`,
     left: (left, of) => `${of} में से ${left} बचे`,
-    unused: (of) => `${of} · अभी कुछ इस्तेमाल नहीं हुआ`,
+    unused: () => 'अभी कुछ इस्तेमाल नहीं हुआ',
     dataLeft: 'बचा डेटा',
     receipt: { label: 'रसीद', you: 'आप', sponsor: 'स्पॉन्सर', networkFee: 'नेटवर्क शुल्क' },
     units: { d: 'दिन', h: 'घंटे', m: 'मिनट', s: 'सेकंड' },
@@ -131,7 +131,7 @@ export const uiStrings: Readonly<Record<CouponLang, UiStrings>> = {
     human: 'कारण तुम्ही माणूस आहात',
     usageAsOf: (time) => `${time} पर्यंतचा वापर`,
     left: (left, of) => `${of} पैकी ${left} शिल्लक`,
-    unused: (of) => `${of} · अजून काहीही वापरले नाही`,
+    unused: () => 'अजून काहीही वापरले नाही',
     dataLeft: 'शिल्लक डेटा',
     receipt: { label: 'पावती', you: 'तुम्ही', sponsor: 'प्रायोजक', networkFee: 'नेटवर्क शुल्क' },
     units: { d: 'दिवस', h: 'तास', m: 'मिनिटे', s: 'सेकंद' },

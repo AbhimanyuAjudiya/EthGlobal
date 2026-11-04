@@ -21,7 +21,7 @@ test.describe('/plan/[key]', () => {
     const expiry = page.getByTestId('plan-expiry').locator('time');
     await expect(expiry).toHaveAttribute('datetime', new Date(me.expiresAt).toISOString());
     await expect(expiry).toHaveText(
-      /^Expires in \d+ d \d+ h · until \w{3} \d{1,2} \w{3} \d{2}:\d{2} IST$/,
+      /^Expires in \d+ d \d+ h · \w{3} \d{1,2} \w{3} \d{2}:\d{2} IST$/,
     );
     await expect(page.locator('.mb-meter__source')).toHaveText(' · simulated usage');
     await expect(page.getByTestId('degraded-banner')).toHaveCount(0);

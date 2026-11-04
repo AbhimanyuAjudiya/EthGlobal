@@ -5,14 +5,14 @@ module: packages/octroi/src/store/entitlement.ts
 threat: T-37
 severity: High
 likelihood: H
-status: fixed
+status: open
 found_by: redteam-octroi
 owner: builder-octroi
 found_at: 2026-11-04T05:40+05:30
 due: 2026-11-04T09:40+05:30
-attack_test: packages/octroi/test/redteam/rt-keys.test.ts::the /me/:key capability of a free entitlement does not appear on the public ledger_RTFINDING
+attack_test: services/api/test/redteam/verify-rt-o-01-variants.test.ts::(d2) a fresh (<60 s) cache entry is never served past the entitlement expiry, ledger down or up_RTFINDING (earlier: packages/octroi/test/redteam/rt-keys.test.ts::the /me/:key capability of a free entitlement does not appear on the public ledger_RTFINDING)
 regression_test: services/api/test/redteam/verify-rt-o-01-index-cache.test.ts::/me/<hk:index> after the owner read /me/<key> ⇒ 404, never the owner’s entitlement [RT-O-01] (+ ::/me/<hk:index> while the ledger is down, and after expiry ⇒ the same 404 as an unknown key [RT-O-01]; services/api/test/unit/primitives.test.ts::keyed by the capability, never the ledger index … [RT-O-01]; services/api/test/me.test.ts::after expiry → the same 404 as unknown …, ::degraded ledger: a cached copy past its entitlement expiry, or one not marked stale-allowed, is never served [RT-O-01]; packages/octroi/test/redteam/rt-keys.test.ts [RT-O-01] cases); earlier regressions (still green): packages/octroi/test/redteam/rt-keys.test.ts::the /me/:key capability of a free entitlement does not appear on the public ledger [RT-O-01] (+ the two other [RT-O-01] cases in that file; packages/octroi/test/regression/redteam-wave1.test.ts::RT-O-01)
-fix_commit: (uncommitted, verification fix pass 2026-11-04; orchestrator commits)
+fix_commit: 041136f (verification fix pass; partial, reopened 2026-11-04 by the closing verification)
 verified_at:
 duplicate_of:
 sign_off:
@@ -100,3 +100,40 @@ reject `hk:` inputs in those methods and keep `invalidate(index)` for webhooks).
 ## Builder notes (verification fix pass)
 
 `MeCache` (services/api/src/cache.ts) is keyed by HMAC(per-process random secret, capability), never by the ledger index; `fresh`/`stale`/`remember`/`seen`/`expired` refuse an `hk:` value (miss / no-op), and `invalidate(index)` (usage webhooks only know the index) resolves through a write-only index → slot map that no read consults. `GET /me/:key` refuses an `INDEX_PREFIX` key before touching the cache, answers expired and unknown with the same 404 `not_found` (no liveness oracle; the PWA's PlanView tells "expired" from its own snapshot), and serves a stale copy while the ledger is down only for an entry remembered with `staleAllowed` (set for `ready`/`installed`/`active`) whose entitlement has not passed `expiresAt`. OpenAPI and INTERFACES §7 updated; A-45. The top-up guard keeps its 410 for a real capability (AP7.13).
+
+## Verification (red team, closing pass)
+
+**2026-11-04 — redteam-verify closing pass (Claude), against `5a272c5` (fix in `041136f`): REOPENED.** The core
+property holds: a ledger-read `hk:` index opens nothing on any route. But the fix's claim "nothing past expiry is
+served" does not hold on the 60-s fresh-cache path. The variants are in
+`services/api/test/redteam/verify-rt-o-01-variants.test.ts`. The builder's regressions are still green:
+`verify-rt-o-01-index-cache` (4/4), `me.test.ts` + `unit/primitives.test.ts` (21/21), and octroi `rt-keys` +
+`regression/redteam-wave1` (44/44).
+
+| Variant                                | What was tried                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Result                                                                                                                                                                                                                                                                                |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (a) routes                             | Every `hk:` value read off the ledger (`key` annotation and `payload.key`), in 12 forms: raw, `encodeURIComponent`, upper-cased, `HK:`/`Hk:`, `hk%3A`/`hk%3a`, double-encoded `hk%253A`, fully percent-encoded, the bare hex, `0x`+hex. Sent to `/me/:key` (cached and `?refresh=1`), `/me/:key/receipts`, `/esim/topup?key=`, `GET /agent/policy/:key`, `PUT /agent/policy` (validly signed by a stranger and by the payer), `/gift/claim` (as giftId and as PIN) and `/card/redeem`. Done after the victim primed the cache. | **Holds.** Always 404/400/4xx. No 402 offer was minted, receipts were empty, and no body contained the capability.                                                                                                                                                                    |
+| (b) side channel                       | Expired (1 ms past `expiresAt`, while the ledger still holds the row, and again after the ledger dropped it) against a forged unknown `ent:v1:` key. Compared status, body (minus `requestId`), every header except `x-request-id`/`date`, body size, and 200 interleaved timing samples per arm.                                                                                                                                                                                                                              | **Holds.** Status, body, headers and size are identical. Median 0.544 ms vs 0.519 ms. The best threshold classifier reaches 54.0 % (a coin reaches 50 %).                                                                                                                             |
+| (c) cache-key confusion                | Near-miss capabilities: case, ±1 character, a `mecache` prefix, a label shifted into the key, double-encoded. Direct `MeCache` probes (prefix, suffix, NUL, case). `remember(index)` and `invalidate(index)`. Two `MeCache` instances. A real `h.restart()` followed by a request while the ledger is down.                                                                                                                                                                                                                    | **Holds.** `hmacKey` concatenates its parts with no separator, but the cache passes one fixed label and one capability, so a collision needs the same capability. HMAC-SHA256 is not open to length extension. After a restart: the owner gets 503 (fail closed), the index gets 404. |
+| (d1) ledger down, stale path           | Victim read (`ready`, so `staleAllowed`), then ledger down, at `expiresAt`, +1 ms, +60 s and +8 d, via the capability, the index and `?refresh=1`. Control: 2 min before expiry the degraded copy is served.                                                                                                                                                                                                                                                                                                                   | **Holds.** None of these returned 200.                                                                                                                                                                                                                                                |
+| (d2) ledger down or up, **fresh path** | Victim re-reads `/me` 30 s before expiry (the PWA polls). The clock crosses `expiresAt`. The same key is read again within the 60-s TTL.                                                                                                                                                                                                                                                                                                                                                                                       | **FAILS.** 200 with `status: ready` and `expiresAt ≤ now`, with the ledger down **and** with it up, for up to 60 s after expiry. The same key read from the ledger is the 404 of an unknown key.                                                                                      |
+
+### Repro (d2)
+
+```sh
+cd services/api && npx vitest run test/redteam/verify-rt-o-01-variants.test.ts -t '_RTFINDING'
+```
+
+`MeCache.fresh()` (`services/api/src/cache.ts:49-52`) checks only `now − at < 60 s`, never `me.expiresAt > now`.
+`GET /me/:key` (`routes/me.ts:25-28`) consults it before the ledger. So an entry remembered less than 60 s before expiry
+outlives the entitlement. This breaks the fix's stated rule: "serves … only for an entry … whose entitlement has not
+passed `expiresAt`", and the threat T-35 rule that an entity is live only while `expiresAt` is in the future.
+
+**Severity note.** The caller must already hold the capability, so nothing leaks to a ledger reader, and the window is
+at most 60 s. The impact is a live-looking expired bundle and a 60-s 200-vs-404 difference for the same key. The fix
+is one line: `fresh()` also requires `hit.me.expiresAt > this.now()`. The finding is kept High and `open` only because
+PLAN §1 requires every claimed property of the fix to verify. The lead may downgrade it.
+
+Not verified here (out of RT-O-01's `hk:` scope; already recorded as residuals in octroi README Decision 16):
+`AgentPolicyWire.entitlementKey` is still stored in clear on the ledger, and `giftent:<giftId>` can be derived from the
+public gift entity.

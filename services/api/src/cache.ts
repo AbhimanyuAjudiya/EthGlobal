@@ -45,10 +45,14 @@ export class MeCache {
     return slot === undefined ? undefined : this.#entries.get(slot);
   }
 
-  /** A fresh entry (younger than 60 s), or undefined. */
+  /**
+   * A fresh entry (younger than 60 s) whose entitlement has not passed its expiry, or undefined. The expiry check
+   * matters: a read 30 s before `expiresAt` must not keep answering `ready` for the rest of the TTL (RT-O-01, d2).
+   */
   fresh(key: string): MeResponse | undefined {
     const hit = this.#entry(key);
-    return hit && this.now() - hit.at < TTL_MS ? hit.me : undefined;
+    const now = this.now();
+    return hit && now - hit.at < TTL_MS && hit.me.expiresAt > now ? hit.me : undefined;
   }
 
   /**

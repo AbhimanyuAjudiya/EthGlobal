@@ -95,11 +95,26 @@ function isPublicKey(value: string): boolean {
   }
 }
 
+/** The default listen address in every mode (RT-P-01). */
+export const LOOPBACK_HOST = '127.0.0.1';
+/** 127.0.0.0/8, ::1 and localhost. */
+export const isLoopbackHost = (host: string): boolean =>
+  /^127(\.\d{1,3}){3}$/.test(host) || /^(\[?::1\]?|localhost)$/i.test(host);
+
 export const envSchema = z
   .object({
     /** local = Anvil + mock adapters, no network; live = real RPC and sponsor APIs. */
     MODE: z.enum(['local', 'live']).default('local'),
     PORT: z.coerce.number().int().min(1).max(65535).default(8787),
+    /**
+     * Listen address (RT-P-01). Default loopback in EVERY mode; MODE=local refuses anything else (its /__local/*
+     * routes and X-Seed-* hooks must never reach a LAN). A live VPS that is not behind a local reverse proxy says
+     * `HOST=0.0.0.0` explicitly.
+     */
+    HOST: z
+      .string()
+      .regex(/^[0-9A-Za-z.:[\]-]{1,64}$/)
+      .default(LOOPBACK_HOST),
     LOG_LEVEL: z.enum(logLevels).default('info'),
     /** Chain id of DataDrop; local mode is always Anvil (31337); live must name it (RT-A-09). */
     CHAIN: z.coerce.number().int().positive().optional(),
@@ -175,7 +190,14 @@ export const envSchema = z
         );
       }
     }
-    if (env.MODE !== 'live') return;
+    if (env.MODE !== 'live') {
+      if (!isLoopbackHost(env.HOST))
+        fail(
+          'HOST',
+          `MODE=local binds loopback only (127.0.0.1, ::1, localhost), not ${env.HOST} (RT-P-01, T-85)`,
+        );
+      return;
+    }
     if (env.RPC_URL === undefined) fail('RPC_URL', 'RPC_URL is required when MODE=live');
     // RT-A-09: nothing local is inherited — the Anvil domain, a localhost origin, a public agent payer
     if (env.CHAIN === undefined) fail('CHAIN', 'CHAIN is required when MODE=live');

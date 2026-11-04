@@ -22,16 +22,16 @@
     "@ethglobal/eip3009": "workspace:*",
     "@ethglobal/octroi": "workspace:*",
     "@ethglobal/protocol": "workspace:*",
-    "@hono/node-server": "^2.1.6",
-    "hono": "^4.13.16",
-    "pino": "^10.4.0",
+    "@hono/node-server": "catalog:",
+    "hono": "catalog:",
+    "pino": "catalog:",
     "viem": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
-    "pino-pretty": "^13.2.0",
+    "pino-pretty": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

@@ -5,14 +5,14 @@ module: package.json; services/api/package.json; services/agent/package.json; ap
 threat: T-65
 severity: Med
 likelihood: L
-status: open
+status: fixed
 found_by: redteam-wave3-ops
 owner: builder-ops-demo
 found_at: 2026-11-04T16:10+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: security/redteam/wave3-ops/run.sh::every_direct_dependency_pinned_exact_RTFINDING
-regression_test:
-fix_commit:
+regression_test: scripts/test/regression/T-65-supply-chain.test.ts (no ^/~/*/latest in any workspace package.json; catalog exact; installed == pinned) + security/redteam/wave3-ops/run.sh::no ^/~/latest range in any package.json
+fix_commit: (uncommitted, wave-3 ops fix pass on claude/ethglobal-mumbai-build; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -41,3 +41,7 @@ remove this. Med (impact High, likelihood L).
 Move every third-party direct dependency to an exact `catalog:` entry (versions = what the link scripts installed and the
 tests ran on); change the runbook to `pnpm install --frozen-lockfile` once RT-P-04 is fixed. Regression:
 `scripts/test/regression/T-65-supply-chain.test.ts` asserts no `^`/`~`/`latest`/`*` in any package.json.
+
+## Builder notes
+
+All 25 ranged specifiers (root devDependencies, services/api, services/agent, apps/web, packages/ui, apps/video's `@types/react` only) now say `catalog:`; 21 new exact catalog entries were added at the versions the installed node_modules and the lockfile already had (no version changed: eslint 10.14.0, prettier 3.9.10, hono 4.13.16, @hono/node-server 2.1.6, pino 10.4.0, pino-pretty 13.2.0, react/react-dom/@types/react(-dom) 19.3.0, tailwindcss + @tailwindcss/turbopack 4.3.4, …). peerDependencies stay ranges by design. ONSITE-RUNBOOK §0 and README now say `pnpm install --frozen-lockfile`.

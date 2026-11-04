@@ -37,6 +37,21 @@ export const SPONSOR_LOGIN_TYPES = {
   ],
 } as const;
 
+/**
+ * The sponsor's WRITE credential for minting campaign-funded scratch cards (A-43, RT-P-08): a fresh signature over
+ * exactly this batch. A captured SponsorLogin (the dashboard's read bearer) cannot mint; `nonce` is one-shot.
+ */
+export const SPONSOR_CARDS_TYPES = {
+  SponsorCards: [
+    { name: 'campaignId', type: 'bytes32' },
+    { name: 'sponsor', type: 'address' },
+    { name: 'count', type: 'uint256' },
+    { name: 'mb', type: 'uint256' },
+    { name: 'nonce', type: 'bytes32' }, // random per batch; a replay is 409
+    { name: 'issuedAt', type: 'uint256' }, // ms; valid 10 min
+  ],
+} as const;
+
 export const AGENT_POLICY_TYPES = {
   AgentPolicy: [
     { name: 'entitlementKey', type: 'string' },
@@ -48,6 +63,10 @@ export const AGENT_POLICY_TYPES = {
 
 /** SponsorLogin.issuedAt validity (ms). */
 export const SPONSOR_LOGIN_TTL_MS = 3_600_000;
+/** SponsorCards.issuedAt validity (ms): a write credential lives minutes, not an hour. */
+export const SPONSOR_CARDS_TTL_MS = 600_000;
+/** At most this many cards per POST /sponsor/:id/cards (one print run is 200). */
+export const SPONSOR_CARDS_MAX = 200;
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 

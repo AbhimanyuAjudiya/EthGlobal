@@ -10,7 +10,8 @@ OUT="$DIR/INDEX.md"
   echo "|---|---|---|---|---|---|"
   for f in "$DIR"/RT-*.md "$DIR"/DRILL-*.md; do
     [[ -f "$f" ]] || continue
-    get() { awk -v k="$1" 'BEGIN{fm=0} /^---[[:space:]]*$/{fm++; next} fm==1 && $0 ~ "^"k":" {sub("^"k":[[:space:]]*",""); print; exit}' "$f"; }
+    # YAML scalars may be quoted (a value containing ": "): strip the quotes and undo '' / \" escapes for the table
+    get() { awk -v k="$1" 'BEGIN{fm=0} /^---[[:space:]]*$/{fm++; next} fm==1 && $0 ~ "^"k":" {sub("^"k":[[:space:]]*",""); if ($0 ~ /^\x27.*\x27$/) { $0 = substr($0, 2, length($0) - 2); gsub(/\x27\x27/, "\x27") } else if ($0 ~ /^".*"$/) { $0 = substr($0, 2, length($0) - 2); gsub(/\\"/, "\"") } print; exit}' "$f"; }
     printf '| [%s](%s) | %s | %s | %s | %s | %s |\n' "$(get id)" "$(basename "$f")" "$(get severity)" "$(get status)" "$(get module)" "$(get threat)" "$(get title)"
   done
 } > "$OUT"

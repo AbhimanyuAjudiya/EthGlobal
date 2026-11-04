@@ -2,6 +2,11 @@
  * Every real capture the compositions can use, by key. Files live in apps/video/footage/ (served to the
  * bundle as public/footage/ through a symlink) and are never committed. footage/README.md is the capture
  * checklist; test/footage.test.ts keeps that README and this manifest in step.
+ *
+ * Two sources: FOOTAGE is what the human team shoots on-site (camera phone, subject-phone screen recordings,
+ * laptop captures); SCREENS are headless recordings of the real PWA against the local stack
+ * (scripts/capture-screens.mjs → footage/screen/<key>-<theme>.mp4). A shot plays the human capture when it
+ * exists, else the headless one, else a labelled placeholder slate.
  */
 export type FootageKind = 'OTS' | 'SR' | 'SC' | 'macro' | 'audio';
 
@@ -179,7 +184,7 @@ export const FOOTAGE = {
     file: 'judge-arkiv-explorer.mp4',
     video: 'judge',
     kind: 'SC',
-    what: 'Arkiv Kaolin explorer page for the entitlement entity',
+    what: 'Arkiv rabdi explorer page for the entitlement entity',
   },
   planSrJudge: {
     file: 'judge-plan-sr.mp4',
@@ -214,4 +219,114 @@ export const footageKeys = Object.keys(FOOTAGE) as FootageKey[];
 
 export function footagePath(key: FootageKey): string {
   return `footage/${FOOTAGE[key].file}`;
+}
+
+export type ScreenTheme = 'light' | 'dark';
+
+export interface ScreenSpec {
+  /** The route as the product names it. */
+  route: string;
+  what: string;
+  /** Hashes, keys, addresses, PINs or local-chain records are on screen: the SEED DATA label goes on the frame. */
+  showsSeed: boolean;
+  /** Recorded at a laptop viewport (1200 × 900, conformed to 1920 × 1080) instead of 360 × 780 @3×. */
+  desktop?: true;
+  /** Recorded in this theme only. */
+  only?: ScreenTheme;
+}
+
+/** Headless captures of apps/web (scripts/capture-screens.mjs); one file per theme. */
+export const SCREENS = {
+  landing: {
+    route: '/',
+    what: "Live coupon and both paths; tap Prove I'm human → the /verify sheet",
+    showsSeed: false,
+  },
+  'landing-pay': {
+    route: '/',
+    what: "Tap I'll pay · $0.40 per 100 MB → the 402 Review sheet",
+    showsSeed: false,
+  },
+  verify: {
+    route: '/verify',
+    what: 'Simulated World ID → Checking → bundle issued, IssuingRows, the lock-screen line',
+    showsSeed: true,
+  },
+  plan: {
+    route: '/plan/[key]',
+    what: 'Meter, usage as of, Expires in, Why it expires by itself opened to the Arkiv key',
+    showsSeed: true,
+  },
+  'install-ios': {
+    route: '/install',
+    what: "iOS 17.4+ universal link state, Didn't open? Tap again, the steps",
+    showsSeed: false,
+  },
+  'install-android': {
+    route: '/install',
+    what: 'Android: Copy activation code → Copied, the Settings steps',
+    showsSeed: false,
+  },
+  pay: {
+    route: '/pay?key=',
+    what: 'Add 100 MB · $0.40: Review → demo wallet signs → Sending · hash → Confirmed → Final',
+    showsSeed: true,
+  },
+  'plan-topped': {
+    route: '/plan/[key]',
+    what: 'After the top-up: the meter extended once, 400 MB',
+    showsSeed: true,
+  },
+  agent: {
+    route: '/agent',
+    what: 'Policy sentence, cap ≤ $5 → Saved · signed, back to ≤ $10 / day → Saved',
+    showsSeed: true,
+  },
+  gift: {
+    route: '/gift',
+    what: 'Who gets it? rahul.eth resolves, 1 GB, the reclaim rule, Pay → the boarding pass',
+    showsSeed: true,
+  },
+  'gift-claim': {
+    route: '/gift/claim',
+    what: 'Recipient (demo wallet · Anvil #9) claims by signature, no payment → /plan',
+    showsSeed: true,
+  },
+  card: {
+    route: '/card/[serial]',
+    what: 'Hindi UI: PIN typed, latex scratched to ≈ 45 %, the rest fades, Redeem → /plan',
+    showsSeed: true,
+  },
+  sponsor: {
+    route: '/sponsor/[id]',
+    what: 'Claims, tables, slide-to-confirm pause → Paused, then Resume claims',
+    showsSeed: true,
+  },
+  'sponsor-desktop': {
+    route: '/sponsor/[id]',
+    what: 'The sponsor console at a laptop viewport: hero, tables',
+    showsSeed: true,
+    desktop: true,
+    only: 'light',
+  },
+  receipts: {
+    route: '/receipts',
+    what: 'Per-day three-line receipts: the claim, the top-up, the gift',
+    showsSeed: true,
+  },
+} as const satisfies Record<string, ScreenSpec>;
+
+export type ScreenKey = keyof typeof SCREENS;
+export type ScreenAvailability = Partial<Record<ScreenKey, boolean>>;
+
+export const screenKeys = Object.keys(SCREENS) as ScreenKey[];
+
+/** footage/screen/<key>-<theme>.mp4; a single-theme capture is used in either theme. */
+export function screenFile(key: ScreenKey, theme: ScreenTheme): string {
+  const spec: ScreenSpec = SCREENS[key];
+  return `screen/${key}-${spec.only ?? theme}.mp4`;
+}
+
+export function screenPath(key: ScreenKey, theme: ScreenTheme): string {
+  return `footage/${screenFile(key, theme)}`;
 }

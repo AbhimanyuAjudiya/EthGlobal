@@ -50,7 +50,7 @@ Built for ETHGlobal Mumbai 2026 (Continuity track; see [the disclosure](#continu
 You need Node 22, pnpm 10, and Foundry 1.5.1 (`bash scripts/check-tools.sh`). Then three commands:
 
 ```sh
-pnpm install && pnpm --filter @ethglobal/contracts run deps   # see "Dependencies" below
+pnpm install --frozen-lockfile && pnpm --filter @ethglobal/contracts run deps   # see "Dependencies" below
 pnpm -r run build
 pnpm demo -- --web     # Anvil + Deploy.s.sol + the API on :8787 + the demo seed + the web app on :3000 (Ctrl-C stops all)
 ```
@@ -227,8 +227,16 @@ generated on-site and never entered an AI context.
 3 days ago). Several catalog pins were younger than that when they were chosen, for example `@arkiv-network/sdk@1.0.1`
 and `@vitest/coverage-v8@5.1.0`. Packages added in waves 1–3 (`octroi`, `protocol`, `crypto`, `eip3009`, `agent`,
 `scripts`) also have no `pnpm-lock.yaml` entry yet. So **`pnpm install --frozen-lockfile` (and CI) fails until the
-pinned versions age past the gate or the founder adds explicit exclusions.** Nobody has loosened the gate, and it must
-not be loosened to unblock a build.
+pinned versions age past the gate and the lockfile is regenerated.** Nobody has loosened the gate, and it must not be
+loosened to unblock a build.
+
+**The lockfile refresh (RT-P-04), Thu 5 Nov afternoon IST (after ≈ 08:30 UTC, when the youngest pin clears the
+gate).** On a machine with registry access, a human runs `bash scripts/refresh-lockfile.sh`. It runs `pnpm install`, then
+`pnpm install --frozen-lockfile`, then `security/redteam/tools/deps-check.sh`, and stages `pnpm-lock.yaml`. Review the
+diff and commit it. Every direct dependency is now an exact `catalog:` pin (RT-P-05), so the refresh resolves the
+versions the tests ran on, and only transitive versions are new. Until then CI's install step fails with a message
+pointing here and at `docs/ONSITE-RUNBOOK.md` §0. The blocking `fixture-scan` job needs no install and still runs.
+After the refresh, always install with `pnpm install --frozen-lockfile`.
 
 How the build machine bridged it: each workstream installed gate-compliant copies with
 `npm install --before=2026-10-31 --prefix <scratchpad>/<name> <pkg>@<version>`, then symlinked them into the package's

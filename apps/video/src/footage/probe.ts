@@ -4,7 +4,17 @@
  */
 import { staticFile } from 'remotion';
 
-import { FOOTAGE, footagePath, type FootageAvailability, type FootageKey } from './manifest';
+import {
+  FOOTAGE,
+  footagePath,
+  screenFile,
+  screenPath,
+  type FootageAvailability,
+  type FootageKey,
+  type ScreenAvailability,
+  type ScreenKey,
+  type ScreenTheme,
+} from './manifest';
 
 type Fetch = typeof globalThis.fetch;
 
@@ -48,6 +58,20 @@ export async function probeFootage(
   // Studio without an index: ask the static server per file (404s in the console are expected).
   const entries = await Promise.all(
     keys.map(async (k) => [k, await exists(fetchImpl, footagePath(k))] as const),
+  );
+  return Object.fromEntries(entries);
+}
+
+/** The headless captures (footage/screen/<key>-<theme>.mp4) present for `theme`. */
+export async function probeScreens(
+  keys: readonly ScreenKey[],
+  theme: ScreenTheme,
+  fetchImpl: Fetch,
+): Promise<ScreenAvailability> {
+  const index = await readIndex(fetchImpl);
+  if (index) return Object.fromEntries(keys.map((k) => [k, index.has(screenFile(k, theme))]));
+  const entries = await Promise.all(
+    keys.map(async (k) => [k, await exists(fetchImpl, screenPath(k, theme))] as const),
   );
   return Object.fromEntries(entries);
 }

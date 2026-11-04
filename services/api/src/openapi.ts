@@ -30,6 +30,8 @@ import {
   rpContextRequestSchema,
   rpContextSchema,
   settleResultSchema,
+  sponsorCardsRequestSchema,
+  sponsorCardsResponseSchema,
   sponsorRegisterSchema,
   sponsorViewSchema,
   supportedResponseSchema,
@@ -200,7 +202,8 @@ export const OPERATIONS: readonly Operation[] = [
   {
     method: 'post',
     path: '/sponsor',
-    summary: 'Register a campaign once (EIP-712 SponsorLogin); a registered id is 409 campaign_exists',
+    summary:
+      'Register a campaign once (EIP-712 SponsorLogin); a registered id is 409 campaign_exists',
     body: sponsorRegisterSchema,
     headers: ['Idempotency-Key'],
     responses: {
@@ -217,6 +220,23 @@ export const OPERATIONS: readonly Operation[] = [
     params: ['id'],
     headers: ['Authorization'],
     responses: { 200: sponsorViewSchema, 401: errorBodySchema },
+  },
+  {
+    method: 'post',
+    path: '/sponsor/{id}/cards',
+    summary:
+      'Mint ≤ 200 campaign-funded scratch cards (EIP-712 SponsorCards, A-43); PINs once in the 201 body',
+    params: ['id'],
+    body: sponsorCardsRequestSchema,
+    responses: {
+      201: sponsorCardsResponseSchema,
+      400: errorBodySchema,
+      401: errorBodySchema,
+      409: errorBodySchema,
+      410: errorBodySchema,
+      423: errorBodySchema,
+      429: errorBodySchema,
+    },
   },
   {
     method: 'put',

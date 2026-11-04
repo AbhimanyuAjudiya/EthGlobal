@@ -5,14 +5,14 @@ module: services/api/src/index.ts; scripts/e2e-local.sh; scripts/lib/harness.ts
 threat: T-85
 severity: Med
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-wave3-ops
 owner: builder-api (bind), builder-ops-demo (harness)
 found_at: 2026-11-04T16:10+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: security/redteam/wave3-ops/run.sh::api_binds_loopback_RTFINDING; security/redteam/wave3-ops/run.sh::api_binds_loopback_static_RTFINDING
-regression_test:
-fix_commit:
+regression_test: services/api/test/listen.test.ts (boots src/index.ts in MODE=local, asserts the 127.0.0.1 listener; MODE=local refuses a non-loopback HOST) + security/redteam/wave3-ops/run.sh::API binds loopback / services/api/src/index.ts binds an explicit host
+fix_commit: (uncommitted, wave-3 ops fix pass on claude/ethglobal-mumbai-build; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -45,3 +45,7 @@ only), hence Med: demo integrity, the one thing the weekend is judged on. In liv
 `serve({ fetch, port, hostname: env.HOST })` with `HOST` defaulting to `127.0.0.1` when `MODE=local` (and `0.0.0.0` only
 when set explicitly, e.g. on the VPS). The harness/e2e/demo keep the default. Regression: a vitest that boots
 `index.ts` in local mode and asserts the listener address, plus the run.sh check turning green.
+
+## Builder notes
+
+`env.ts` gains `HOST` (default `127.0.0.1` in **every** mode; `MODE=local` refuses anything that is not 127.0.0.0/8, `::1` or `localhost`); `index.ts` passes `hostname: env.HOST` to `serve()` and logs the bound host. `scripts/e2e-local.sh` and `scripts/lib/harness.ts startApi` set `HOST=127.0.0.1` explicitly. Live keeps loopback unless the VPS says `HOST=0.0.0.0` (documented in `.env.example`, ONSITE-RUNBOOK §0 VPS env, INTERFACES §11 / A-43). The run.sh live boot now listens on 127.0.0.1.

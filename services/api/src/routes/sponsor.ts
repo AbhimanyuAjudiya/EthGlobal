@@ -6,30 +6,64 @@
  * campaign nor mint its audit key again. The audit key is shown once per channel — in the first registration's
  * 201, and on the first dashboard read — and "shown" is a ledger once-marker (`claim:` HMAC, A-42), not process
  * memory, so a restart does not show it again.
+ *
+ * POST /sponsor/:id/cards (A-43, RT-P-08) is the live way to mint campaign-funded scratch cards for a print run: it
+ * needs the sponsor's WRITE credential, a fresh EIP-712 `SponsorCards{campaignId, sponsor, count, mb, nonce,
+ * issuedAt}` (≤ 10 min old, nonce one-shot) by the on-chain sponsor of a registered, unpaused campaign; count ≤ 200
+ * and ≤ the claims the remaining budget still pays for. The PINs appear once, in the 201 body; the ledger holds
+ * serials and PIN HMACs, the log holds counts. Not idempotent by design (a cached replay would re-show PINs):
+ * a retry needs a new nonce and mints a new batch.
  */
 import { bytesToHex, hmacKey } from '@ethglobal/crypto';
 import { auditKey, campaignFromPayload, sizeBundle, type Campaign } from '@ethglobal/octroi';
 import { keys, type Hex } from '@ethglobal/protocol/ids';
 import {
+  sponsorCardsRequestSchema,
   sponsorRegisterSchema,
+  type SponsorCardsRequest,
+  type SponsorCardsResponse,
   type SponsorRegister,
   type SponsorView,
 } from '@ethglobal/protocol/schemas';
+import {
+  rechargeDomain,
+  SPONSOR_CARDS_MAX,
+  SPONSOR_CARDS_TTL_MS,
+  SPONSOR_CARDS_TYPES,
+} from '@ethglobal/protocol/typed-data';
 import { usd6ToWire } from '@ethglobal/protocol/units';
 
+import { WindowLimiter } from '../admission.js';
 import { inputOf, type AppEnv } from '../context.js';
 import { fail } from '../errors.js';
-import { sponsorFromHeader, verifySponsorLogin } from '../middleware/sponsor-auth.js';
+import { claimWindowMs, mintCard, type MintedCard } from '../flows/gift.js';
+import {
+  SPONSOR_FUTURE_SKEW_MS,
+  sponsorFromHeader,
+  verifySponsorLogin,
+} from '../middleware/sponsor-auth.js';
 import { validateJson } from '../middleware/validate.js';
+import { signedBy } from '../signatures.js';
 
 import type { Deps } from '../deps.js';
 import type { Hono } from 'hono';
+import type { Address } from 'viem';
 
 const DAY_MS = 86_400_000;
 const ID = /^0x[0-9a-fA-F]{64}$/;
 
+/** Card batches per campaign per minute (each is up to 200 ledger writes). */
+export const SPONSOR_CARDS_PER_MIN = 5;
+/** Ledger writes in flight per batch. */
+const MINT_CONCURRENCY = 8;
+
 /** True the first time `what` happens for this campaign, on any process sharing the ledger. */
-const firstTime = (deps: Deps, what: 'registered' | 'audit-shown', id: Hex, until: number) =>
+const firstTime = (
+  deps: Deps,
+  what: 'registered' | 'audit-shown' | `cards-${string}`,
+  id: Hex,
+  until: number,
+) =>
   deps.stores.claims.reserve(
     keys.claim(hmacKey(deps.secret, `sponsor-${what}`, id)),
     'once',
@@ -129,6 +163,65 @@ export function registerSponsor(app: Hono<AppEnv>, deps: Deps): void {
     };
     return c.json(view);
   });
+
+  const cardBatches = new WindowLimiter(SPONSOR_CARDS_PER_MIN, 60_000, deps.now);
+  app.post('/sponsor/:id/cards', validateJson(sponsorCardsRequestSchema), async (c) => {
+    const id = c.req.param('id');
+    if (!ID.test(id)) throw fail('unauthorized');
+    const campaignId = id.toLowerCase() as Hex;
+    const { count, mb, auth } = inputOf<SponsorCardsRequest>(c);
+    await verifySponsorCards(deps, campaignId, { count, mb, ...auth });
+    // after the signature: unsigned junk cannot spend the sponsor's batch quota
+    const limited = cardBatches.hit(campaignId);
+    if (!limited.ok) throw fail('rate_limited', { retryAfterS: limited.retryAfterS });
+    const [found, chain] = await Promise.all([
+      deps.stores.campaigns.get(campaignId),
+      deps.dataDrop.campaign(campaignId),
+    ]);
+    const sponsor = auth.sponsor.toLowerCase();
+    if (
+      found?.payload.sponsor.toLowerCase() !== sponsor ||
+      chain.sponsor.toLowerCase() !== sponsor
+    ) {
+      throw fail('unauthorized', { detail: 'not this campaign’s sponsor' });
+    }
+    const now = deps.now();
+    if (chain.paused) throw fail('campaign_paused');
+    if (chain.expiresAt <= now || found.payload.expiresAt <= now) throw fail('campaign_expired');
+    const remaining =
+      chain.pricePerClaim > 0n ? (chain.budget - chain.spent) / chain.pricePerClaim : 0n;
+    if (BigInt(count) > remaining)
+      throw fail('budget_exhausted', { detail: `the budget pays for ${remaining} more claims` });
+    // one-shot nonce: the same signed batch twice is a replay, never a second set of PINs
+    if (
+      !(await firstTime(
+        deps,
+        `cards-${auth.nonce.toLowerCase()}`,
+        campaignId,
+        now + SPONSOR_CARDS_TTL_MS,
+      ))
+    )
+      throw fail('replay', { detail: 'this SponsorCards nonce was used' });
+    const claimBy = Math.min(now + claimWindowMs(), chain.expiresAt, found.payload.expiresAt);
+    const cards: MintedCard[] = [];
+    for (let i = 0; i < count; i += MINT_CONCURRENCY) {
+      const n = Math.min(MINT_CONCURRENCY, count - i);
+      cards.push(
+        ...(await Promise.all(
+          Array.from({ length: n }, () => mintCard(deps, campaignId, mb, claimBy)),
+        )),
+      );
+    }
+    // counts only: no PIN, no serial list in the log (T-50, T-64)
+    deps.logger.info({ event: 'ledger.op', op: 'card.mint', count, mb }, 'sponsor cards minted');
+    const reply: SponsorCardsResponse = {
+      campaignId,
+      mb,
+      claimBy,
+      cards: cards.map(({ serial, pin }) => ({ serial, pin, mb })),
+    };
+    return c.json(reply, 201);
+  });
 }
 
 function campaignPayload(c: Campaign): SponsorView['campaign'] {
@@ -145,3 +238,38 @@ function campaignPayload(c: Campaign): SponsorView['campaign'] {
 /** Receipts carry no tier; it is recovered from the bundle size the campaign gives each tier. */
 const tierForMb = (c: Campaign, mb: number): SponsorView['claims'][number]['tier'] =>
   mb === sizeBundle(c, 'orb') ? 'orb' : mb === sizeBundle(c, 'document') ? 'document' : 'none';
+
+/** EIP-712 `SponsorCards` by `auth.sponsor`, issuedAt within 10 min (60 s future skew); 401 otherwise. */
+async function verifySponsorCards(
+  deps: Pick<Deps, 'chainId' | 'now'>,
+  campaignId: Hex,
+  a: {
+    count: number;
+    mb: number;
+    sponsor: string;
+    nonce: string;
+    issuedAt: number;
+    signature: string;
+  },
+): Promise<void> {
+  const now = deps.now();
+  if (a.issuedAt < now - SPONSOR_CARDS_TTL_MS || a.issuedAt > now + SPONSOR_FUTURE_SKEW_MS)
+    throw fail('unauthorized', { detail: 'issuedAt outside the 10-min window' });
+  if (a.count > SPONSOR_CARDS_MAX) throw fail('invalid_request');
+  const ok = await signedBy({
+    address: a.sponsor as Address,
+    domain: rechargeDomain(deps.chainId),
+    types: SPONSOR_CARDS_TYPES,
+    primaryType: 'SponsorCards',
+    message: {
+      campaignId,
+      sponsor: a.sponsor as Address,
+      count: BigInt(a.count),
+      mb: BigInt(a.mb),
+      nonce: a.nonce as Hex,
+      issuedAt: BigInt(a.issuedAt),
+    },
+    signature: a.signature as Hex,
+  });
+  if (!ok) throw fail('unauthorized', { detail: 'bad SponsorCards signature' });
+}

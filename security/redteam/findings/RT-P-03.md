@@ -5,14 +5,14 @@ module: .gitignore
 threat: T-86
 severity: Med
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-wave3-ops
 owner: builder-ops-demo
 found_at: 2026-11-04T16:10+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: security/redteam/wave3-ops/run.sh::gitignore_covers_playwright_and_live_raw_RTFINDING
-regression_test:
-fix_commit:
+regression_test: scripts/test/regression/T-86-repo-hygiene.test.ts::git check-ignore (the full T-86 list) + security/redteam/wave3-ops/run.sh::ignored: Playwright traces/report and raw live recordings
+fix_commit: (uncommitted, wave-3 ops fix pass on claude/ethglobal-mumbai-build; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -42,3 +42,7 @@ and a real `ac`. One `git add -A` publishes them.
 Add to the root `.gitignore`: `apps/web/test-results/`, `apps/web/playwright-report/`, `apps/web/blob-report/`,
 `fixtures/**/live-*.raw.json`. Regression: `scripts/test/regression/T-86-repo-hygiene.test.ts` (THREAT-MODEL §5.12) runs
 `git check-ignore` over the full T-86 list.
+
+## Builder notes
+
+Root `.gitignore` adds `apps/web/test-results/`, `apps/web/playwright-report/`, `apps/web/blob-report/`, `fixtures/**/live-*.raw.json`. The redacted `live-*.json` stays committable (asserted). CI's `fixture-scan` job also refuses a tracked raw capture.

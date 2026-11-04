@@ -47,3 +47,9 @@ packages/contracts/broadcast/**/31337/
 .agent/
 fixtures/inventory.enc
 fixtures/inventory.enc.*.tmp
+# Playwright output: traces and failure screenshots carry PINs, entitlement keys and LPAs (T-86, RT-P-03)
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/blob-report/
+# raw live recordings before scripts/record-fixture.ts redacts them (RT-P-10); only the redacted live-*.json is committed
+fixtures/**/live-*.raw.json

@@ -9,12 +9,18 @@ import { captionFiles, CaptionTrack, type CaptionedComposition } from '../captio
 import { EndCard } from './EndCard';
 import { Frame } from '../components/Frame';
 import { ShotTrack, type Shot } from '../components/ShotTrack';
-import { type FootageAvailability, type FootageKey } from '../footage/manifest';
+import {
+  type FootageAvailability,
+  type FootageKey,
+  type ScreenAvailability,
+} from '../footage/manifest';
 
 // Remotion composition props must be a type alias (an interface does not satisfy Record<string, unknown>).
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 export type ShortBaseProps = {
   footage: FootageAvailability;
+  /** Headless captures of the PWA present for `theme` (calculateMetadata). */
+  screens: ScreenAvailability;
   endLine: string;
   theme: 'light' | 'dark';
 };
@@ -25,6 +31,7 @@ export function ShortShell({
   endFrom,
   endId,
   footage,
+  screens,
   endLine,
   theme,
   room,
@@ -53,7 +60,11 @@ export function ShortShell({
   ];
   return (
     <Frame theme={theme}>
-      <ShotTrack shots={all} footage={footage} {...(room ? { room } : {})} />
+      <ShotTrack
+        shots={all}
+        sources={{ footage, screens, theme }}
+        {...(room ? { room } : {})}
+      />
       <CaptionTrack captions={captionFiles[composition].captions} {...(flags ? { flags } : {})} />
     </Frame>
   );

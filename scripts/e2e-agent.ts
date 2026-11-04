@@ -7,7 +7,7 @@
  *
  * Asserts: exactly one purchase — payout +400 000 on Anvil, `/me` mbTotal +100, one HCS `agent-topup` message with a
  * `uaid:aid:` string, one `buy` line in the journal, an `agent-topup` receipt on `/me/:key/receipts`; a second pass
- * buys nothing. Agent log lines go to .e2e/agent.log (scanned by the I-18 step).
+ * buys nothing. Agent log lines go to $E2E_OUT/agent.log (default .e2e/; scanned by the I-18 step).
  *
  *   API_URL=… RPC_URL=… pnpm --filter @ethglobal/scripts exec tsx e2e-agent.ts   (after demo-seed.ts)
  */
@@ -18,6 +18,7 @@ import { join } from 'node:path';
 import { MockConsensusLog } from '@ethglobal/adapters';
 import { buildAgent, loadConfig, runPass } from '@ethglobal/agent';
 
+import { E2E_DIR } from './lib/harness.js';
 import {
   anvilAddresses,
   apiClient,
@@ -27,15 +28,13 @@ import {
   usdcBalance,
 } from './lib/stack.js';
 
-const ROOT = join(import.meta.dirname, '..');
-const LOG = join(ROOT, '.e2e', 'agent.log');
+const LOG = join(E2E_DIR, 'agent.log');
 const stack = stackFromEnv();
 const api = apiClient(stack);
 const chain = publicClientFor(stack);
 const deployed = anvilAddresses();
-const paidKey = (
-  JSON.parse(readFileSync(join(ROOT, '.e2e', 'keys.json'), 'utf8')) as { paid: string }
-).paid;
+const paidKey = (JSON.parse(readFileSync(join(E2E_DIR, 'keys.json'), 'utf8')) as { paid: string })
+  .paid;
 const me = async () =>
   (await api.request(`/me/${encodeURIComponent(paidKey)}`, { expect: [200] })).data as {
     mbTotal: number;
@@ -43,7 +42,9 @@ const me = async () =>
   };
 
 const sink = (level: string) => (obj: Record<string, unknown>, msg?: string) =>
-  appendFileSync(LOG, `${JSON.stringify({ level, service: 'agent', ...obj, msg })}\n`);
+  appendFileSync(LOG, `${JSON.stringify({ level, service: 'agent', ...obj, msg })}\n`, {
+    mode: 0o600,
+  });
 const log = { info: sink('info'), warn: sink('warn'), error: sink('error') };
 const consensus = new MockConsensusLog({ now: Date.now });
 const stateDir = mkdtempSync(join(tmpdir(), 'recharge-agent-e2e-'));
@@ -78,6 +79,8 @@ const topupMessages = () =>
     .map((m) => JSON.parse(m) as Record<string, unknown>)
     .filter((m) => m.t === 'agent-topup');
 
+/** The line CI asserts under E2E_FAULT=1 (`FAIL I-10 agent: … [E2E_FAULT planted]`). */
+const FAULT_MARKER = '[E2E_FAULT planted]';
 const t0 = performance.now();
 try {
   const before = await me();
@@ -89,11 +92,13 @@ try {
 
   await pass();
   const after = await me();
-  // E2E_FAULT (any value): the test of the test — a deliberately wrong expectation must fail the whole run
-  const step = process.env.E2E_FAULT ? 101 : 100;
+  // E2E_FAULT (any value): the test of the test — a deliberately wrong expectation must fail the whole run, and
+  // fail HERE: CI greps for FAULT_MARKER so a port clash or a missing build cannot pass for the planted failure (RT-P-07)
+  const fault = Boolean(process.env.E2E_FAULT);
+  const step = fault ? 101 : 100;
   check(
     after.mbTotal === before.mbTotal + step,
-    `mbTotal ${before.mbTotal} → ${after.mbTotal}, want +${step}`,
+    `mbTotal ${before.mbTotal} → ${after.mbTotal}, want +${step}${fault ? ` ${FAULT_MARKER}` : ''}`,
   );
   const paid = (await usdcBalance(chain, deployed.usdc, deployed.payout)) - payoutBefore;
   check(paid === 400_000n, `payout moved ${paid}, want 400000`);

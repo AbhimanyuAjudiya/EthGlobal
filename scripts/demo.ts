@@ -1,6 +1,7 @@
 /**
  * `pnpm demo` — the whole product in MODE=local on one machine: Anvil + Deploy.s.sol, the API (self-run facilitator,
- * mock reseller), the demo seed, and (with --web) the web app. Stays up until Ctrl-C; logs in .e2e/*.log.
+ * mock reseller), the demo seed, and (with --web) the web app. Stays up until Ctrl-C (or `pnpm demo:stop` from another
+ * terminal); logs in .e2e/*.log. A SIGKILLed demo is reaped by the harness watchdog (scripts/lib/harness.ts, RT-P-02).
  *
  *   pnpm demo                 # chain :8545, API :8787, seed
  *   pnpm demo -- --web        # + apps/web on :3000

@@ -1,15 +1,17 @@
 /**
- * Rendered shots are seeded with real hashes from the rehearsal (SCRIPTS.md §1 "Legend"). Until the seed is
- * replaced, every frame that shows seeded values says so, in-frame, so a placeholder value can never be
- * posted as a record.
+ * Frames that show hashes, keys, addresses or PINs from the local stack (headless captures) or from the seed say
+ * so, in-frame, until src/seed/saturday.json is flipped to the rehearsal's real values — so a placeholder value
+ * can never be posted as a record.
  */
-import { seed } from '../seed';
+import { seedLabelled } from '../seed';
 import { v } from '../theme';
 import { usePaneSize } from './pane';
 
-export function SeedTag() {
+export const SEED_LABEL = 'SEED DATA · not a real record';
+
+export function SeedTag({ source = 'local-stack capture' }: { source?: string }) {
   const { width, height } = usePaneSize();
-  if (seed.provenance !== 'placeholder') return null;
+  if (!seedLabelled()) return null;
   const unit = Math.min(width, height) / 1080;
   return (
     <div
@@ -27,7 +29,7 @@ export function SeedTag() {
         zIndex: 10,
       }}
     >
-      SEED DATA · not a real record · replace with rehearsal values
+      {SEED_LABEL} · {source}
     </div>
   );
 }

@@ -19,9 +19,11 @@ const app = createApp(deps, localClock ? { localClock } : {});
 // RT-A-11: pending-profile deliveries that survived a restart are retried once now (then on /me, ≤ 1/min)
 void retryPendingOnBoot(deps);
 
-const server = serve({ fetch: app.fetch, port: env.PORT }, (info) => {
+// RT-P-01: an explicit listen address — loopback unless HOST says otherwise (live only; env.ts refuses it locally)
+const server = serve({ fetch: app.fetch, port: env.PORT, hostname: env.HOST }, (info) => {
   logger.info(
     {
+      host: info.address,
       port: info.port,
       mode: env.MODE,
       chain: deps.chainId,

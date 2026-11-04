@@ -5,14 +5,14 @@ module: .github/workflows/ci.yml
 threat: T-65
 severity: Low
 likelihood: L
-status: open
+status: fixed
 found_by: redteam-wave3-ops
 owner: builder-ops-demo
 found_at: 2026-11-04T16:10+05:30
 due: next report (Low: opportunistic, PLAN §6.3)
 attack_test: security/redteam/wave3-ops/run.sh::ci_actions_pinned_by_sha_RTFINDING; security/redteam/wave3-ops/run.sh::ci_pip_semgrep_pinned_RTFINDING; security/redteam/wave3-ops/run.sh::ci_token_permissions_readonly_RTFINDING
-regression_test:
-fix_commit:
+regression_test: scripts/test/regression/T-65-supply-chain.test.ts::CI (SHA pins, pip ==, permissions: contents: read, no secrets) + security/redteam/wave3-ops/run.sh::every action pinned to a commit SHA / pip deps pinned / least-privilege permissions
+fix_commit: (uncommitted, wave-3 ops fix pass on claude/ethglobal-mumbai-build; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -41,3 +41,7 @@ cannot reach a vendor secret: there are none). Low.
 
 Pin each action to a full commit SHA (with the tag in a comment); `semgrep==<x.y.z>`; add `permissions: { contents: read }`
 at the top level.
+
+## Builder notes
+
+Every `uses:` is a 40-hex commit SHA with the tag in a comment. SHAs resolved with `git ls-remote https://github.com/<owner>/<repo> refs/tags/<tag>` (the sandbox's `gh api` is not enabled for these repos), peeled for annotated tags: checkout v5 `fbc6f399…`, pnpm/action-setup v4 `b906affc…` (peeled), setup-node v5 `a0853c24…`, foundry-toolchain v1 `dba66c27…`, upload-artifact v4 `ea165f8d…`, setup-python v5 `a26af69b…`. `pip install slither-analyzer==0.11.6 semgrep==1.183.0`. Top-level `permissions: { contents: read }`.

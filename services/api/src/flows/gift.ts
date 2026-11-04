@@ -124,17 +124,28 @@ export async function createGift(
   };
 }
 
-/** Local-only seed (X-Seed-Card-Campaign, T-85): a campaign-funded scratch card, no payment. */
-export async function seedCard(
+export interface MintedCard {
+  giftId: Hex;
+  serial: string;
+  pin: string;
+  mb: number;
+  claimBy: number;
+}
+
+/**
+ * One campaign-funded scratch card (a card escrow, no payment; DataDrop.claim runs at redemption). The PIN is
+ * returned once and only its HMAC is stored. Callers: the MODE=local seed hook (X-Seed-Card-Campaign, T-85) and the
+ * sponsor-signed POST /sponsor/:id/cards (A-43).
+ */
+export async function mintCard(
   deps: Deps,
   campaignId: Hex,
   mb: number,
-  claimWindowMs: number,
-): Promise<{ giftId: Hex; serial: string; pin: string; mb: number; claimBy: number }> {
+  claimBy: number,
+): Promise<MintedCard> {
   const now = deps.now();
   const giftId = bytesToHex(randomBytes(32));
   const pin = generatePin(randomBytes);
-  const claimBy = now + claimWindowMs;
   await deps.stores.gifts.create({
     v: 1,
     giftId,
@@ -152,6 +163,14 @@ export async function seedCard(
   });
   return { giftId, serial: serialFromGiftId(giftId), pin, mb, claimBy };
 }
+
+/** Local-only seed (X-Seed-Card-Campaign, T-85): a campaign-funded scratch card, no payment. */
+export const seedCard = (
+  deps: Deps,
+  campaignId: Hex,
+  mb: number,
+  claimWindowMs: number,
+): Promise<MintedCard> => mintCard(deps, campaignId, mb, deps.now() + claimWindowMs);
 
 /** The live escrow for a giftId (by its public serial; the giftId must match exactly). */
 export async function escrowOf(deps: Deps, giftId: Hex): Promise<Found<Gift> | null> {

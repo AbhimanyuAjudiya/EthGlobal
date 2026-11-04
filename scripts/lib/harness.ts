@@ -1,18 +1,112 @@
 /**
  * The one process harness (ARCHITECTURE §8 rule 13, ops-demo §1): start Anvil + Deploy.s.sol (scripts/dev-chain.sh),
- * the API (MODE=local), the web app; wait for ports; stop everything. Logs go to .e2e/<name>.log (git-ignored).
+ * the API (MODE=local), the web app; wait for ports; stop everything. Logs go to .e2e/<name>.log (git-ignored), or
+ * to $E2E_OUT when scripts/e2e-local.sh runs the script inside its per-run directory.
  * scripts/e2e-local.sh drives the same three processes from bash for CI; TypeScript scripts use this file.
+ *
+ * Process hygiene (RT-P-02): every child is its own process-group leader, listed in .e2e/pids/harness-<pid>.pids
+ * (the format e2e-local.sh uses: "<pgid> <name>"). A detached watchdog reaps those groups when this process dies,
+ * SIGKILL included; the next harness run reaps any pid file whose owner is gone; `pnpm demo:stop`
+ * (= `bash scripts/e2e-local.sh stop`) reaps them all on request.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
-import { createWriteStream, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  chmodSync,
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+} from 'node:fs';
 import { join } from 'node:path';
 
 import { httpJson } from '@ethglobal/protocol/http';
 
 export const ROOT = join(import.meta.dirname, '..', '..');
-export const E2E_DIR = join(ROOT, '.e2e');
+/** Where this run's logs and seed state go: $E2E_OUT (a per-run dir from e2e-local.sh), else .e2e/. */
+export const E2E_DIR = process.env.E2E_OUT ?? join(ROOT, '.e2e');
+const PID_DIR = join(ROOT, '.e2e', 'pids');
+const PID_FILE = join(PID_DIR, `harness-${process.pid}.pids`);
+/** Paths (one per line) the watchdog deletes if this process dies before its own cleanup ran (PIN temp dirs). */
+const RM_FILE = join(PID_DIR, `harness-${process.pid}.rm`);
 
 const children: ChildProcess[] = [];
+
+/** mkdir -p with 0700 (.e2e holds PINs, entitlement keys and the audit key: RT-P-11). */
+export function privateDir(dir: string): string {
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  chmodSync(dir, 0o700);
+  return dir;
+}
+
+const alive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** SIGTERM every process group listed in `file`, then remove it. */
+function reapPidFile(file: string): void {
+  const groups = readFileSync(file, 'utf8')
+    .split('\n')
+    .map((line) => Number.parseInt(line.split(' ')[0] ?? '', 10))
+    .filter((g) => Number.isSafeInteger(g) && g > 1);
+  for (const g of groups) {
+    try {
+      process.kill(-g, 'SIGTERM');
+    } catch {
+      // already gone
+    }
+  }
+  rmSync(file, { force: true });
+}
+
+/** Deletes `path` when this process dies, even by SIGKILL (the watchdog does it); stopAll() also deletes it. */
+export function removeOnDeath(path: string): void {
+  privateDir(PID_DIR);
+  appendFileSync(RM_FILE, `${path}\n`, { mode: 0o600 });
+  startWatchdog();
+}
+
+/** A previous harness run that died without cleanup (SIGKILL, OOM): reap its process groups before we start. */
+export function reapStale(): void {
+  if (!existsSync(PID_DIR)) return;
+  for (const name of readdirSync(PID_DIR)) {
+    const [, owner, kind] = /^harness-(\d+)\.(pids|rm)$/.exec(name) ?? [];
+    if (owner === undefined || Number(owner) === process.pid || alive(Number(owner))) continue;
+    const file = join(PID_DIR, name);
+    if (kind === 'rm') {
+      for (const path of readFileSync(file, 'utf8').split('\n').filter(Boolean))
+        rmSync(path, { recursive: true, force: true });
+      rmSync(file, { force: true });
+    } else {
+      console.warn(`harness: reaping the stack of dead run ${owner} (${file})`);
+      reapPidFile(file);
+    }
+  }
+}
+
+let watchdog = false;
+/** One detached bash loop per harness process: when we disappear (however), it kills every group in PID_FILE. */
+function startWatchdog(): void {
+  if (watchdog) return;
+  watchdog = true;
+  const script =
+    'while kill -0 "$1" 2>/dev/null; do sleep 0.5; done; ' +
+    'if [ -f "$3" ]; then while IFS= read -r p; do [ -n "$p" ] && rm -rf -- "$p"; done < "$3"; rm -f "$3"; fi; ' +
+    '[ -f "$2" ] || exit 0; ' +
+    'for g in $(cut -d" " -f1 "$2"); do kill -TERM -- "-$g" 2>/dev/null; done; sleep 2; ' +
+    'for g in $(cut -d" " -f1 "$2"); do kill -KILL -- "-$g" 2>/dev/null; done; rm -f "$2"';
+  spawn('bash', ['-c', script, 'harness-watchdog', String(process.pid), PID_FILE, RM_FILE], {
+    detached: true,
+    stdio: 'ignore',
+  }).unref();
+}
 
 /** argv for parseArgs, without the `--` that `pnpm <script> -- --flag` forwards verbatim. */
 export const cliArgs = (): string[] => {
@@ -60,9 +154,9 @@ function start(
   args: string[],
   opts: { cwd: string; env?: Record<string, string> },
 ): { child: ChildProcess; log: string } {
-  mkdirSync(E2E_DIR, { recursive: true });
+  privateDir(E2E_DIR);
   const log = join(E2E_DIR, `${name}.log`);
-  const out = createWriteStream(log);
+  const out = createWriteStream(log, { mode: 0o600 });
   const child = spawn(command, args, {
     cwd: opts.cwd,
     env: { ...process.env, ...opts.env },
@@ -72,6 +166,11 @@ function start(
   child.stdout?.pipe(out);
   child.stderr?.pipe(out);
   children.push(child);
+  if (child.pid !== undefined) {
+    privateDir(PID_DIR);
+    appendFileSync(PID_FILE, `${child.pid} ${name}\n`, { mode: 0o600 });
+    startWatchdog();
+  }
   return { child, log };
 }
 
@@ -111,6 +210,8 @@ export async function startApi(
     cwd: api,
     env: {
       MODE: 'local',
+      // loopback only (RT-P-01): /__local/* and the X-Seed-* hooks never reach the LAN
+      HOST: '127.0.0.1',
       X402_FACILITATOR: 'self',
       RESELLER: 'mock',
       ANVIL_RPC_URL: rpcUrl,
@@ -169,6 +270,7 @@ export async function startWeb(
  * forwarding the signal): the children run in their own process groups and would otherwise outlive us.
  */
 export function stopWithParent(): void {
+  reapStale();
   process.once('exit', stopAll);
   const parent = process.ppid;
   setInterval(() => {
@@ -188,5 +290,11 @@ export function stopAll(): void {
     } catch {
       child.kill('SIGTERM');
     }
+  }
+  rmSync(PID_FILE, { force: true });
+  if (existsSync(RM_FILE)) {
+    for (const path of readFileSync(RM_FILE, 'utf8').split('\n').filter(Boolean))
+      rmSync(path, { recursive: true, force: true });
+    rmSync(RM_FILE, { force: true });
   }
 }

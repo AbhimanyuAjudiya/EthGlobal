@@ -43,8 +43,12 @@ const LEDGER_WRITES = [
   '/gift/reclaim',
   '/card/redeem',
   '/sponsor',
+  '/sponsor/:id/cards',
   '/agent/policy',
 ];
+
+/** GET /__local/ledger (MODE=local only) returns at most this many entities. */
+export const LOCAL_LEDGER_DUMP_MAX = 100_000;
 
 export interface AppOptions {
   /** MODE=local only: POST /__local/clock moves this clock (e2e time travel). */
@@ -92,6 +96,11 @@ export function createApp(deps: Deps, options: AppOptions = {}) {
         'local clock advanced',
       );
       return c.json({ now: deps.now() });
+    });
+    // scripts/dump-ledger.ts: every entity of the local in-memory ledger, for the I-18 forbidden-pattern scan
+    app.get('/__local/ledger', async (c) => {
+      const entities = await deps.adapters.ledger.query({ limit: LOCAL_LEDGER_DUMP_MAX });
+      return c.json({ count: entities.length, entities });
     });
     // The PWA's "Simulated World ID" button: an IDKit-4-shaped result bound to the challenge signal, so the
     // browser never builds a proof itself (MODE=local only; the route does not exist in live).

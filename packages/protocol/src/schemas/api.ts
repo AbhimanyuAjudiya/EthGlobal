@@ -307,6 +307,19 @@ export const sponsorRegisterSchema = z.object({
   campaign: campaignSchema.omit({ v: true, createdAt: true }),
   auth: z.object(signedAuth),
 });
+/** POST /sponsor/:id/cards (A-43): campaign-funded scratch cards, signed `SponsorCards` by the on-chain sponsor. */
+export const sponsorCardsRequestSchema = z.object({
+  count: z.int().min(1).max(200),
+  mb: z.int().multipleOf(100).min(100).max(3000),
+  auth: z.object({ sponsor: evmAddressSchema, nonce: hex32Schema, ...signedAuth }),
+});
+/** 201: the PINs appear once, here; the ledger keeps only serials and PIN HMACs. */
+export const sponsorCardsResponseSchema = z.object({
+  campaignId: hex32Schema,
+  mb: mbSchema,
+  claimBy: msSchema,
+  cards: z.array(z.object({ serial: z.string(), pin: pinSchema, mb: mbSchema })),
+});
 export const sponsorViewSchema = z.object({
   campaign: campaignSchema,
   chain: z.object({
@@ -392,6 +405,8 @@ export type ReceiptPublic = z.infer<typeof receiptPublicSchema>;
 export type ReceiptsResponse = z.infer<typeof receiptsResponseSchema>;
 export type PlansResponse = z.infer<typeof plansResponseSchema>;
 export type SponsorRegister = z.infer<typeof sponsorRegisterSchema>;
+export type SponsorCardsRequest = z.infer<typeof sponsorCardsRequestSchema>;
+export type SponsorCardsResponse = z.infer<typeof sponsorCardsResponseSchema>;
 export type SponsorView = z.infer<typeof sponsorViewSchema>;
 export type AgentPolicyPut = z.infer<typeof agentPolicyPutSchema>;
 export type AgentPolicyView = z.infer<typeof agentPolicyViewSchema>;

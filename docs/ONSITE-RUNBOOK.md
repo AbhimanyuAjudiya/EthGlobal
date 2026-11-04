@@ -10,7 +10,8 @@ IST.
 **The one rule.** No key, seed phrase, access code or signing key ever enters an AI context, a chat, a commit, a log or
 this repository. Keys are generated on the team's own machines. Every secret goes into the VPS environment or the
 password manager, never into a file that git tracks. `.env` is git-ignored. Check that with `git check-ignore .env`
-before writing into it.
+before writing into it. A command that needs a secret reads it from `.env` (or the VPS env), loaded with
+`set -a; source .env; set +a`. Never type a secret inline as `KEY=… command`: it lands in shell history and `ps`.
 
 ---
 
@@ -19,12 +20,31 @@ before writing into it.
 ```sh
 git clone <repo> && cd EthGlobal && git checkout claude/ethglobal-mumbai-build
 bash scripts/check-tools.sh                       # node 22, pnpm 10, forge/anvil/cast 1.5.1, solc 0.8.30
-pnpm install                                      # see README "Dependencies": the 3-day release-age gate
+pnpm install --frozen-lockfile                    # exact pins only; fails until the Thu lockfile refresh (below)
 pnpm --filter @ethglobal/contracts run deps       # forge-std + OpenZeppelin into packages/contracts/lib
 pnpm -r run build
 pnpm e2e                                          # MODE=local, ≈ 25 s, must print "all steps passed"
+pnpm e2e:stop                                     # reaps any stack a killed run / pnpm demo left behind
 cp .env.example .env && git check-ignore .env     # MODE=local by default; live values only on the VPS
 ```
+
+`pnpm e2e` writes to `.e2e/<run-id>/`, and `.e2e/latest` points at the newest run. A run that is killed, even with
+`kill -9`, is reaped by its watchdog. The next run on the same ports reaps whatever is left. The API binds
+`127.0.0.1` in `MODE=local` and refuses any other `HOST` (RT-P-01), so the `/__local/*` routes never reach venue Wi-Fi.
+
+### Lockfile refresh (Thu 5 Nov, 14:00 · Integrations; RT-P-04)
+
+`pnpm-lock.yaml` lacks the importers added in waves 1–3. The 3-day `minimumReleaseAge` gate rejects the newest pins
+until ≈ Thu 08:30 UTC (14:00 IST). Never weaken the gate. After 14:00 IST, on a machine with registry access:
+
+```sh
+bash scripts/refresh-lockfile.sh                  # pnpm install → pnpm install --frozen-lockfile → deps-check → git add
+git diff --cached pnpm-lock.yaml                  # one @hiero-ledger/sdk, no banned names, versions == the catalog pins
+git commit -m "Refresh pnpm-lock.yaml (RT-P-04)"
+```
+
+CI's install step fails until this commit lands, and its message points here. The blocking `fixture-scan` job needs
+no install and runs on every push regardless.
 
 ### Key generation (on-site, on the team's machines)
 
@@ -42,7 +62,8 @@ cast wallet list
 openssl rand -hex 32   # → OCTROI_SECRET (prefix 0x)
 openssl rand -hex 32   # → SERVER_SEAL_KEY (prefix 0x)
 openssl rand -hex 32   # → INVENTORY_SEAL_KEY
-openssl rand -hex 24   # → ESIMACCESS_WEBHOOK_TOKEN, PRINT_TOKEN
+openssl rand -hex 24   # → ESIMACCESS_WEBHOOK_TOKEN
+openssl rand -base64 32 | tr '+/' '-_' | tr -d =   # → PRINT_TOKEN (43 chars; shorter is refused)
 ```
 
 Hedera accounts (portal.hedera.com, **ECDSA**): three accounts for API/HCS, agent and treasury, plus payout. Fund them
@@ -62,6 +83,9 @@ key is shown **once**: straight into the VPS secret store) and a **production** 
 `RESELLER=esimaccess ESIMACCESS_ACCESS_CODE ESIMACCESS_WEBHOOK_TOKEN WORLD_APP_ID WORLD_RP_ID WORLD_RP_SIGNING_KEY`
 `ARKIV_CHAIN_ID=7794095 ARKIV_ACCESS_KEY ARKIV_PRIVATE_KEY HEDERA_ACCOUNT_ID HEDERA_PRIVATE_KEY HCS_TOPIC_ID`
 `ENS_RPC_URL SWARM_BEE_URL SWARM_POSTAGE_BATCH PRINT_TOKEN` plus the agent's `AGENT_*` (`services/agent/README.md`).
+`HOST=0.0.0.0` only if the VPS has no local reverse proxy (the default is `127.0.0.1`, RT-P-01). `PRINT_TOKEN` is 32
+random bytes (`openssl rand -base64 32 | tr '+/' '-_' | tr -d =`, 43 characters); `print-cards.ts` refuses a shorter
+one. **`MODE=local` on the VPS is forbidden**: it turns on `/__local/*` and the `X-Seed-*` hooks (T-85).
 `env.ts` refuses to boot on an Anvil key, `LOG_LEVEL=debug`, Kaolin, `RESELLER=megaesim`, a missing `WORLD_RP_*` or any
 `SEED_*` variable. That refusal is the check.
 
@@ -148,11 +172,29 @@ on a team phone, and run `/esim/cancel` if it is unused. MegaeSIM: if no API doc
    so that every recorded fixture (`"source": "live"`) passes. When a recording contradicts API-FACTS, the recording
    wins, the adapter gets fixed, and a finding is filed.
 
-**The fixtures to record (the 12 rows of `packages/adapters/README.md` "Record on Wednesday").** The recorder
-`scripts/record-fixture.ts` (ops-demo §1) is **not written yet**. Until it lands, record with the commands below and
-redact by hand: `Authorization`, `RT-AccessCode`, `RT-Signature`, `rp_context.signature`, the Arkiv access-key path
-segment, and every `LPA:` string (→ `LPA:1$redacted$…`). Every recorded file gets `"source": "live"` and
-`"recordedAt"`.
+**The fixtures to record (the 12 rows of `packages/adapters/README.md` "Record on Wednesday").** Record with
+`scripts/record-fixture.ts` (RT-P-10), never with `curl | tee`. It runs a named flow against the live vendor through
+the adapter's fetch and redacts by schema. That covers the `Authorization`, `RT-AccessCode`, `RT-Signature` and
+`PAYMENT-SIGNATURE` headers, `rp_context.signature`, nullifiers, `ac`/`lpa` (→ `LPA:1$smdp.example$REDACTED-…`),
+`iccid`, `qrCodeUrl`, the Arkiv access-key path segment and `?token=`. It writes `fixtures/<vendor>/live-<name>.json`
+with `"source": "live"` and `"recordedAt"`. It **refuses to write** if a redacted value, an env credential or a
+real-format LPA would remain, or if `security/redteam/tools/scan.sh` finds anything. `--raw` keeps the unredacted
+capture as `live-<name>.raw.json` (git-ignored, 0600) for review; delete it afterwards. CI's blocking `fixture-scan`
+job scans `fixtures/` on every push.
+
+```sh
+set -a; source .env; set +a                       # the credentials, never inline
+pnpm record:fixture esimaccess-plans              # → fixtures/reseller/esimaccess/live-plans.json
+RECORD_ICCID=<iccid from the order> pnpm record:fixture esimaccess-usage   # (the ICCID is not a credential)
+pnpm record:fixture x402org-supported             # → fixtures/facilitator/x402org/live-supported.json
+pnpm record:fixture hcs-mirror-messages           # → fixtures/hcs/live-mirror-messages.json
+pnpm record:fixture arkiv-rpc                     # → fixtures/arkiv/live-rpc.json (access key redacted from the URL)
+pnpm record:fixture http --vendor world --name verify --method POST \
+  --url "$WORLD_VERIFY_BASE_URL/api/v4/verify/$WORLD_RP_ID" --body-file /secure/proof.json
+pnpm record:fixture <flow> --dry-run              # print the redacted recording instead of writing it
+```
+
+Rows without a named flow use `http` (the generic capture) with the same redaction and refusal.
 
 | # | Fixture(s) | How |
 |---|---|---|
@@ -190,14 +232,22 @@ pre-deployed rails.
 
 ## Thu 5 Nov
 
-**09:00 · Design · print 200 scratch cards** (Dhanteras closes printers Friday). The live cards are campaign-funded
-from the sponsor's own wallet. Create them on the VPS with the sponsor's funded campaign; the local `X-Seed-Card-Campaign`
-hook does not exist in live. Then:
+**09:00 · Design + Founder · print 200 scratch cards** (Dhanteras closes printers Friday). The live cards are
+campaign-funded from the sponsor's own wallet. They are minted through the live API with `POST /sponsor/:id/cards`
+(INTERFACES §7, A-43). The request is a fresh EIP-712 `SponsorCards` signature over this exact batch by the
+campaign's on-chain sponsor, ≤ 200 cards and ≤ what the remaining budget pays for. The PINs come back once, in that
+response. `print-cards.ts` signs with the Foundry keystore (`cast wallet sign --data --account sponsor` prompts for
+its password), saves the PINs 0600 **before** rendering, then prints:
 
 ```sh
-pnpm print:cards -- --input /secure/cards.json      # needs apps/web /print/cards; asserts N + 1 pages; manifest has no PINs
-shred -u /secure/cards.json out/cards-*.pdf         # after the printer has the file
+ID=<the registered campaign id>                       # scopedCampaignId(sponsor, salt) from Wed 14:00 step 4
+API_URL=https://<vps> pnpm print:cards -- --mint 200 --campaign $ID --mb 300 --save /secure/cards.json
+#   a failed render: re-run with --input /secure/cards.json (the batch is minted once; a new --mint is a new batch)
+shred -u /secure/cards.json out/cards-*.pdf           # after the printer has the file
 ```
+
+`MODE=local` on the VPS is never the way to get cards. The `X-Seed-Card-Campaign` hook exists only in `MODE=local`,
+and its cards are not redeemable on the live stack.
 
 Before sending the file to the printer, decode one QR code from page 1 with a phone camera. It must read
 `https://<public host>/card/<serial>`. The web route builds the URL from the request's `Host` header, and
@@ -253,8 +303,10 @@ Sat 18:00.
 **06:00–14:00** credential tiering live, Arkiv entitlements and the three reads live, agent live on Hedera:
 
 ```sh
-cd services/agent && MODE=live AGENT_HEDERA_ACCOUNT_ID=… AGENT_HEDERA_PRIVATE_KEY=… AGENT_LEDGER_WRITER=<API Arkiv writer> \
-  AGENT_PAYTO_ALLOWLIST='hedera:testnet|0.0.429274|<payout 0.0.x>|<feePayer>' pnpm start -- --once --dry-run   # then without --dry-run
+# MODE=live, AGENT_HEDERA_ACCOUNT_ID, AGENT_HEDERA_PRIVATE_KEY, AGENT_LEDGER_WRITER (the API's Arkiv writer) and
+# AGENT_PAYTO_ALLOWLIST='hedera:testnet|0.0.429274|<payout 0.0.x>|<feePayer>' live in the VPS .env, never inline
+cd services/agent && set -a && source ../../.env && set +a
+pnpm start -- --once --dry-run                      # then without --dry-run
 ```
 
 **14:00–20:00** gift/ENS live (`rahul.eth` on the live resolver), the sponsor dashboard, webhooks. **The Security owner
@@ -278,8 +330,8 @@ sections. Film B-roll (airport/hall "No Service → LTE", scratch, agent notific
 
 ## Sun 8 Nov (Diwali)
 
-- **06:00** README freeze. Run `pnpm audit` on a clean checkout, then generate the "pre-kickoff vs in-window" table at
-  the end of `CHANGELOG.md`.
+- **06:00** README freeze. Run `pnpm run audit` on a clean checkout (`pnpm audit` alone is pnpm's built-in registry
+  audit, not our gate). Then generate the "pre-kickoff vs in-window" table at the end of `CHANGELOG.md`.
 - **06:30** final rehearsal on venue Wi-Fi and on cellular.
 - **07:30 · Founder · the submission form:**
 

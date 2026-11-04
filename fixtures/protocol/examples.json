@@ -623,6 +623,28 @@
         "signature": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e"
       }
     },
+    "sponsorCardsRequestSchema": {
+      "count": 200,
+      "mb": 300,
+      "auth": {
+        "sponsor": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+        "nonce": "0x4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e",
+        "issuedAt": 1793707200000,
+        "signature": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e"
+      }
+    },
+    "sponsorCardsResponseSchema": {
+      "campaignId": "0xc1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+      "mb": 300,
+      "claimBy": 1794916800000,
+      "cards": [
+        {
+          "serial": "0a1b2c3d",
+          "pin": "0000000000000000",
+          "mb": 300
+        }
+      ]
+    },
     "sponsorViewSchema": {
       "campaign": {
         "v": 1,

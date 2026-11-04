@@ -5,13 +5,13 @@ module: docs/ONSITE-RUNBOOK.md; docs/BUILD-PLAN.md; apps/video/src
 threat: T-63
 severity: Low
 likelihood: M
-status: open
+status: fixing
 found_by: redteam-wave3-ops
 owner: builder-ops-demo
 found_at: 2026-11-04T16:10+05:30
 due: next report (Low: opportunistic, PLAN §6.3)
 attack_test: security/redteam/wave3-ops/run.sh::runbook_runs_the_audit_gate_RTFINDING; security/redteam/wave3-ops/run.sh::runbook_no_inline_secrets_RTFINDING; security/redteam/wave3-ops/run.sh::plan_scripts_exist_RTFINDING; security/redteam/wave3-ops/run.sh::judge_video_says_rabdi_RTFINDING
-regression_test:
+regression_test: scripts/test/regression/T-86-repo-hygiene.test.ts::the ops scripts the plans name exist and parse + security/redteam/wave3-ops/run.sh::runbook invokes the audit gate with pnpm run audit / runbook never puts a key on a command line / every ops script the plans and gates reference exists
 fix_commit:
 verified_at:
 duplicate_of:
@@ -51,3 +51,7 @@ relies on are absent; a judge video contradicting the disclosure. Low.
 
 `pnpm run audit`; load agent keys from the VPS env / `.env` (`--env-file`), never inline; write or de-reference the four
 scripts (and make `run-wave.sh` fail when `check-design-bans.sh` is missing); "Arkiv rabdi explorer" in the video.
+
+## Builder notes
+
+Fixed (3 of 4): Sun 06:00 says `pnpm run audit` (and why); the Fri agent command loads `AGENT_*` from `.env` with `set -a; source …; set +a`, and §0 states the rule; the four scripts exist — `scripts/check-forbidden.sh` (wraps `security/redteam/tools/scan.sh`; default fixtures docs scripts research), `scripts/check-design-bans.sh` (runs the "design bans" suite of `packages/ui/tokens.test.ts`), `scripts/dump-ledger.ts` (reads the new MODE=local-only `GET /__local/ledger`; e2e-local writes `.e2e/<run>/ledger-dump.json` and scans it), `scripts/redteam/run.ts` (forwards to `security/redteam/run-wave.sh`). `run-wave.sh 3` now fails when check-design-bans.sh is missing; `run-wave.sh 2` scans `.e2e/*/` logs and `.e2e/latest/ledger-dump.json`. **Open: item 4** (the judge video's "Arkiv Kaolin explorer" caption, `apps/video/src/compositions/JudgeVideo.tsx:334`) belongs to the video producer, who is working concurrently; apps/video was not touched by this pass.

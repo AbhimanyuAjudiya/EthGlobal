@@ -24,7 +24,11 @@
     "e2e": "bash scripts/e2e-local.sh",
     "e2e:local": "bash scripts/e2e-local.sh",
     "e2e:web": "bash scripts/e2e-local.sh --web",
+    "e2e:stop": "bash scripts/e2e-local.sh stop",
+    "demo:stop": "bash scripts/e2e-local.sh stop",
     "print:cards": "pnpm --filter @ethglobal/scripts exec tsx print-cards.ts",
+    "record:fixture": "pnpm --filter @ethglobal/scripts exec tsx record-fixture.ts",
+    "check:forbidden": "bash scripts/check-forbidden.sh",
     "schema:gen": "pnpm --filter @ethglobal/scripts exec tsx gen-arkiv-schema.ts",
     "schema:check": "pnpm --filter @ethglobal/scripts exec tsx gen-arkiv-schema.ts --check",
     "redteam": "bash security/redteam/run-wave.sh",
@@ -34,18 +38,18 @@
     "check-tools": "bash scripts/check-tools.sh"
   },
   "devDependencies": {
-    "@eslint/compat": "^2.1.1",
-    "@eslint/js": "^10.0.1",
+    "@eslint/compat": "catalog:",
+    "@eslint/js": "catalog:",
     "@next/eslint-plugin-next": "16.4.4",
-    "eslint": "^10.14.0",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-import-x": "^4.17.1",
-    "eslint-plugin-react": "^7.37.5",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "globals": "^17.14.0",
-    "jscpd": "^5.4.2",
-    "prettier": "^3.9.10",
+    "eslint": "catalog:",
+    "eslint-config-prettier": "catalog:",
+    "eslint-plugin-import-x": "catalog:",
+    "eslint-plugin-react": "catalog:",
+    "eslint-plugin-react-hooks": "catalog:",
+    "globals": "catalog:",
+    "jscpd": "catalog:",
+    "prettier": "catalog:",
     "typescript": "catalog:",
-    "typescript-eslint": "^8.72.1"
+    "typescript-eslint": "catalog:"
   }
 }

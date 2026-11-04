@@ -5,14 +5,14 @@ module: packages/contracts/script/fill-deploy-txs.mjs; packages/contracts/script
 threat: T-10
 severity: Low
 likelihood: L
-status: open
+status: fixed
 found_by: redteam-wave3-ops
 owner: builder-contracts
 found_at: 2026-11-04T16:10+05:30
 due: next report (Low: opportunistic, PLAN §6.3)
 attack_test: security/redteam/wave3-ops/run.sh::deploy_txs_confines_writes_to_deploy_RTFINDING; security/redteam/wave3-ops/run.sh::deploy_txs_checks_rpc_chain_RTFINDING
-regression_test:
-fix_commit:
+regression_test: scripts/test/regression/T-10-deploy-txs.test.ts (escaping/odd slugs, non-key CHAIN, wrong eth_chainId, non-address owner refused; happy path) + security/redteam/wave3-ops/run.sh::fill-deploy-txs.mjs refuses a slug that escapes deploy/ / deploy:txs checks RPC_URL's chain id
+fix_commit: (uncommitted, wave-3 ops fix pass on claude/ethglobal-mumbai-build; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -44,3 +44,7 @@ drill trust for "rotation key in place". Low.
 In fill-deploy-txs: `if (!/^[a-z0-9_]+$/.test(chain.slug)) throw`; check `cast chain-id --rpc-url $RPC_URL == CHAIN` before the
 owner reads and validate both outputs as addresses. In Deploy.s.sol, `require` the same slug charset and reject `"`/`\` in
 `usdcHts`.
+
+## Builder notes
+
+`fill-deploy-txs.mjs`: CHAIN must be decimal and an own key of chains.json; the slug must match `^[a-z0-9_]+$`; the resolved addresses path must sit directly in `deploy/`; with `RPC_URL`, `cast chain-id` must equal CHAIN before `owner()`/`pendingOwner()` are read, and both answers must be addresses. Not done here: the `Deploy.s.sol` slug/`usdcHts` `require`s (builder-contracts; they would change gas snapshots and forge tests outside this pass). The committed chains.json is already safe (run.sh checks every slug and usdcHts).

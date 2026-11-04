@@ -5,14 +5,14 @@ module: scripts/e2e-local.sh; scripts/dev-chain.sh; .github/workflows/ci.yml
 threat: T-50
 severity: Low
 likelihood: M
-status: open
+status: fixed
 found_by: redteam-wave3-ops
 owner: builder-ops-demo
 found_at: 2026-11-04T16:10+05:30
 due: next report (Low: opportunistic, PLAN §6.3)
 attack_test: security/redteam/wave3-ops/run.sh::e2e_scan_covers_every_log_RTFINDING; security/redteam/wave3-ops/run.sh::dev_chain_does_not_echo_mnemonic_RTFINDING; security/redteam/wave3-ops/run.sh::ci_uploads_only_scanned_logs_RTFINDING; security/redteam/wave3-ops/run.sh::ci_fault_run_fails_for_the_planted_reason_RTFINDING
-regression_test:
-fix_commit:
+regression_test: scripts/test/regression/T-86-repo-hygiene.test.ts::CI and e2e only ship scanned artefacts + security/redteam/wave3-ops/run.sh::e2e-local.sh scans every .e2e log / dev-chain.sh does not echo the mnemonic / uploads run only after a clean scan / fault run asserts the planted failure
+fix_commit: (uncommitted, wave-3 ops fix pass on claude/ethglobal-mumbai-build; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -44,3 +44,7 @@ MODE=local data only, so Low; but this is the pipeline that is supposed to prove
 Scan `"$OUT"/*.log` in I-18; drop the mnemonic from the echo; upload only when the scan step succeeded (`if: success()` on
 a step that runs after `scan.sh`, or scan inside the upload step); scan Playwright artefacts before upload; replace the fault
 step with `out=$(E2E_FAULT=1 bash scripts/e2e-local.sh 2>&1) && exit 1; grep -q 'FAIL I-10' <<< "$out"`.
+
+## Builder notes
+
+1. e2e-local I-18 scans every `*.log` and `ledger-dump.json` of the run dir (chain, api, agent, seed). 2. dev-chain.sh prints `mnemonic: anvil default` / `ANVIL_MNEMONIC (redacted)` (the API fixer's change, verified); e2e-local's stale-listener message prints only the program name, never argv (Anvil's carries `--mnemonic`). 3. CI: a `logscan` step scans every `.e2e/**` log and dump; `Upload logs` runs only `if: !cancelled() && steps.logscan.outcome == 'success'`. Playwright: a `pwscan` step scans the report, test-results and `.e2e/playwright` (traces unzipped first) and only the HTML report is uploaded, only after a clean scan. 4. `e2e-agent.ts` tags the planted failure `[E2E_FAULT planted]`; CI requires a non-zero exit AND `FAIL I-10 agent: … [E2E_FAULT planted]`. Verified locally: E2E_FAULT=1 → rc 1 with the marker.

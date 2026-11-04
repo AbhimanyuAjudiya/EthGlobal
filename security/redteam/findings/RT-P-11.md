@@ -5,14 +5,14 @@ module: scripts/demo-seed.ts; scripts/print-cards.ts
 threat: T-64
 severity: Low
 likelihood: L
-status: open
+status: fixed
 found_by: redteam-wave3-ops
 owner: builder-ops-demo
 found_at: 2026-11-04T16:10+05:30
 due: next report (Low: opportunistic, PLAN §6.3)
 attack_test: security/redteam/wave3-ops/run.sh::seed_secrets_written_0600_RTFINDING; security/redteam/wave3-ops/run.sh::seed_checks_target_is_local_RTFINDING; security/redteam/wave3-ops/run.sh::print_token_length_checked_RTFINDING
-regression_test:
-fix_commit:
+regression_test: scripts/test/regression/T-85-local-stack.test.ts (demo-seed --reset refuses mode=live with only GET /healthz sent and nothing deleted; PRINT_TOKEN < 43 refused; SIGKILL watchdog deletes the PIN temp dir) + security/redteam/wave3-ops/run.sh::demo-seed writes PINs/keys/audit key 0600 / refuses an API whose /healthz is not MODE=local / print-cards refuses a short PRINT_TOKEN
+fix_commit: (uncommitted, wave-3 ops fix pass on claude/ethglobal-mumbai-build; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -46,3 +46,7 @@ Local, synthetic in MODE=local; on Thursday the same script handles the 200 live
 `{ mode: 0o600 }` on every `.e2e` secret file (and `chmod 700 .e2e`); call `GET /healthz` and refuse unless `mode === 'local'`
 before `--reset`; in print-cards refuse `PRINT_TOKEN` shorter than 43 base64url chars and use 32 random bytes for the
 fallback; `stopWithParent` already exists — also remove the secret dir from the watchdog path.
+
+## Builder notes
+
+demo-seed writes state/keys/gift/cards/audit-key with `{ mode: 0o600 }` + chmod into a 0700 dir; e2e-local runs under `umask 077` and tightens legacy `.e2e/*` files to 0600. `--reset` first calls `GET /healthz` and refuses unless `mode: 'local'` on chain 31337 (before any delete or Anvil tx). Without `--reset` the seed keeps failing at its first hook against a live API, which the red team's OP2 probe relies on. print-cards refuses a `PRINT_TOKEN` shorter than 43 base64url chars; the fallback is 32 CSPRNG bytes; the PIN temp dir is registered with the harness watchdog (`removeOnDeath`), so a SIGKILLed print run no longer leaves it behind, and its `next` child is reaped with the stack.

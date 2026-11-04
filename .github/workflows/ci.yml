@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+# RT-P-06: the GITHUB_TOKEN can read the repository and nothing else (no job pushes, comments or releases).
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -16,23 +20,32 @@ env:
   # Open red-team findings are attack tests named *_RTFINDING that fail until the fix lands (security/redteam/findings,
   # BUILD-PLAN §2/§3): the blocking gates exclude them; the redteam job runs them and reports.
   RTFINDING_FILTER: "^(?!.*_RTFINDING$)"
+  # RT-P-04: printed when the frozen install fails (the lockfile lags package.json until scripts/refresh-lockfile.sh runs)
+  LOCKFILE_HELP: >-
+    pnpm install --frozen-lockfile failed: pnpm-lock.yaml does not match the workspace package.json files.
+    Run scripts/refresh-lockfile.sh on a machine with registry access once the minimumReleaseAge window has passed
+    (docs/ONSITE-RUNBOOK.md §0 "Lockfile refresh", RT-P-04) and commit pnpm-lock.yaml.
 
 jobs:
   checks:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      # RT-P-10: blocking, and first (bash + grep -P only, before any install): recorded fixtures, docs and scripts
+      - name: Forbidden-pattern scan of fixtures/ docs/ scripts/ (security/redteam/tools/scan.sh)
+        run: bash scripts/check-forbidden.sh fixtures docs scripts
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1
         with:
           version: v1.5.1
 
-      - run: pnpm install --frozen-lockfile
+      - name: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile || { echo "::error::$LOCKFILE_HELP"; exit 1; }
       - name: Install forge libraries
         run: pnpm --filter @ethglobal/contracts run deps
 
@@ -61,35 +74,62 @@ jobs:
           pnpm --filter @ethglobal/api run openapi:check
           pnpm schema:check
 
+  fixture-scan:
+    # RT-P-10: the same blocking scan as a job of its own with no install and no `needs`, so a recorded fixture with a
+    # live secret is caught even when `checks` cannot start (RT-P-04); also refuses raw live captures in git.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Forbidden-pattern scan of fixtures/ (security/redteam/tools/scan.sh)
+        run: bash scripts/check-forbidden.sh fixtures
+      - name: No raw live recording is tracked (fixtures/**/live-*.raw.json stays local, RT-P-03)
+        run: |
+          raw="$(git ls-files 'fixtures/**/live-*.raw.json' 'fixtures/live-*.raw.json')"
+          [ -z "$raw" ] || { echo "::error::raw live recordings tracked: $raw"; exit 1; }
+
   e2e-local:
     # BUILD-PLAN §4: Anvil + Deploy.s.sol + the API + demo seed + the agent (I-10) + e2e-flow (I-0…I-18) + log scan
     needs: checks
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1
         with:
           version: v1.5.1
-      - run: pnpm install --frozen-lockfile
+      - name: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile || { echo "::error::$LOCKFILE_HELP"; exit 1; }
       - run: pnpm --filter @ethglobal/contracts run deps
       - run: pnpm -r run build
       - name: e2e-local (< 60 s for the flow)
         run: bash scripts/e2e-local.sh --no-build
-      - name: The test of the test (a planted wrong assertion must fail the run)
-        run: "! E2E_FAULT=1 bash scripts/e2e-local.sh --no-build"
-      - name: Upload logs (never .e2e/cards.json, gift.json or audit-key.txt — they hold PINs and keys)
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: The test of the test (E2E_FAULT=1 must fail at I-10 with the planted marker, not for any other reason)
+        run: |
+          set +e
+          out="$(E2E_FAULT=1 bash scripts/e2e-local.sh --no-build 2>&1)"; rc=$?
+          echo "$out" | tail -20
+          [ "$rc" -ne 0 ] || { echo "::error::E2E_FAULT=1 run passed: the harness cannot fail"; exit 1; }
+          grep -q 'FAIL I-10 agent: .*\[E2E_FAULT planted\]' <<< "$out" || { echo "::error::E2E_FAULT=1 failed for another reason"; exit 1; }
+      - name: Forbidden-pattern scan of every .e2e log and dump (all runs, chain logs included; RT-P-07)
+        id: logscan
+        if: ${{ !cancelled() }}
+        run: |
+          mapfile -t files < <(find .e2e -type f \( -name '*.log' -o -name 'ledger-dump.json' \) ! -name scan.log | sort)
+          [ "${#files[@]}" -eq 0 ] && { echo "no .e2e logs"; exit 0; }
+          bash security/redteam/tools/scan.sh "${files[@]}"
+      - name: Upload logs, only after a clean scan (never cards.json, gift.json, keys.json or audit-key.txt)
+        if: ${{ !cancelled() && steps.logscan.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: e2e-logs
           path: |
-            .e2e/*.log
+            .e2e/**/*.log
           if-no-files-found: ignore
 
   playwright:
@@ -99,16 +139,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1
         with:
           version: v1.5.1
-      - run: pnpm install --frozen-lockfile
+      - name: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile || { echo "::error::$LOCKFILE_HELP"; exit 1; }
       - run: pnpm --filter @ethglobal/contracts run deps
       - run: pnpm -r run build
       - name: Chromium only
@@ -116,14 +157,23 @@ jobs:
       - run: bash scripts/e2e-local.sh --no-build --web
       - name: Print-run smoke (11-page PDF, manifest without PINs)
         run: pnpm print:cards -- --count 10
-      - name: Upload Playwright report and screenshots on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
+      - name: Forbidden-pattern scan of the Playwright output before any upload (RT-P-07)
+        id: pwscan
+        if: ${{ failure() }}
+        run: |
+          paths=(); for p in apps/web/playwright-report apps/web/test-results .e2e/playwright; do [ -e "$p" ] && paths+=("$p"); done
+          [ "${#paths[@]}" -eq 0 ] && exit 0
+          # traces are zip archives: unpack them so the scanner sees their text (screenshots stay unscannable: not uploaded)
+          mkdir -p "$RUNNER_TEMP/traces"
+          find "${paths[@]}" -name '*.zip' -print0 | while IFS= read -r -d '' z; do unzip -qo "$z" -d "$RUNNER_TEMP/traces/$(basename "$z" .zip)" || true; done
+          bash security/redteam/tools/scan.sh "${paths[@]}" "$RUNNER_TEMP/traces"
+      - name: Upload the Playwright HTML report on failure, only after a clean scan (no traces or screenshots)
+        if: ${{ failure() && steps.pwscan.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: playwright
           path: |
-            apps/web/playwright-report
-            apps/web/test-results
+            apps/web/playwright-report/index.html
           if-no-files-found: ignore
 
   redteam:
@@ -134,20 +184,21 @@ jobs:
     timeout-minutes: 30
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1
         with:
           version: v1.5.1
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
-      - run: pip install slither-analyzer==0.11.6 semgrep
-      - run: pnpm install --frozen-lockfile
+      - run: pip install slither-analyzer==0.11.6 semgrep==1.183.0
+      - name: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile || { echo "::error::$LOCKFILE_HELP"; exit 1; }
       - run: pnpm --filter @ethglobal/contracts run deps
       - run: pnpm -r run build
       - run: bash scripts/e2e-local.sh --no-build

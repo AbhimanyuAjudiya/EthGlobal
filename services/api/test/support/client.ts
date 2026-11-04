@@ -23,6 +23,7 @@ import {
   GIFT_CLAIM_TYPES,
   GIFT_RECLAIM_TYPES,
   rechargeDomain,
+  SPONSOR_CARDS_TYPES,
   SPONSOR_LOGIN_TYPES,
 } from '@ethglobal/protocol/typed-data';
 import { encodePaymentPayload, sessionNonce } from '@ethglobal/protocol/x402';
@@ -131,6 +132,36 @@ export async function sponsorAuthorization(
 ): Promise<string> {
   const login = await sponsorLogin(key, chainId, campaignId, issuedAt);
   return `Recharge-Sponsor ${Buffer.from(JSON.stringify(login)).toString('base64')}`;
+}
+
+/** The body of POST /sponsor/:id/cards: `SponsorCards` signed by `key` (A-43, the sponsor's write credential). */
+export async function sponsorCardsRequest(
+  key: Hex,
+  chainId: number,
+  campaignId: Hex,
+  o: { count: number; mb: number; issuedAt: number; nonce?: Hex },
+) {
+  const account = privateKeyToAccount(key);
+  const nonce =
+    o.nonce ?? `0x${Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('hex')}`;
+  const signature = await account.signTypedData({
+    domain: rechargeDomain(chainId),
+    types: SPONSOR_CARDS_TYPES,
+    primaryType: 'SponsorCards',
+    message: {
+      campaignId,
+      sponsor: account.address,
+      count: BigInt(o.count),
+      mb: BigInt(o.mb),
+      nonce,
+      issuedAt: BigInt(o.issuedAt),
+    },
+  });
+  return {
+    count: o.count,
+    mb: o.mb,
+    auth: { sponsor: account.address, nonce, issuedAt: o.issuedAt, signature },
+  };
 }
 
 export async function agentPolicyPut(

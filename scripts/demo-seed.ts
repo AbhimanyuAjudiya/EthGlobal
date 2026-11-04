@@ -23,11 +23,15 @@
  *   pnpm demo:seed -- --reset            # re-seed from scratch (same campaign id)
  *   pnpm demo:seed -- --fixtures         # also refresh fixtures/demo/*.json
  *
+ * Safety (RT-P-11): with --reset, before anything else — before a file is deleted or the sponsor spends an Anvil tx —
+ * the seed asks GET /healthz and refuses unless the API says `mode: 'local'` on chain 31337. Every .e2e file it writes
+ * (PINs, entitlement keys, the audit key) is 0600 in a 0700 directory ($E2E_OUT when e2e-local.sh runs it).
+ *
  * Idempotent: without --reset, an existing .e2e/state.json whose three entitlements still answer GET /me 200 is
  * reused and only printed. The campaign id is a pure function of the sponsor and the campaign name, so --reset twice
  * gives the same id (createCampaign is skipped when the chain already has it).
  */
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 
@@ -39,7 +43,7 @@ import { isValidPin } from '@ethglobal/protocol/pin';
 import type { EntitledResponse, GiftResponse, TopUpPolicyWire } from '@ethglobal/protocol/schemas';
 import { SESSION_PUBKEY_HEADER } from '@ethglobal/protocol/x402';
 
-import { cliArgs } from './lib/harness.js';
+import { cliArgs, E2E_DIR, privateDir } from './lib/harness.js';
 import {
   anvilAddresses,
   apiClient,
@@ -58,8 +62,13 @@ import {
 import { agentPolicyPut, sponsorLogin } from '../services/api/test/support/client.js';
 
 const ROOT = join(import.meta.dirname, '..');
-const OUT = join(ROOT, '.e2e');
+const OUT = E2E_DIR;
 const FIXTURES = join(ROOT, 'fixtures', 'demo');
+/** PINs, entitlement keys and the audit key: 0600, also when the file already existed with a looser mode (RT-P-11). */
+function writeSecret(file: string, data: string): void {
+  writeFileSync(file, data, { mode: 0o600 });
+  chmodSync(file, 0o600);
+}
 const SEED_FILES = ['state.json', 'keys.json', 'gift.json', 'cards.json', 'audit-key.txt'];
 
 export const CAMPAIGN_NAME = 'Recharge (demo sponsor)';
@@ -115,6 +124,26 @@ const say = (line: string) => {
 
 const stack = stackFromEnv();
 const api = apiClient(stack);
+
+/** The seed only ever runs against a MODE=local API on Anvil: checked before any delete or transaction. */
+async function assertLocalTarget(): Promise<void> {
+  const health = await api.request('/healthz').catch((error: unknown) => {
+    throw new Error(
+      `GET ${stack.apiUrl}/healthz failed (${String(error)}): start the local stack first`,
+    );
+  });
+  const { mode, chainId } = health.data as { mode?: unknown; chainId?: unknown };
+  if (health.status !== 200 || mode !== 'local' || chainId !== CHAIN_ID) {
+    throw new Error(
+      `refusing to seed ${stack.apiUrl}: /healthz says mode=${String(mode)} chainId=${String(chainId)} ` +
+        `(status ${health.status}); demo-seed only runs against MODE=local on Anvil ${CHAIN_ID}`,
+    );
+  }
+}
+
+// --reset deletes .e2e state and re-funds: never against anything but a local stack. (Without --reset the seed still
+// cannot mint in live: its first hook, POST /__local/clock, is a 404 there — the red team's OP2 probe relies on that.)
+if (flags.reset) await assertLocalTarget();
 const chain = publicClientFor(stack);
 const deployed = anvilAddresses();
 const sponsor = roleAddress('sponsor');
@@ -258,7 +287,7 @@ async function seed(): Promise<SeedState> {
   const campaignId = await campaignIdFor();
   const expiresAt = await fundCampaign(campaignId, txs);
   const auditKey = await registerCampaign(campaignId, expiresAt);
-  if (auditKey !== undefined) writeFileSync(join(OUT, 'audit-key.txt'), `${auditKey}\n`);
+  if (auditKey !== undefined) writeSecret(join(OUT, 'audit-key.txt'), `${auditKey}\n`);
 
   const orb = await freeClaim(campaignId, 'orb', `demo-human-orb-${runId}`);
   const doc = await freeClaim(campaignId, 'document', `demo-human-doc-${runId}`, {
@@ -309,7 +338,7 @@ async function seed(): Promise<SeedState> {
   ).data as unknown as GiftResponse;
   check(isValidPin(gift.pin), 'gift PIN is not Verhoeff-valid');
   if (gift.settlement.transaction) txs.payments.push(gift.settlement.transaction);
-  writeFileSync(join(OUT, 'gift.json'), `${JSON.stringify(gift, null, 2)}\n`);
+  writeSecret(join(OUT, 'gift.json'), `${JSON.stringify(gift, null, 2)}\n`);
   say(
     `gift      rahul.eth → ${gift.to} · 1 GB · serial ${gift.serial} · x402 ${gift.settlement.transaction}`,
   );
@@ -326,7 +355,7 @@ async function seed(): Promise<SeedState> {
     check(isValidPin(card.pin), 'card PIN is not Verhoeff-valid');
     cards.push({ serial: card.serial, pin: card.pin, mb: CARD_MB, giftId: card.giftId });
   }
-  writeFileSync(join(OUT, 'cards.json'), `${JSON.stringify(cards, null, 2)}\n`);
+  writeSecret(join(OUT, 'cards.json'), `${JSON.stringify(cards, null, 2)}\n`);
   say(`cards     ${CARD_COUNT} campaign-funded cards (${CARD_MB} MB) → .e2e/cards.json`);
 
   return {
@@ -399,7 +428,7 @@ function print(state: SeedState, reused: boolean): void {
   say(`seed: ${Math.round(performance.now() - started)} ms`);
 }
 
-mkdirSync(OUT, { recursive: true });
+privateDir(OUT);
 const statePath = join(OUT, 'state.json');
 if (flags.reset) {
   for (const f of SEED_FILES) rmSync(join(OUT, f), { force: true });
@@ -411,8 +440,8 @@ if (flags.reset) {
   }
 }
 const state = await seed();
-writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
-writeFileSync(
+writeSecret(statePath, `${JSON.stringify(state, null, 2)}\n`);
+writeSecret(
   join(OUT, 'keys.json'),
   `${JSON.stringify(Object.fromEntries(state.entitlements.map((e) => [e.label, e.key])), null, 2)}\n`,
 );

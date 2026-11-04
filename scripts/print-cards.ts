@@ -6,7 +6,10 @@
  * git-ignored, and the script says so.
  *
  *   pnpm print:cards                         # .e2e/cards.json from demo-seed.ts (real, redeemable local cards)
- *   pnpm print:cards -- --input cards.json   # Thursday: the live campaign-funded cards (serial, pin, mb)
+ *   pnpm print:cards -- --input cards.json   # re-print a saved batch (serial, pin, mb)
+ *   API_URL=https://<vps> pnpm print:cards -- --mint 200 --campaign 0x… --mb 300 --save /secure/cards.json
+ *                                            # Thursday: mint the live campaign-funded cards through the API
+ *                                            # (POST /sponsor/:id/cards, A-43), signed by the sponsor's keystore
  *   pnpm print:cards -- --count 10           # dry run / printer proof: fake Verhoeff-valid PINs, nothing redeemable
  *   WEB_URL=http://127.0.0.1:3000 pnpm print:cards -- --count 10   # use a running web app instead of starting one
  *
@@ -15,8 +18,28 @@
  * that web process itself. Until then it falls back to the tooling route `/ui/print?side=front&layout=single` (+ its
  * keyline side), which renders the gallery's own demo PINs (≤ 20 cards): good for the printer proof, refused for
  * real cards unless `--proof` says "I know these PINs are not the seeded ones".
+ *
+ * Minting (RT-P-08): `--mint N` asks the API the script points at for N cards of `--campaign`. The request is an
+ * EIP-712 `SponsorCards` signed by the campaign's sponsor: against a MODE=local API with the public Anvil sponsor
+ * role, against a live API with `cast wallet sign --data --account ${SPONSOR_ACCOUNT:-sponsor}` (the Foundry
+ * keystore prompts for its password; no key ever reaches a command line, an env var or this process). The PINs come
+ * back once, so they are written to `--save` (0600) BEFORE the PDF is rendered: a failed render can be re-run with
+ * `--input <that file>`.
+ *
+ * PRINT_TOKEN (T-64): an operator-supplied token must be ≥ 43 base64url characters (32 random bytes); the local
+ * fallback is 32 CSPRNG bytes. The PIN temp dir is deleted in `finally` and, if this process is SIGKILLed, by the
+ * harness watchdog (removeOnDeath).
  */
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -24,10 +47,27 @@ import { parseArgs } from 'node:util';
 import { chromium, type Page } from '@playwright/test';
 import { encode } from 'uqr';
 
-import { randomBytes } from '@ethglobal/crypto';
+import { bytesToHex, randomBytes } from '@ethglobal/crypto';
+import { httpJson } from '@ethglobal/protocol/http';
 import { generatePin } from '@ethglobal/protocol/pin';
+import { sponsorCardsResponseSchema } from '@ethglobal/protocol/schemas';
+import {
+  rechargeDomain,
+  SPONSOR_CARDS_MAX,
+  SPONSOR_CARDS_TYPES,
+} from '@ethglobal/protocol/typed-data';
 
-import { answers, cliArgs, ROOT, startWeb, stopAll, stopWithParent } from './lib/harness.js';
+import { sponsorCardsTypedData } from './lib/cards.js';
+import {
+  answers,
+  cliArgs,
+  removeOnDeath,
+  ROOT,
+  startWeb,
+  stopAll,
+  stopWithParent,
+} from './lib/harness.js';
+import { roleKey } from './lib/stack.js';
 
 interface Card {
   serial: string;
@@ -44,8 +84,125 @@ const { values: flags } = parseArgs({
     out: { type: 'string', default: join(ROOT, 'out') },
     proof: { type: 'boolean', default: false },
     port: { type: 'string', default: '3100' },
+    mint: { type: 'string' },
+    campaign: { type: 'string' },
+    mb: { type: 'string', default: '300' },
+    save: { type: 'string' },
   },
 });
+
+/** T-64: PRINT_TOKEN guards /print/cards; ≥ 32 random bytes = 43 base64url characters. */
+export const PRINT_TOKEN_MIN = 43;
+
+function printToken(): string {
+  const { PRINT_TOKEN } = process.env;
+  if (PRINT_TOKEN === undefined || PRINT_TOKEN === '')
+    return Buffer.from(randomBytes(32)).toString('base64url');
+  if (PRINT_TOKEN.length < PRINT_TOKEN_MIN || !/^[A-Za-z0-9_-]+$/.test(PRINT_TOKEN))
+    throw new Error(
+      `PRINT_TOKEN must be ≥ ${PRINT_TOKEN_MIN} base64url characters (32 random bytes): ` +
+        "openssl rand -base64 32 | tr '+/' '-_' | tr -d =",
+    );
+  return PRINT_TOKEN;
+}
+
+/** POST /sponsor/:id/cards on API_URL (A-43); the cards land in --save (0600) before anything else happens. */
+async function mintCards(): Promise<Card[]> {
+  const count = Number.parseInt(flags.mint ?? '', 10);
+  const mb = Number.parseInt(flags.mb, 10);
+  const campaignId = flags.campaign ?? '';
+  if (!Number.isSafeInteger(count) || count < 1 || count > SPONSOR_CARDS_MAX)
+    throw new Error(`--mint must be 1…${SPONSOR_CARDS_MAX}`);
+  if (!/^0x[0-9a-fA-F]{64}$/.test(campaignId))
+    throw new Error('--campaign <bytes32 id> is required with --mint');
+  if (flags.save === undefined)
+    throw new Error(
+      '--save <file> is required with --mint: the PINs are shown once, and must survive a failed render',
+    );
+  const apiUrl = process.env.API_URL ?? 'http://127.0.0.1:8787';
+  const health = (
+    await httpJson<{ mode?: string; chainId?: number }>(`${apiUrl}/healthz`, { timeoutMs: 10_000 })
+  ).data;
+  if (typeof health.chainId !== 'number') throw new Error(`${apiUrl}/healthz has no chainId`);
+  const nonce = bytesToHex(randomBytes(32));
+  const issuedAt = Date.now();
+  let sponsor: string;
+  let signature: string;
+  if (health.mode === 'local') {
+    // the public Anvil sponsor role (adapters/testing): the only key this script ever holds, and only for MODE=local
+    const { privateKeyToAccount } = await import('viem/accounts');
+    const account = privateKeyToAccount(roleKey('sponsor'));
+    sponsor = account.address;
+    signature = await account.signTypedData({
+      domain: rechargeDomain(health.chainId),
+      types: SPONSOR_CARDS_TYPES,
+      primaryType: 'SponsorCards',
+      message: {
+        campaignId: campaignId as `0x${string}`,
+        sponsor: account.address,
+        count: BigInt(count),
+        mb: BigInt(mb),
+        nonce,
+        issuedAt: BigInt(issuedAt),
+      },
+    });
+  } else {
+    // live: the Foundry keystore signs; cast prompts for the password on this terminal
+    const account = process.env.SPONSOR_ACCOUNT ?? 'sponsor';
+    sponsor = execFileSync('cast', ['wallet', 'address', '--account', account], {
+      encoding: 'utf8',
+      stdio: ['inherit', 'pipe', 'inherit'],
+    }).trim();
+    const dir = mkdtempSync(join(tmpdir(), 'recharge-mint-'));
+    try {
+      const file = join(dir, 'typed.json');
+      writeFileSync(
+        file,
+        JSON.stringify(
+          sponsorCardsTypedData({
+            chainId: health.chainId,
+            campaignId,
+            sponsor,
+            count,
+            mb,
+            nonce,
+            issuedAt,
+          }),
+        ),
+        { mode: 0o600 },
+      );
+      signature = execFileSync(
+        'cast',
+        ['wallet', 'sign', '--data', '--from-file', file, '--account', account],
+        {
+          encoding: 'utf8',
+          stdio: ['inherit', 'pipe', 'inherit'],
+        },
+      ).trim();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+  const reply = await httpJson(`${apiUrl}/sponsor/${campaignId}/cards`, {
+    method: 'POST',
+    body: { count, mb, auth: { sponsor, nonce, issuedAt, signature } },
+    timeoutMs: 600_000,
+    allowStatus: [201, 400, 401, 409, 410, 423, 429, 503],
+  });
+  if (reply.status !== 201)
+    throw new Error(
+      `POST /sponsor/${campaignId}/cards → ${reply.status} ${JSON.stringify(reply.data)}`,
+    );
+  const minted = sponsorCardsResponseSchema.parse(reply.data);
+  const cards = minted.cards.map(({ serial, pin, mb: size }) => ({ serial, pin, mb: size }));
+  writeFileSync(flags.save, `${JSON.stringify(cards, null, 2)}\n`, { mode: 0o600 });
+  chmodSync(flags.save, 0o600);
+  console.log(
+    `print-cards: minted ${cards.length} × ${mb} MB cards on ${apiUrl} (claim by ${new Date(minted.claimBy).toISOString()}); ` +
+      `PINs saved 0600 to ${flags.save} — shred it after the printer has the PDF`,
+  );
+  return cards;
+}
 
 /** One SVG path per dark module (ECC M, no quiet zone: the coupon's keyline is the quiet zone). */
 export function qrSvg(url: string, label: string): string {
@@ -63,7 +220,8 @@ export function qrSvg(url: string, label: string): string {
   );
 }
 
-function loadCards(): { cards: Card[]; dryRun: boolean } {
+async function loadCards(): Promise<{ cards: Card[]; dryRun: boolean }> {
+  if (flags.mint !== undefined) return { cards: await mintCards(), dryRun: false };
   if (flags.count !== undefined) {
     const n = Number.parseInt(flags.count, 10);
     if (!Number.isSafeInteger(n) || n < 1 || n > 500) throw new Error('--count must be 1…500');
@@ -74,7 +232,7 @@ function loadCards(): { cards: Card[]; dryRun: boolean } {
     }));
     return { cards, dryRun: true };
   }
-  const input = flags.input ?? join(ROOT, '.e2e', 'cards.json');
+  const input = flags.input ?? join(process.env.E2E_OUT ?? join(ROOT, '.e2e'), 'cards.json');
   if (!existsSync(input))
     throw new Error(`${input} missing: run pnpm demo:seed, or pass --count N`);
   return { cards: JSON.parse(readFileSync(input, 'utf8')) as Card[], dryRun: false };
@@ -113,7 +271,8 @@ const pageCount = (pdf: Buffer): number =>
 
 async function main(): Promise<void> {
   stopWithParent();
-  const { cards, dryRun } = loadCards();
+  const token = printToken();
+  const { cards, dryRun } = await loadCards();
   const hasPrintRoute = existsSync(join(ROOT, 'apps/web/app/print/cards/page.tsx'));
   if (!hasPrintRoute && !dryRun && !flags.proof) {
     throw new Error(
@@ -127,8 +286,8 @@ async function main(): Promise<void> {
       `print-cards: the fallback route renders at most ${FALLBACK_MAX} cards; printing ${count}`,
     );
 
-  const token = process.env.PRINT_TOKEN ?? `local-${Buffer.from(randomBytes(12)).toString('hex')}`;
   const secretDir = mkdtempSync(join(tmpdir(), 'recharge-print-'));
+  removeOnDeath(secretDir);
   const cardsFile = join(secretDir, 'cards.json');
   writeFileSync(cardsFile, JSON.stringify(cards), { mode: 0o600 });
 

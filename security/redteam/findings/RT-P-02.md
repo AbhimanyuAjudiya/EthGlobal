@@ -5,14 +5,14 @@ module: scripts/e2e-local.sh
 threat: T-85
 severity: Low
 likelihood: H
-status: open
+status: fixed
 found_by: redteam-wave3-ops
 owner: builder-ops-demo
 found_at: 2026-11-04T16:10+05:30
 due: next report (Low: opportunistic, PLAN §6.3)
 attack_test: security/redteam/wave3-ops/run.sh::e2e_local_reaps_stack_on_kill_RTFINDING
-regression_test:
-fix_commit:
+regression_test: security/redteam/wave3-ops/run.sh::a SIGKILLed e2e-local.sh leaves nothing listening (dynamic) + scripts/test/regression/T-85-local-stack.test.ts (harness watchdog on SIGKILL, stale pid-file reaping)
+fix_commit: (uncommitted, wave-3 ops fix pass on claude/ethglobal-mumbai-build; orchestrator commits)
 verified_at:
 duplicate_of:
 sign_off:
@@ -44,3 +44,7 @@ ports so the next run fails or (worse) the next `curl $API_URL` talks to yesterd
 Start the stack under `setsid` and kill the process group (`kill -- -$PGID`) in cleanup; add a parent-death watchdog
 (e.g. a background `while kill -0 $$; do sleep 1; done; kill -- -$PGID`), or drive the stack from `lib/harness.ts`
 (`stopWithParent`). Per-run `OUT` (`E2E_OUT`, default `.e2e/run-<pid>`), or a lock file that refuses a second run.
+
+## Builder notes
+
+`scripts/e2e-local.sh`: chain and API start as their own process-group leaders (`setsid`, `set -m` fallback for macOS) and are recorded in `.e2e/pids/e2e-<chain>-<api>.pids` (with `# owner <pid>`); a detached watchdog (`setsid bash -c …`) reaps the groups (TERM, 2 s, KILL) as soon as the shell disappears, SIGKILL included. On start, the same ports' pid file and any stale Recharge listener (anvil / `src/index.ts` / next, by cmdline) are reaped; a listener owned by a run that is still alive is refused, never killed; anything else on the port is an error. `bash scripts/e2e-local.sh stop` (`pnpm e2e:stop` / `pnpm demo:stop`) reaps every recorded stack. Output is per run: `.e2e/<run-id>/` (`E2E_OUT`), `.e2e/latest` → newest, 10 kept; demo-seed, e2e-agent, dump-ledger and print-cards honour `E2E_OUT`. `scripts/lib/harness.ts` (pnpm demo, print-cards) records its groups in `.e2e/pids/harness-<pid>.pids`, starts a detached watchdog, and reaps dead runs' files on start (`reapStale`). Verified by hand: `kill -9` of e2e-local.sh after "PASS setup: api" → nothing listening within 3 s.

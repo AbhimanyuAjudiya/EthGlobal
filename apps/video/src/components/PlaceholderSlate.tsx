@@ -7,7 +7,6 @@
 import { type ReactNode } from 'react';
 import { AbsoluteFill, useCurrentFrame } from 'remotion';
 
-import { FOOTAGE, type FootageKey } from '../footage/manifest';
 import { v } from '../theme';
 import { usePaneSize } from './pane';
 
@@ -21,11 +20,12 @@ export interface SlateInfo {
 }
 
 export function PlaceholderSlate({
-  clip,
+  file,
   info,
   children,
 }: {
-  clip: FootageKey;
+  /** The capture this slate stands in for, relative to footage/. */
+  file: string;
   info: SlateInfo;
   children?: ReactNode;
 }) {
@@ -56,7 +56,7 @@ export function PlaceholderSlate({
         {info.shot} · {info.type} · {info.time}
       </div>
       <div className="mono" style={{ fontSize: 28 * unit, color: v.text }}>
-        footage/{FOOTAGE[clip].file}
+        footage/{file}
       </div>
       <div style={{ fontSize: 32 * unit, lineHeight: 1.35, maxWidth: 900 * unit }}>
         {info.picture}

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Red-team wave runner (security/redteam/README.md, PLAN.md §4–5).
-#   security/redteam/run-wave.sh 1|2|3|wave3-ops|all|static|contracts   # exit 0 == every attack failed as expected AND every gate is green
+#   security/redteam/run-wave.sh 1|2|3|wave3-ops|wave3-web|all|static|contracts   # exit 0 == every attack failed as expected AND every gate is green
 #   (`wave3-ops` = only security/redteam/wave3-ops/run.sh, the ops/repo half of wave 3;
+#   `wave3-web` = only security/redteam/wave3-web/run.sh, the PWA half: Playwright rt-* specs + design bans + MODE=live boot;
 #   `contracts` = the wave-1 contracts gates + the contract-relevant static gates, runnable before the TS packages land)
 # Pass criterion: all attacks fail; every finding has a regression test (PLAN §1). Any ✗ line makes the exit status 1.
 # Always MODE=local: no testnet RPC, no vendor API, no real keys (PLAN §7.1). Tools used: bash, grep -P, awk, jq, git, pnpm, forge,
@@ -120,9 +121,10 @@ wave2() {
     E2E_FAULT=step7 bash scripts/e2e-local.sh > "$RT_OUT/fault.log" 2>&1 && ko "e2e-local.sh passes with E2E_FAULT=step7 (OP5: the harness cannot fail)" || ok "e2e-local.sh fails under E2E_FAULT=step7"
   fi
   step "wave 2: forbidden-pattern scan of logs, ledger dump, HCS dump, agent journal"
-  logs=(); for f in "$E2E"/*.log "$E2E"/ledger-dump.json "$RT_OUT"/*.json "$ROOT"/.agent; do [[ -e $f ]] && logs+=("$f"); done
-  if [[ ${#logs[@]} -gt 0 ]]; then run bash "$TOOLS/scan.sh" "${logs[@]}"; else ko "no .e2e logs / ledger dump to scan (scripts/dump-ledger.ts must write .e2e/ledger-dump.json)"; fi
-  [[ -f "$E2E/ledger-dump.json" ]] || ko "missing .e2e/ledger-dump.json (AP4 step 6)"
+  # e2e-local.sh writes each run to .e2e/<run-id>/ (RT-P-02) with .e2e/latest → it; older root-level logs are scanned too
+  logs=(); for f in "$E2E"/*.log "$E2E"/*/*.log "$E2E"/latest/ledger-dump.json "$RT_OUT"/*.json "$ROOT"/.agent; do [[ -e $f ]] && logs+=("$f"); done
+  if [[ ${#logs[@]} -gt 0 ]]; then run bash "$TOOLS/scan.sh" "${logs[@]}"; else ko "no .e2e logs / ledger dump to scan (scripts/dump-ledger.ts must write .e2e/latest/ledger-dump.json)"; fi
+  [[ -f "$E2E/latest/ledger-dump.json" ]] || ko "missing .e2e/latest/ledger-dump.json (AP4 step 6; e2e-local.sh step 6)"
   step "wave 2: regression tests named in THREAT-MODEL §5.12 exist"
   run bash "$TOOLS/coverage-check.sh" --require services/api services/agent
 }
@@ -141,7 +143,8 @@ wave3() {
     else ko "live web build failed (see $RT_OUT/web-build.log)"; fi
   else ko "apps/web/app missing"; fi
   step "wave 3: ops — seed hooks are local-only, recorder redacts, design bans"
-  [[ -x scripts/check-design-bans.sh || -f scripts/check-design-bans.sh ]] && run bash scripts/check-design-bans.sh
+  # a missing gate is a failure, not a skip (RT-P-09)
+  if need scripts/check-design-bans.sh "the design-ban gate (BUILD-PLAN §2.4)"; then run bash scripts/check-design-bans.sh; fi
   if [[ -d scripts/test/attack ]]; then
     if [[ -f scripts/package.json ]]; then run pnpm --dir scripts exec vitest run test/attack
     else ko "scripts/test/attack exists but scripts/ has no package.json with vitest to run it"; fi
@@ -160,15 +163,27 @@ wave3_ops() {
   fi
 }
 
+wave3_web() {
+  # wave3-web-ops.md W1–W11 + product probes as executable checks (security/redteam/wave3-web/run.sh): the Playwright
+  # suite apps/web/test/redteam/rt-*.spec.ts against the real local stack, the design-ban gate, and a NEXT_PUBLIC_MODE=live
+  # build booted with MODE=live (route enumeration + bundle grep, built in a git-ignored copy so apps/web/.next is untouched).
+  # Exit non-zero while any RT-W finding is open (each failing check prints `RT-FINDING RT-W-<nn> <name>_RTFINDING`).
+  step "wave 3: web / PWA (wave3-web/run.sh — W1–W11 + product probes, findings RT-W-*)"
+  if need security/redteam/wave3-web/run.sh "web attack checks (wave3-web-ops.md W1–W11)"; then
+    RT_OUT="$RT_OUT" run bash security/redteam/wave3-web/run.sh
+  fi
+}
+
 case "$wave" in
   1) wave1; static_gates ;;
   contracts) wave1_contracts; contracts_static ;;
   2) wave2; static_gates ;;
-  3) wave3; wave3_ops; static_gates ;;
+  3) wave3; wave3_ops; wave3_web; static_gates ;;
   wave3-ops) wave3_ops ;;
-  all) wave1; wave2; wave3; wave3_ops; static_gates ;;
+  wave3-web) wave3_web ;;
+  all) wave1; wave2; wave3; wave3_ops; wave3_web; static_gates ;;
   static) static_gates ;;
-  *) echo "usage: run-wave.sh 1|2|3|wave3-ops|all|static|contracts" >&2; exit 2 ;;
+  *) echo "usage: run-wave.sh 1|2|3|wave3-ops|wave3-web|all|static|contracts" >&2; exit 2 ;;
 esac
 bash "$TOOLS/findings-index.sh" > /dev/null 2>&1 || true
 open_blocking="$(grep -l -E '^severity: (Critical|High)' security/redteam/findings/RT-*.md 2>/dev/null | xargs -r grep -L -E '^status: (verified|closed)' 2>/dev/null)"

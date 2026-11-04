@@ -1,5 +1,6 @@
 import { AdapterError, isAdapterError, type Ledger } from '@ethglobal/adapters';
-import { entitlementIndex } from '@ethglobal/octroi';
+import { hmacKey, randomBytes } from '@ethglobal/crypto';
+import { entitlementIndex, INDEX_PREFIX } from '@ethglobal/octroi';
 import { RechargeError } from '@ethglobal/protocol/errors';
 import { ENTITLEMENT_CACHE_S } from '@ethglobal/protocol/ids';
 import type { MeResponse } from '@ethglobal/protocol/schemas';
@@ -7,46 +8,83 @@ import type { MeResponse } from '@ethglobal/protocol/schemas';
 const TTL_MS = ENTITLEMENT_CACHE_S * 1000;
 const MAX_ENTRIES = 10_000;
 
+interface Entry {
+  me: MeResponse;
+  at: number;
+  /** Set explicitly by the caller that read the ledger; only such an entry is served while the ledger is down. */
+  staleAllowed: boolean;
+}
+
+const isIndex = (key: string): boolean => key.startsWith(INDEX_PREFIX);
+
 /**
  * The 60-s read cache of GET /me/:key (T-51) — the ONLY cached read; decide() paths always hit the ledger.
- * Also remembers the expiry of every entitlement it has seen, so a vanished entity reads as 410 (not 404).
- * Entries are keyed by `entitlementIndex(key)` (octroi A-34): a webhook only knows the ledger index of the
- * entitlement it patches, and invalidating by it must hit the entry /me cached under the capability.
+ * Also remembers the expiry of every entitlement it has seen (the top-up guard's 410, AP7.13).
+ *
+ * Keyed by the CAPABILITY, through a per-process keyed HMAC (RT-O-01): never by the ledger index, which anyone can
+ * read off Arkiv. Every capability-facing method refuses an `hk:` index (a miss / no-op), so a ledger reader opens
+ * nothing here. `invalidate` alone also takes an index (a usage webhook only knows the index of the entitlement it
+ * patches): a side map index → slot, never consulted on a read, lets it hit the entry /me cached for the capability.
  */
 export class MeCache {
-  readonly #entries = new Map<string, { me: MeResponse; at: number }>();
+  readonly #secret = randomBytes(32);
+  readonly #entries = new Map<string, Entry>();
   readonly #expiries = new Map<string, number>();
+  readonly #slotsByIndex = new Map<string, string>();
 
   constructor(private readonly now: () => number) {}
 
+  /** HMAC(process secret, capability); undefined for an index (it is not a capability). */
+  #slot(key: string): string | undefined {
+    if (isIndex(key)) return undefined;
+    return hmacKey(this.#secret, 'mecache', key);
+  }
+
+  #entry(key: string): Entry | undefined {
+    const slot = this.#slot(key);
+    return slot === undefined ? undefined : this.#entries.get(slot);
+  }
+
   /** A fresh entry (younger than 60 s), or undefined. */
   fresh(key: string): MeResponse | undefined {
-    const hit = this.#entries.get(entitlementIndex(key));
+    const hit = this.#entry(key);
     return hit && this.now() - hit.at < TTL_MS ? hit.me : undefined;
   }
 
-  /** Any entry, however old (served with `degraded: true` while the ledger is down). */
+  /**
+   * While the ledger is down (served with `degraded: true`): an entry remembered with `staleAllowed`, however old,
+   * whose entitlement has not passed its expiry. Anything else is a miss (the read then fails closed, 503).
+   */
   stale(key: string): MeResponse | undefined {
-    return this.#entries.get(entitlementIndex(key))?.me;
+    const hit = this.#entry(key);
+    return hit?.staleAllowed === true && hit.me.expiresAt > this.now() ? hit.me : undefined;
   }
 
-  remember(key: string, me: MeResponse): void {
-    bounded(this.#entries, entitlementIndex(key), { me, at: this.now() });
+  remember(key: string, me: MeResponse, opts: { staleAllowed?: boolean } = {}): void {
+    const slot = this.#slot(key);
+    if (slot === undefined) return;
+    bounded(this.#entries, slot, { me, at: this.now(), staleAllowed: opts.staleAllowed === true });
+    bounded(this.#slotsByIndex, entitlementIndex(key), slot);
     this.seen(key, me.expiresAt);
   }
 
-  /** Write-through invalidation from fulfil, top-ups and webhooks. */
-  invalidate(key: string): void {
-    this.#entries.delete(entitlementIndex(key));
+  /** Write-through invalidation from fulfil, top-ups (capability) and webhooks (the ledger index). */
+  invalidate(keyOrIndex: string): void {
+    const slot = isIndex(keyOrIndex)
+      ? this.#slotsByIndex.get(keyOrIndex)
+      : this.#slot(keyOrIndex);
+    if (slot !== undefined) this.#entries.delete(slot);
   }
 
   seen(key: string, expiresAt: number): void {
-    bounded(this.#expiries, entitlementIndex(key), expiresAt);
+    const slot = this.#slot(key);
+    if (slot !== undefined) bounded(this.#expiries, slot, expiresAt);
   }
 
-  /** True when this key was a live entitlement that has since passed its expiry. */
+  /** True when this capability was a live entitlement that has since passed its expiry (never for an index). */
   expired(key: string): boolean {
-    const at = this.#expiries.get(entitlementIndex(key));
+    const slot = this.#slot(key);
+    const at = slot === undefined ? undefined : this.#expiries.get(slot);
     return at !== undefined && at <= this.now();
   }
 }

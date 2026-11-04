@@ -253,10 +253,10 @@ describe('flow.e2e (BUILD-PLAN §4, in process)', () => {
     expect(view.chain.spentUsd6).toBe('1500000');
     expect(view.expiring.map((e) => e.expiresAt)).toContain(short.expiresAt);
 
-    // I-16 expiry: the 90-s entitlement is gone ⇒ 410, and the ledger no longer lists it
+    // I-16 expiry: the 90-s entitlement is gone ⇒ 404 (the same answer as an unknown key, RT-O-01), and the ledger no longer lists it
     await h.get(`/me/${encodeURIComponent(short.entitlementKey)}`);
     h.clock.advance(91_000);
-    expect((await h.get(`/me/${encodeURIComponent(short.entitlementKey)}`)).status).toBe(410);
+    expect((await h.get(`/me/${encodeURIComponent(short.entitlementKey)}`)).status).toBe(404);
     const live = await h.deps.adapters.ledger.query({
       annotations: { type: 'entitlement', key: short.entitlementKey },
     });

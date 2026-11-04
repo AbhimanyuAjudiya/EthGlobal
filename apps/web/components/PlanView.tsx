@@ -50,8 +50,11 @@ async function readPlan(key: string): Promise<Load> {
   } catch (e) {
     const err = e instanceof ApiError ? e : undefined;
     if (err?.code === 'expired') return { kind: 'expired' };
-    if (err?.code === 'not_found') return { kind: 'unknown' };
     const snap = await store.snapshot(key);
+    // the API answers expired and unknown with the same 404 (RT-O-01); this device's own copy tells them apart
+    if (err?.code === 'not_found') {
+      return snap && snap.me.expiresAt <= Date.now() ? { kind: 'expired' } : { kind: 'unknown' };
+    }
     if (snap) return { kind: 'ok', me: snap.me, offlineAt: snap.at };
     return err?.code === 'network' || !err ? { kind: 'offline' } : { kind: 'unknown' };
   }

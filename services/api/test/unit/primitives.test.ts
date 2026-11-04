@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { InMemoryLedger } from '@ethglobal/adapters';
 import { fakeClock } from '@ethglobal/adapters/testing';
+import { entitlementIndex } from '@ethglobal/octroi';
 
 import { Admission, KeyedMutex, WindowLimiter } from '../../src/admission.js';
 import { AnomalyGuard } from '../../src/anomaly.js';
@@ -71,16 +72,39 @@ describe('MeCache, LedgerHealth, observedLedger (T-51)', () => {
     const clock = fakeClock();
     const c = new MeCache(clock.now);
     const me = { expiresAt: clock.now() + 1000 } as Parameters<MeCache['remember']>[1];
-    c.remember('k', me);
+    c.remember('k', me, { staleAllowed: true });
     expect(c.fresh('k')).toBe(me);
+    clock.advance(999);
+    expect(c.fresh('k')).toBe(me);
+    expect(c.stale('k')).toBe(me);
     clock.advance(60_000);
     expect(c.fresh('k')).toBeUndefined();
-    expect(c.stale('k')).toBe(me);
+    expect(c.stale('k')).toBeUndefined(); // past the entitlement's own expiry
     expect(c.expired('k')).toBe(true);
+    c.remember('k', { ...me, expiresAt: clock.now() + 1000 }, { staleAllowed: true });
     c.invalidate('k');
     expect(c.stale('k')).toBeUndefined();
     for (let i = 0; i < 10_001; i++) c.seen(`k${i}`, 0);
     expect(c.expired('k0')).toBe(false);
+  });
+
+  it('keyed by the capability, never the ledger index: an hk: input misses everywhere; invalidate(index) still hits [RT-O-01]', () => {
+    const clock = fakeClock();
+    const c = new MeCache(clock.now);
+    const me = { expiresAt: clock.now() + 120_000 } as Parameters<MeCache['remember']>[1];
+    const key = 'ent:v1:0xcafe';
+    const index = entitlementIndex(key);
+    c.remember(key, me, { staleAllowed: true });
+    expect([c.fresh(index), c.stale(index), c.expired(index)]).toEqual([undefined, undefined, false]);
+    c.remember(index, me);
+    c.seen(index, 0);
+    expect(c.expired(index)).toBe(false);
+    c.remember('ent:v1:other', me); // not marked stale-allowed ⇒ fresh only
+    expect([c.fresh('ent:v1:other'), c.stale('ent:v1:other')]).toEqual([me, undefined]);
+    c.invalidate('hk:unknown');
+    expect(c.fresh(key)).toBe(me);
+    c.invalidate(index);
+    expect(c.fresh(key)).toBeUndefined();
   });
 
   it('degraded for 60 s after a ledger failure; raw failures become AdapterError(ledger, unavailable)', async () => {

@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { MeResponse } from '@ethglobal/protocol/schemas';
+
+import { MeCache } from '../src/cache.js';
 import { errorOf, harness, iccidOf, provisioned, topUp } from './support/harness.js';
 
 describe('GET /me/:key', () => {
@@ -24,12 +27,14 @@ describe('GET /me/:key', () => {
     expect(((await (await h.get(`/me/${path}`)).json()) as { cached: boolean }).cached).toBe(false);
   });
 
-  it('after expiry → 410; unknown → 404 (entity keys and random keys alike)', async () => {
+  it('after expiry → the same 404 as unknown (RT-O-01: no liveness oracle; entity keys and random keys alike)', async () => {
     const h = await harness();
     const { path } = await provisioned(h);
     await h.get(`/me/${path}`);
     h.clock.advance(7 * 86_400_000 + 1);
-    expect(await errorOf(await h.get(`/me/${path}`))).toBe('expired');
+    const gone = await h.get(`/me/${path}`);
+    expect(gone.status).toBe(404);
+    expect(await errorOf(gone)).toBe('not_found');
     const a = await h.get('/me/ent_000001');
     const b = await h.get(`/me/${encodeURIComponent(`ent:v1:0x${'ab'.repeat(32)}`)}`);
     expect([a.status, b.status]).toEqual([404, 404]);
@@ -87,5 +92,17 @@ describe('GET /me/:key', () => {
       degraded: true,
     });
     expect((await h.get(`/me/${encodeURIComponent('paid:0xabc:0x01')}`)).status).toBe(503);
+  });
+
+  it('degraded ledger: a cached copy past its entitlement expiry, or one not marked stale-allowed, is never served [RT-O-01]', async () => {
+    const h = await harness();
+    const { path, key } = await provisioned(h);
+    await h.get(`/me/${path}`);
+    h.clock.advance(7 * 86_400_000 + 1);
+    vi.spyOn(h.adapters.ledger, 'query').mockRejectedValue(new Error('arkiv down'));
+    expect((await h.get(`/me/${path}`)).status).toBe(503);
+    const other = new MeCache(h.clock.now);
+    other.remember(key, { expiresAt: h.clock.now() + 1000 } as MeResponse);
+    expect(other.stale(key)).toBeUndefined();
   });
 });

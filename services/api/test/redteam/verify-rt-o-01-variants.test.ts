@@ -345,4 +345,72 @@ describe('verify RT-O-01 (closing variants): a ledger-read index opens nothing, 
     }
     expect(served).toEqual([]);
   });
+
+  // Closing pass 2 (after b3d0c35): the exact boundary of the d2 fix. `expiresAt` itself is already dead (T-35:
+  // live only while expiresAt > now), so an entry remembered 1 ms before must not answer AT expiresAt.
+  it('(e) remembered 1 ms before expiry, read at exactly expiresAt: plain, ?refresh=1, receipts, index; ledger up and down [RT-O-01 e]', async () => {
+    const h = await harness();
+    const victim = await provisioned(h, 'verify-o01-boundary');
+    const key = victim.key;
+    const index = encodeURIComponent(`hk:${sha256Hex(utf8(key))}`);
+    const me = (await (await h.get(`/me/${victim.path}`)).json()) as MeResponse;
+    const unknown = await h.get(`/me/${encodeURIComponent(`ent:v1:0x${'cd'.repeat(32)}`)}`);
+    const unknownBody = { ...((await unknown.json()) as object), requestId: undefined };
+    const ownReceipts = (
+      (await (await h.get(`/me/${victim.path}/receipts`)).json()) as {
+        receipts: unknown[];
+      }
+    ).receipts;
+    for (const ledgerDown of [false, true]) {
+      // prime both caches (fresh + staleAllowed) 1 ms before expiry
+      h.clock.set(me.expiresAt - 1);
+      const primed = await h.get(`/me/${victim.path}?refresh=1`);
+      expect(primed.status).toBe(200);
+      expect(((await primed.json()) as MeResponse).expiresAt).toBe(me.expiresAt);
+      const spy = ledgerDown
+        ? vi.spyOn(h.adapters.ledger, 'query').mockRejectedValue(new Error('arkiv down'))
+        : undefined;
+      h.clock.set(me.expiresAt);
+      const arm = `ledger ${ledgerDown ? 'down' : 'up'}`;
+      for (const path of [
+        `/me/${victim.path}`,
+        `/me/${victim.path}?refresh=1`,
+        `/me/${index}`,
+        `/me/${index}?refresh=1`,
+      ]) {
+        const r = await h.get(path);
+        expect(r.status, `${arm} ${path}`).not.toBe(200);
+        expect(await bodyText(r)).not.toContain(key);
+        if (!ledgerDown) {
+          // ledger up: byte-identical to an unknown key (no boundary oracle)
+          expect(r.status).toBe(404);
+          expect({ ...((await r.json()) as object), requestId: undefined }).toEqual(unknownBody);
+        } else if (path.includes('hk%3A')) {
+          expect(r.status).toBe(404); // the index is refused before any cache or ledger
+        } else {
+          expect(r.status).toBe(503); // capability: fail closed, never the remembered copy
+        }
+      }
+      // receipts: the index opens none; the capability's own history carries neither the key nor its hash
+      const byIndex = await h.get(`/me/${index}/receipts`);
+      if (byIndex.status === 200)
+        expect(((await byIndex.json()) as { receipts: unknown[] }).receipts).toEqual([]);
+      const byKey = await h.get(`/me/${victim.path}/receipts`);
+      const text = await bodyText(byKey);
+      expect(text).not.toContain(key);
+      expect(text).not.toContain(sha256Hex(utf8(key)).slice(2));
+      if (!ledgerDown && byKey.status === 200)
+        expect(((await byKey.json()) as { receipts: unknown[] }).receipts).toHaveLength(
+          ownReceipts.length,
+        );
+      spy?.mockRestore();
+    }
+    // 1 ms earlier the copy is still served (the boundary is exact, not over-broad)
+    h.clock.set(me.expiresAt - 2);
+    expect((await h.get(`/me/${victim.path}?refresh=1`)).status).toBe(200);
+    h.clock.set(me.expiresAt - 1);
+    const live = await h.get(`/me/${victim.path}`);
+    expect(live.status).toBe(200);
+    expect(((await live.json()) as MeResponse).cached).toBe(true);
+  });
 });

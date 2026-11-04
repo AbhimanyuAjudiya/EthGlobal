@@ -7,7 +7,7 @@ import type { SponsorView } from '@ethglobal/protocol/schemas';
 import { Hash } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
-import { DemoWalletPanel } from './Shell';
+import { WalletBanner } from './Shell';
 import { SlideToConfirm } from './SlideToConfirm';
 import { api, ApiError } from '../lib/api';
 import { explorerName, explorerTemplate, networkName } from '../lib/env';
@@ -167,7 +167,7 @@ export function SponsorTable({ id }: { id: string }) {
   if (!view)
     return (
       <div className="sponsor-view">
-        <DemoWalletPanel wallet={wallet} />
+        <WalletBanner wallet={wallet} />
         <p className="note" role="status">
           {error ?? 'Signing in with the sponsor wallet…'}
         </p>
@@ -194,7 +194,7 @@ export function SponsorTable({ id }: { id: string }) {
 
   return (
     <div className="sponsor-view">
-      <DemoWalletPanel wallet={wallet} />
+      <WalletBanner wallet={wallet} />
       <header className="sponsor-hero">
         <h1 className="sponsor-hero__name">
           {campaign.name}{' '}

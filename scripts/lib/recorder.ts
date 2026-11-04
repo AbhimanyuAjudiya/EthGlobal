@@ -26,6 +26,7 @@ export const SECRET_HEADERS = new Set([
   'x-api-key',
   'api-key',
   'payment-signature',
+  // nosemgrep: recharge-x402-v1-primitive — redaction list: names the v1 header so a recording strips it
   'x-payment',
 ]);
 

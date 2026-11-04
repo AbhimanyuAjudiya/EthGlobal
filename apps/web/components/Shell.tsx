@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 
 import { LangSwitch, T, useLang } from '../i18n/lang';
 import { plans } from '../lib/store';
-import { DEMO_ROLE_INDEX, type Wallet } from '../lib/wallet';
+import { demoIndex, type Wallet } from '../lib/wallet';
 
 /** "TESTNET · test USDC · not a sale" — Stripe's test-mode rail, 12 px Chivo Mono, on every money screen. */
 export function TestnetStrip() {
@@ -84,9 +84,6 @@ export function Screen({
   );
 }
 
-const demoIndex = (wallet: Wallet) =>
-  Number(/#(\d+)/.exec(wallet.name)?.[1] ?? DEMO_ROLE_INDEX.human);
-
 /** The paying account's name in the page language: "डेमो वॉलेट · Anvil #5"; an injected wallet keeps its brand. */
 export function useWalletLabel(): (wallet: Wallet | undefined) => string {
   const { t } = useLang();
@@ -98,17 +95,23 @@ export function useWalletLabel(): (wallet: Wallet | undefined) => string {
         : wallet.name;
 }
 
-/** MODE=local only: the visible "demo wallet · Anvil #5" banner. Compiled out of live builds. */
-export function DemoWalletPanel({ wallet }: { wallet: Wallet | undefined }) {
-  if (process.env.NEXT_PUBLIC_MODE !== 'local' || wallet?.kind !== 'demo') return null;
-  const index = demoIndex(wallet);
+/**
+ * MODE=local only: the visible "demo wallet · Anvil #5" banner. The component lives in lib/local/demo-wallet-panel.tsx
+ * and is imported only behind a literal `process.env.NEXT_PUBLIC_MODE === 'local'`, so a live build carries neither
+ * its code nor its name nor its markup (RT-W-12, AUD-09). Live: `null`, and `WalletBanner` renders nothing.
+ */
+const LocalDemoPanel =
+  process.env.NEXT_PUBLIC_MODE === 'local'
+    ? lazy(() => import('../lib/local/demo-wallet-panel'))
+    : null;
+
+/** The demo-wallet banner in MODE=local; nothing for an injected wallet or in a live build. */
+export function WalletBanner({ wallet }: { wallet: Wallet | undefined }) {
+  if (LocalDemoPanel === null || wallet?.kind !== 'demo') return null;
   return (
-    <p className="demo-wallet" role="note" data-testid="demo-wallet">
-      <T k="demo.banner" params={{ n: index }} />
-      <span className="demo-wallet__addr" data-hash title={wallet.address}>
-        {`${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}`}
-      </span>
-    </p>
+    <Suspense fallback={null}>
+      <LocalDemoPanel wallet={wallet} />
+    </Suspense>
   );
 }
 
@@ -124,7 +127,7 @@ export function WalletButton({
   error: string | undefined;
   onInjected: () => void;
 }) {
-  if (wallet) return <DemoWalletPanel wallet={wallet} />;
+  if (wallet) return <WalletBanner wallet={wallet} />;
   return (
     <div className="wallet-connect">
       <button

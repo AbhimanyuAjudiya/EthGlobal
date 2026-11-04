@@ -69,7 +69,7 @@ Still camera-only (slates until shot): the arrivals hall and its status bar (01 
 | `04-receiver.mp4`          | 04    | OTS   | Receiver phone: push, claim with no payment, /plan reads 1 GB              |
 | `judge-founder-take.wav`   | judge | audio | Founder narration, phone mic, one take, 48 kHz                             |
 | `judge-verify-sr.mp4`      | judge | SR    | /verify → World App (non-team Orb human) → Checking · 2 s                  |
-| `judge-verify-log.mp4`     | judge | SC    | API log line POST …/api/v2/verify/<app_id> action=recharge-welcome         |
+| `judge-verify-log.mp4`     | judge | SC    | API log line POST …/api/v4/verify/<app_id> action=recharge-welcome         |
 | `judge-claim-hashscan.mp4` | judge | SC    | HashScan testnet DataDrop.claim tx with the Claimed event                  |
 | `judge-402-curl.mp4`       | judge | SC    | Terminal: curl /esim/topup → HTTP/1.1 402 + decoded PAYMENT-REQUIRED       |
 | `judge-pay-sr.mp4`         | judge | SR    | Judge's phone /pay on Hedera: Add 100 MB → Final, strip visible            |

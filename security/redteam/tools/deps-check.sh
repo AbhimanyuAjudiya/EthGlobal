@@ -37,7 +37,8 @@ git ls-files --error-unmatch .env > /dev/null 2>&1 && bad ".env is tracked by gi
 if git grep -n -E 'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' -- . ':!scripts/dev-chain.sh' ':!packages/adapters/src/testing/**' ':!**/test/**' ':!**/fixtures/**' ':!**/*.test.ts' ':!security/**' ':!docs/**' ':!research/**' ':!**/mocks/**'; then
   bad "Anvil account #0 private key outside dev tooling/tests (lines above; docs may quote it, code may not)"
 fi
-if git grep -n -E '(PRIVATE_KEY|SECRET|MNEMONIC)[A-Z_]*=[^$<]{8,}' -- . ':!.env.example' ':!security/**' ':!docs/**' ':!research/**' > /dev/null; then
+# a `*_LABEL=` variable names what is in use and never holds it (scripts/dev-chain.sh MNEMONIC_LABEL, RT-A-14; AUD-05 d)
+if git grep -n -P '(PRIVATE_KEY|SECRET|MNEMONIC)(?![A-Z_]*_LABEL=)[A-Z_]*=[^$<]{8,}' -- . ':!.env.example' ':!security/**' ':!docs/**' ':!research/**' > /dev/null; then
   bad "secret-looking assignment committed (see git grep output)"
 fi
 

@@ -34,6 +34,7 @@ import {
 
 export const RABDI_CHAIN_ID = 7_794_095;
 export const TIRAMISU_CHAIN_ID = 7_738_577;
+// nosemgrep: recharge-arkiv-legacy-primitive — the refusal constant: arkivChain() and liveConfigSchema reject this id
 export const KAOLIN_CHAIN_ID = 60_138_453_025;
 const RABDI_HOST = 'rpc.rabdi.db-chain.testnet.arkiv.network';
 

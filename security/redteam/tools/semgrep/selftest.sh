@@ -130,7 +130,21 @@ export const o = { btl: 302400 };
 export const f = { flags: { permissionlessExtension: true } };
 // ok: recharge-arkiv-legacy-primitive
 export const e = { expiration: 'ExpirationTime.fromSeconds(600)' };
-export { createClient };
+// ruleid: recharge-arkiv-legacy-primitive
+export const chain = { id: 60_138_453_025 };
+// ruleid: recharge-arkiv-legacy-primitive
+export const use = { chainId: KAOLIN_CHAIN_ID };
+// ruleid: recharge-arkiv-legacy-primitive
+export const rpc = 'https://kaolin.hoodi.arkiv.network/rpc';
+// ok: recharge-arkiv-legacy-primitive
+import { KAOLIN_CHAIN_ID, RABDI_CHAIN_ID } from './arkiv-sdk.js';
+// ok: recharge-arkiv-legacy-primitive
+if (env.chainId === KAOLIN_CHAIN_ID) throw new Error('ARKIV_CHAIN_ID 60138453025 is Kaolin, which is retired: use rabdi');
+/**
+ * ok: recharge-arkiv-legacy-primitive
+ * Kaolin (60138453025) is refused here.
+ */
+export { createClient, RABDI_CHAIN_ID };
 EOF
 
 w packages/adapters/src/live/hcs.ts <<'EOF'
@@ -148,6 +162,11 @@ EOF
 w packages/adapters/src/defaults.ts <<EOF
 // ruleid: recharge-anvil-key-literal-outside-dev-tooling
 export const DEFAULT_KEY = '0x${AK}';
+EOF
+
+w apps/web/README.md <<'EOF'
+<!-- ok: recharge-rp-signing-key-in-client -->
+`@worldcoin/idkit-server` is aliased to a throwing stand-in for the browser (RT-W-11).
 EOF
 
 w docs/example.md <<EOF

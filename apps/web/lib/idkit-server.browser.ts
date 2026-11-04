@@ -1,4 +1,5 @@
 /**
+ * nosemgrep: recharge-rp-signing-key-in-client — this file is the throwing stand-in that replaces the signer.
  * Browser stand-in for `@worldcoin/idkit-server` (RT-W-11, T-81, wave3-web-ops W2.2). `@worldcoin/idkit-core`'s
  * package root re-exports the RP request signer (`signRequest`, `getSessionCommitment`) from idkit-server and
  * declares no `sideEffects: false`, so a plain `import('@worldcoin/idkit-core')` shipped the signer in a client

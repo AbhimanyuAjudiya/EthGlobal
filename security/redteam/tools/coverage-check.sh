@@ -33,7 +33,7 @@ while IFS= read -r t; do
   sev_of[$t]="$s"
 done < <(printf '%s\n' "$in_matrix")
 
-checked_refs=0; checked_paths=0; required_paths=0
+checked_refs=0; checked_paths=0; required_paths=0; known=0
 while IFS= read -r row; do
   IFS='|' read -r _ t sev refs paths _ <<< "$row"
   t="$(echo "$t" | xargs)"; sev="$(echo "$sev" | xargs)"; refs="$(echo "$refs" | xargs)"; paths="$(echo "$paths" | xargs)"
@@ -51,13 +51,26 @@ while IFS= read -r row; do
       grep -qP "^(#{2,4} +|\*\*)${st}(?![0-9A-Za-z])" "$ATTACKS/$file" || gap "$t: step '$st' not found in $file"
     done
   done
-  # regression paths: "a; b"
+  # regression paths: "a; b". A path is a passing test in one of the folders the suites really use (AUD-05 b):
+  # test/regression/, e2e/regression/, test/attack/ (builders' *.attack.test.ts), test/redteam/ (red team rt-*/verify-*)
+  # or adapters' test/live/ (fixture-backed). It must name the threat: in its file name, or as the id in its content.
+  # "OPEN GAP RT-P-nn: <what is missing>" records a known gap; it passes only while that finding is open (not verified
+  # or closed), so a gap can be neither forgotten nor silently closed.
   IFS=';' read -ra ps <<< "$paths"
   for p in "${ps[@]}"; do
     p="$(echo "$p" | xargs)"; checked_paths=$((checked_paths+1))
-    [[ "$p" =~ /test/regression/|/e2e/regression/ ]] || gap "$t: regression path '$p' is not under test/regression/ or e2e/regression/"
+    if [[ "$p" =~ ^OPEN\ GAP\ (RT-P-[0-9]+): ]]; then
+      fid="${BASH_REMATCH[1]}"; ff="$ROOT/security/redteam/findings/$fid.md"
+      if [[ ! -f "$ff" ]]; then gap "$t: open gap names $fid, which has no finding file"
+      elif grep -qE '^status: (verified|closed)' "$ff"; then gap "$t: $fid is $(grep -oP '^status: \K\S+' "$ff") but the matrix still lists an open gap"
+      else known=$((known+1)); echo "coverage: known gap — $t ($fid): ${p#*: }"; fi
+      continue
+    fi
+    [[ "$p" =~ /test/(regression|attack|redteam|live)/|/e2e/regression/ ]] || gap "$t: regression path '$p' is not under test/{regression,attack,redteam,live}/ or e2e/regression/"
     base="$(basename "$p")"
-    [[ "$base" == *"${t//-/}"* || "$base" == *"$t"* ]] || gap "$t: regression file '$base' is not named after the threat id"
+    if [[ "$base" != *"${t//-/}"* && "$base" != *"$t"* ]] && ! { [[ -f "$ROOT/$p" ]] && grep -qP "(?<![0-9A-Za-z])${t}(?![0-9])" "$ROOT/$p"; }; then
+      gap "$t: regression file '$base' names the threat neither in its file name nor in its content"
+    fi
     for pre in "${require[@]}"; do
       if [[ "$p" == "$pre"/* ]]; then
         required_paths=$((required_paths+1))
@@ -69,7 +82,7 @@ done < <(printf '%s\n' "$matrix")
 
 n_decl="$(printf '%s\n' "$declared" | wc -l)"
 if [[ $fail -eq 0 ]]; then
-  echo "coverage: OK — $n_decl Critical/High threats mapped; $checked_refs attack steps resolve; $checked_paths regression paths named; $required_paths required paths present"
+  echo "coverage: OK — $n_decl Critical/High threats mapped; $checked_refs attack steps resolve; $checked_paths regression paths named; $required_paths required paths present; $known known gap(s) tracked by open findings"
 else
   echo "coverage: FAIL"
 fi

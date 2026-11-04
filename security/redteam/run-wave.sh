@@ -24,6 +24,13 @@ run()  { "$@"; local r=$?; if [[ $r -eq 0 ]]; then ok "$*"; else ko "$* (exit $r
 # run a command inside a directory WITHOUT a subshell, so a failure still reaches $rc
 run_in() { local dir="$1"; shift; pushd "$dir" > /dev/null || { ko "cd $dir"; return 0; }; run "$@"; popd > /dev/null || true; }
 need() { [[ -e "$1" ]] && return 0; ko "$2 (missing: $1)"; return 1; }
+# The attack suites live where the builders and the red team put them (AUD-05 a): test/redteam/ (red team, rt-*/verify-*),
+# test/attack/ (builders' *.attack.test.ts) and, for the adapters, test/live/ (fixture-backed contract suites,
+# wave1-adapters.md). protocol/crypto/eip3009 have no attack folder: their wave-1 attacks are octroi's
+# test/redteam/rt-*.test.ts and protocol's test/redteam-octroi-regressions.test.ts. Each package's whole suite runs.
+attack_paths() { # $1 package dir → the attack test paths that exist (one per line)
+  local p; for p in "$1"/test/redteam "$1"/test/attack "$1"/test/live "$1"/test/redteam-*.test.ts; do [[ -e $p ]] && echo "$p"; done
+}
 
 static_gates() {
   step "static: semgrep rules self-test (parse + behaviour, offline)"
@@ -100,9 +107,14 @@ wave1() {
   wave1_contracts
   step "wave 1: protocol / crypto / eip3009 / octroi / adapters — attack + fixture contract suites"
   for pkg in protocol crypto eip3009 octroi adapters; do
-    if need "packages/$pkg/test/attack" "attack tests for @ethglobal/$pkg (wave1-octroi.md / wave1-adapters.md)"; then
+    if need "packages/$pkg/test" "test suite for @ethglobal/$pkg"; then
       run pnpm --filter "@ethglobal/$pkg" test -- --run
     fi
+  done
+  # the red-team suites themselves must exist (a package losing them is a failure, not a skip)
+  for pkg in protocol octroi adapters; do
+    [[ -n "$(attack_paths "packages/$pkg")" ]] && ok "attack suites for @ethglobal/$pkg: $(attack_paths "packages/$pkg" | tr '\n' ' ')" \
+      || ko "attack tests for @ethglobal/$pkg (wave1-octroi.md / wave1-adapters.md) (missing: packages/$pkg/test/{redteam,attack,live})"
   done
   step "wave 1: regression tests named in THREAT-MODEL §5.12 exist"
   run bash "$TOOLS/coverage-check.sh" --require packages/contracts packages/protocol packages/crypto packages/eip3009 packages/octroi packages/adapters
@@ -111,44 +123,58 @@ wave1() {
 wave2() {
   step "wave 2: api + agent attack suites"
   for svc in api agent; do
-    if need "services/$svc/test/attack" "attack tests for @ethglobal/$svc (wave2-api-agent.md)"; then
+    if need "services/$svc/test/redteam" "attack tests for @ethglobal/$svc (wave2-api-agent.md)"; then
       run pnpm --filter "@ethglobal/$svc" test -- --run
     fi
   done
   step "wave 2: full local loop (scripts/e2e-local.sh) with log capture"
   if need scripts/e2e-local.sh "the ops-demo e2e harness"; then
     run bash scripts/e2e-local.sh --redteam
-    E2E_FAULT=step7 bash scripts/e2e-local.sh > "$RT_OUT/fault.log" 2>&1 && ko "e2e-local.sh passes with E2E_FAULT=step7 (OP5: the harness cannot fail)" || ok "e2e-local.sh fails under E2E_FAULT=step7"
   fi
+  # the ledger-dump check and the log scan read the GOOD run's .e2e/latest: they run before the E2E_FAULT run below, which
+  # stops before the dump by design and re-points .e2e/latest at its own run (AUD-05 c)
   step "wave 2: forbidden-pattern scan of logs, ledger dump, HCS dump, agent journal"
   # e2e-local.sh writes each run to .e2e/<run-id>/ (RT-P-02) with .e2e/latest → it; older root-level logs are scanned too
+  [[ -f "$E2E/latest/ledger-dump.json" ]] || ko "missing .e2e/latest/ledger-dump.json (AP4 step 6; e2e-local.sh step 6)"
   logs=(); for f in "$E2E"/*.log "$E2E"/*/*.log "$E2E"/latest/ledger-dump.json "$RT_OUT"/*.json "$ROOT"/.agent; do [[ -e $f ]] && logs+=("$f"); done
   if [[ ${#logs[@]} -gt 0 ]]; then run bash "$TOOLS/scan.sh" "${logs[@]}"; else ko "no .e2e logs / ledger dump to scan (scripts/dump-ledger.ts must write .e2e/latest/ledger-dump.json)"; fi
-  [[ -f "$E2E/latest/ledger-dump.json" ]] || ko "missing .e2e/latest/ledger-dump.json (AP4 step 6; e2e-local.sh step 6)"
+  if [[ -f scripts/e2e-local.sh ]]; then
+    step "wave 2: the e2e harness can fail (E2E_FAULT=step7, OP5)"
+    E2E_FAULT=step7 bash scripts/e2e-local.sh > "$RT_OUT/fault.log" 2>&1 && ko "e2e-local.sh passes with E2E_FAULT=step7 (OP5: the harness cannot fail)" || ok "e2e-local.sh fails under E2E_FAULT=step7"
+  fi
   step "wave 2: regression tests named in THREAT-MODEL §5.12 exist"
   run bash "$TOOLS/coverage-check.sh" --require services/api services/agent
 }
 
 wave3() {
   step "wave 3: PWA abuse specs (Playwright, Chromium)"
-  if need apps/web/e2e/abuse "Playwright abuse specs (wave3-web-ops.md W1–W11)"; then
-    run pnpm --filter @ethglobal/web e2e:abuse
-  fi
+  # the specs live in apps/web/test/redteam/rt-*.spec.ts and run against the real stack in wave3_web (wave3-web/run.sh)
+  need apps/web/test/redteam/playwright.redteam.config.ts "Playwright abuse specs (wave3-web-ops.md W1–W11)" &&
+    ok "abuse specs present: $(ls apps/web/test/redteam/rt-*.spec.ts | wc -l) rt-*.spec.ts (run by wave3-web/run.sh)"
   step "wave 3: live build carries no demo wallet, test key or server secret (T-63, T-81)"
+  # built into its own dist dir: apps/web/.next may be serving another session and is never rebuilt here (AUD-11)
+  local live_dist="${RT_LIVE_DIST:-.next-audit}"
   if [[ -d apps/web/app ]]; then
-    if NEXT_PUBLIC_MODE=live pnpm --filter @ethglobal/web build > "$RT_OUT/web-build.log" 2>&1; then
-      hits="$(grep -R -l -E 'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80|8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba|test test test test test test test test test test test junk|RP_SIGNING_KEY|signingKeyHex|idkit-core/signing|DemoWalletPanel|sk-ant-' apps/web/.next/static apps/web/.next/server 2>/dev/null)"
-      [[ -z "$hits" ]] && ok "live bundle clean" || ko "secrets / demo wallet in live bundle: $hits"
-      run bash "$TOOLS/scan.sh" apps/web/.next/static
+    if NEXT_DIST_DIR="$live_dist" NEXT_PUBLIC_MODE=live pnpm --filter @ethglobal/web build > "$RT_OUT/web-build.log" 2>&1; then
+      # secret VALUES must be in neither the client nor the web server bundle; client-only CODE (the RP signer, the demo
+      # banner) is checked in what the browser downloads: the server bundle resolves the real idkit-server by design
+      # (RT-W-11, lib/idkit-server.browser.ts), so `signingKeyHex` there is a parameter name, not a shipped secret
+      hits="$(grep -R -l -E 'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80|8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba|test test test test test test test test test test test junk|sk-ant-' "apps/web/$live_dist/static" "apps/web/$live_dist/server" 2>/dev/null)"
+      hits+="$(grep -R -l -E 'RP_SIGNING_KEY|signingKeyHex|idkit-core/signing|DemoWalletPanel|demo-wallet__addr' "apps/web/$live_dist/static" 2>/dev/null)"
+      [[ -z "$hits" ]] && ok "live bundle clean (no test key, mnemonic or API key in static/server; no signer or demo banner in static)" || ko "secrets / demo wallet in live bundle: $hits"
+      run bash "$TOOLS/scan.sh" "apps/web/$live_dist/static"
+      LIVE_BUNDLE_DIR="apps/web/$live_dist" run pnpm --filter @ethglobal/web exec vitest run test/no-anvil-key-in-bundle.test.ts
     else ko "live web build failed (see $RT_OUT/web-build.log)"; fi
   else ko "apps/web/app missing"; fi
   step "wave 3: ops — seed hooks are local-only, recorder redacts, design bans"
   # a missing gate is a failure, not a skip (RT-P-09)
   if need scripts/check-design-bans.sh "the design-ban gate (BUILD-PLAN §2.4)"; then run bash scripts/check-design-bans.sh; fi
-  if [[ -d scripts/test/attack ]]; then
-    if [[ -f scripts/package.json ]]; then run pnpm --dir scripts exec vitest run test/attack
-    else ko "scripts/test/attack exists but scripts/ has no package.json with vitest to run it"; fi
-  else ko "scripts/test/attack missing (wave3-web-ops.md OP2, OP5, OP6)"; fi
+  # the ops attacks (OP2, OP5, OP6) are executable checks in wave3-ops/run.sh; their fixed findings' regressions and the
+  # T-65/T-85/T-86 tests live in scripts/test/regression
+  if [[ -d scripts/test/regression ]]; then
+    if [[ -f scripts/package.json ]]; then run pnpm --dir scripts exec vitest run test/regression
+    else ko "scripts/test/regression exists but scripts/ has no package.json with vitest to run it"; fi
+  else ko "scripts/test/regression missing (wave3-web-ops.md OP2, OP5, OP6)"; fi
   step "wave 3: regression tests named in THREAT-MODEL §5.12 exist"
   run bash "$TOOLS/coverage-check.sh" --require apps/web scripts
 }
@@ -170,7 +196,8 @@ wave3_web() {
   # Exit non-zero while any RT-W finding is open (each failing check prints `RT-FINDING RT-W-<nn> <name>_RTFINDING`).
   step "wave 3: web / PWA (wave3-web/run.sh — W1–W11 + product probes, findings RT-W-*)"
   if need security/redteam/wave3-web/run.sh "web attack checks (wave3-web-ops.md W1–W11)"; then
-    RT_OUT="$RT_OUT" run bash security/redteam/wave3-web/run.sh
+    # its local web build goes to its own dist dir, never apps/web/.next (another session may serve it, AUD-11)
+    NEXT_DIST_DIR="${NEXT_DIST_DIR:-.next-redteam}" RT_OUT="$RT_OUT" run bash security/redteam/wave3-web/run.sh
   fi
 }
 
@@ -185,7 +212,8 @@ case "$wave" in
   static) static_gates ;;
   *) echo "usage: run-wave.sh 1|2|3|wave3-ops|wave3-web|all|static|contracts" >&2; exit 2 ;;
 esac
-bash "$TOOLS/findings-index.sh" > /dev/null 2>&1 || true
+# regenerated AND formatted, so a run never leaves INDEX.md failing `prettier --check` (AUD-11)
+bash "$TOOLS/findings-index.sh" > /dev/null 2>&1 && pnpm -s exec prettier --write security/redteam/findings/INDEX.md > /dev/null 2>&1 || true
 findings=(security/redteam/findings/RT-*.md)
 if [[ "$wave" == "contracts" ]]; then   # the contracts gate judges only findings filed against packages/contracts
   mapfile -t findings < <(grep -l -E '^module: packages/contracts/' security/redteam/findings/RT-*.md 2>/dev/null)

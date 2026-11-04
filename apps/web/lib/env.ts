@@ -49,6 +49,7 @@ export function networkName(network: string | undefined): string {
   if (network.startsWith('hedera:')) return 'Hedera';
   if (network === 'eip155:84532' || network === 'eip155:8453') return 'Base';
   if (network === 'eip155:31337') return 'Local chain';
+  // nosemgrep: recharge-x402-v1-primitive — display label for a receipt's chain, never sent as an x402 network
   if (network === 'eip155:296') return 'Hedera EVM';
   return 'EVM';
 }

@@ -67,3 +67,15 @@ db-chain\.testnet\.arkiv\.network/(?!access-keys\b|faucet\b)[A-Za-z0-9_-]{16,}
 ARKIV_ACCESS_KEY[[:space:]]*=[[:space:]]*(?![A-Z0-9_]+=)[A-Za-z0-9_-]{16,}
 SWARM_POSTAGE_BATCH[[:space:]]*=[[:space:]]*(?![A-Z0-9_]+=)(?:0x)?[0-9a-fA-F]{64}
 postage-batch(?:-id)?"?[[:space:]]*[:=][[:space:]]*["']?(?!([0-9a-fA-F]{2})\g{-1}{31}\b)[0-9a-fA-F]{64}
+#
+# --- exact-value allow list (AUD-05, AUD-08) -----------------------------------------------------------------------------
+# "allow-exact: <literal>" removes that EXACT literal from a matching line before the line is re-tested, and only in a
+# git-TRACKED file (committed dev tooling, e2e helpers, tests). Logs, ledger dumps, history extracts and build output are
+# never tracked, so a public test key in a log or a bundle still fires. Only published, non-secret test values belong here.
+# The Anvil/Hardhat default mnemonic and the private keys of its accounts #0–#2 (public, documented by Foundry/Hardhat):
+allow-exact: test test test test test test test test test test test junk
+allow-exact: ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+allow-exact: 59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
+allow-exact: 5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a
+# the wrong-token probe of apps/web/e2e/print.spec.ts (a deliberately invalid print token)
+allow-exact: ?token=nope-nope-nope-nope

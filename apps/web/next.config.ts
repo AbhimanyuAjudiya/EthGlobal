@@ -49,6 +49,7 @@ const nextConfig: NextConfig = {
     root: repoRoot,
     // RT-W-11: the browser gets a throwing stand-in for idkit-core's re-exported RP signer (lib/idkit-server.browser.ts)
     resolveAlias: {
+      // nosemgrep: recharge-rp-signing-key-in-client — this alias is the guard: it keeps the signer out of the browser
       '@worldcoin/idkit-server': { browser: './lib/idkit-server.browser.ts' },
     },
     rules: {

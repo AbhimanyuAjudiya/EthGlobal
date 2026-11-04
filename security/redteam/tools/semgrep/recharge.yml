@@ -172,7 +172,8 @@ rules:
     languages: [generic]
     paths:
       include: ["**/apps/web/**", "**/packages/ui/**"]
-      exclude: ["**/apps/web/e2e/**", "*.test.ts", "*.spec.ts"]
+      # markdown is never bundled: a README that documents the guard is not a client import (AUD-03)
+      exclude: ["**/apps/web/e2e/**", "*.test.ts", "*.spec.ts", "*.md"]
     pattern-regex: (RP_SIGNING_KEY|signingKeyHex|@worldcoin/idkit-core/signing|@worldcoin/idkit/signing|@worldcoin/idkit-server)
 
   - id: recharge-secret-in-browser-storage
@@ -216,7 +217,15 @@ rules:
     paths:
       include: ["**/packages/adapters/src/**", "**/services/**", "**/scripts/**"]
       exclude: ["**/test/attack/**"]
-    pattern-regex: (golem-base-sdk|60138453025|(?i:kaolin)|\bbtl\s*[:=]|\bBTL\b|permissionlessExtension\s*:\s*true)
+    # The code that REFUSES Kaolin must be able to name it (AUD-03): a comparison against the refusal constant, its import,
+    # a comment line, and a string literal stating that it "is retired" are not uses. Anything else that names Kaolin or its
+    # chain id (with or without numeric separators), golem-base-sdk, BTL or permissionlessExtension still fires.
+    patterns:
+      - pattern-regex: (golem-base-sdk|60_?138_?453_?025|(?i:kaolin)|\bbtl\s*[:=]|\bBTL\b|permissionlessExtension\s*:\s*true)
+      - pattern-not-regex: '[!=]==\s*KAOLIN_CHAIN_ID\b'
+      - pattern-not-regex: 'import\s*\{[^}]*\bKAOLIN_CHAIN_ID\b[^}]*\}\s*from'
+      - pattern-not-regex: '(?m)^\s*(?://|/\*|\*).*$'
+      - pattern-not-regex: '(?m)^.*([''"`])[^''"`\n]*\bis retired\b[^''"`\n]*\1.*$'
 
   - id: recharge-hedera-legacy-primitive
     message: "T-65/T-78: Hedera legacy primitive. Use @hiero-ledger/sdk (the SDK @x402/hedera pins; a second SDK copy breaks instanceof checks), @hashgraph/hedera-agent-kit v4 (the unscoped hedera-agent-kit is deprecated), and PrivateKey.fromStringECDSA / fromStringED25519 (fromString and generate are deprecated and guess the key type)."

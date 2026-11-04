@@ -251,53 +251,53 @@ Columns: STRIDE · Sev (Critical/High/Med/Low) · Lik (H/M/L) · **Control that 
 
 ### 5.12 Coverage matrix — every Critical and High threat → attack step → regression test
 
-Machine-checked by `security/redteam/tools/coverage-check.sh` (run by `run-wave.sh`): every Critical/High `T-` row in §5.1–5.11 must appear here; every attack reference must resolve to a step heading in `security/redteam/attacks/`; every regression path must exist once its package exists. **Regression tests are written by the builder who owns the package** (the red team's attack tests in `test/attack/` prove the attack fails; the builder's file under `test/regression/` pins the fix so a refactor cannot silently undo it). One file per threat, named after the threat id, asserting the same property as the attack step; vitest `describe('T-xx …')`, Foundry `contract T01_… is Test`, Playwright `test.describe('T-xx …')`. A finding against a threat adds its case to the same file and records the path in the finding's `regression_test:`.
+Machine-checked by `security/redteam/tools/coverage-check.sh` (run by `run-wave.sh`): every Critical/High `T-` row in §5.1–5.11 must appear here; every attack reference must resolve to a step heading in `security/redteam/attacks/`; every regression path must exist once its package exists and must name the threat (in its file name, or as the `T-xx` id in its content); paths may sit under `test/regression/`, `e2e/regression/`, `test/attack/`, `test/redteam/` or the adapters' `test/live/`, where the suites actually live; an `OPEN GAP RT-P-nn: …` cell is a known gap that passes only while that finding is open (reconciled 2026-11-04, AUD-05 b: the 23 paths first named here were never created under those names, so each row now points at the file that really tests the threat). **Regression tests are written by the builder who owns the package** (the red team's attack tests in `test/attack/` prove the attack fails; the builder's file under `test/regression/` pins the fix so a refactor cannot silently undo it). One file per threat, named after the threat id, asserting the same property as the attack step; vitest `describe('T-xx …')`, Foundry `contract T01_… is Test`, Playwright `test.describe('T-xx …')`. A finding against a threat adds its case to the same file and records the path in the finding's `regression_test:`.
 
 <!-- coverage:begin -->
-| Threat | Sev | Attack steps (`security/redteam/attacks/`) | Regression test the builder must create |
+| Threat | Sev | Attack steps (`security/redteam/attacks/`) | Regression test (real path; reconciled 2026-11-04, AUD-05 b) |
 |---|---|---|---|
 | T-01 | Critical | wave1-contracts.md A1, A18; wave2-api-agent.md AP14 | packages/contracts/test/regression/T01_AttestorDrainBound.t.sol; services/api/test/regression/T-01-anomaly-pause.test.ts |
 | T-03 | High | wave1-contracts.md A3 | packages/contracts/test/regression/T03_ClaimKeyReplay.t.sol |
 | T-04 | High | wave1-contracts.md A4 | packages/contracts/test/regression/T04_CampaignIdHijack.t.sol |
 | T-05 | High | wave1-contracts.md A5 | packages/contracts/test/regression/T05_AuthMatrix.t.sol |
 | T-07 | High | wave1-contracts.md A6, A7 | packages/contracts/test/regression/T07_BudgetAccounting.t.sol |
-| T-08 | High | wave1-contracts.md A8; wave1-octroi.md P3 | packages/contracts/test/regression/T08_Decimals.t.sol; packages/protocol/test/regression/T-08-units.test.ts |
+| T-08 | High | wave1-contracts.md A8; wave1-octroi.md P3 | packages/contracts/test/regression/T08_Decimals.t.sol; OPEN GAP RT-P-13: no protocol test names T-08 (USDC 6-dp behaviour is in packages/protocol/test/units.test.ts) |
 | T-09 | High | wave1-contracts.md A9, A19 | packages/contracts/test/regression/T09_HtsAssociation.t.sol |
 | T-13 | High | wave1-contracts.md A13; wave1-octroi.md E5 | packages/contracts/test/regression/T13_Eip3009Matrix.t.sol |
-| T-18 | Critical | wave1-octroi.md O1; wave2-api-agent.md AP1 | packages/octroi/test/regression/T-18-nullifier-replay.test.ts; services/api/test/regression/T-18-claim-replay.test.ts |
-| T-19 | High | wave1-octroi.md O2; wave1-adapters.md L6 | packages/octroi/test/regression/T-19-signal-binding.test.ts |
-| T-20 | High | wave1-octroi.md O3; wave2-api-agent.md AP2 | packages/octroi/test/regression/T-20-challenge.test.ts |
-| T-22 | Critical | wave1-octroi.md O5; wave1-adapters.md L6 | packages/octroi/test/regression/T-22-tier-from-verifier.test.ts |
-| T-23 | High | wave1-octroi.md O6 | packages/octroi/test/regression/T-23-size-bundle.test.ts |
-| T-24 | High | wave1-octroi.md O7; wave2-api-agent.md AP5, AP6 | packages/octroi/test/regression/T-24-cheap-checks-first.test.ts; services/api/test/regression/T-24-verified-claim-retry.test.ts |
+| T-18 | Critical | wave1-octroi.md O1; wave2-api-agent.md AP1 | packages/octroi/test/attack/replay.attack.test.ts; services/api/test/regression/T-18-claim-replay.test.ts |
+| T-19 | High | wave1-octroi.md O2; wave1-adapters.md L6 | packages/octroi/test/attack/replay.attack.test.ts |
+| T-20 | High | wave1-octroi.md O3; wave2-api-agent.md AP2 | packages/octroi/test/attack/replay.attack.test.ts |
+| T-22 | Critical | wave1-octroi.md O5; wave1-adapters.md L6 | packages/octroi/test/attack/tier-size.attack.test.ts |
+| T-23 | High | wave1-octroi.md O6 | packages/octroi/test/attack/tier-size.attack.test.ts |
+| T-24 | High | wave1-octroi.md O7; wave2-api-agent.md AP5, AP6 | packages/octroi/test/attack/order.attack.test.ts; services/api/test/regression/T-24-verified-claim-retry.test.ts |
 | T-25 | High | wave1-octroi.md O8; wave2-api-agent.md AP6 | services/api/test/regression/T-25-pending-profile.test.ts |
-| T-26 | High | wave1-octroi.md O9, P3 | packages/octroi/test/regression/T-26-payment-mb.test.ts |
-| T-27 | High | wave1-octroi.md O10; wave1-adapters.md L10 | packages/octroi/test/regression/T-27-serve-after-settle.test.ts |
-| T-28 | High | wave1-octroi.md O11, P1; wave2-api-agent.md AP7 | packages/octroi/test/regression/T-28-accepts-substitution.test.ts |
-| T-29 | High | wave1-octroi.md O12; wave2-api-agent.md AP16 | packages/octroi/test/regression/T-29-keys.test.ts |
-| T-30 | High | wave1-octroi.md O13; wave2-api-agent.md AG1 | packages/octroi/test/regression/T-30-should-topup.test.ts |
+| T-26 | High | wave1-octroi.md O9, P3 | packages/octroi/test/attack/payment.attack.test.ts |
+| T-27 | High | wave1-octroi.md O10; wave1-adapters.md L10 | packages/octroi/test/attack/payment.attack.test.ts |
+| T-28 | High | wave1-octroi.md O11, P1; wave2-api-agent.md AP7 | packages/octroi/test/attack/payment.attack.test.ts |
+| T-29 | High | wave1-octroi.md O12; wave2-api-agent.md AP16 | packages/octroi/test/attack/keys-policy-gift.attack.test.ts |
+| T-30 | High | wave1-octroi.md O13; wave2-api-agent.md AG1 | packages/octroi/test/attack/keys-policy-gift.attack.test.ts |
 | T-31 | Critical | wave1-octroi.md C1, C2; wave2-api-agent.md AP4; wave3-web-ops.md W5 | services/api/test/regression/T-31-lpa-single-delivery.test.ts |
-| T-32 | High | wave1-octroi.md C4, O3; wave2-api-agent.md AP7 | packages/octroi/test/regression/T-32-session-binding.test.ts |
-| T-33 | High | wave1-octroi.md C1 | packages/crypto/test/regression/T-33-aead.test.ts |
-| T-34 | High | wave1-octroi.md C5; wave1-adapters.md L8; wave2-api-agent.md AP3 | packages/crypto/test/regression/T-34-webhook-mac.test.ts; services/api/test/regression/T-34-webhook-route.test.ts |
-| T-36 | High | wave1-adapters.md L4; wave2-api-agent.md AP9 | packages/octroi/test/regression/T-36-logical-keys.test.ts |
-| T-37 | High | wave1-adapters.md L5; wave2-api-agent.md AP4 | packages/adapters/test/regression/T-37-ledger-allow-list.test.ts |
-| T-38 | High | wave1-adapters.md L6 | packages/adapters/test/regression/T-38-world-v4-verifier.test.ts |
+| T-32 | High | wave1-octroi.md C4, O3; wave2-api-agent.md AP7 | packages/octroi/test/attack/payment.attack.test.ts |
+| T-33 | High | wave1-octroi.md C1 | OPEN GAP RT-P-13: no test names T-33 (AEAD behaviour is in packages/crypto/test/seal.test.ts) |
+| T-34 | High | wave1-octroi.md C5; wave1-adapters.md L8; wave2-api-agent.md AP3 | OPEN GAP RT-P-13: no crypto test names T-34 (MAC behaviour is in packages/crypto/test/hash-webhook.test.ts); services/api/test/regression/T-34-webhook-route.test.ts |
+| T-36 | High | wave1-adapters.md L4; wave2-api-agent.md AP9 | packages/octroi/test/attack/stores.attack.test.ts |
+| T-37 | High | wave1-adapters.md L5; wave2-api-agent.md AP4 | packages/adapters/test/live/arkiv-ledger.test.ts; packages/octroi/test/redteam/rt-keys.test.ts |
+| T-38 | High | wave1-adapters.md L6 | packages/adapters/test/live/world-personhood.test.ts |
 | T-46 | High | wave2-api-agent.md AP5 | services/api/test/regression/T-46-cap-race.test.ts |
 | T-47 | High | wave2-api-agent.md AP10; wave3-web-ops.md W8 | services/api/test/regression/T-47-get-is-read-only.test.ts |
 | T-50 | High | wave2-api-agent.md AP15 | services/api/test/regression/T-50-log-redaction.test.ts |
 | T-52 | High | wave2-api-agent.md AP16 | services/api/test/regression/T-52-env-guards.test.ts |
 | T-55 | High | wave2-api-agent.md AG4, AP21 | services/agent/test/regression/T-55-injection-canary.test.ts |
 | T-56 | Critical | wave2-api-agent.md AG2 | services/agent/test/regression/T-56-tampered-402.test.ts |
-| T-58 | High | wave3-web-ops.md W1, W4 | apps/web/e2e/regression/T-58-xss.spec.ts |
-| T-61 | High | wave3-web-ops.md W5, W6, W7 | apps/web/e2e/regression/T-61-lpa-plumbing.spec.ts |
-| T-64 | High | wave3-web-ops.md W9 | apps/web/e2e/regression/T-64-print-sheet.spec.ts |
+| T-58 | High | wave3-web-ops.md W1, W4 | apps/web/test/redteam/rt-xss.spec.ts |
+| T-61 | High | wave3-web-ops.md W5, W6, W7 | apps/web/test/redteam/rt-lpa-plumbing.spec.ts |
+| T-64 | High | wave3-web-ops.md W9 | apps/web/test/redteam/rt-static.spec.ts |
 | T-65 | High | wave3-web-ops.md OP4 | scripts/test/regression/T-65-supply-chain.test.ts |
 | T-69 | High | wave2-api-agent.md AP16; wave3-web-ops.md OP3 | services/api/test/regression/T-69-testnet-only.test.ts |
 | T-71 | High | wave1-octroi.md G; wave2-api-agent.md AP11 | services/api/test/regression/T-71-reclaim.test.ts |
 | T-74 | High | wave2-api-agent.md AP12 | services/api/test/regression/T-74-idempotency-scope.test.ts |
-| T-79 | Critical | wave1-adapters.md L16; wave2-api-agent.md AG5, AP9 | packages/octroi/test/regression/T-79-ledger-creator-filter.test.ts; services/agent/test/regression/T-79-forged-policy.test.ts |
-| T-80 | Critical | wave1-adapters.md L6; wave2-api-agent.md AP17 | packages/adapters/test/regression/T-80-world-environment.test.ts |
+| T-79 | Critical | wave1-adapters.md L16; wave2-api-agent.md AG5, AP9 | packages/octroi/test/redteam/rt-store.test.ts; services/agent/test/regression/T-79-forged-policy.test.ts |
+| T-80 | Critical | wave1-adapters.md L6; wave2-api-agent.md AP17 | packages/adapters/test/live/world-personhood.test.ts |
 | T-81 | High | wave2-api-agent.md AP17; wave3-web-ops.md W2, W10 | services/api/test/regression/T-81-rp-context.test.ts |
 | T-82 | High | wave1-adapters.md L8; wave2-api-agent.md AP3 | services/api/test/regression/T-82-esimaccess-webhook.test.ts |
 | T-84 | Critical | wave2-api-agent.md AG6 | services/agent/test/regression/T-84-no-llm-tools.test.ts |
@@ -463,3 +463,4 @@ Public chains and Arkiv are evidence. The product's legal posture (no sale in In
 - **2026-11-03 01:50** — v1 (committed as `9025a26`, draft). Written against DECISION.md (ratified) and the scaffold at `7c2f931`; `docs/INTERFACES.md` / `docs/ARCHITECTURE.md` not yet present.
 - **2026-11-03 02:30** — v1.1. Aligned with `docs/INTERFACES.md` v1 and `docs/ARCHITECTURE.md` (names, D-1…D-12, A-1…A-17); §4 rewritten on the architecture's flows; rows T-18/20/21/23/24/29/32/34/36/45/47/50/52/56/60 updated; §5.10 adds T-71…T-78 (treasury/reclaim, sponsor bearer, agent policy, idempotency, public facilitator, IndexedDB LPA, UAID attribution, Hedera scheme); §6.2 nonce table extended (N3h, N9–N11); §7 now lists resolved questions and twelve open asks; §8 extended. Add a T-row for every finding that reveals a threat this document missed.
 - **2026-11-03 (red-team lead, wave-prep)** — v1.2. Verified against `docs/vendor/API-FACTS.md` and INTERFACES A-18…A-30: outdated primitives replaced (Kaolin → rabdi 7794095; BTL → `ExpirationTime` / `$expiresAt`; `/api/v2/verify/{app_id}` → `/api/v4/verify/{rp_id}` + backend-signed `rp_context`; `signedTransaction` → `{ transaction }` + `extra.feePayer`; `"USD Coin"` → per-chain domain, `"USDC"` on Base Sepolia; `@hashgraph/sdk` → `@hiero-ledger/sdk`; signed eSIM Access webhooks → unsigned, token + IP + re-read). Rows T-14/19/22/24/27/28/34/35/38/42/50/52/56/64/65/77/78 rewritten; assets A-16…A-18; §5.11 adds T-79…T-86 (Arkiv entity forgery, World environment, `rp_context`, unsigned eSIM Access webhooks, `accessCode`, Agent Kit tools in a model, seed hooks in live, repo/fixture leakage); §5.12 coverage matrix (machine-checked); N1/N3h/N4 updated, N12/N13 added; §7 items 13–19; §8 two rows. Tool fixes in the same pass: `scan.sh` never ran (GNU `grep -P -f` rejects multiple patterns, so it always printed "clean"); two semgrep rules could never match (`dangerouslySetInnerHTML`, Anvil key) — both fixed and proven by `tools/semgrep/selftest.sh`.
+- **2026-11-04 (red-team, closing pass)** — §5.12 reconciled with the tree (AUD-05 b): 20 paths repointed at the real files that name the threat (octroi `test/attack/*.attack.test.ts`, `test/redteam/rt-*.test.ts`, adapters `test/live/*.test.ts`, web `test/redteam/rt-*.spec.ts`); T-08 (protocol), T-33 and T-34 (crypto) have no test that names the threat and are recorded as open gaps under RT-P-13. `coverage-check.sh` accepts those folders and a content-level threat id.

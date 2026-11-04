@@ -5,15 +5,15 @@ module: packages/octroi/src/store/entitlement.ts
 threat: T-37
 severity: High
 likelihood: H
-status: open
+status: verified
 found_by: redteam-octroi
 owner: builder-octroi
 found_at: 2026-11-04T05:40+05:30
 due: 2026-11-04T09:40+05:30
-attack_test: services/api/test/redteam/verify-rt-o-01-variants.test.ts::(d2) a fresh (<60 s) cache entry is never served past the entitlement expiry, ledger down or up_RTFINDING (earlier: packages/octroi/test/redteam/rt-keys.test.ts::the /me/:key capability of a free entitlement does not appear on the public ledger_RTFINDING)
-regression_test: services/api/test/redteam/verify-rt-o-01-index-cache.test.ts::/me/<hk:index> after the owner read /me/<key> ⇒ 404, never the owner’s entitlement [RT-O-01] (+ ::/me/<hk:index> while the ledger is down, and after expiry ⇒ the same 404 as an unknown key [RT-O-01]; services/api/test/unit/primitives.test.ts::keyed by the capability, never the ledger index … [RT-O-01]; services/api/test/me.test.ts::after expiry → the same 404 as unknown …, ::degraded ledger: a cached copy past its entitlement expiry, or one not marked stale-allowed, is never served [RT-O-01]; packages/octroi/test/redteam/rt-keys.test.ts [RT-O-01] cases); earlier regressions (still green): packages/octroi/test/redteam/rt-keys.test.ts::the /me/:key capability of a free entitlement does not appear on the public ledger [RT-O-01] (+ the two other [RT-O-01] cases in that file; packages/octroi/test/regression/redteam-wave1.test.ts::RT-O-01)
-fix_commit: 041136f (verification fix pass; partial, reopened 2026-11-04 by the closing verification)
-verified_at:
+attack_test: services/api/test/redteam/verify-rt-o-01-variants.test.ts::(d2) … [RT-O-01 d2] (was `_RTFINDING`; earlier: packages/octroi/test/redteam/rt-keys.test.ts::the /me/:key capability of a free entitlement does not appear on the public ledger_RTFINDING)
+regression_test: services/api/test/redteam/verify-rt-o-01-variants.test.ts (a, b, c, d1, d2, e: all [RT-O-01]); services/api/test/redteam/verify-rt-o-01-index-cache.test.ts::/me/<hk:index> after the owner read /me/<key> ⇒ 404, never the owner’s entitlement [RT-O-01] (+ ::/me/<hk:index> while the ledger is down, and after expiry ⇒ the same 404 as an unknown key [RT-O-01]; services/api/test/unit/primitives.test.ts::keyed by the capability, never the ledger index … [RT-O-01]; services/api/test/me.test.ts::after expiry → the same 404 as unknown …, ::degraded ledger: a cached copy past its entitlement expiry, or one not marked stale-allowed, is never served [RT-O-01]; packages/octroi/test/redteam/rt-keys.test.ts [RT-O-01] cases); earlier regressions (still green): packages/octroi/test/redteam/rt-keys.test.ts::the /me/:key capability of a free entitlement does not appear on the public ledger [RT-O-01] (+ the two other [RT-O-01] cases in that file; packages/octroi/test/regression/redteam-wave1.test.ts::RT-O-01)
+fix_commit: 041136f + b3d0c35 (MeCache.fresh() expiry check, variant d2)
+verified_at: 2026-11-04 (redteam-verify closing pass, Claude)
 duplicate_of:
 sign_off:
 ---
@@ -137,3 +137,39 @@ PLAN §1 requires every claimed property of the fix to verify. The lead may down
 Not verified here (out of RT-O-01's `hk:` scope; already recorded as residuals in octroi README Decision 16):
 `AgentPolicyWire.entitlementKey` is still stored in clear on the ledger, and `giftent:<giftId>` can be derived from the
 public gift entity.
+
+## Verification (red team, closing pass 2)
+
+**2026-11-04 — redteam-verify closing pass (Claude), against `b3d0c35`: VERIFIED.** `MeCache.fresh()` now requires
+`hit.me.expiresAt > now` as well as the 60-s TTL (`services/api/src/cache.ts:52-56`).
+
+```sh
+cd services/api && npx vitest run test/redteam/verify-rt-o-01-variants.test.ts test/redteam/verify-rt-o-01-index-cache.test.ts test/me.test.ts test/unit/primitives.test.ts
+cd packages/octroi && npx vitest run test/redteam/rt-keys.test.ts test/regression/redteam-wave1.test.ts
+```
+
+Results: api 27/27, octroi 44/44, `tsc --noEmit` clean.
+
+| Variant                                                                                                                                                                                                             | Result                                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| (a) routes × 12 index encodings                                                                                                                                                                                     | holds                                                              |
+| (b) expired vs unknown: status, body, headers, size, timing over 200+200 samples                                                                                                                                    | holds. Re-run: median 0.307 ms vs 0.291 ms, best classifier 55.0 % |
+| (c) cache-key confusion and restart                                                                                                                                                                                 | holds                                                              |
+| (d1) ledger down, stale-allowed copy past expiry                                                                                                                                                                    | holds                                                              |
+| (d2) fresh copy past expiry, ledger down and up                                                                                                                                                                     | **now holds** (renamed `[RT-O-01 d2]`)                             |
+| (e) **new**: entry remembered at `expiresAt − 1 ms`, read at exactly `expiresAt` via `/me/:key`, `?refresh=1`, `/me/<hk:index>`, `/me/<hk:index>?refresh=1` and both `/receipts` forms, with the ledger up and down | holds                                                              |
+
+What (e) checked, case by case:
+
+- **Ledger up:** every `/me` form is the 404 of an unknown key, byte for byte apart from `requestId`.
+- **Ledger down:** the capability gets 503 (fail closed) and the index gets 404.
+- **Receipts:** the index opens none. The capability's own history carries neither the key nor its hash.
+- **One millisecond earlier** (`expiresAt − 1`), the cached copy is still served. The boundary is exact and not too
+  broad.
+- **Mutation check:** changing `>` to `>=` in `fresh()` makes (e) fail, so the test pins the boundary.
+
+The receipts of a capability stay readable after expiry by design (`RECEIPT_TTL_S`), and only to its holder.
+
+Residuals outside RT-O-01's `hk:` scope stay as recorded in octroi README Decision 16:
+`AgentPolicyWire.entitlementKey` is still in clear on the ledger, and `giftent:<giftId>` can be derived from the public
+gift entity.

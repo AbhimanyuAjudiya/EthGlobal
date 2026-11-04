@@ -50,8 +50,17 @@ if bash "$TOOLS/scan.sh" "$HIST" > "$RT_OUT/history-scan.txt" 2>&1; then ok "his
 else regress "history carries a forbidden pattern (redacted head: $(grep -m3 -E '^ +[0-9]+:' "$RT_OUT/history-scan.txt" | cut -c1-40 | tr '\n' ' '))"; fi
 vendor="$(grep -noE -- '-----BEGIN [A-Z ]*PRIVATE KEY|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{30,}|xox[abp]-[0-9A-Za-z-]{10,}|AIza[0-9A-Za-z_-]{35}|sk-ant-[A-Za-z0-9_-]{20,}|302e020100300506032b657004220420[0-9a-fA-F]{64}|3030020100300706052b8104000a04220420[0-9a-fA-F]{64}' "$ALL" | head -3)"
 [[ -z "$vendor" ]] && ok "history: no PEM private key / cloud / GitHub / Slack / Anthropic token" || regress "history: vendor token at lines $(echo "$vendor" | cut -d: -f1 | tr '\n' ' ')"
-mn="$(grep -oE "[\"'\`]([a-z]{3,8} ){11,23}[a-z]{3,8}[\"'\`]" "$ALL" | sort -u | grep -v 'test test test test test test test test test test test junk')"
-[[ -z "$mn" ]] && ok "history: the only BIP-39-shaped phrase ever committed is the public Anvil mnemonic" || regress "history: another mnemonic-shaped phrase was committed ($(echo "$mn" | wc -l))"
+# Allowed by EXACT value only (AUD-06): the public Anvil/Hardhat mnemonic, and the two synthetic phrases of
+# scripts/test/regression/verify-rt-a-14-dev-chain-mnemonic.test.ts (6d67ddb) — the BIP-39 "abandon … about" test vector and
+# an invented 12-word list. Any other phrase, or these words in another order, still fires.
+MN_ALLOWED=(
+  'test test test test test test test test test test test junk'
+  'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
+  'zebra quantum lattice orbit nectar velvet harbor tundra pixel saffron glacier ember'
+)
+mn="$(grep -oE "[\"'\`]([a-z]{3,8} ){11,23}[a-z]{3,8}[\"'\`]" "$ALL" | sed -E "s/^[\"'\`]//; s/[\"'\`]$//" | sort -u |
+  grep -v -x -F "$(printf '%s\n' "${MN_ALLOWED[@]}")")"
+[[ -z "$mn" ]] && ok "history: the only BIP-39-shaped phrases ever committed are the public Anvil mnemonic and the two RT-A-14 test vectors" || regress "history: another mnemonic-shaped phrase was committed ($(echo "$mn" | wc -l))"
 ac="$(grep -oiE 'rt-accesscode"?[[:space:]]*[:=,][[:space:]]*"[^"<*]{4,}"' "$ALL" | sort -u | grep -viE '"(test-access-code|access-code-0123456789)"')"
 [[ -z "$ac" ]] && ok "history: RT-AccessCode only ever carried the synthetic fixture value" || regress "history: RT-AccessCode value(s) other than the fixture one"
 # HEAD: the public Anvil key #0 / mnemonic only in dev tooling (dev-chain.sh, Deploy.s.sol), the sanctioned TS home

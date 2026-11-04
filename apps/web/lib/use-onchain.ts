@@ -65,6 +65,7 @@ export async function followTransaction(opts: {
           dispatch({
             type: 'revert',
             reason: 'the contract reverted the transaction',
+            // nosemgrep: recharge-usdc-18-decimals — the gas fee is native ETH (18 dp), not a USDC amount
             feeCharged: `${formatEther(receipt.gasUsed * receipt.effectiveGasPrice)} ETH`,
           });
           return 'failed';

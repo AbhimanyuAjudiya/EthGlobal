@@ -62,6 +62,14 @@ describe.skipIf(!LIVE || !existsSync(LIVE))('live client bundle (LIVE_BUNDLE_DIR
     expect(hits(['__local/world-proof', '/api/demo-wallet', '__RECHARGE_TEST__'])).toEqual([]);
   });
 
+  // AUD-09: the demo-wallet banner lives in lib/local/demo-wallet-panel.tsx behind a lazy import; its body was already
+  // dead code in live, but the exported name used to survive in a shared chunk
+  it('carries no demo-wallet banner: neither its name nor its markup', () => {
+    expect(
+      hits(['DemoWalletPanel', 'demo-wallet__addr', '"demo-wallet"', 'demo-wallet-panel']),
+    ).toEqual([]);
+  });
+
   it('carries no rp_context signer code', () => {
     expect(hits(['signingKeyHex', 'signRequest expects'])).toEqual([]);
   });

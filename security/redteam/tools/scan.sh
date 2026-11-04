@@ -19,7 +19,7 @@ PATTERNS="${SCAN_PATTERNS:-$HERE/forbidden-patterns.txt}"
 compile() { # $1 = full|relaxed|docs
   local mode="$1" line tags out=""
   while IFS= read -r line || [[ -n "$line" ]]; do
-    [[ "$line" =~ ^[[:space:]]*# || -z "${line//[[:space:]]/}" ]] && continue
+    [[ "$line" =~ ^[[:space:]]*# || -z "${line//[[:space:]]/}" || "$line" == allow-exact:* ]] && continue
     tags=""
     if [[ "$line" == *"  # ["*"]" ]]; then tags="${line##*  # }"; line="${line%  # *}"; fi
     [[ "$mode" == relaxed && "$tags" == *"[relaxed-skip]"* ]] && continue
@@ -30,6 +30,12 @@ compile() { # $1 = full|relaxed|docs
   printf '%s' "$out"
 }
 FULL="$(compile full)"; RELAXED="$(compile relaxed)"; DOCS="$(compile docs)"
+# exact literals that are not a hit in a git-tracked file (forbidden-patterns.txt "allow-exact:"; never applied to logs,
+# dumps or build output, which are untracked)
+ALLOW=(); while IFS= read -r line || [[ -n "$line" ]]; do
+  [[ "$line" == allow-exact:\ * ]] && ALLOW+=("${line#allow-exact: }")
+done < "$PATTERNS"
+tracked() { git -C "$(dirname "$1")" ls-files --error-unmatch -- "$1" > /dev/null 2>&1; }
 [[ -n "$FULL" ]] || { echo "scan: no patterns compiled" >&2; exit 2; }
 
 # self-check: the compiled expression must be valid PCRE and must fire on a canary
@@ -39,6 +45,14 @@ status=0
 scan_file() { # $1 file, $2 regex
   local out rc
   set +e; out="$(grep -n -P -- "$2" "$1" 2>&1)"; rc=$?; set -e
+  if [[ $rc -eq 0 && ${#ALLOW[@]} -gt 0 ]] && tracked "$1"; then
+    local kept="" hit lit
+    while IFS= read -r hit; do
+      for lit in "${ALLOW[@]}"; do hit="${hit//"$lit"/}"; done
+      printf '%s\n' "${hit#*:}" | grep -q -P -- "$2" && kept+="$hit"$'\n'
+    done <<< "$out"
+    out="${kept%$'\n'}"; [[ -z "$out" ]] && rc=1
+  fi
   case $rc in
     0) echo "FORBIDDEN PATTERN in $1:"; printf '%s\n' "$out" | cut -c1-200 | sed 's/^/    /'; status=1 ;;
     1) : ;;

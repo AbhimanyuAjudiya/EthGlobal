@@ -49,7 +49,8 @@ const isErrorCode = (value: unknown): value is ErrorCode =>
 export const requestId = (): string =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
-    : `rq-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+    : // nosemgrep: recharge-math-random-for-secrets — a log correlation id fallback (no randomUUID), never a secret or nonce
+      `rq-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 
 /** Turns an error body (or a transport failure) into an ApiError. */
 export function toApiError(status: number, body: unknown, headers?: Headers): ApiError {

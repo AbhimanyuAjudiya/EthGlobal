@@ -136,6 +136,7 @@ export class FileLock {
     for (;;) {
       if (await this.tryAcquire()) return true;
       if (this.#wallNow() >= deadline) return false;
+      // nosemgrep: recharge-math-random-for-secrets — 1–4 ms retry jitter for the lock file, not a secret
       await this.#sleep(1 + Math.floor(Math.random() * 4));
     }
   }

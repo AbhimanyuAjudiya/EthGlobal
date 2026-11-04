@@ -6,7 +6,7 @@ import { useCallback, useState } from 'react';
 import { Button, Field, Hash } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
-import { DemoWalletPanel } from './Shell';
+import { WalletBanner } from './Shell';
 import { api, ApiError } from '../lib/api';
 import { networkName } from '../lib/env';
 import { moneyUsdc } from '../lib/format';
@@ -192,7 +192,7 @@ export function CampaignForm() {
 
   return (
     <div className="sponsor-create">
-      <DemoWalletPanel wallet={wallet} />
+      <WalletBanner wallet={wallet} />
       {!wallet ? (
         <Button variant="secondary" onClick={() => void pickInjected()} disabled={busy}>
           Continue with Coinbase Wallet / MetaMask

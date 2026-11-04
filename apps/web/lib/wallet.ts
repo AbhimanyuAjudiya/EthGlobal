@@ -29,6 +29,10 @@ export const DEMO_ROLE_INDEX: Readonly<Record<DemoRole, number>> = {
   recipient: 9,
 };
 
+/** The Anvil account index a demo wallet is labelled with ("demo wallet · Anvil #5" → 5); the human by default. */
+export const demoIndex = (wallet: { name: string }): number =>
+  Number(/#(\d+)/.exec(wallet.name)?.[1] ?? DEMO_ROLE_INDEX.human);
+
 export interface Wallet {
   kind: 'injected' | 'demo';
   /** "MetaMask", "demo wallet · Anvil #5". */

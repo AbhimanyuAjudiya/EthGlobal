@@ -116,28 +116,26 @@ export function paidEntitlementKey(
   return keys.entitlementPaid(payer, tag);
 }
 
-const dayBytes = (day: number): Uint8Array => {
-  const out = new Uint8Array(4);
-  new DataView(out.buffer).setUint32(0, day);
-  return out;
-};
-
 /**
- * The claim-lock keys of one human (A-33, RT-O-03/08), each an opaque `claim:` + HMAC:
- * - `live(day)`: HMAC(secret, 'live' ‖ quotaKey ‖ day) — "this human holds a live free bundle claimed on `day`".
- *   Keyed by the claim day, so a later claim (≥ 1 day after, since validity ≥ 1 day) never shares it;
- * - `campaign`: HMAC(secret, 'claimed' ‖ campaignId ‖ quotaKey) — "this human claimed this campaign" (the
- *   ledger's mirror of DataDrop.claimed, per campaign, so it links nothing across campaigns).
+ * The claim-lock keys of one human (A-33, RT-O-03/08, A-44), each an opaque `claim:` + HMAC, neither keyed by time:
+ * - `live`: HMAC(secret, 'live' ‖ quotaKey) — "this human holds a live free bundle". ONE key per human, held until
+ *   that bundle's expiresAt, so two concurrent claims on two campaigns collide on the same create-if-absent whatever
+ *   the request instant (RT-O-03: a day-keyed lock let claims either side of 00:00 UTC both win). Residual (A-44):
+ *   the key repeats across this human's successive claims, so the ledger links their claim INSTANTS (never a
+ *   campaign id: a lock carries none);
+ * - `campaign`: HMAC(secret, 'claimed' ‖ campaignId ‖ quotaKey) — "this human claimed this campaign" (the ledger's
+ *   mirror of DataDrop.claimed, campaign + nullifier, held until the campaign ends + grace; links nothing across
+ *   campaigns).
  */
 export function claimLockKeys(
   secret: Uint8Array,
   campaignId: Hex,
   quota: Hex,
-): { live: (day: number) => string; campaign: string } {
+): { live: string; campaign: string } {
   assertSecret(secret);
   const q = hex32Bytes(quota, 'quotaKey');
   return {
-    live: (day) => keys.claim(hmacKey(secret, 'live', q, dayBytes(day))),
+    live: keys.claim(hmacKey(secret, 'live', q)),
     campaign: keys.claim(hmacKey(secret, 'claimed', hex32Bytes(campaignId, 'campaignId'), q)),
   };
 }

@@ -7,7 +7,6 @@ import type { Ledger, PaymentRail, Personhood, PersonhoodResult } from '@ethglob
 import { utf8 } from '@ethglobal/crypto';
 import {
   AUDIENCE,
-  dayBucket,
   hourBucket,
   isEvmNetwork,
   isHederaNetwork,
@@ -31,7 +30,14 @@ import { canonicalJson } from '@ethglobal/protocol/typed-data';
 import { assertMbStep, priceUsd6, usd6ToWire } from '@ethglobal/protocol/units';
 import { paymentRequired, sessionNonce } from '@ethglobal/protocol/x402';
 
-import { campaignToPayload, type Campaign, type CampaignCounters } from './campaign.js';
+import {
+  assertCampaignLifetime,
+  CampaignTooLongError,
+  campaignToPayload,
+  CLAIM_RECORD_GRACE_MS,
+  type Campaign,
+  type CampaignCounters,
+} from './campaign.js';
 import { consumeChallenge, signalFor, type Challenge, type ConsumeResult } from './challenge.js';
 import {
   auditKey,
@@ -129,10 +135,6 @@ type Deny = Extract<Decision, { kind: 'deny' }>;
 type Settled = Extract<SettleResult, { success: true }>;
 
 const DAY_MS = 86_400_000;
-/** campaignSchema's validityDays bound: a live lock can only come from the last 30 claim days (A-33). */
-const MAX_VALIDITY_DAYS = 30;
-/** A claim record never asks the ledger for more than ~180 days (Arkiv's cap is 182.5 days, A-24). */
-const MAX_LOCK_MS = 180 * DAY_MS;
 export const DEVICE_TIER_DETAIL = 'device tier: paid lane at the human price';
 
 const deny = (reason: DenyReason, detail?: string): Deny =>
@@ -281,28 +283,23 @@ function freeKeys(deps: OctroiDeps, campaignId: Hex, nullifierHash: Hex): FreeKe
   }
 }
 
-const dayRange = (from: number, to: number): number[] =>
-  Array.from({ length: to - from + 1 }, (_, i) => from + i);
-
 /**
  * One live free bundle per human, one claim per (human, campaign) — decided from the ledger, not the caller:
  * this campaign's entitlement, this campaign's claim record (RT-O-08: survives the entitlement), and the
- * human's live lock of any claim day that can still be live (A-33). All reads, in parallel.
+ * human's one live lock (A-33/A-44: not keyed by day). All reads, in parallel.
  */
 async function alreadyServed(
   deps: OctroiDeps,
   req: DecideRequest,
   k: FreeKeys,
-  now: number,
 ): Promise<Deny | null> {
   if (req.existingEntitlement || req.counters?.claimed === true) return deny('replay');
   try {
     const claims = new ClaimStore(deps.ledger, deps.now);
-    const today = dayBucket(now);
     const held = await Promise.all([
       new EntitlementStore(deps.ledger, deps.now).getByKey(k.key).then((found) => found !== null),
       claims.held(k.locks.campaign),
-      ...dayRange(today - MAX_VALIDITY_DAYS, today).map((day) => claims.held(k.locks.live(day))),
+      claims.held(k.locks.live),
     ]);
     return held.some(Boolean) ? deny('replay') : null;
   } catch {
@@ -320,16 +317,12 @@ async function reserve(
   k: FreeKeys,
   campaign: Campaign,
   entitlementExpiresAt: number,
-  now: number,
 ): Promise<Deny | null> {
   const claims = new ClaimStore(deps.ledger, deps.now);
-  const recordUntil = Math.min(campaign.expiresAt, now + MAX_LOCK_MS);
+  // the record outlives the campaign (A-44); freeInputInvalid refused a campaign the ledger cannot outlive
+  const recordUntil = campaign.expiresAt + CLAIM_RECORD_GRACE_MS;
   try {
-    const live = await claims.reserve(
-      k.locks.live(dayBucket(now)),
-      'free-live',
-      entitlementExpiresAt,
-    );
+    const live = await claims.reserve(k.locks.live, 'free-live', entitlementExpiresAt);
     if (!live) return deny('replay', 'claim_lock');
     const record = await claims.reserve(k.locks.campaign, 'free-campaign', recordUntil);
     return record ? null : deny('replay', 'claim_lock');
@@ -342,11 +335,12 @@ const isSafeCount = (n: unknown): boolean => Number.isSafeInteger(n) && (n as nu
 const isUsd6 = (n: unknown): boolean => typeof n === 'bigint' && n >= 0n;
 
 /** Campaign and counters are validated like stored data (RT-O-07): no NaN, no 0-day validity, no fractions. */
-function freeInputInvalid(c: Campaign, counters: CampaignCounters): Deny | null {
+function freeInputInvalid(c: Campaign, counters: CampaignCounters, now: number): Deny | null {
   try {
     campaignToPayload(c);
-  } catch {
-    return deny('invalid-request', 'campaign');
+    assertCampaignLifetime(c.expiresAt, now);
+  } catch (error) {
+    return deny('invalid-request', error instanceof CampaignTooLongError ? error.message : 'campaign');
   }
   const ok =
     typeof counters.paused === 'boolean' &&
@@ -375,11 +369,11 @@ async function freeLane(
   if (!campaign) return deny('no-campaign');
   if (!ch || !sessionPubKey || !counters) return deny('invalid-request', 'challenge_required');
   // The free lane is /claim only; gift and card lanes consume their own path (T-21).
-  const invalid = freeInputInvalid(campaign, counters);
+  const now = deps.now();
+  const invalid = freeInputInvalid(campaign, counters, now);
   if (invalid) return invalid;
   if (ch.path !== '/claim' || ch.audience !== AUDIENCE)
     return deny('invalid-proof', 'challenge_route');
-  const now = deps.now();
   const blocked = campaignBlock(campaign, counters, now);
   if (blocked) return blocked;
   const consumed = await consume(deps, ch, sessionPubKey, now);
@@ -393,11 +387,11 @@ async function freeLane(
 
   const k = freeKeys(deps, campaign.id as Hex, person.nullifierHash);
   if ('kind' in k) return k;
-  const replay = await alreadyServed(deps, req, k, now);
+  const replay = await alreadyServed(deps, req, k);
   if (replay) return replay;
   if (!(await actionAllows(campaign, k.claimKey))) return deny('invalid-proof', 'action');
   const expiresAt = now + campaign.validityDays * DAY_MS;
-  const reserved = await reserve(deps, k, campaign, expiresAt, now);
+  const reserved = await reserve(deps, k, campaign, expiresAt);
   if (reserved) return reserved;
 
   const entitlement: Entitlement = {

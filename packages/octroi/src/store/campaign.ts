@@ -3,7 +3,12 @@ import type { Ledger, LedgerPutResult } from '@ethglobal/adapters';
 import { ANN, keys, type Hex } from '@ethglobal/protocol/ids';
 import { campaignSchema, type CampaignPayload } from '@ethglobal/protocol/schemas';
 
-import { campaignFromPayload, campaignToPayload, type Campaign } from '../campaign.js';
+import {
+  assertCampaignLifetime,
+  campaignFromPayload,
+  campaignToPayload,
+  type Campaign,
+} from '../campaign.js';
 import { lifetimeUntil, lower, Repo, type Codec, type Found } from './common.js';
 
 const campaignCodec: Codec<CampaignPayload> = {
@@ -22,7 +27,10 @@ const toCampaign = (found: Found<CampaignPayload>): Found<Campaign> => ({
 export class CampaignStore {
   readonly #repo: Repo<CampaignPayload>;
 
-  constructor(ledger: Ledger, now: () => number) {
+  constructor(
+    ledger: Ledger,
+    private readonly now: () => number,
+  ) {
     this.#repo = new Repo(ledger, now, campaignCodec);
   }
 
@@ -31,8 +39,12 @@ export class CampaignStore {
     return found && toCampaign(found);
   }
 
-  /** Create or replace; the payload is validated (safeTextSchema name, bundleMb.device === 0; T-70). */
+  /**
+   * Create or replace; the payload is validated (safeTextSchema name, bundleMb.device === 0; T-70) and a campaign
+   * longer than the ledger can keep its claim records is CampaignTooLongError (RT-O-08, A-44).
+   */
   async put(c: Campaign): Promise<LedgerPutResult> {
+    assertCampaignLifetime(c.expiresAt, this.now());
     return this.#repo.upsert(campaignToPayload(c));
   }
 

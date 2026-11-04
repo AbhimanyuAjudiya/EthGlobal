@@ -1,8 +1,12 @@
 /** `@ethglobal/octroi`: the proof-or-pay quota engine (INTERFACES §5). Stores live in `./store`. */
 export { tierFromLevel, type Tier } from './tier.js';
 export {
+  assertCampaignLifetime,
   campaignFromPayload,
   campaignToPayload,
+  CampaignTooLongError,
+  CLAIM_RECORD_GRACE_MS,
+  MAX_CAMPAIGN_MS,
   type Campaign,
   type CampaignCounters,
 } from './campaign.js';

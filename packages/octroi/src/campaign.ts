@@ -1,4 +1,5 @@
 /** Campaign (ledger payload ⇄ engine shape) and the chain-side counters (INTERFACES §5). */
+import { MAX_LEDGER_EXPIRES_IN_S } from '@ethglobal/adapters';
 import { RechargeError } from '@ethglobal/protocol/errors';
 import type { Hex } from '@ethglobal/protocol/ids';
 import { campaignSchema, type CampaignPayload } from '@ethglobal/protocol/schemas';
@@ -54,4 +55,30 @@ export function campaignToPayload(c: Campaign): CampaignPayload {
     wholesaleUsd6PerGb: usd6ToWire(c.wholesaleUsd6PerGb),
     idResaleUsd6: usd6ToWire(c.idResaleUsd6),
   });
+}
+
+/** How long the per-campaign claim record outlives its campaign (A-44, RT-O-08): late chain reads, clock skew. */
+export const CLAIM_RECORD_GRACE_MS = 86_400_000;
+
+/**
+ * The longest a campaign may still run from `now`: its claim record (`expiresAt` + grace) must fit the ledger's
+ * maximum entity lifetime (Arkiv ~182.5 d, A-24), or one human could claim it twice once the record dies (RT-O-08).
+ */
+export const MAX_CAMPAIGN_MS = MAX_LEDGER_EXPIRES_IN_S * 1000 - CLAIM_RECORD_GRACE_MS;
+
+/** A campaign whose end the ledger cannot outlive (RechargeError 'invalid_request', HTTP 400). */
+export class CampaignTooLongError extends RechargeError {
+  constructor(
+    readonly expiresAt: number,
+    readonly maxExpiresAt: number,
+  ) {
+    super('invalid_request', 'campaign_too_long', { expiresAt, maxExpiresAt });
+  }
+}
+
+/** Throws CampaignTooLongError when `expiresAt` is more than MAX_CAMPAIGN_MS after `now`. */
+export function assertCampaignLifetime(expiresAt: number, now: number): void {
+  if (expiresAt - now > MAX_CAMPAIGN_MS) {
+    throw new CampaignTooLongError(expiresAt, now + MAX_CAMPAIGN_MS);
+  }
 }

@@ -116,26 +116,31 @@ export function paidEntitlementKey(
   return keys.entitlementPaid(payer, tag);
 }
 
+const dayBytes = (day: number): Uint8Array => {
+  const out = new Uint8Array(4);
+  new DataView(out.buffer).setUint32(0, day);
+  return out;
+};
+
 /**
- * The claim-lock keys of one human (A-33, RT-O-03/08, A-44), each an opaque `claim:` + HMAC, neither keyed by time:
- * - `live`: HMAC(secret, 'live' ‖ quotaKey) — "this human holds a live free bundle". ONE key per human, held until
- *   that bundle's expiresAt, so two concurrent claims on two campaigns collide on the same create-if-absent whatever
- *   the request instant (RT-O-03: a day-keyed lock let claims either side of 00:00 UTC both win). Residual (A-44):
- *   the key repeats across this human's successive claims, so the ledger links their claim INSTANTS (never a
- *   campaign id: a lock carries none);
- * - `campaign`: HMAC(secret, 'claimed' ‖ campaignId ‖ quotaKey) — "this human claimed this campaign" (the ledger's
- *   mirror of DataDrop.claimed, campaign + nullifier, held until the campaign ends + grace; links nothing across
- *   campaigns).
+ * The claim-lock keys of one human (A-33, RT-O-03/08, A-44), each an opaque `claim:` + HMAC:
+ * - `live(day)`: HMAC(secret, 'live' ‖ quotaKey ‖ day) — "this human holds a live free bundle". A claim on day D
+ *   reserves BOTH `live(D)` and `live(D+1)` (A-44), so two concurrent claims either side of 00:00 UTC contend for
+ *   the same key (D+1) and exactly one create-if-absent wins (RT-O-03 midnight variant). Day-keyed so a claim
+ *   ≥ 2 days after the previous one shares no identifier with it (A-9, RT-O-01);
+ * - `campaign`: HMAC(secret, 'claimed' ‖ campaignId ‖ quotaKey) — "this human claimed this campaign" (the
+ *   ledger's mirror of DataDrop.claimed: campaign + nullifier, no day; held until the campaign ends + grace,
+ *   RT-O-08; links nothing across campaigns).
  */
 export function claimLockKeys(
   secret: Uint8Array,
   campaignId: Hex,
   quota: Hex,
-): { live: string; campaign: string } {
+): { live: (day: number) => string; campaign: string } {
   assertSecret(secret);
   const q = hex32Bytes(quota, 'quotaKey');
   return {
-    live: keys.claim(hmacKey(secret, 'live', q)),
+    live: (day) => keys.claim(hmacKey(secret, 'live', q, dayBytes(day))),
     campaign: keys.claim(hmacKey(secret, 'claimed', hex32Bytes(campaignId, 'campaignId'), q)),
   };
 }

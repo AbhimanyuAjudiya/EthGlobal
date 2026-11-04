@@ -7,6 +7,7 @@ import type { Ledger, PaymentRail, Personhood, PersonhoodResult } from '@ethglob
 import { utf8 } from '@ethglobal/crypto';
 import {
   AUDIENCE,
+  dayBucket,
   hourBucket,
   isEvmNetwork,
   isHederaNetwork,
@@ -135,6 +136,12 @@ type Deny = Extract<Decision, { kind: 'deny' }>;
 type Settled = Extract<SettleResult, { success: true }>;
 
 const DAY_MS = 86_400_000;
+/** campaignSchema's validityDays bound: a live lock can only come from the last 30 claim days (A-33). */
+const MAX_VALIDITY_DAYS = 30;
+
+/** Every day bucket a live lock of a still-live bundle can sit in: the last 30 claim days and tomorrow's (A-44). */
+const liveDays = (today: number): number[] =>
+  Array.from({ length: MAX_VALIDITY_DAYS + 2 }, (_, i) => today - MAX_VALIDITY_DAYS + i);
 export const DEVICE_TIER_DETAIL = 'device tier: paid lane at the human price';
 
 const deny = (reason: DenyReason, detail?: string): Deny =>
@@ -286,12 +293,13 @@ function freeKeys(deps: OctroiDeps, campaignId: Hex, nullifierHash: Hex): FreeKe
 /**
  * One live free bundle per human, one claim per (human, campaign) — decided from the ledger, not the caller:
  * this campaign's entitlement, this campaign's claim record (RT-O-08: survives the entitlement), and the
- * human's one live lock (A-33/A-44: not keyed by day). All reads, in parallel.
+ * human's live locks of every day bucket a live bundle can hold (A-33, A-44). All reads, in parallel.
  */
 async function alreadyServed(
   deps: OctroiDeps,
   req: DecideRequest,
   k: FreeKeys,
+  now: number,
 ): Promise<Deny | null> {
   if (req.existingEntitlement || req.counters?.claimed === true) return deny('replay');
   try {
@@ -299,7 +307,7 @@ async function alreadyServed(
     const held = await Promise.all([
       new EntitlementStore(deps.ledger, deps.now).getByKey(k.key).then((found) => found !== null),
       claims.held(k.locks.campaign),
-      claims.held(k.locks.live),
+      ...liveDays(dayBucket(now)).map((day) => claims.held(k.locks.live(day))),
     ]);
     return held.some(Boolean) ? deny('replay') : null;
   } catch {
@@ -308,8 +316,9 @@ async function alreadyServed(
 }
 
 /**
- * Take the human's live lock (create-if-absent: of two concurrent claims on two campaigns exactly one gets it,
- * RT-O-03) and this campaign's claim record. Written before serve-free, so a second claim — concurrent, in
+ * Take the human's live locks for today AND tomorrow (create-if-absent: of two concurrent claims on two campaigns
+ * exactly one gets the bucket they share — today's when both run on one UTC day, the later one's today when they
+ * straddle midnight, RT-O-03 / A-44) and this campaign's claim record. Written before serve-free, so a second claim — concurrent, in
  * another process, or after this bundle expired — is a replay inside decide(), before any sponsor pays.
  */
 async function reserve(
@@ -317,13 +326,17 @@ async function reserve(
   k: FreeKeys,
   campaign: Campaign,
   entitlementExpiresAt: number,
+  now: number,
 ): Promise<Deny | null> {
   const claims = new ClaimStore(deps.ledger, deps.now);
   // the record outlives the campaign (A-44); freeInputInvalid refused a campaign the ledger cannot outlive
   const recordUntil = campaign.expiresAt + CLAIM_RECORD_GRACE_MS;
   try {
-    const live = await claims.reserve(k.locks.live, 'free-live', entitlementExpiresAt);
-    if (!live) return deny('replay', 'claim_lock');
+    const today = dayBucket(now);
+    for (const day of [today, today + 1]) {
+      if (!(await claims.reserve(k.locks.live(day), 'free-live', entitlementExpiresAt)))
+        return deny('replay', 'claim_lock');
+    }
     const record = await claims.reserve(k.locks.campaign, 'free-campaign', recordUntil);
     return record ? null : deny('replay', 'claim_lock');
   } catch {
@@ -387,11 +400,11 @@ async function freeLane(
 
   const k = freeKeys(deps, campaign.id as Hex, person.nullifierHash);
   if ('kind' in k) return k;
-  const replay = await alreadyServed(deps, req, k);
+  const replay = await alreadyServed(deps, req, k, now);
   if (replay) return replay;
   if (!(await actionAllows(campaign, k.claimKey))) return deny('invalid-proof', 'action');
   const expiresAt = now + campaign.validityDays * DAY_MS;
-  const reserved = await reserve(deps, k, campaign, expiresAt);
+  const reserved = await reserve(deps, k, campaign, expiresAt, now);
   if (reserved) return reserved;
 
   const entitlement: Entitlement = {

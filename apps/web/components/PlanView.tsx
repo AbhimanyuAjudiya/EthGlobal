@@ -17,7 +17,7 @@ import {
 
 import { AddToHomeScreen, NotificationAsk } from './AddToHomeScreen';
 import { IssuingRows, useOdometer } from './IssuingRows';
-import { AppHeader, Screen, TabBar } from './Shell';
+import { AppHeader, Caution, Screen, TabBar } from './Shell';
 import { useLang } from '../i18n/lang';
 import { api, ApiError } from '../lib/api';
 import { clockIst, dayLabel, formatMb, money } from '../lib/format';
@@ -231,6 +231,7 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
           locale={dateLocale(lang)}
         />
       </p>
+      <Caution k="esim.expiry" />
       {!foreign ? (
         <div className="action-dock">
           <Link

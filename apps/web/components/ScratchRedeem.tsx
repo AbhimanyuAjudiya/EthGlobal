@@ -8,7 +8,7 @@ import type { CardPreview } from '@ethglobal/protocol/schemas';
 import { Button, Coupon, ScratchCard } from '@ethglobal/ui/components';
 
 import { PinField } from './PinField';
-import { AppHeader, Screen } from './Shell';
+import { AppHeader, Caution, Screen } from './Shell';
 import { useLang } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
@@ -121,6 +121,7 @@ export function ScratchRedeem({ serial }: { serial?: string }) {
           </Button>
         </form>
       ) : null}
+      {!closed ? <Caution k="warn.thisBrowser" /> : null}
       {checked && !revealed ? (
         <p className="note" lang={lang}>
           {t('card.scratch')}

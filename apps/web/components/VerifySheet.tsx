@@ -9,7 +9,7 @@ import type { ChallengeWire } from '@ethglobal/protocol/schemas';
 import { Button, Coupon } from '@ethglobal/ui/components';
 
 import { QrCode } from './QrCode';
-import { AppHeader, Screen } from './Shell';
+import { AppHeader, Caution, Screen } from './Shell';
 import { TierLedger } from './TierLedger';
 import { useLang } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
@@ -291,6 +291,7 @@ export function VerifySheet() {
           {t('verify.lede')}
         </p>
         <div className="verify__status">{status}</div>
+        <Caution k="warn.thisBrowser" />
         <div className="sheet__actions">
           {canStart ? (
             <Button block onClick={() => void start()} disabled={!plans?.campaign}>

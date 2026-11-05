@@ -6,9 +6,12 @@
 # (the two named volumes keep /opt/recharge and the pnpm store).
 #   bash ops/vps/smoke.sh            # ≈ 10 min the first time
 #   bash ops/vps/smoke.sh --fresh    # drop the volumes first
+#   APP_HOST=app.recharge.example.com bash ops/vps/smoke.sh   # the app-host layout ($DOMAIN redirects there)
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DOMAIN=recharge.example.com
+APP_HOST="${APP_HOST:-}"
+WEB="https://${APP_HOST:-$DOMAIN}"
 [[ "${1:-}" == "--fresh" ]] && docker volume rm -f recharge-smoke-app recharge-smoke-state > /dev/null
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 branch="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD)"
@@ -52,7 +55,7 @@ HEDERA_PRIVATE_KEY=$(hex)
 HCS_TOPIC_ID=0.0.6006
 HEDERA_MIRROR_URL=http://127.0.0.1:9/
 ENS_RPC_URL=http://127.0.0.1:9/
-CORS_ORIGINS=https://$DOMAIN
+CORS_ORIGINS=$WEB
 STATE_FILE=/var/lib/recharge/api/state.json
 PRINT_TOKEN=$(tok)
 AGENT_API_URL=http://127.0.0.1:8787
@@ -64,12 +67,12 @@ AGENT_HEDERA_PRIVATE_KEY=$(hex)
 AGENT_STATE_DIR=/var/lib/recharge/agent
 NEXT_PUBLIC_MODE=live
 NEXT_PUBLIC_API_URL=https://api.$DOMAIN
-NEXT_PUBLIC_PUBLIC_ORIGIN=https://$DOMAIN
+NEXT_PUBLIC_PUBLIC_ORIGIN=$WEB
 NEXT_PUBLIC_WORLD_APP_ID=app_abc123
 EOF
 }
 docker run --rm -i \
   -v "$tmp/repo.bundle:/src/repo.bundle:ro" -v "$ROOT/ops/vps/bootstrap.sh:/src/bootstrap.sh:ro" \
   -v recharge-smoke-app:/opt/recharge -v recharge-smoke-state:/var/lib/recharge \
-  -e DOMAIN="$DOMAIN" -e REPO_URL=/src/repo.bundle -e REF="$branch" \
+  -e DOMAIN="$DOMAIN" -e APP_HOST="$APP_HOST" -e REPO_URL=/src/repo.bundle -e REF="$branch" \
   ubuntu:24.04 bash -c 'install -d -m 0700 /etc/recharge && cat > /etc/recharge/.env && exec bash /src/bootstrap.sh --no-systemd' < <(fake_env)

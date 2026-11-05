@@ -10,7 +10,7 @@ import { Button, Hash, Receipt } from '@ethglobal/ui/components';
 
 import { sentGifts, type SentGift } from './GiftForm';
 import { PinField } from './PinField';
-import { WalletButton } from './Shell';
+import { Caution, WalletButton } from './Shell';
 import { useLang } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { ApiError } from '../lib/api';
@@ -49,6 +49,7 @@ export function ClaimGift({ giftId, name }: { giftId?: string; name?: string }) 
       <h1 id="claim-title" className="sheet__title" lang={lang}>
         {t('gift.claimTitle')}
       </h1>
+      <Caution k="warn.thisBrowser" />
       {giftId && name ? (
         <>
           <WalletButton

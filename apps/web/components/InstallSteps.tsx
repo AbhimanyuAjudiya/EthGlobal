@@ -1,12 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 
 import type { MeResponse } from '@ethglobal/protocol/schemas';
 import { Button, Icon } from '@ethglobal/ui/components';
 
 import { QrCode } from './QrCode';
-import { AppHeader, Screen, TabBar } from './Shell';
+import { AppHeader, Caution, Screen, TabBar } from './Shell';
 import { useLang } from '../i18n/lang';
 import { api } from '../lib/api';
 import { parseDevice, type DeviceInfo } from '../lib/device';
@@ -16,7 +16,8 @@ import { useHydrated } from '../lib/hooks';
 import { ANDROID_EUICC_INTENT, iosUniversalLink, isLpa, splitLpa } from '../lib/lpa-links';
 import { plans } from '../lib/store';
 
-const SECOND_DEVICE_MS = 60_000;
+/** How long a revealed QR code or set of activation details stays on screen (T-61). */
+const REVEAL_MS = 60_000;
 const TROUBLE_AFTER_MS = 3 * 60_000;
 
 /** The OS's own words as a status pill: "No Service" → "Searching…" → "LTE · …" (role=status). */
@@ -57,55 +58,112 @@ function CodeBlock({ lpa }: { lpa: string }) {
   );
 }
 
-function CopyCode({ lpa }: { lpa: string }) {
+/** Copies one value to the clipboard (never a URL, a log or storage) and says so on the button. */
+function CopyButton({
+  value,
+  label,
+  testId,
+  describedBy,
+  primary = false,
+}: {
+  value: string;
+  label: string;
+  testId: string;
+  /** The id of the text naming what is copied ("SM-DP+ address"). */
+  describedBy?: string;
+  primary?: boolean;
+}) {
   const { t } = useLang();
   const [copied, setCopied] = useState(false);
   return (
     <Button
-      block
+      variant={primary ? 'primary' : 'quiet'}
+      block={primary}
+      aria-describedby={describedBy}
       onClick={() => {
-        void navigator.clipboard?.writeText(lpa).then(
+        void navigator.clipboard?.writeText(value).then(
           () => setCopied(true),
           () => setCopied(false),
         );
       }}
-      data-testid="copy-activation-code"
+      data-testid={testId}
     >
       <Icon name={copied ? 'check' : 'copy'} size={20} />
-      {copied ? t('install.android.copied') : t('install.android.copy')}
+      {copied ? t('install.android.copied') : label}
     </Button>
   );
 }
 
 /**
- * The QR (and, on a desktop, the code as text) for a second device: only behind an explicit tap, with the warning,
- * hidden again after 60 s (T-61). A shared laptop never prints the activation code on load (RT-W-01).
+ * The activation code for another screen or for typing by hand: only behind an explicit tap, under its warning,
+ * hidden again after 60 s (T-61). A shared laptop never prints the code on load (RT-W-01).
  */
-function SecondDevice({ lpa, withCode = false }: { lpa: string; withCode?: boolean }) {
+function Reveal({
+  show,
+  warn,
+  buttonId,
+  panelId,
+  children,
+}: {
+  show: string;
+  warn: string;
+  buttonId: string;
+  panelId: string;
+  children: ReactNode;
+}) {
   const { t, lang } = useLang();
-  const [shownAt, setShownAt] = useState<number | undefined>();
+  const [shown, setShown] = useState(false);
   useEffect(() => {
-    if (shownAt === undefined) return;
-    const timer = setTimeout(() => setShownAt(undefined), SECOND_DEVICE_MS);
+    if (!shown) return;
+    const timer = setTimeout(() => setShown(false), REVEAL_MS);
     return () => clearTimeout(timer);
-  }, [shownAt]);
-  if (shownAt === undefined)
+  }, [shown]);
+  if (!shown)
     return (
-      <Button variant="quiet" onClick={() => setShownAt(Date.now())} data-testid="another-phone">
-        {t('install.another')}
+      <Button variant="secondary" onClick={() => setShown(true)} data-testid={buttonId}>
+        {show}
       </Button>
     );
   return (
-    <section className="second-device" data-testid="second-device-qr">
-      <p className="warning-line" lang={lang}>
-        <Icon name="warning" /> {t('install.anotherWarn')}
+    <div className="second-device" data-testid={panelId}>
+      <p className="warning-line caution" lang={lang}>
+        <Icon name="warning" /> {warn}
       </p>
-      <QrCode url={lpa} sizeMm={40} label={t('install.code')} />
-      {withCode ? <CodeBlock lpa={lpa} /> : null}
-      <Button variant="quiet" onClick={() => setShownAt(undefined)}>
+      {children}
+      <Button variant="quiet" onClick={() => setShown(false)}>
         {t('install.anotherHide')}
       </Button>
-    </section>
+    </div>
+  );
+}
+
+/** What the phone's "enter details manually" screen asks for: the SM-DP+ address and the activation code. */
+function ManualDetails({ lpa }: { lpa: string }) {
+  const { t } = useLang();
+  const id = useId();
+  const [, smdp = '', code = ''] = splitLpa(lpa);
+  const rows = [
+    { id: 'smdp', label: t('install.smdp'), value: smdp },
+    { id: 'code', label: t('install.code'), value: code },
+    { id: 'full', label: t('install.full'), value: lpa },
+  ];
+  return (
+    <dl className="lpa-details">
+      {rows.map((row) => (
+        <div key={row.id}>
+          <dt id={`${id}-${row.id}`}>{row.label}</dt>
+          <dd>
+            <span data-hash>{row.value}</span>
+            <CopyButton
+              value={row.value}
+              label={t('install.copy')}
+              testId={`copy-${row.id}`}
+              describedBy={`${id}-${row.id}`}
+            />
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -171,7 +229,12 @@ function AndroidSteps({ lpa }: { lpa: string }) {
   const { t, lang } = useLang();
   return (
     <>
-      <CopyCode lpa={lpa} />
+      <CopyButton
+        value={lpa}
+        label={t('install.android.copy')}
+        testId="copy-activation-code"
+        primary
+      />
       <CodeBlock lpa={lpa} />
       <ol className="steps" lang={lang}>
         <li>{t('install.android.1')}</li>
@@ -191,7 +254,11 @@ function AndroidSteps({ lpa }: { lpa: string }) {
   );
 }
 
-/** `/install` — honest by platform. Takes no URL parameter: the LPA comes only from this device's storage (T-62). */
+/**
+ * `/install` — honest by platform, with all three ways side by side: on this phone (the iOS universal link, or the
+ * code pasted into Android's settings), a QR code for another screen, and the details typed by hand. Takes no URL
+ * parameter: the LPA comes only from this device's storage (T-62), and leaves it only as a tap, a QR or a copy.
+ */
 export function InstallSteps() {
   const { t, lang } = useLang();
   const hydrated = useHydrated();
@@ -250,31 +317,60 @@ export function InstallSteps() {
         </p>
       ) : (
         <>
-          {device.os === 'ios' && device.universalLink ? (
-            <>
-              <a
-                className="ui-button ui-button--block"
-                data-variant="primary"
-                href={iosUniversalLink(lpa)}
-                rel="noreferrer"
-                target="_top"
-                data-testid="ios-universal-link"
+          <Caution k="install.onlyHere" />
+          <Caution k="warn.unlocked" />
+          <h2 className="install__ways" lang={lang}>
+            {t('install.ways')}
+          </h2>
+          <ul className="install-ways" lang={lang}>
+            <li>
+              <h3>{t('install.wayHere')}</h3>
+              {device.os === 'ios' && device.universalLink ? (
+                <>
+                  <a
+                    className="ui-button ui-button--block"
+                    data-variant="primary"
+                    href={iosUniversalLink(lpa)}
+                    rel="noreferrer"
+                    target="_top"
+                    data-testid="ios-universal-link"
+                  >
+                    {t('install.button')}
+                  </a>
+                  <p className="note">{t('install.tapAgain')}</p>
+                  <IosSteps mb={mb} />
+                </>
+              ) : device.os === 'android' ? (
+                <AndroidSteps lpa={lpa} />
+              ) : (
+                <p className="note">{t('install.other')}</p>
+              )}
+            </li>
+            <li>
+              <h3>{t('install.wayQr')}</h3>
+              <p className="note">{t('install.wayQrBody')}</p>
+              <Reveal
+                show={t('install.another')}
+                warn={t('install.anotherWarn')}
+                buttonId="another-phone"
+                panelId="second-device-qr"
               >
-                {t('install.button')}
-              </a>
-              <p className="note" lang={lang}>
-                {t('install.tapAgain')}
-              </p>
-              <IosSteps mb={mb} />
-            </>
-          ) : device.os === 'android' ? (
-            <AndroidSteps lpa={lpa} />
-          ) : (
-            <p className="note" lang={lang}>
-              {t('install.other')}
-            </p>
-          )}
-          <SecondDevice lpa={lpa} withCode={device.os === 'other'} />
+                <QrCode url={lpa} sizeMm={40} label={t('install.code')} />
+              </Reveal>
+            </li>
+            <li>
+              <h3>{t('install.wayManual')}</h3>
+              <p className="note">{t('install.wayManualBody')}</p>
+              <Reveal
+                show={t('install.showDetails')}
+                warn={t('install.detailsWarn')}
+                buttonId="show-details"
+                panelId="manual-details"
+              >
+                <ManualDetails lpa={lpa} />
+              </Reveal>
+            </li>
+          </ul>
         </>
       )}
       <ConnectionCheck />

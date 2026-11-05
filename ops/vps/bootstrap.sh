@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Recharge VPS bootstrap — Ubuntu 24.04, one command: Node 22 + pnpm 10.28.0 + Caddy, the repo at $REF in /opt/recharge,
 # three hardened systemd units (recharge-api, recharge-agent, recharge-web) and HTTPS for $DOMAIN (web) and
-# api.$DOMAIN (API). Idempotent: re-run with a new REF to redeploy. Recipe and the .env names: ops/vps/README.md.
+# api.$DOMAIN (API). With APP_HOST set, the web app is served on $APP_HOST instead and $DOMAIN only answers a 308 to
+# https://$APP_HOST (path and query kept). Idempotent: re-run with a new REF to redeploy. Recipe: ops/vps/README.md.
 #
 #   DOMAIN=recharge.example REPO_URL=<git url> REF=<sha|branch> sudo -E bash ops/vps/bootstrap.sh   # first run
+#   DOMAIN=recharge.ajudiya.com APP_HOST=app.recharge.ajudiya.com ... bootstrap.sh                 # app host
 #   REF=<sha> sudo -E bash /opt/recharge/ops/vps/bootstrap.sh                                      # redeploy
 #   ... bootstrap.sh --no-systemd   # smoke mode (ops/vps/smoke.sh runs it in docker): no unit or caddy is started; the
 #                                   # three commands run in the background from the same env, /healthz and / are
@@ -16,6 +18,8 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
 DOMAIN="${DOMAIN:?DOMAIN is required: the web host (the API is served at api.\$DOMAIN)}"
+# optional: the one host the web app is served on; $DOMAIN then redirects there
+APP_HOST="${APP_HOST:-}"
 REF="${REF:-claude/ethglobal-mumbai-build}"
 REPO_URL="${REPO_URL:-}"
 APP=/opt/recharge
@@ -26,6 +30,11 @@ WEB_PORT=3000
 DRY=0; [[ "${1:-}" == "--no-systemd" ]] && DRY=1
 
 die() { echo "bootstrap: $*" >&2; exit 1; }
+if [[ -n $APP_HOST ]]; then
+  [[ $APP_HOST =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || die "APP_HOST must be a bare lower-case host name (no scheme, port or path)"
+  [[ $APP_HOST != "$DOMAIN" && $APP_HOST != "api.$DOMAIN" ]] || die "APP_HOST must differ from DOMAIN and api.\$DOMAIN"
+fi
+WEB_HOST="${APP_HOST:-$DOMAIN}"
 [[ $EUID -eq 0 ]] || die "run as root: sudo -E bash $0"
 grep -q '^VERSION_ID="24.04"' /etc/os-release 2>/dev/null || echo "bootstrap: warning: written for Ubuntu 24.04" >&2
 
@@ -34,8 +43,14 @@ grep -q '^VERSION_ID="24.04"' /etc/os-release 2>/dev/null || echo "bootstrap: wa
 has() { grep -qE "^$1" "$ENV_FILE"; }
 ! has 'MODE=local' || die "MODE=local on the VPS is forbidden (T-85): it enables /__local/* and the X-Seed-* hooks"
 d="${DOMAIN//./\\.}"
-for want in 'MODE=live$' 'TRUST_PROXY=1$' 'NEXT_PUBLIC_MODE=live$' "CORS_ORIGINS=(.*,)?https://$d(,|$)" \
-  "NEXT_PUBLIC_API_URL=https://api\.$d/?$" "NEXT_PUBLIC_PUBLIC_ORIGIN=https://$d/?$" \
+# the browser runs the app on one origin: $DOMAIN, or exactly https://$APP_HOST when set ($DOMAIN only redirects)
+cors="CORS_ORIGINS=(.*,)?https://$d(,|$)" origin="NEXT_PUBLIC_PUBLIC_ORIGIN=https://$d/?$"
+if [[ -n $APP_HOST ]]; then
+  a="${APP_HOST//./\\.}"
+  cors="CORS_ORIGINS=https://$a$" origin="NEXT_PUBLIC_PUBLIC_ORIGIN=https://$a$"
+fi
+for want in 'MODE=live$' 'TRUST_PROXY=1$' 'NEXT_PUBLIC_MODE=live$' "$cors" \
+  "NEXT_PUBLIC_API_URL=https://api\.$d/?$" "$origin" \
   "STATE_FILE=$STATE/api/" "AGENT_STATE_DIR=$STATE/agent/?$"; do
   has "$want" || die "$ENV_FILE needs a line matching ^$want (ops/vps/README.md)"
 done
@@ -137,17 +152,16 @@ unit web 'web (Next.js)' "$APP/apps/web" "$WEB_ENV" '' \
   $'Environment=NODE_OPTIONS=--experimental-require-module\nReadWritePaths=-'"$APP/apps/web/.next/cache" \
   "$APP/apps/web/node_modules/.bin/next" start -p "$WEB_PORT" -H 127.0.0.1
 
-# ── 7. Caddy: HTTPS for both hosts, upstreams on loopback. Caddy writes X-Forwarded-For; with TRUST_PROXY=1 the API
-#       takes its RIGHT-most hop (what Caddy saw) for rate limits and the webhook IP allow-list (basics.ts clientIp)
-cat > /etc/caddy/Caddyfile << EOF
-# written by ops/vps/bootstrap.sh (DOMAIN=$DOMAIN); edits are overwritten on the next run
-$DOMAIN {
-	reverse_proxy 127.0.0.1:$WEB_PORT
-}
-api.$DOMAIN {
-	reverse_proxy 127.0.0.1:$PORT
-}
-EOF
+# ── 7. Caddy: HTTPS for every host, upstreams on loopback. Caddy writes X-Forwarded-For; with TRUST_PROXY=1 the API
+#       takes its RIGHT-most hop (what Caddy saw) for rate limits and the webhook IP allow-list (basics.ts clientIp).
+#       With APP_HOST, $DOMAIN answers only a 308 to the app host ({uri} keeps the path and the query): printed cards
+#       and old links still land on the app, and the app has one origin for CORS and its own storage.
+{
+  echo "# written by ops/vps/bootstrap.sh (DOMAIN=$DOMAIN${APP_HOST:+ APP_HOST=$APP_HOST}); edits are overwritten on the next run"
+  printf '%s {\n\treverse_proxy 127.0.0.1:%s\n}\n' "$WEB_HOST" "$WEB_PORT"
+  [[ -z $APP_HOST ]] || printf '%s {\n\tredir https://%s{uri} 308\n}\n' "$DOMAIN" "$APP_HOST"
+  printf 'api.%s {\n\treverse_proxy 127.0.0.1:%s\n}\n' "$DOMAIN" "$PORT"
+} > /etc/caddy/Caddyfile
 caddy fmt --overwrite /etc/caddy/Caddyfile
 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile > /dev/null
 
@@ -197,6 +211,7 @@ systemctl restart recharge-api recharge-agent recharge-web
 sleep 5
 systemctl --no-pager --plain --no-legend list-units 'recharge-*' caddy.service
 echo
-echo "web   https://$DOMAIN"
+echo "web   https://$WEB_HOST"
+[[ -z $APP_HOST ]] || echo "      https://$DOMAIN/<path> → 308 → https://$APP_HOST/<path>"
 echo "api   https://api.$DOMAIN/healthz"
 echo "logs  journalctl -u recharge-api -f"

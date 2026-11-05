@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { TestnetStrip } from '../../components/Shell';
+import { SiteMenu, TestnetStrip } from '../../components/Shell';
 
 import type { ReactNode } from 'react';
 
@@ -17,6 +17,8 @@ export default function SponsorLayout({ children }: { children: ReactNode }) {
           <Link href="/" className="wordmark console__home">
             Recharge
           </Link>
+          {/* the traveller's flows, as on every other screen */}
+          <SiteMenu />
           <Link href="/sponsor">Campaigns</Link>
           <a href="#claims-title">Claims</a>
           <a href="#expiring-title">Quotas</a>

@@ -1,20 +1,28 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import type { PlansResponse } from '@ethglobal/protocol/schemas';
 import { Coupon } from '@ethglobal/ui/components';
 
 import { captureInstallPrompt } from './AddToHomeScreen';
-import { AppHeader } from './Shell';
+import { AppHeader, DESTINATIONS } from './Shell';
 import { useLang } from '../i18n/lang';
 import { parseDevice } from '../lib/device';
 import { clockIst, formatMb, money, priceFor } from '../lib/format';
 import { useHydrated, usePlans } from '../lib/hooks';
-import { get, set } from '../lib/store';
+import { get, plans as store, set } from '../lib/store';
+
+import type { StringKey } from '../i18n/strings';
 
 const enIN = new Intl.NumberFormat('en-IN');
+
+/** The last /plans reading this phone saved, and when it arrived. */
+interface Saved {
+  at: number;
+  plans: PlansResponse;
+}
 
 /** Pre-flight line under the button (the Airalo borrow), from the UA only. */
 function Preflight() {
@@ -28,45 +36,193 @@ function Preflight() {
     : undefined;
   return (
     <p className="preflight" data-testid="preflight" lang={lang}>
-      {line ?? ' '}
+      {line ?? ' '}
     </p>
   );
 }
 
+/** One numbered step of "How it works": a title, a sentence or two, and the route(s) that do it. */
+function Step({
+  title,
+  body,
+  links,
+  children,
+}: {
+  title: string;
+  body: string;
+  links: readonly { href: string; label: string }[];
+  children?: ReactNode;
+}) {
+  return (
+    <li>
+      <h3 className="how__title">{title}</h3>
+      <p className="how__body">{body}</p>
+      {children}
+      <p className="quiet-rows">
+        {links.map((link) => (
+          <Link key={link.href} href={link.href} prefetch={false}>
+            {link.label}
+          </Link>
+        ))}
+      </p>
+    </li>
+  );
+}
+
+/** "How it works": verify, install (all three ways), top up, gift, agent, with the warnings where they apply. */
+function HowItWorks({ price }: { price: string }) {
+  const { t, lang } = useLang();
+  const [key, setKey] = useState<string>();
+  useEffect(() => {
+    void store.latest().then(setKey);
+  }, []);
+  // a plan on this phone is topped up (as the Add data tab does); without one, /pay sells the first bundle
+  const topUp = key ? `/pay?key=${encodeURIComponent(key)}` : '/pay';
+  return (
+    <section className="landing__section" aria-labelledby="how-title" lang={lang}>
+      <h2 id="how-title" className="landing__h2">
+        {t('how.title')}
+      </h2>
+      <ol className="how">
+        <Step
+          title={t('how.verify')}
+          body={t('how.verifyBody')}
+          links={[{ href: '/verify', label: t('how.verifyLink') }]}
+        />
+        <Step
+          title={t('how.install')}
+          body={t('how.installBody')}
+          links={[{ href: '/install', label: t('how.installLink') }]}
+        >
+          <ul className="how__ways">
+            <li>{t('how.installHere')}</li>
+            <li>{t('how.installQr')}</li>
+            <li>{t('how.installManual')}</li>
+          </ul>
+        </Step>
+        <Step
+          title={t('how.topup')}
+          body={t('how.topupBody', { price })}
+          links={[{ href: topUp, label: t('tab.add') }]}
+        />
+        <Step
+          title={t('tab.gift')}
+          body={t('how.giftBody')}
+          links={[
+            { href: '/gift', label: t('how.giftLink') },
+            { href: '/gift/claim', label: t('gift.claimTitle') },
+          ]}
+        />
+        <Step
+          title={t('how.agent')}
+          body={t('how.agentBody')}
+          links={[{ href: '/agent', label: t('how.agentLink') }]}
+        />
+      </ol>
+    </section>
+  );
+}
+
+/** Below the fold: every flow with one plain sentence — ruled rows, the same list as the header menu. */
+function Everything({ price }: { price: string }) {
+  const { t, lang } = useLang();
+  return (
+    <section className="landing__section" aria-labelledby="hub-title" lang={lang}>
+      <h2 id="hub-title" className="landing__h2">
+        {t('hub.title')}
+      </h2>
+      <div className="hub">
+        {DESTINATIONS.map((group) => (
+          <div key={group.group}>
+            <h3 className="hub__label">{t(group.group)}</h3>
+            <ul>
+              {group.items.map((item) => (
+                <li key={item.href}>
+                  <Link href={item.href} prefetch={false}>
+                    <span className="hub__title">{t(item.title)}</span>{' '}
+                    <span className="hub__line">{t(item.line, { price })}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+const ESIM_FACTS: readonly (readonly [StringKey, StringKey])[] = [
+  ['esim.dataTerm', 'esim.data'],
+  ['esim.simTerm', 'esim.sim'],
+  ['esim.appsTerm', 'esim.apps'],
+  ['esim.phoneTerm', 'esim.phone'],
+  ['esim.installTerm', 'esim.install'],
+  ['esim.topupTerm', 'esim.topup'],
+  ['esim.expiryTerm', 'esim.expiry'],
+];
+
+/** "How the eSIM works": the facts a traveller asks before paying, one line each. */
+function EsimFacts() {
+  const { t, lang } = useLang();
+  return (
+    <section className="landing__section" aria-labelledby="esim-title" lang={lang}>
+      <h2 id="esim-title" className="landing__h2">
+        {t('esim.title')}
+      </h2>
+      <dl className="facts">
+        {ESIM_FACTS.map(([term, fact]) => (
+          <div key={term}>
+            <dt>{t(term)}</dt>
+            <dd>{t(fact)}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
 /**
- * `/` — one question, two paths. The live, unscratched coupon carries the real count from /plans
- * ("1,214 of 2,000 sponsor bundles left · Hedera"); when the API is degraded the count is omitted, never faked.
+ * `/` — one question, two paths, then everything else. The live, unscratched coupon carries the real count from
+ * this load's own GET /plans ("1,214 of 2,000 sponsor bundles left · Hedera"); while it is on its way the coupon and
+ * the button are skeletons, never a stored reading presented as current. Only a network failure brings back the
+ * last reading this phone saved, labelled "as of 14:02" (and the button follows it); an API error omits the count.
  */
 export function ClaimPaths() {
   const { t, lang } = useLang();
-  const { plans: live, error } = usePlans();
-  const [cached, setCached] = useState<{ at: number; plans: PlansResponse }>();
+  const { plans: live, at: liveAt, error } = usePlans();
+  const [saved, setSaved] = useState<Saved>();
 
   useEffect(() => {
     captureInstallPrompt();
-    void get<{ at: number; plans: PlansResponse }>('plans').then(setCached);
+    void get<Saved>('plans').then(setSaved);
   }, []);
   useEffect(() => {
-    if (live) void set('plans', { at: Date.now(), plans: live });
-  }, [live]);
+    if (live && liveAt) void set('plans', { at: liveAt, plans: live });
+  }, [live, liveAt]);
 
-  const plans = live ?? (error ? cached?.plans : undefined);
+  // offline: this visit's own reading if it had one, else the one saved on an earlier visit
+  const stale: Saved | undefined =
+    error?.code === 'network' ? (live && liveAt ? { at: liveAt, plans: live } : saved) : undefined;
+  const plans = stale?.plans ?? (error ? undefined : live);
+  const pending = !live && !error;
   const campaign = plans?.campaign ?? null;
   const freeMb = campaign?.bundleMb.orb ?? 300;
   const step = plans?.paid.priceUsd6PerStep;
   const exhausted = Boolean(campaign && (campaign.paused || campaign.remainingClaims === 0));
-  const stepPrice = step ? money(step) : undefined;
-  const bundlePrice = step ? money(priceFor(freeMb, step)) : undefined;
+  // claim-first unless the reading shown says no sponsor bundle is open
+  const claimable = !plans || (campaign !== null && !exhausted);
+  const stepPrice = step ? money(step) : '$0.40';
 
   let status: string | undefined;
-  if (exhausted) status = t('landing.exhausted');
-  else if (live && campaign)
+  if (stale) status = t('landing.asOf', { time: clockIst(stale.at) });
+  else if (exhausted) status = t('landing.exhausted');
+  else if (campaign)
     // the sponsor is already named on the coupon's line; the stub carries only the count
     status = t('landing.left', {
       left: enIN.format(campaign.remainingClaims),
       max: enIN.format(campaign.maxClaims),
     });
-  else if (!live && cached && error) status = t('landing.asOf', { time: clockIst(cached.at) });
 
   return (
     <main className="landing">
@@ -82,7 +238,9 @@ export function ClaimPaths() {
         </section>
         {/* no validity line: /plans does not carry the campaign's validity, and a guess is fake specificity */}
         <section className="landing__coupon" aria-live="polite">
-          {plans ? (
+          {pending ? (
+            <div className="skeleton skeleton--coupon" aria-label="Loading the sponsor bundle" />
+          ) : (
             <Coupon
               mb={freeMb}
               {...(campaign ? { sponsor: campaign.name } : {})}
@@ -91,10 +249,8 @@ export function ClaimPaths() {
               lang={lang}
               id="landing-coupon"
             />
-          ) : (
-            <div className="skeleton skeleton--coupon" aria-label="Loading the sponsor bundle" />
           )}
-          {plans && !campaign ? (
+          {plans && !stale && !campaign ? (
             <p className="note" lang={lang}>
               {t('landing.noCampaign')}
             </p>
@@ -102,7 +258,9 @@ export function ClaimPaths() {
         </section>
         <section className="landing__actions">
           <div className="paths">
-            {campaign && !exhausted ? (
+            {pending ? (
+              <div className="skeleton skeleton--button" aria-hidden="true" />
+            ) : claimable ? (
               <Link
                 href="/verify"
                 className="ui-button ui-button--block"
@@ -119,7 +277,10 @@ export function ClaimPaths() {
                 prefetch={false}
               >
                 <span lang={lang}>
-                  {t('landing.payInstead', { price: bundlePrice ?? '', mb: formatMb(freeMb) })}
+                  {t('landing.payInstead', {
+                    price: step ? money(priceFor(freeMb, step)) : '',
+                    mb: formatMb(freeMb),
+                  })}
                 </span>
               </Link>
             )}
@@ -129,7 +290,7 @@ export function ClaimPaths() {
               data-variant="secondary"
               prefetch={false}
             >
-              <span lang={lang}>{t('landing.pay', { price: stepPrice ?? '$0.40' })}</span>
+              <span lang={lang}>{t('landing.pay', { price: stepPrice })}</span>
             </Link>
           </div>
           <Preflight />
@@ -143,6 +304,9 @@ export function ClaimPaths() {
           </nav>
         </section>
       </div>
+      <HowItWorks price={stepPrice} />
+      <EsimFacts />
+      <Everything price={stepPrice} />
     </main>
   );
 }

@@ -8,8 +8,12 @@
  * key from the address bar and renders the plan from this device's last IndexedDB snapshot ("Offline · as of
  * 14:02"), or an honest offline card when there is none. The shell's own /_next/static scripts, styles and fonts
  * are precached with it (read from the cached HTML), so it hydrates without a network.
+ *
+ * Online, a navigation always goes to the network; a shell document that loads fine replaces its cached copy, so the
+ * offline fallback is the last build this phone opened, not the one it first installed. The page's data (/plans,
+ * /me) never passes through here: the API is another origin, and the PWA revalidates it on every load.
  */
-const VERSION = 'recharge-shell-v2';
+const VERSION = 'recharge-shell-v3';
 const DOCUMENTS = ['/', '/offline', '/plan'];
 const FILES = ['/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 const NEVER =
@@ -75,8 +79,16 @@ self.addEventListener('fetch', (event) => {
     // /plan and /plan/<anything> share the precached /plan shell; nothing per key is ever stored
     const shell = /^\/plan(\/|$)/.test(url.pathname) ? '/plan' : url.pathname;
     event.respondWith(
-      fetch(request).catch(() =>
-        caches.match(shell).then((hit) => hit || caches.match('/offline')),
+      fetch(request).then(
+        (res) => {
+          // only the three shell documents, under their bare path: never /plan/<key>, never a query
+          if (res.ok && DOCUMENTS.includes(url.pathname)) {
+            const copy = res.clone();
+            event.waitUntil(caches.open(VERSION).then((cache) => cache.put(url.pathname, copy)));
+          }
+          return res;
+        },
+        () => caches.match(shell).then((hit) => hit || caches.match('/offline')),
       ),
     );
   }

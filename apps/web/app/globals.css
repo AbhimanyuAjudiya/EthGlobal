@@ -31,12 +31,14 @@ a {
 
 /* ── Frame ───────────────────────────────────────────────────────────────── */
 .screen {
+  /* the page column; the header menu's panel lines its content up with it */
+  --page-w: 34rem;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
   width: 100%;
-  max-width: 34rem;
+  max-width: var(--page-w);
   margin: 0 auto;
   padding: 0 1rem calc(1.5rem + env(safe-area-inset-bottom));
   min-height: 100dvh;
@@ -46,7 +48,7 @@ a {
   padding-bottom: 0;
 }
 .screen--wide {
-  max-width: 72rem;
+  --page-w: 72rem;
 }
 .screen__title {
   margin: 0;
@@ -61,7 +63,7 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.5rem;
   min-height: 3.5rem;
 }
 .app-header__right {
@@ -88,7 +90,7 @@ a {
   overflow: hidden;
 }
 .lang-switch button {
-  min-width: 3rem;
+  min-width: 2.75rem;
   min-height: 2.75rem;
   border: 0;
   background: transparent;
@@ -105,6 +107,104 @@ a {
 .lang-switch button[aria-pressed='true'] {
   background: var(--bg-sunken);
   color: var(--text-primary);
+}
+
+/* ── Header menu (every screen): a word, not an icon; the panel drops over the header ── */
+.menu-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-14);
+  cursor: pointer;
+}
+.menu-toggle:hover {
+  background: var(--bg-sunken);
+}
+/* the page behind fades toward the canvas, in either theme; a tap on it closes the menu */
+.site-menu__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: color-mix(in oklch, var(--bg-canvas) 82%, transparent);
+  animation: fade-in var(--duration-state) var(--ease-standard) both;
+}
+.site-menu {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 21;
+  box-sizing: border-box;
+  max-height: 100dvh;
+  overflow-y: auto;
+  padding: 0 1rem 1.5rem;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-strong);
+  animation: menu-in var(--duration-state) var(--ease-standard) both;
+}
+@keyframes menu-in {
+  from {
+    transform: translateY(-0.5rem);
+    opacity: 0;
+  }
+}
+/* the panel's content lines up with the page column it opened from */
+.site-menu > * {
+  max-width: calc(var(--page-w, 34rem) - 2rem);
+  margin-inline: auto;
+}
+.site-menu__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 3.5rem;
+}
+.site-menu__groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 0.25rem 2rem;
+}
+.site-menu__label {
+  margin: 0.75rem 0 0.25rem;
+  font-size: var(--text-13);
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+.site-menu ul,
+.hub ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.site-menu li a {
+  display: flex;
+  align-items: center;
+  min-height: 3rem;
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  font-size: var(--text-16);
+  text-decoration: none;
+}
+.site-menu li a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* A plain warning: the triangle and one factual sentence, in the text colours (no alarm hue). */
+.caution {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.caution .ui-icon {
+  margin-top: 0.15em;
 }
 
 /* Devanagari never sits in the mono face (RT-W-08): these mono lines switch to the text face in hi/mr. */
@@ -205,20 +305,26 @@ a {
   border-radius: var(--radius-control);
 }
 
+.skeleton--button {
+  min-height: 48px;
+  border-radius: var(--radius-control);
+}
+
 /* ── Landing ─────────────────────────────────────────────────────────────── */
 .landing {
+  --page-w: 72rem;
   box-sizing: border-box;
-  max-width: 72rem;
+  max-width: var(--page-w);
   margin: 0 auto;
-  padding: 0 1rem 2rem;
-  min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
+  padding: 0 1rem calc(2rem + env(safe-area-inset-bottom));
 }
+/* Phone: the hero fills the first screen with the button in its bottom quarter; the rest follows below. */
 .landing__grid {
   display: grid;
   gap: 1.5rem;
-  flex: 1;
+  min-height: calc(100dvh - 3.5rem);
+  padding-bottom: 1.5rem;
+  box-sizing: border-box;
   align-content: space-between;
   grid-template-areas: 'copy' 'coupon' 'actions';
 }
@@ -286,6 +392,7 @@ a {
 }
 /* a chevron says "this goes somewhere" (RT design review: quiet rows read as body text) */
 .quiet-rows a::after,
+.hub a::after,
 .disclosure summary::after {
   content: '';
   flex: none;
@@ -296,12 +403,155 @@ a {
   transform: rotate(-45deg);
   transition: transform var(--duration-state) var(--ease-standard);
 }
+
+/* Below the hero: ruled, numbered and listed text — no cards, no icons. */
+.landing__section {
+  display: grid;
+  gap: 1rem;
+  padding-block: 2rem;
+  border-top: 1px solid var(--border-subtle);
+}
+.landing__h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-24);
+  font-weight: 700;
+  font-variation-settings: 'wdth' 110;
+  line-height: var(--leading-display);
+}
+/* How it works: five numbered steps; the numbers are the list's own markers */
+.how {
+  display: grid;
+  gap: 1.5rem;
+  margin: 0;
+  padding-left: 2.25rem;
+  list-style: decimal;
+}
+.how > li::marker {
+  font-family: var(--font-display);
+  font-size: var(--text-20);
+  font-weight: 700;
+  color: var(--text-tertiary);
+}
+.how__title {
+  margin: 0;
+  font-size: var(--text-20);
+  font-weight: 600;
+  line-height: var(--leading-display);
+}
+.how__body {
+  margin: 0.25rem 0 0;
+  font-size: var(--text-16);
+  color: var(--text-secondary);
+  max-width: 60ch;
+}
+.how__ways {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.25rem;
+  font-size: var(--text-14);
+  color: var(--text-secondary);
+  list-style: disc;
+}
+/* How the eSIM works: term | fact, one ruled row each */
+.facts {
+  margin: 0;
+}
+.facts > div {
+  display: grid;
+  grid-template-columns: minmax(6rem, 1fr) 3fr;
+  gap: 0.25rem 1rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.facts dt {
+  font-size: var(--text-14);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.facts dd {
+  margin: 0;
+  font-size: var(--text-16);
+}
+/* Everything Recharge does: the menu's destinations with one line each */
+.hub {
+  display: grid;
+  gap: 1.5rem;
+}
+.hub__label {
+  margin: 0 0 0.25rem;
+  font-size: var(--text-13);
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+.hub a {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 1rem;
+  min-height: 3rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.hub a::after {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  color: var(--text-tertiary);
+}
+.hub__title {
+  font-size: var(--text-16);
+  font-weight: 600;
+}
+.hub__line {
+  grid-column: 1;
+  font-size: var(--text-14);
+  color: var(--text-secondary);
+}
+.hub a:hover .hub__title {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Desk: hero copy and buttons stacked beside the coupon, one group around a shared middle; 5/7 as the sections. */
 @media (min-width: 900px) {
   .landing__grid {
-    grid-template-columns: 5fr 7fr;
+    min-height: 0;
+    padding-block: clamp(1.5rem, 7vh, 4.5rem);
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
     grid-template-areas: 'copy coupon' 'actions coupon';
-    column-gap: 4rem;
-    align-items: center;
+    column-gap: 3rem;
+    row-gap: 2rem;
+    align-content: center;
+  }
+  .landing__copy {
+    align-self: end;
+  }
+  .landing__actions {
+    align-self: start;
+  }
+  .landing__coupon {
+    align-self: center;
+  }
+  .landing__coupon .coupon {
+    max-width: 28rem;
+  }
+  .landing__section {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    column-gap: 3rem;
+    padding-block: 3rem;
+  }
+  /* the section's name stays beside its rows while they scroll past */
+  .landing__h2 {
+    position: sticky;
+    top: 1.5rem;
+    align-self: start;
+  }
+  .hub {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 2rem;
   }
 }
 
@@ -531,6 +781,8 @@ a {
   display: grid;
   gap: 0.5rem;
   font-size: var(--text-16);
+  /* the system's order, numbered (Tailwind's preflight drops list markers) */
+  list-style: decimal;
 }
 .lpa-code {
   display: flex;
@@ -561,6 +813,62 @@ a {
   margin: 0;
   color: var(--warning);
   font-size: var(--text-14);
+}
+/* The three ways to install, side by side as ruled rows: this phone, a QR for another screen, by hand. */
+.install__ways {
+  margin: 0.5rem 0 0;
+  font-size: var(--text-20);
+  font-weight: 600;
+}
+.install-ways {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.install-ways > li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.install-ways h3 {
+  margin: 0;
+  font-size: var(--text-16);
+  font-weight: 600;
+}
+.install-ways .ui-button {
+  align-self: flex-start;
+}
+.install-ways .ui-button--block {
+  align-self: stretch;
+}
+.lpa-details {
+  margin: 0;
+  width: 100%;
+}
+.lpa-details > div {
+  padding: 0.25rem 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.lpa-details dt {
+  font-size: var(--text-13);
+  color: var(--text-secondary);
+}
+.lpa-details dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 0.5rem;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-size: var(--text-14);
+  overflow-wrap: anywhere;
+}
+.lpa-details dd .ui-button {
+  font-family: var(--font-text);
 }
 .connection-check {
   display: flex;
@@ -755,6 +1063,7 @@ a {
 
 /* ── Sponsor console ─────────────────────────────────────────────────────── */
 .console {
+  --page-w: 72rem;
   min-height: 100dvh;
 }
 .console__body {
@@ -772,14 +1081,19 @@ a {
   border-bottom: 1px solid var(--border-subtle);
   font-size: var(--text-13);
 }
-.console__rail a {
+/* direct children only: the header menu's panel (inside the rail) keeps its own link style */
+.console__rail > a,
+.console__rail > .menu-toggle {
   flex: none;
   white-space: nowrap;
 }
 .console__home {
   margin-right: 0.5rem;
 }
-.console__rail a:not(.wordmark) {
+.console__rail > .menu-toggle {
+  margin-right: 0.5rem;
+}
+.console__rail > a:not(.wordmark) {
   display: inline-flex;
   align-items: center;
   justify-content: center;

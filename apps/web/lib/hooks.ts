@@ -17,27 +17,63 @@ import {
   type Wallet,
 } from './wallet';
 
-let plansCache: Promise<PlansResponse> | undefined;
+/** One GET /plans in flight at a time: screens mounting together share it, and it is dropped once it settles. */
+let inflight: Promise<PlansResponse> | undefined;
+const fetchPlans = (): Promise<PlansResponse> =>
+  (inflight ??= api.plans().finally(() => {
+    inflight = undefined;
+  }));
 
-/** GET /plans once per page load (the API caches 60 s); `error` set when the API is degraded or down. */
+/** After a failed GET /plans the next try waits 5 s, then 15 s, then 60 s between tries. */
+const RETRY_MS = [5_000, 15_000, 60_000] as const;
+
+/**
+ * GET /plans on every mount (never a reading kept from earlier in the session; the API caches 60 s) and again when
+ * the page comes back (tab shown, back/forward cache, browser online) or a failed try's retry fires, so a screen
+ * opened during an outage or an API restart recovers by itself. `plans` and `at` are the last success and when it
+ * arrived; `error` is the latest try's failure (`code: 'network'` when no answer came back), cleared by a success.
+ */
 export function usePlans() {
-  const [plans, setPlans] = useState<PlansResponse | undefined>();
-  const [error, setError] = useState<ApiError | undefined>();
+  const [state, setState] = useState<{ plans?: PlansResponse; at?: number; error?: ApiError }>({});
   useEffect(() => {
     let alive = true;
-    plansCache ??= api.plans();
-    plansCache.then(
-      (p) => alive && setPlans(p),
-      (e: unknown) => {
-        plansCache = undefined;
-        if (alive) setError(e instanceof ApiError ? e : new ApiError(0, 'network', String(e)));
-      },
-    );
+    let failures = 0;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const load = () => {
+      clearTimeout(retry);
+      fetchPlans().then(
+        (plans) => {
+          if (!alive) return;
+          failures = 0;
+          setState({ plans, at: Date.now() });
+        },
+        (e: unknown) => {
+          if (!alive) return;
+          const error = e instanceof ApiError ? e : new ApiError(0, 'network', String(e));
+          setState((s) => ({ ...s, error }));
+          retry = setTimeout(load, RETRY_MS[Math.min(failures++, RETRY_MS.length - 1)]);
+        },
+      );
+    };
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) load();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') load();
+    };
+    load();
+    window.addEventListener('online', load);
+    window.addEventListener('pageshow', onShow);
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       alive = false;
+      clearTimeout(retry);
+      window.removeEventListener('online', load);
+      window.removeEventListener('pageshow', onShow);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, []);
-  return { plans, error, loading: !plans && !error };
+  return { ...state, loading: !state.plans && !state.error };
 }
 
 /**

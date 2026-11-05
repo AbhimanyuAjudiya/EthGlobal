@@ -17,7 +17,7 @@ import { sessionNonce } from '@ethglobal/protocol/x402';
 import { Button, MbMeter, RuledList } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
-import { AppHeader, Screen, TabBar, useWalletLabel, WalletButton } from './Shell';
+import { AppHeader, Caution, Screen, TabBar, useWalletLabel, WalletButton } from './Shell';
 import { useLang, useNetworkName } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
@@ -349,9 +349,13 @@ function PaySheetBody({
         onInjected={(w) => void pickInjected(w)}
       />
       {!entitlementKey ? (
-        <p className="note" lang={lang}>
-          {t('pay.noPlan')}
-        </p>
+        <>
+          <p className="note" lang={lang}>
+            {t('pay.noPlan')}
+          </p>
+          {/* a new plan's activation code is sealed to this browser's session */}
+          <Caution k="warn.thisBrowser" />
+        </>
       ) : null}
       {me ? (
         <MbMeter

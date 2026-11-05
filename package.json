@@ -15,7 +15,7 @@
     "demo": "pnpm --filter @ethglobal/scripts exec tsx demo.ts",
     "demo:seed": "pnpm --filter @ethglobal/scripts exec tsx demo-seed.ts",
     "build": "pnpm -r run build",
-    "lint": "eslint . --max-warnings 0 && prettier --check .",
+    "lint": "bash scripts/lint.sh && prettier --check .",
     "typecheck": "pnpm -r --if-present run typecheck",
     "test": "pnpm -r --filter '!@ethglobal/contracts' --if-present run test",
     "test:ci": "pnpm -r --filter '!@ethglobal/contracts' --if-present run test -t '^(?!.*_RTFINDING$)'",

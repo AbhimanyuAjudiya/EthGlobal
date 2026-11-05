@@ -325,19 +325,19 @@ Source: `standards-sdk@04f97c8:src/hcs-14/did.ts`, `canonical.ts`, `types.ts`.
 - **`@arkiv-network/sdk` 1.0.1** (published 2 Nov 2026; repo `Arkiv-Network/arkiv-sdk-js`), peer dep `viem ^2`, Node >= 22.10. Older `golem-base-sdk` 0.1.16 is **deprecated** on npm.
   Python: `arkiv-sdk` 0.2.2 on PyPI [contents unverified]. Entry points: `@arkiv-network/sdk` (`createPublicClient`, `createWalletClient`, `ExpirationTime`),
   `@arkiv-network/sdk/chains` (`rabdi`, `localhost`), `@arkiv-network/sdk/schema` (`defineSchema`, `bool,i32,u64,u256,dec,str,addr,key,bytes`), `@arkiv-network/sdk/query` (`eq,gt,lt,between,and,or,asc,desc` ...).
-- Access key (not secret) is appended as the last RPC path segment: `rabdi({ accessKey })`; get one at `https://hub.arkiv.network/access-keys`.
+- Access key (not secret) is appended as the last RPC path segment: `rabdi({ accessKey })`; get one at `https://hub.arkiv.network/access-keys` (verified 2026-11-05: creation sits behind a captcha, and the Hub shows the key truncated afterwards; its copy button is the only way to get it again).
   Anonymous public endpoint is heavily rate limited (HTTP 429 with `RateLimit` + `Retry-After`, `Link: <hub>; rel="help"`); billed responses carry `Arkiv-Cost` and `Arkiv-Quota-Remaining`.
 
 ### 3.2 Networks (as of 3 Nov 2026)
 
 | Network | Chain id | RPC | Notes |
 | --- | --- | --- | --- |
-| **rabdi** (the chain the SDK 1.0.1 ships and its README calls "the Arkiv testnet") | **7794095** | `https://rpc.rabdi.db-chain.testnet.arkiv.network[/<accessKey>]`, `wss://` same host | explorer `https://rabdi.explorer.arkiv.network`; gas token `tGLM` ("Golem"); registry: "Public testnet on the GolemDB node; indexer, metered RPC edge and faucet" |
+| **rabdi** (the chain the SDK 1.0.1 ships and its README calls "the Arkiv testnet") | **7794095** | `https://rpc.rabdi.db-chain.testnet.arkiv.network[/<accessKey>]`, `wss://` same host | explorer `https://rabdi.explorer.arkiv.network` (entity pages `/entity/<key>`, verified 2026-11-05); gas token `tGLM` ("Golem"); registry: "Public testnet on the GolemDB node; indexer, metered RPC edge and faucet" |
 | tiramisu | 7738577 | `https://rpc.tiramisu.db-chain.testnet.arkiv.network` (+wss) | registry: "Public Arkiv testnet ... the network external developers join"; snapshots `https://testnet.snapshots.arkiv.network/tiramisu/latest.json`; not exported by SDK 1.0.1 (`defineChain` it yourself) |
 | sorbet | 7706815 | `https://rpc.sorbet.db-chain.testnet.arkiv.network` | Sourcify-prefilled load-test net |
 | Kaolin | — | — | **retired**: search snippet (template repo) says it stopped responding 15 May 2026, migration notes at `docs.arkiv.network/networks/migrate-from-kaolin/` **[unverified; docs host blocked]**. Do not target it. |
 | Braga | 60138453102 (third-party repo) | `https://braga.hoodi.arkiv.network/rpc` | **[unverified, probably superseded]** |
-Faucet: `https://hub.arkiv.network/faucet` (tGLM). Fee/gas token: **tGLM** (testnet GLM); block time 2 s; per-tx gas cap 2^24 (EIP-7825).
+Faucet: `https://hub.arkiv.network/faucet` (10 tGLM per claim, behind a captcha; verified 2026-11-05). Fee/gas token: **tGLM** (testnet GLM); block time 2 s (held live 2026-11-05: ~2 s over a round-trip from Mumbai, `ARKIV_BLOCK_TIME_MS=2000`); per-tx gas cap 2^24 (EIP-7825).
 Source: `@arkiv-network/sdk@1.0.1 src/chains/rabdi.ts`, `src/consts.ts`, README; `db-chain-networks@8af442e9 README.md`, `networks/testnet/tiramisu/README.md`.
 Hackathon note: which testnet Arkiv judges want (rabdi vs tiramisu) is a known unknown; the SDK default is rabdi.
 
@@ -560,7 +560,7 @@ namehash("vitalik.eth"); // 0x...
 ## Known unknowns to verify on-site Wed 4 Nov
 
 1. `curl https://x402.org/facilitator/supported` — confirm `hedera:testnet` (fee payer `0.0.9185802`) and `eip155:84532` are listed and the exact `extra` shape; same for `https://api.testnet.blocky402.com/supported` and `https://testnet.facilitator.launa.dev/supported`. Pick the primary + fallback facilitator. **x402.org done 5 Nov** — both listed, fee payer `0.0.9185802` confirmed, shape recorded in §1.5 (RT-A-15: it also lists v1 kinds under legacy names, which our schema refused).
-2. Which Arkiv testnet the sponsor judges on (SDK 1.0.1 defaults to **rabdi 7794095**; the registry calls **tiramisu 7738577** the developer network; Kaolin appears retired). Get an access key at `hub.arkiv.network/access-keys` and tGLM from `hub.arkiv.network/faucet`; confirm the explorer URL for the chosen chain and whether the Swarm bonus needs a specific Bee gateway/postage batch.
+2. Which Arkiv testnet the sponsor judges on (SDK 1.0.1 defaults to **rabdi 7794095**; the registry calls **tiramisu 7738577** the developer network; Kaolin appears retired). Get an access key at `hub.arkiv.network/access-keys` and tGLM from `hub.arkiv.network/faucet`; confirm the explorer URL for the chosen chain and whether the Swarm bonus needs a specific Bee gateway/postage batch. **rabdi done 5 Nov** — access key and tGLM obtained (both behind a captcha), explorer `https://rabdi.explorer.arkiv.network/entity/<key>` confirmed, round-trip latencies in `docs/ARKIV_FEEDBACK.md` §4; which testnet the judges want and the Swarm gateway are still open.
 3. World ID: create the app (`app_mode: external`), RP (`rp_id` + one-time signing key into the server secret store) and a **production** action; confirm `allow_legacy_proofs` policy (Orb-only vs device fallback) with the World team; confirm whether "Agent Pass" in the prize text means AgentKit (beta) and whether judges accept AgentKit registration on World Chain mainnet only (CLI registers on World Chain; no testnet AgentBook mentioned).
 4. Hedera: fund testnet account via portal, associate `0.0.429274`, mint USDC from `faucet.circle.com`; confirm the facilitator accepts HTS USDC (not just HBAR) and the `transaction` vs `transactionId` field in `PAYMENT-RESPONSE` from the chosen facilitator; confirm HashScan topic URL pattern `hashscan.io/testnet/topic/{0.0.x}`.
 5. eSIM Access: open the console account, confirm the signed-header auth works (vs bare `RT-AccessCode`), list India-usable packages (`locationCode: "IN"`), place one real order, capture the real `ac`/LPA string, `qrCodeUrl`, and a full webhook payload (schema + any signature header); measure activation latency on Jio/Airtel; confirm `/esim/cancel` refund.

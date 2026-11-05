@@ -46,21 +46,32 @@ private key or a capability key. The red team greps the ledger dump for those af
 
 Answer: **TBD by human (Founder, Thu 21:30)**.
 
-## 4. Latency (measured at the Wednesday pre-deploy)
+## 4. Latency (measured 2026-11-05 on rabdi)
 
-The source is `GET /metrics.json` (`ledger_ms{op}` histogram) after the Wednesday 14:00 round-trip on rabdi and after
-the in-window runs, plus the SDK call timings recorded by `scripts/record-fixture.ts`.
+One round-trip through `ArkivLedger` (`packages/adapters/src/live/arkiv-ledger.ts`) after the RT-A-15 fix, taken on
+2026-11-05 at about 16:10 IST from the API host in Mumbai, over the public RPC with an access key. Wall-clock seconds, one
+sample per op (n = 1); the `GET /metrics.json` `ledger_ms{op}` histogram collects the p50/p95 during the window.
 
-| op | p50 (ms) | p95 (ms) | n | when |
-|---|---|---|---|---|
-| `put` (createEntity, includes the tx receipt) | TBD by human (Integrations, Wed 14:00) | TBD by human (Integrations, Wed 14:00) | TBD | Wed 14:00 pre-deploy |
-| `get` (getEntity) | TBD by human (Integrations, Wed 14:00) | TBD by human (Integrations, Wed 14:00) | TBD | Wed 14:00 pre-deploy |
-| `query` (select, `$creator` + one attribute) | TBD by human (Integrations, Wed 14:00) | TBD by human (Integrations, Wed 14:00) | TBD | Wed 14:00 pre-deploy |
-| `update` (patchEntity) | TBD by human (Integrations, Wed 14:00) | TBD by human (Integrations, Wed 14:00) | TBD | Wed 14:00 pre-deploy |
-| `extend` (extendEntity) | TBD by human (Integrations, Fri 06:00) | TBD by human (Integrations, Fri 06:00) | TBD | in-window |
+| op | wall time (s) | n | note |
+|---|---|---|---|
+| `put` (createEntity, 180 s lifetime) | 8.8 | 1 | includes the SDK's wait for the transaction to be mined; an earlier raw-SDK create measured 12.0 s |
+| `get` (arkiv_getEntity) | 0.4 | 1 | an earlier raw read measured 1.1 s |
+| `update` (patch payload + reset lifetime to 240 s, key unchanged) | 14.9 | 1 | two mined transactions: `patchEntity`, then `extendEntity` because the new lifetime ends later than the current one |
+| `query` (select by one indexed string attribute, `$creator` filter) | 0.7 | 1 | |
+| `extend` (extendEntity alone) | TBD by human (Integrations, Fri 06:00) | | in-window; the `update` row already contains one |
 
-**Block time.** rabdi is nominally 2 s. Measured: **TBD by human (Integrations, Wed 14:00)**, as Δblock over Δwall-clock
-across the pre-deploy. Set `ARKIV_BLOCK_TIME_MS` to the measurement.
+**Expiry.** An entity created with a 180 s lifetime read back as `null` after it expired
+(`fixtures/arkiv/live-expired.json`): the plan clock works as documented.
+
+**Block time.** rabdi is nominally 2 s. Measured 2026-11-05: **~2 s** (Δblock over Δwall-clock across the round-trip);
+`ARKIV_BLOCK_TIME_MS=2000` held.
+
+**Entities** (`https://rabdi.explorer.arkiv.network/entity/<key>`):
+
+- `0xb9429fbd706f46a55d16788d9446f147f9d65b9ef005b7f463bae9caadb2abb1` — the ledger-path entity (the `put`, `get`,
+  `update` and `query` rows);
+- `0x73d83f38374affec72322cf2f2630fe7f01ca1fe669238708e7d3eca79a7a9dd` — the raw-SDK entity, now expired (the `null` read);
+- `0x80374f83458726f96ab6a44b14daf9ff6f435eca6bb9f82a56c1704acd627a01` — a gift entity written by the live API.
 
 **Expiry rounding (T-35, A-24).** `expiresIn` seconds become `ExpirationTime.fromSeconds(...)`, which counts **whole
 2-s blocks, rounded up**. A 90-s entity therefore lives 90 s (45 blocks), while a 91-s entity lives 92 s. The maximum
@@ -70,8 +81,8 @@ numeric `expiresAt` attribute, and the stores treat an entity as dead at `min(le
 
 ## 5. SDK feedback
 
-These are the points we hit while designing and testing against the SDK's types and the recorded call shapes in
-`MODE=local`. The humans add the live ones on Wednesday and in the window.
+Items 1–8 are the points we hit while designing and testing against the SDK's types and the recorded call shapes in
+`MODE=local`; items 9–11 were hit live on rabdi on 2026-11-05. The humans add the window's in the window.
 
 1. **`key` is a reserved word in the query language.** An attribute named `key` fails the SDK's schema validation, so
    our logical key is stored as `logicalKey` (`TO_ATTRIBUTE` in `arkiv-ledger.ts`, decision AL-2). The error message did
@@ -109,5 +120,13 @@ These are the points we hit while designing and testing against the SDK's types 
    so it surfaced only on the live chain. Suggestion: when a schema is given, coerce a bare bigint to the column's own
    integer type (the column already knows it is u64), or make `CreateEntityValues<S>` reject a bare bigint for a u64
    column so `tsc` catches it. We now tag every value at the boundary (`toSdkValues`).
+10. **The Hub shows the access key truncated after creation (2026-11-05).** `hub.arkiv.network/access-keys` renders a
+    new key truncated, and its copy button is the only way to get it again: there is no reveal and no re-fetch. Fine for
+    a human pasting it into a secret store, awkward for ops automation. Suggestion: a reveal toggle, or an API that
+    returns the key once to its creator.
+11. **The faucet and the access-key generation both sit behind a captcha (2026-11-05).** The 10 tGLM faucet claim and
+    the key creation each need a human, so the on-site runbook keeps a human step for both and neither can be scripted
+    into a fresh-environment bring-up. Reasonable for a testnet; worth one line in the quickstart.
 
-Live feedback from the Wednesday pre-deploy and the window: **TBD by human (Integrations, Sat 18:00)**.
+Live feedback from the 2026-11-05 round-trip is items 9–11 above. From the window (2026-11-06/07):
+**TBD by human (Integrations, Sat 18:00)**.

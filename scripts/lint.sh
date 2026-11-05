@@ -7,8 +7,8 @@ cd "$(dirname "$0")/.."
 fail=0
 for d in apps/* packages/* services/* scripts security; do
   [[ -d $d ]] || continue
-  npx eslint "$d" --max-warnings 0 || fail=1
+  pnpm exec eslint "$d" --max-warnings 0 || fail=1
 done
 # root-level files (eslint.config.ts, vitest.workspace, …)
-npx eslint --max-warnings 0 --no-error-on-unmatched-pattern ./*.ts ./*.mjs ./*.js || fail=1
+pnpm exec eslint --max-warnings 0 --no-error-on-unmatched-pattern ./*.ts ./*.mjs ./*.js || fail=1
 exit $fail

@@ -72,6 +72,19 @@ overrides:
   # wallet-kit transitives ask for query-core ^5 and would take 5.106.x (< 3 days old); keep it on react-query's own pin
   "@tanstack/query-core": 5.105.3
 
+# Accepted advisories (RT-P-14, founder-approved 2026-11-06): the vulnerable code is not reachable and the patched
+# versions are cross-major, so an override would break the SDK that carries them.
+#   GHSA-mrhx-c7xc-m3w5 zod@3.25.76 under wagmi > @wagmi/connectors > @base-org/account > @coinbase/cdp-sdk — the web
+#     build aliases @base-org/account to a throwing stub (apps/web/next.config.ts), so cdp-sdk never ships.
+#     Re-check when wagmi ships a @base-org/account on zod 4.
+#   GHSA-qr28-fpjm-wq7f decode-uri-component@0.2.2 under @walletconnect/utils > query-string@7 — parses only the pairing
+#     URI the app itself produces; 0.5.x is ESM-only and query-string 7 require()s it (breaks WalletConnect).
+#     Re-check when @walletconnect/utils moves to query-string 9.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-mrhx-c7xc-m3w5
+    - GHSA-qr28-fpjm-wq7f
+
 # Install scripts: esbuild's postinstall only verifies its binary; sharp/unrs-resolver are skipped as
 # create-next-app does by default.
 onlyBuiltDependencies:

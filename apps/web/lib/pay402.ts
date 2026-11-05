@@ -6,8 +6,7 @@
  *   comes from accepts[].extra via `domainFromRequirements` (A-21: "USDC" on Base Sepolia, "USD Coin" on Anvil),
  *   `validBefore = now + maxTimeoutSeconds`, the nonce is the session nonce on LPA-delivering routes (T-32).
  * - `DemoWalletSigner` — the same signer over the MODE=local demo wallet (Anvil #5), labelled as such.
- * - `HederaWalletSigner` — an interface only: human Hedera payments are in-window work (A-20). The PWA shows the
- *   exact x402 terms in a "pay on Hedera from your wallet" panel instead of a HashPack hand-off.
+ * - Human Hedera payments (A-20) are `HashPackPaySigner` in lib/hedera-wc.ts (WalletConnect, HIP-820), loaded lazily.
  */
 import { bytesToHex, keccak256, randomBytes } from '@ethglobal/crypto';
 import {
@@ -104,12 +103,7 @@ export class EvmWalletSigner implements PaymentSigner {
 /** MODE=local only: the same EIP-3009 signer over the demo wallet; the UI labels it "demo wallet · Anvil #5". */
 export class DemoWalletSigner extends EvmWalletSigner {}
 
-/** Human Hedera payments (A-20): `{ transaction: <base64 partially-signed TransferTransaction> }`. In-window. */
-export interface HederaWalletSigner extends PaymentSigner {
-  readonly status: 'coming-in-window';
-}
-
-/** The exact x402 terms for the "pay on Hedera from your wallet" panel. */
+/** The exact x402 terms for the "pay on Hedera with HashPack" panel. */
 export function hederaTerms(req: PaymentRequirements) {
   return {
     network: req.network,

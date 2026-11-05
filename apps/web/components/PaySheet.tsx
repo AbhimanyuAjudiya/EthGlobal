@@ -13,15 +13,17 @@ import type {
   PaymentRequirements,
   TopUpResponse,
 } from '@ethglobal/protocol/schemas';
-import { sessionNonce } from '@ethglobal/protocol/x402';
+import { sessionNonce, type PaymentSigner } from '@ethglobal/protocol/x402';
 import { Button, MbMeter, RuledList } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
+import { QrCode } from './QrCode';
 import { AppHeader, Caution, Screen, TabBar, useWalletLabel, WalletButton } from './Shell';
 import { useLang, useNetworkName } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
 import { deliver, planHref } from '../lib/deliver';
+import { isHandheld } from '../lib/device';
 import {
   clockIst,
   dayLabel,
@@ -48,6 +50,8 @@ import { plans as store } from '../lib/store';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
 import { chainNow } from '../lib/wallet';
 
+import type { HashPackSession } from '../lib/hedera-wc';
+
 const BALANCE_ABI = parseAbi(['function balanceOf(address) view returns (uint256)']);
 const SIZES = [100, 200, 300];
 
@@ -70,10 +74,27 @@ async function fetchQuote(
   return { ...next, at: Date.now(), ...(spk ? { spk } : {}) };
 }
 
-/** The x402 terms of a Hedera accepts[] entry, as an instruction panel (human Hedera wallets are in-window). */
-function HederaPanel({ req }: { req: PaymentRequirements }) {
+/** HashPack's pairing state on the Review screen. */
+interface HashPackState {
+  uri?: string;
+  link?: string;
+  session?: HashPackSession;
+  failed?: boolean;
+}
+
+/** The x402 terms of a Hedera accepts[] entry and the HashPack connect step (QR, or a deep link on a phone). */
+function HederaPanel({
+  req,
+  hp,
+  onConnect,
+}: {
+  req: PaymentRequirements;
+  hp: HashPackState;
+  onConnect: () => void;
+}) {
   const { t, lang } = useLang();
   const terms = hederaTerms(req);
+  const handheld = typeof window !== 'undefined' && isHandheld(window);
   return (
     <section className="hedera-panel" data-testid="hedera-panel">
       <h2 lang={lang}>{t('pay.hederaTitle')}</h2>
@@ -96,9 +117,40 @@ function HederaPanel({ req }: { req: PaymentRequirements }) {
           { label: t('pay.hValidFor'), value: `${terms.validForS} s`, mono: true },
         ]}
       />
-      <p className="note" lang={lang}>
-        {t('pay.hederaSoon')}
-      </p>
+      {hp.session ? (
+        <>
+          <p className="note" lang={lang} data-testid="hashpack-account">
+            {t('pay.hashpackAccount', { account: hp.session.accountId })}
+          </p>
+          {/* on a phone the signature request waits inside HashPack: one tap brings it forward */}
+          {handheld && hp.link ? (
+            <a className="ui-button ui-button--block" data-variant="secondary" href={hp.link}>
+              {t('pay.hashpackOpen')}
+            </a>
+          ) : null}
+        </>
+      ) : hp.uri ? (
+        <>
+          <p className="note" lang={lang}>
+            {t('pay.hashpackScan')}
+          </p>
+          <QrCode url={hp.uri} label={t('pay.hashpackScan')} sizeMm={48} />
+          {handheld && hp.link ? (
+            <a className="ui-button ui-button--block" href={hp.link}>
+              {t('pay.hashpackOpen')}
+            </a>
+          ) : null}
+        </>
+      ) : (
+        <Button block onClick={onConnect} data-testid="hashpack-connect">
+          {t('pay.hashpackConnect')}
+        </Button>
+      )}
+      {hp.failed ? (
+        <p className="note" role="alert" lang={lang}>
+          {t('pay.hashpackFailed')}
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -186,6 +238,7 @@ function PaySheetBody({
   const [me, setMe] = useState<MeResponse | undefined>();
   const [result, setResult] = useState<string | undefined>();
   const [doneKey, setDoneKey] = useState<string | undefined>();
+  const [hp, setHp] = useState<HashPackState>({});
 
   useEffect(() => {
     if (entitlementKey) void api.me(entitlementKey).then(setMe, () => undefined);
@@ -247,9 +300,13 @@ function PaySheetBody({
   const approvalLeft = chosen && q ? q.at + chosen.maxTimeoutSeconds * 1000 - clock : 0;
   const balance = chosen ? balances[chosen.network] : undefined;
 
+  // an LPA-delivering route binds the session key, which a Hedera payload cannot carry yet (octroi refuses it)
+  const hederaSessionBound = isHedera && chosen?.extra?.sessionKeyRequired === true;
   let blocked: string | undefined;
   if (quoteError) blocked = quoteError;
-  else if (isHedera) blocked = t('pay.hederaSoon');
+  else if (hederaSessionBound) blocked = t('pay.hederaTopupOnly');
+  else if (isHedera && hp.session?.chain !== chosen?.network) blocked = t('pay.hashpackNeeded');
+  else if (isHedera) blocked = undefined;
   else if (!wallet) blocked = t('pay.noWallet');
   else if (chosen && wallet.network !== chosen.network)
     blocked = t('pay.wrongNetwork', {
@@ -260,26 +317,45 @@ function PaySheetBody({
   else if (chosen && balance !== undefined && balance < BigInt(chosen.amount))
     blocked = t('pay.lowBalance', { balance: usdcBalance(balance), price });
 
-  const onConfirm = useCallback(async () => {
-    if (!q || !chosen || !wallet) return;
-    dispatch({ type: 'start', at: Date.now() });
-    const Signer = wallet.kind === 'demo' ? DemoWalletSigner : EvmWalletSigner;
-    const signer = new Signer(
-      wallet,
-      chosen.network,
-      (plans?.paid.accepts ?? accepts).map((a) => ({
-        network: a.network,
-        asset: a.asset,
-        payTo: a.payTo,
-      })),
-      { tamperAmount: await tamperAmount() },
-    );
+  const onConnect = useCallback(async () => {
+    if (!chosen) return;
+    setHp({});
     try {
+      const hw = await import('../lib/hedera-wc');
+      if (!hw.isHederaChain(chosen.network))
+        throw new Error(`not a Hedera chain: ${chosen.network}`);
+      const { uri, session } = await hw.connectHashPack(chosen.network);
+      if (uri) setHp({ uri, link: hw.hashPackLink(uri) });
+      setHp({ session: await session, link: hw.hashPackLink() });
+    } catch {
+      setHp({ failed: true });
+    }
+  }, [chosen]);
+
+  const onConfirm = useCallback(async () => {
+    const session = isHedera ? hp.session : undefined;
+    if (!q || !chosen || (isHedera ? !session : !wallet)) return;
+    dispatch({ type: 'start', at: Date.now() });
+    const allow = (plans?.paid.accepts ?? accepts).map((a) => ({
+      network: a.network,
+      asset: a.asset,
+      payTo: a.payTo,
+    }));
+    try {
+      let signer: PaymentSigner;
+      if (session) {
+        // Hedera: no session key on the wire (LPA routes are blocked above), the PWA clock (validStart is back-dated)
+        const hw = await import('../lib/hedera-wc');
+        signer = await hw.hashPackPaySigner(session, allow);
+      } else {
+        const Signer = wallet!.kind === 'demo' ? DemoWalletSigner : EvmWalletSigner;
+        signer = new Signer(wallet!, chosen.network, allow, { tamperAmount: await tamperAmount() });
+      }
       const paid = await pay<TopUpResponse | EntitledResponse>(
         q,
         signer,
-        q.spk,
-        await chainNow(wallet),
+        session ? undefined : q.spk,
+        session ? Date.now() : await chainNow(wallet!),
       );
       if (paid.error || !paid.settlement?.success) {
         dispatch({ type: 'preBroadcastError', reason: paymentFailureReason(paid.error) });
@@ -314,13 +390,26 @@ function PaySheetBody({
         hash: settlement.transaction,
         network: settlement.network,
         label: title,
-        reader: wallet.reader,
+        reader: wallet?.reader,
         dispatch,
       });
     } catch (e) {
       dispatch(signingFailure(e));
     }
-  }, [q, chosen, wallet, plans, accepts, dispatch, entitlementKey, mb, t, title]);
+  }, [
+    q,
+    chosen,
+    wallet,
+    hp.session,
+    isHedera,
+    plans,
+    accepts,
+    dispatch,
+    entitlementKey,
+    mb,
+    t,
+    title,
+  ]);
 
   const validRow = me
     ? {
@@ -336,7 +425,18 @@ function PaySheetBody({
   const review = [
     validRow,
     { label: t('pay.rowFee'), value: t('pay.feeFacilitator') },
-    ...(wallet ? [{ label: t('pay.rowFrom'), value: walletLabel(wallet) }] : []),
+    ...(isHedera
+      ? hp.session
+        ? [
+            {
+              label: t('pay.rowFrom'),
+              value: t('pay.hashpackAccount', { account: hp.session.accountId }),
+            },
+          ]
+        : []
+      : wallet
+        ? [{ label: t('pay.rowFrom'), value: walletLabel(wallet) }]
+        : []),
   ];
 
   return (
@@ -404,7 +504,9 @@ function PaySheetBody({
           ))}
         </div>
       ) : null}
-      {isHedera && chosen ? <HederaPanel req={chosen} /> : null}
+      {isHedera && chosen && !hederaSessionBound ? (
+        <HederaPanel req={chosen} hp={hp} onConnect={() => void onConnect()} />
+      ) : null}
       <ActionView
         row={row}
         now={now}
@@ -414,7 +516,7 @@ function PaySheetBody({
         review={review}
         worstCase={t('pay.worst', { mmss: mmss(approvalLeft) })}
         actionLabel={t('pay.button', { price })}
-        walletName={walletLabel(wallet)}
+        walletName={isHedera ? 'HashPack' : walletLabel(wallet)}
         simulation={t('pay.simulation', { price, mb: formatMb(mb) })}
         {...(result ? { result } : {})}
         {...(blocked ? { blocked } : {})}

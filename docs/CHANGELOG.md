@@ -96,10 +96,15 @@ were made by the orchestrator. The human team chose the idea, ratified the decis
 | 2026-11-04 | 05:20 | `4c2056a` | WIP: octroi engine, live adapters, video renders |
 | 2026-11-04 | 14:40 | `e39897a` | Red team wave 1 (octroi): 139 attack/regression tests, findings RT-O-01…09 |
 
-### Deployed before kickoff (human, Wed 4 Nov 14:00)
+### Deployed before kickoff (human; planned Wed 4 Nov 14:00, done Thu 5 Nov)
 
 See [`DISCLOSURE.md`](DISCLOSURE.md) §2: one Arkiv entity on rabdi, one x402 settlement on Hedera testnet, `DataDrop` on
-Hedera EVM with one claim, one IDKit 4 verification. Hashes: **TBD by human (Integrations, Wed 14:00)**.
+Hedera EVM with one claim, one IDKit 4 verification. Hashes (Thu 5 Nov 2026 IST): Arkiv entity
+`0xb9429fbd706f46a55d16788d9446f147f9d65b9ef005b7f463bae9caadb2abb1`; Hedera x402 settlement
+`0.0.9185802@1793882124.642565779`; `DataDrop` `0x2d4d52989545FF0d0CD91D77A33f14063f57c9E6` (deploy tx
+`0x234ec50e7187d149fdd4d26b508c579273672f0a9c81553b45c862e61781304b`), claim
+`0xec5f963f2bacf55c8c408d4d699650197f19077dbfa209b723039ad75f886c53`; the IDKit verification is still to be run
+(DISCLOSURE §2).
 
 ## [2026-11-05]
 

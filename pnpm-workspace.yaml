@@ -13,7 +13,6 @@ catalog:
   "@eslint/compat": 2.1.1
   "@eslint/js": 10.0.1
   "@hashgraph/hedera-agent-kit": 4.2.0
-  "@hashgraphonline/standards-sdk": 0.1.192
   "@hiero-ledger/sdk": 2.90.1
   "@hono/node-server": 2.1.6
   "@noble/ciphers": 2.4.0
@@ -58,6 +57,13 @@ catalog:
 
 # Supply chain (THREAT-MODEL T-65): never resolve a version published less than 3 days ago (minutes).
 minimumReleaseAge: 4320
+
+# Advisories reached only through transitive exact pins (deps-check.sh §2). Both targets were already in the lockfile.
+#   ws  GHSA-96hv-2xvq-fx4p, GHSA-58qx-3vcg-4xpx: @hiero-ledger/sdk@2.90.1 → ethers@6.16.0 → ws@8.17.1 (ethers@6.17.0 pins 8.21.0)
+#   zod GHSA-mrhx-c7xc-m3w5: apps/video @remotion/cli@4.0.539 → @remotion/studio-protocol → zod@4.5.4 (remotion ≥4.0.540 pins 4.6.7)
+overrides:
+  "ws@>=8.0.0 <8.21.0": 8.21.0
+  "zod@>=4.0.0 <4.6.6": 4.6.7
 
 # Install scripts: esbuild's postinstall only verifies its binary; sharp/unrs-resolver are skipped as
 # create-next-app does by default.

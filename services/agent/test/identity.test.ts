@@ -3,7 +3,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { hcs14Uaid } from '@ethglobal/adapters/live';
+import { hcs14Uaid, type Hcs14Input } from '@ethglobal/adapters/live';
+import { loadFixture } from '@ethglobal/adapters/testing';
 
 import { tempDir } from './helpers.js';
 import { AGENT_VERSION, resolveUaid, uaidInput } from '../src/identity.js';
@@ -87,18 +88,16 @@ describe('identity (HCS-14 UAID)', () => {
     expect(log.lines.some((l) => l.level === 'warn')).toBe(true); // the stored testnet UAID was replaced
   });
 
-  it('matches the HCS-14 vector computed with @hashgraphonline/standards-sdk (runs now)', async () => {
-    // createUaid exists at runtime but not in the 0.1.192 typings
-    const sdk = (await import('@hashgraphonline/standards-sdk')) as unknown as {
-      createUaid(input: object, params: { proto: string }): Promise<string>;
-    };
-    const input = uaidInput('0.0.6006');
-    const reference = await sdk.createUaid({ ...input }, { proto: input.protocol });
-    const ours = hcs14Uaid(input);
-    const id = (s: string) => /^uaid:aid:([^;]+)/.exec(s)?.[1];
-    expect(id(ours)).toBe(id(reference));
-    const params = (s: string) => new Set(s.split(';').slice(1));
-    expect(params(ours)).toEqual(params(reference));
+  it('matches the HCS-14 vector recorded from @hashgraphonline/standards-sdk@0.1.192 createUaid', () => {
+    const { cases } = loadFixture<{ cases: { name: string; input: Hcs14Input; uaid: string }[] }>(
+      'hcs/hcs14-vector.json',
+    );
+    const ref = cases.find((c) => c.name.startsWith('services/agent'));
+    if (!ref) throw new Error('hcs14-vector.json has no services/agent case');
+    // the recorded input is this agent's uaidInput at the version it was recorded with
+    const input = { ...uaidInput('0.0.6006'), version: ref.input.version };
+    expect(input).toEqual(ref.input);
+    expect(hcs14Uaid(input)).toBe(ref.uaid);
   });
 
   it('AGENT_VERSION equals package.json version', async () => {

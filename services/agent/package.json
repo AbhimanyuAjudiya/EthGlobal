@@ -38,7 +38,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@hashgraphonline/standards-sdk": "catalog:",
     "@hono/node-server": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",

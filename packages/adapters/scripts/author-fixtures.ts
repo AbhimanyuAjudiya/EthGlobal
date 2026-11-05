@@ -728,7 +728,7 @@ await recordEns('contract-suite', async (r) => {
   await r.getText('alice.eth', 'avatar');
 });
 
-// ── HCS: mirror REST page (hedera-docs openapi.yaml) + an SDK receipt; HCS-14 vector from standards-sdk ─────────
+// ── HCS: mirror REST page (hedera-docs openapi.yaml) + an SDK receipt; HCS-14 vectors recorded from standards-sdk ──
 const HCS_NOTE =
   '[verify Wed] authored from hedera-docs@836b856 openapi.yaml (topics/{id}/messages) and @hiero-ledger/sdk 2.90.1 TransactionReceipt; re-record against HCS_TOPIC_ID.';
 const MIRROR = 'https://testnet.mirrornode.hedera.com';
@@ -771,9 +771,8 @@ write('hcs/submit-receipt.json', {
   record: { consensusTimestamp: '1793707203.000000003' },
   transactionId: '0.0.6006@1793707195.000000000',
 });
-const { createUaid } = (await import('@hashgraphonline/standards-sdk')) as unknown as {
-  createUaid: (input: object, params: { proto: string }) => Promise<string>;
-};
+// Recorded from @hashgraphonline/standards-sdk@0.1.192 createUaid(input, { proto: 'x402' }) on 2026-11-05. The SDK is
+// not a devDependency any more: every version of it pulls the banned @hashgraph/sdk and v1 x402-axios (deps-check §7).
 const uaidInput = {
   registry: 'hedera',
   name: 'Recharge Agent',
@@ -786,9 +785,26 @@ write('hcs/hcs14-vector.json', {
   name: 'HCS-14 self-issued UAID vector',
   recordedAt: RECORDED_AT,
   source: 'docs',
-  note: 'computed with @hashgraphonline/standards-sdk@0.1.192 createUaid(input, { proto: "x402" }) (A-29); re-checked against the SDK in hcs-log.test.ts',
+  note: 'recorded from @hashgraphonline/standards-sdk@0.1.192 createUaid(input, { proto: "x402" }) (A-29); the SDK is not installed (it pulls the banned @hashgraph/sdk and x402-axios, deps-check §7), so these are frozen reference values checked in consensus-names-blobs.test.ts and services/agent identity.test.ts',
   input: uaidInput,
-  uaid: await createUaid({ ...uaidInput, skills: [...uaidInput.skills] }, { proto: 'x402' }),
+  uaid: 'uaid:aid:4K54ZoTRiQcP4AHwsaMSLtpWwiWNQ9vaCxKEy6cvSBNoxZcCoo2AjrbnBNscE34wh2;uid=0;registry=hedera;proto=x402;nativeId=hedera:testnet:0.0.6006',
+  cases: [
+    {
+      name: 'name trimmed, skills sorted',
+      input: { ...uaidInput, name: '  Recharge Agent ', skills: [9, 0, 4] },
+      uaid: 'uaid:aid:9RWdfpict4tUaGGDLGUev58TvsJCbBYwN8mPYefifxTNrier8iqhGJcsbVttuA3VxX;uid=0;registry=hedera;proto=x402;nativeId=hedera:testnet:0.0.6006',
+    },
+    {
+      name: 'no skills',
+      input: { ...uaidInput, skills: [] },
+      uaid: 'uaid:aid:7PTRahZEhictGXAkWH6XvcZHftqt9ShbcBhdnjs1b1A81PHqYmhpihfsd4ELLkMdWT;uid=0;registry=hedera;proto=x402;nativeId=hedera:testnet:0.0.6006',
+    },
+    {
+      name: "services/agent uaidInput('0.0.6006') at version 0.1.0",
+      input: { ...uaidInput, name: 'recharge-topup-agent', version: '0.1.0', skills: [] },
+      uaid: 'uaid:aid:5rkfuoErGg2CAfs7hJzcvww7oDbH4ynGpV9UFkp6UAKQLST7uMUKRYi4Ebgfg3AYH5;uid=0;registry=hedera;proto=x402;nativeId=hedera:testnet:0.0.6006',
+    },
+  ],
 });
 
 // ── Swarm Bee (ethersphere/bee@ed32cfa openapi/Swarm.yaml) ─────────────────────────────────────────────────

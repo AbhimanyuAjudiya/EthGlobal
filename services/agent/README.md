@@ -97,10 +97,10 @@ tools, and its output is cut to 140 plain characters and only shown (`regression
   for a model, no transfer tool (T-84, `regression/T-84-no-llm-tools.test.ts`). Loaded only by a dynamic import in
   the live branch of `src/deps.ts`; never imported in local mode.
 - `src/receipts.ts` — the HCS `agent-topup` message (`encodeHcsMessage`, ≤ 1024 bytes, `sha256(key)`, UAID).
-- `src/identity.ts` — the HCS-14 UAID: `hcs14Uaid` from `@ethglobal/adapters/live` (conformance-tested against
-  `@hashgraphonline/standards-sdk@0.1.192` `createUaid` in `test/identity.test.ts`), persisted to `.agent/uaid`, sent as
-  `X-Agent-Uaid`. `nativeId = <allow-listed hedera network>:<AGENT_HEDERA_ACCOUNT_ID>` (`hedera:testnet` when the
-  allow-list names no Hedera entry); in local mode `hedera:testnet:0.0.0`.
+- `src/identity.ts` — the HCS-14 UAID: `hcs14Uaid` from `@ethglobal/adapters/live` (conformance-tested in
+  `test/identity.test.ts` against a vector recorded from `@hashgraphonline/standards-sdk@0.1.192` `createUaid`), persisted
+  to `.agent/uaid`, sent as `X-Agent-Uaid`. `nativeId = <allow-listed hedera network>:<AGENT_HEDERA_ACCOUNT_ID>`
+  (`hedera:testnet` when the allow-list names no Hedera entry); in local mode `hedera:testnet:0.0.0`.
 
 HCS-14 skills are integers (A-29) and empty in v0. Human-readable capabilities: _x402 buyer of 100 MB eSIM top-ups;
 policy-capped; Hedera USDC (testnet `0.0.429274` or mainnet `0.0.456858`, per the allow-list); HCS receipts._
@@ -160,7 +160,7 @@ changed. `package.json` declares the catalog versions; `pnpm-lock.yaml` has **no
 run `pnpm install` once the gate admits the lockfile. New third-party dependencies: `@hashgraph/hedera-agent-kit@4.2.0`
 (published 28 Oct, gate-compliant), `@x402/hedera@2.29.0` and `@hiero-ledger/sdk@2.90.1` (the same copies
 `@ethglobal/adapters` already uses; the Agent Kit's peer must resolve to that one SDK copy — `pnpm why @hiero-ledger/sdk`
-must show one), `pino`, and dev-only `hono`, `@hono/node-server`, `@hashgraphonline/standards-sdk`.
+must show one), `pino`, and dev-only `hono`, `@hono/node-server`.
 
 ## On-site checklist to run it live
 

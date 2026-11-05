@@ -1,4 +1,3 @@
-import * as standardsSdk from '@hashgraphonline/standards-sdk';
 import { createPublicClient, http } from 'viem';
 import { mainnet } from 'viem/chains';
 import { describe, expect, it, vi } from 'vitest';
@@ -18,11 +17,6 @@ import {
 } from '../../src/testing/index.js';
 
 import type { HederaClientLike } from '../../src/live/hedera-sdk.js';
-
-/** createUaid is exported at runtime but missing from the package's es typings (0.1.192). */
-const { createUaid } = standardsSdk as unknown as {
-  createUaid: (input: object, params: { proto: string }) => Promise<string>;
-};
 
 /** A fake Hedera network whose mirror serves what was submitted, in the documented REST shape. */
 function fakeHedera() {
@@ -112,17 +106,16 @@ describe('HcsLog (A-22, T-44)', () => {
     expect(consensusMs('1.5')).toBe(1500);
   });
 
-  it('hcs14Uaid matches the recorded vector and @hashgraphonline/standards-sdk createUaid (A-29)', async () => {
-    const vector = loadFixture<{ input: Parameters<typeof hcs14Uaid>[0]; uaid: string }>(
+  it('hcs14Uaid matches the vectors recorded from @hashgraphonline/standards-sdk@0.1.192 createUaid (A-29)', () => {
+    interface Vector {
+      input: Parameters<typeof hcs14Uaid>[0];
+      uaid: string;
+    }
+    const vector = loadFixture<Vector & { cases: (Vector & { name: string })[] }>(
       'hcs/hcs14-vector.json',
     );
     expect(hcs14Uaid(vector.input)).toBe(vector.uaid);
-    const input = { ...vector.input, name: '  Recharge Agent ', skills: [9, 0, 4] };
-    const theirs = await createUaid({ ...input, skills: [...input.skills] }, { proto: 'x402' });
-    expect(hcs14Uaid(input)).toBe(theirs);
-    expect(hcs14Uaid({ ...vector.input, skills: [] })).toBe(
-      await createUaid({ ...vector.input, skills: [] }, { proto: 'x402' }),
-    );
+    for (const c of vector.cases) expect(hcs14Uaid(c.input), c.name).toBe(c.uaid);
     expect(() => hcs14Uaid({ ...vector.input, nativeId: '0.0.6006' })).toThrow(/CAIP-10/);
     expect(() => hcs14Uaid({ ...vector.input, skills: [1.5] })).toThrow(/integers/);
     expect(() => hcs14Uaid({ ...vector.input, name: ' ' })).toThrow(/required/);

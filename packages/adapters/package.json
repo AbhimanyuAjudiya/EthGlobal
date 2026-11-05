@@ -40,7 +40,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@hashgraphonline/standards-sdk": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "@x402/core": "catalog:",

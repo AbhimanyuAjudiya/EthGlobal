@@ -4,6 +4,7 @@ import { isAdapterError, nullifierHex, signalHash } from '@ethglobal/adapters';
 import { hmacKey } from '@ethglobal/crypto';
 import {
   decide,
+  freeEntitlementKey,
   signalFor,
   type Campaign,
   type CampaignCounters,
@@ -16,6 +17,7 @@ import type { PaymentResource, PersonhoodProof } from '@ethglobal/protocol/schem
 
 import { fail } from '../errors.js';
 import { consume } from '../flows/challenge.js';
+import { pendingResponse, type Fulfilled } from '../flows/fulfil.js';
 
 import type { Release } from '../admission.js';
 import type { AppEnv, Ctx } from '../context.js';
@@ -68,6 +70,9 @@ export const octroi = (input: (c: Ctx) => LaneInput | Promise<LaneInput>) =>
       const mark = deps.admission.mark();
       const { campaign, counters } = await campaignState(deps, lane.campaignId);
       c.set('campaign', campaign);
+      // a served-but-undelivered claim is re-bound before any slot is taken: nothing is claimed (RT-A-17)
+      const rebound = await rebindPending(c, deps, lane);
+      if (rebound) return c.json(rebound.body, rebound.status);
       if (campaign && counters) release = admit(deps, campaign, counters, mark);
       request = {
         resource,
@@ -184,14 +189,90 @@ export function boundResource(path: string, bind: Record<string, string> = {}): 
   return query === '' ? path : `${path}?${query}`;
 }
 
+type FreeLane = Extract<LaneInput, { lane: 'free' }>;
+
 const firstResponse = (proof: PersonhoodProof) =>
   (proof as { responses?: { nullifier?: unknown; signal_hash?: unknown }[] }).responses?.[0];
 
+/** The proof's (first) nullifier, normalised once (N1); undefined when absent or malformed. */
+function proofNullifier(proof: PersonhoodProof): Hex | undefined {
+  const raw = firstResponse(proof)?.nullifier;
+  return typeof raw === 'string' ? nullifierHex(raw) : undefined;
+}
+
 /** HMAC of the proof's (first) nullifier: an intent is resumable only by a proof of the SAME human (RT-A-05). */
 export function proofTag(deps: Pick<Deps, 'secret'>, proof: PersonhoodProof): Hex | undefined {
-  const raw = firstResponse(proof)?.nullifier;
-  const nullifier = typeof raw === 'string' ? nullifierHex(raw) : undefined;
+  const nullifier = proofNullifier(proof);
   return nullifier === undefined ? undefined : hmacKey(deps.secret, 'intent', nullifier);
+}
+
+/**
+ * The verifier's word that `proof` is the human behind `tag` (RT-A-05): a fresh accept naming that nullifier, or
+ * `already_verified` — the one-time proof was spent on an earlier attempt. Anything else is 401.
+ */
+async function sameHuman(
+  deps: Deps,
+  proof: PersonhoodProof,
+  signal: Hex,
+  tag: Hex,
+  detail: string,
+): Promise<void> {
+  try {
+    const result = await deps.adapters.personhood.verify(proof, {
+      action: deps.env.WORLD_ACTION,
+      signal,
+    });
+    if (hmacKey(deps.secret, 'intent', result.nullifierHash) !== tag) throw fail('invalid_proof');
+  } catch (error) {
+    if (!(isAdapterError(error) && error.code === 'already_verified'))
+      throw fail('invalid_proof', { detail });
+  }
+}
+
+/**
+ * RT-A-17 (T-24, T-60): a claim that was served — Claimed on-chain, entitlement written, order pending — but whose
+ * response never reached the client (the browser timed out; a reload discards the memory-only session key) leaves
+ * a pending-profile delivery that would be sealed to a key nobody holds, and the human's one free claim is spent.
+ * The SAME human (a proof naming the same nullifier, judged by the verifier as in resumeIntent) on the SAME
+ * campaign re-binds the delivery to the new session key and challenge nonce and gets the 202 the original request
+ * answered. Never once the LPA is sealed (the first session owns it, T-31/T-60); another human or another campaign
+ * never matches (the key derives from both); ≤ 3 an hour per entitlement; under the entitlement's mutex, so a /me
+ * retry cannot seal to the old key meanwhile. Before the admission slot: a full hour or a spent budget refuses new
+ * claims, not the delivery of one already paid for. The common case costs one HMAC: the ledger is read only when a
+ * pending delivery exists for this human's key.
+ */
+async function rebindPending(c: Ctx, deps: Deps, lane: FreeLane): Promise<Fulfilled | undefined> {
+  const campaign = c.get('campaign');
+  const nullifier = proofNullifier(lane.proof);
+  if (!campaign || nullifier === undefined) return undefined;
+  const key = freeEntitlementKey(deps.secret, campaign.id as Hex, nullifier);
+  if (!deps.pendingDelivery.has(key)) return undefined;
+  await consume(deps, lane.challenge, '/claim', lane.sessionPubKey);
+  const signal = signalFor(lane.challenge.nonce, lane.challenge.audience);
+  await sameHuman(
+    deps,
+    lane.proof,
+    signal,
+    hmacKey(deps.secret, 'intent', nullifier),
+    'rebind_proof',
+  );
+  return deps.mutex.run(key, async () => {
+    const found = await deps.stores.entitlements.getByKey(key);
+    if (found?.payload.status !== 'pending-profile' || !deps.pendingDelivery.has(key))
+      throw fail('replay');
+    const limit = deps.rebinds.hit(key);
+    if (!limit.ok) throw fail('rate_limited', { retryAfterS: limit.retryAfterS });
+    deps.pendingDelivery.set(
+      key,
+      { sessionPubKey: lane.sessionPubKey, nonce: lane.challenge.nonce },
+      found.payload.expiresAt,
+    );
+    c.get('log').info(
+      { event: 'claim.rebind', campaignId: campaign.id },
+      'pending delivery re-bound',
+    );
+    return pendingResponse(deps, found);
+  });
 }
 
 /**
@@ -203,7 +284,7 @@ export function proofTag(deps: Pick<Deps, 'secret'>, proof: PersonhoodProof): He
  * Another session key, another campaign, or another human's proof never resumes and never touches the intent; it
  * falls through to the normal lane, which judges it on its own. The new challenge is consumed first (one-shot, T-20).
  */
-async function resumeIntent(deps: Deps, lane: Extract<LaneInput, { lane: 'free' }>) {
+async function resumeIntent(deps: Deps, lane: FreeLane) {
   const spk = lane.sessionPubKey.toLowerCase();
   const intent = deps.intents.get(spk);
   // Another campaign is not this intent's resume: fall through WITHOUT touching it (RT-A-05 variant — a junk request
@@ -218,17 +299,7 @@ async function resumeIntent(deps: Deps, lane: Extract<LaneInput, { lane: 'free' 
   const raw = firstResponse(lane.proof)?.signal_hash;
   const sent = typeof raw === 'string' ? raw.toLowerCase() : '';
   const signal = sent === signalHash(intent.signal).toLowerCase() ? intent.signal : fresh;
-  try {
-    const result = await deps.adapters.personhood.verify(lane.proof, {
-      action: deps.env.WORLD_ACTION,
-      signal,
-    });
-    if (hmacKey(deps.secret, 'intent', result.nullifierHash) !== intent.nullifierTag)
-      throw fail('invalid_proof');
-  } catch (error) {
-    if (!(isAdapterError(error) && error.code === 'already_verified'))
-      throw fail('invalid_proof', { detail: 'intent_proof' });
-  }
+  await sameHuman(deps, lane.proof, signal, intent.nullifierTag, 'intent_proof');
   return intent.decision;
 }
 

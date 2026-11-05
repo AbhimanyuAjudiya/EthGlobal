@@ -116,6 +116,8 @@ export interface Deps {
   usagePolls: WindowLimiter;
   /** Order retries for pending-profile entitlements (≤ 1/min per key). */
   orderRetries: WindowLimiter;
+  /** Re-binds of a pending-profile delivery to a new session key (≤ 3/hour per entitlement, RT-A-17). */
+  rebinds: WindowLimiter;
   /**
    * Verified-but-unserved free claims (T-24, AP5.3): the decision of a human whose chain step failed after
    * verify, keyed by the session key the challenge MAC binds; a retry from that session with a proof of the same
@@ -231,6 +233,7 @@ export async function buildDeps(
     pendingDelivery: state.map<PendingDelivery>('pending-delivery'),
     usagePolls: new WindowLimiter(1, 60_000, now),
     orderRetries: new WindowLimiter(1, 60_000, now),
+    rebinds: new WindowLimiter(3, 3_600_000, now),
     intents: state.map<ClaimIntent>('intents'),
     agentPass: createAgentPass(env, {
       ...(overrides.fetch === undefined ? {} : { fetch: overrides.fetch }),

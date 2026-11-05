@@ -14,7 +14,7 @@ import {
   utf8,
   type SealedBox as CryptoBox,
 } from '@ethglobal/crypto';
-import type { Entitlement } from '@ethglobal/octroi';
+import type { Entitlement, Found } from '@ethglobal/octroi';
 import type { Hex } from '@ethglobal/protocol/ids';
 import {
   LPA_PATTERN,
@@ -24,7 +24,7 @@ import {
 } from '@ethglobal/protocol/schemas';
 
 import { fail } from '../errors.js';
-import { errName, record, submitHcs, type ReceiptDraft } from './record.js';
+import { errName, record, submitHcs, type ReceiptDraft, type Recorded } from './record.js';
 
 import type { Deps } from '../deps.js';
 
@@ -105,20 +105,58 @@ export async function fulfil(
     { event: 'provision', kind: entitlement.kind, status: sealed ? 'ready' : 'pending-profile' },
     'provisioned',
   );
-  const body: EntitledResponse = {
-    entitlementKey: key,
-    kind: entitlement.kind,
-    status: sealed ? 'ready' : 'pending-profile',
-    tier: entitlement.tier,
-    mbTotal: entitlement.mbTotal,
-    expiresAt: entitlement.expiresAt,
-    validityDays: Math.round((entitlement.expiresAt - entitlement.createdAt) / DAY_MS),
-    ...(sealed ? { sealedLpa: sealed } : {}),
-    ...(ctx.claimTx === undefined ? {} : { claimTx: ctx.claimTx }),
-    ...(ctx.settlement === undefined ? {} : { settlement: ctx.settlement }),
-    receipt: { arkivKey: created.key, ...(recorded.hcs ? { hcs: recorded.hcs } : {}) },
-  };
+  const body = entitledBody(entitlement, created.key, {
+    sealed,
+    claimTx: ctx.claimTx,
+    settlement: ctx.settlement,
+    hcs: recorded.hcs,
+  });
   return { status: sealed ? 201 : 202, body };
+}
+
+/** The entitledResponse body; `sealedLpa` only when sealed in this very request (T-31). */
+function entitledBody(
+  e: Entitlement,
+  arkivKey: string,
+  x: {
+    sealed: SealedBox | undefined;
+    claimTx: string | undefined;
+    settlement: SettleResult | undefined;
+    hcs: Recorded['hcs'];
+  },
+): EntitledResponse {
+  return {
+    entitlementKey: e.key,
+    kind: e.kind,
+    status: x.sealed ? 'ready' : 'pending-profile',
+    tier: e.tier,
+    mbTotal: e.mbTotal,
+    expiresAt: e.expiresAt,
+    validityDays: Math.round((e.expiresAt - e.createdAt) / DAY_MS),
+    ...(x.sealed ? { sealedLpa: x.sealed } : {}),
+    ...(x.claimTx === undefined ? {} : { claimTx: x.claimTx }),
+    ...(x.settlement === undefined ? {} : { settlement: x.settlement }),
+    receipt: { arkivKey, ...(x.hcs ? { hcs: x.hcs } : {}) },
+  };
+}
+
+/**
+ * The 202 an already-served, still pending-profile free claim answered, rebuilt from the ledger for a re-bind
+ * (RT-A-17): the same plan key, status and claim receipt; never an LPA.
+ */
+export async function pendingResponse(deps: Deps, found: Found<Entitlement>): Promise<Fulfilled> {
+  const e = found.payload;
+  const receipts = await deps.stores.receipts.forEntitlement(sha256Hex(e.key));
+  const claim = receipts.find((r) => r.kind === 'claim');
+  return {
+    status: 202,
+    body: entitledBody(e, found.entityKey, {
+      sealed: undefined,
+      claimTx: claim?.tx,
+      settlement: undefined,
+      hcs: claim?.hcs,
+    }),
+  };
 }
 
 /**
@@ -126,7 +164,12 @@ export async function fulfil(
  * sealed to the session key of the original request and stored as a blob reference only; it is NOT returned by /me
  * (T-31) — see README "Decisions" (AP6.3).
  */
-export async function retryPending(deps: Deps, entitlement: Entitlement): Promise<Entitlement> {
+export function retryPending(deps: Deps, entitlement: Entitlement): Promise<Entitlement> {
+  // under the entitlement's mutex: a re-bind (RT-A-17) cannot move the target while this order is in flight
+  return deps.mutex.run(entitlement.key, () => retryLocked(deps, entitlement));
+}
+
+async function retryLocked(deps: Deps, entitlement: Entitlement): Promise<Entitlement> {
   const delivery = deps.pendingDelivery.get(entitlement.key);
   if (!delivery || !deps.orderRetries.hit(entitlement.key).ok) return entitlement;
   try {

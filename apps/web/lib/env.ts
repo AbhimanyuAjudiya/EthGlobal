@@ -8,6 +8,18 @@
  * (RT-W-12, T-63). There is deliberately no exported IS_LOCAL constant — a cross-module binding is not folded.
  */
 
+/** Chain the sponsor dashboard and EIP-712 Recharge domain use (Anvil 31337 locally). */
+const chainId =
+  Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? '') ||
+  (process.env.NEXT_PUBLIC_MODE === 'local' ? 31337 : 84532);
+
+/**
+ * 31337 (Anvil), 84532 (Base Sepolia) and 296 (Hedera testnet) are testnets; 295 (Hedera) and 8453 (Base) are mainnets.
+ * An unknown chain id counts as a testnet, so the TESTNET strip stays up until the chain is named (fail-safe). This is
+ * a runtime gate, not a compile-out like MODE=local: the strip's copy stays in the i18n tables of every build.
+ */
+export const IS_TESTNET = chainId !== 295 && chainId !== 8453;
+
 export const config = {
   apiUrl: (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8787').replace(/\/$/, ''),
   anvilRpcUrl: process.env.NEXT_PUBLIC_ANVIL_RPC_URL ?? 'http://127.0.0.1:8545',
@@ -15,18 +27,26 @@ export const config = {
   worldAction: process.env.NEXT_PUBLIC_WORLD_ACTION ?? 'recharge-welcome',
   worldEnvironment:
     process.env.NEXT_PUBLIC_WORLD_ENVIRONMENT === 'staging' ? 'staging' : 'production',
-  /** `https://sepolia.basescan.org` → `${explorerEvm}/tx/<hash>`; empty on Anvil (no public explorer). */
-  explorerEvm: process.env.NEXT_PUBLIC_EXPLORER_EVM ?? '',
-  explorerHedera: process.env.NEXT_PUBLIC_EXPLORER_HEDERA ?? 'https://hashscan.io/testnet',
+  /** `${explorerEvm}/tx/<hash>`: Basescan for the Base chain ids, empty on Anvil (no public explorer). */
+  // `||`, not `??`: an empty NEXT_PUBLIC_EXPLORER_* (the line .env.example ships) is unset, so the chain-keyed default applies.
+  /* eslint-disable @typescript-eslint/prefer-nullish-coalescing */
+  explorerEvm:
+    process.env.NEXT_PUBLIC_EXPLORER_EVM ||
+    (chainId === 8453
+      ? 'https://basescan.org'
+      : chainId === 84532
+        ? 'https://sepolia.basescan.org'
+        : ''),
+  explorerHedera:
+    process.env.NEXT_PUBLIC_EXPLORER_HEDERA ||
+    `https://hashscan.io/${IS_TESTNET ? 'testnet' : 'mainnet'}`,
+  /* eslint-enable @typescript-eslint/prefer-nullish-coalescing */
   arkivExplorer: process.env.NEXT_PUBLIC_ARKIV_EXPLORER ?? 'https://rabdi.explorer.arkiv.network',
   /** Wednesday's measured median attach time in seconds; empty → the "1–3 min" range is shown. */
   attachMedianS: Number(process.env.NEXT_PUBLIC_ATTACH_MEDIAN_S ?? '') || undefined,
   /** DataDrop for the sponsor's createCampaign; local falls back to deploy/addresses.anvil.json. */
   dataDropAddress: process.env.NEXT_PUBLIC_DATADROP_ADDRESS ?? '',
-  /** Chain the sponsor dashboard and EIP-712 Recharge domain use (Anvil 31337 locally). */
-  chainId:
-    Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? '') ||
-    (process.env.NEXT_PUBLIC_MODE === 'local' ? 31337 : 84532),
+  chainId,
 } as const;
 
 /** Explorer URL template for a transaction on `network` (CAIP-2), `{hash}` placeholder; undefined → no link. */

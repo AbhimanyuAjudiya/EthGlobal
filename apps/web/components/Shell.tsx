@@ -4,11 +4,17 @@ import Link from 'next/link';
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 
 import { LangSwitch, T, useLang } from '../i18n/lang';
+import { IS_TESTNET } from '../lib/env';
 import { plans } from '../lib/store';
 import { demoIndex, type Wallet } from '../lib/wallet';
 
-/** "TESTNET · test USDC · not a sale" — Stripe's test-mode rail, 12 px Chivo Mono, on every money screen. */
+/**
+ * "TESTNET · test USDC · not a sale" — Stripe's test-mode rail, 12 px Chivo Mono, on every money screen and the
+ * sponsor console while the configured chain is a testnet (lib/env.ts IS_TESTNET); nothing on 295/8453.
+ */
 export function TestnetStrip() {
+  // TODO(mainnet copy, human): the mainnet rail (terms, refunds, what paying real money means) is the human's text.
+  if (!IS_TESTNET) return null;
   return (
     <p className="testnet-strip" role="note">
       <T k="testnet.strip" />

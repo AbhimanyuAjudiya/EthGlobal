@@ -280,7 +280,9 @@ ranges="$(for f in package.json apps/*/package.json packages/*/package.json serv
 # RT-FINDING RT-P-05
 [[ -z "$ranges" ]] && ok "no ^/~/latest range in any package.json" || finding RT-P-05 every_direct_dependency_pinned_exact "$(echo "$ranges" | wc -l) non-exact direct deps, incl. $(echo "$ranges" | grep -E 'services/api' | cut -d: -f2 | tr '\n' ' ')"
 importers="$(awk '/^importers:/{f=1;next} /^[^ ]/{f=0} f && /^  [^ ]/{sub(/^  /,"");sub(/:$/,"");print}' pnpm-lock.yaml)"
-nolock=(); for f in apps/*/package.json packages/*/package.json services/*/package.json scripts/package.json; do d="$(dirname "$f")"; grep -qx "$d" <<< "$importers" || nolock+=("$d"); done
+# pnpm 10 writes no importer for a workspace package that declares no dependencies at all (packages/contracts is Foundry-only);
+# the dynamic frozen-install probe below stays the CI truth for those. User-approved narrowing, 2026-11-05.
+nolock=(); for f in apps/*/package.json packages/*/package.json services/*/package.json scripts/package.json; do d="$(dirname "$f")"; jq -e '([.dependencies,.devDependencies,.optionalDependencies] | map(. // {} | length) | add) > 0' "$f" >/dev/null || continue; grep -qx "$d" <<< "$importers" || nolock+=("$d"); done
 # RT-FINDING RT-P-04
 [[ ${#nolock[@]} -eq 0 ]] && ok "pnpm-lock.yaml has an importer for every workspace package" || finding RT-P-04 ci_frozen_install_succeeds "pnpm-lock.yaml lacks ${#nolock[@]} workspace importers (${nolock[*]}): CI's first step pnpm install --frozen-lockfile fails ERR_PNPM_OUTDATED_LOCKFILE, so every job (needs: checks) is skipped"
 if [[ $STATIC -eq 0 ]]; then

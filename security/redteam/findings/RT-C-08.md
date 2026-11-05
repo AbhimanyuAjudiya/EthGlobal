@@ -5,14 +5,14 @@ module: packages/contracts/script/Deploy.s.sol (_checkUsdc, deploy hedera branch
 threat: T-09 (and the T-08 decimals check, RT-C-04)
 severity: Med
 likelihood: H
-status: open
+status: fixed
 found_by: orchestrator (live pre-deploy, Wed 14:00 slot)
 owner: builder-contracts
 found_at: 2026-11-05T14:20+05:30
 due: before the first live DataDrop deploy on 296 (blocks runbook step 3)
 attack_test: n/a (tooling): the repro below is the runbook command itself
-regression_test: (to add with the fix)
-fix_commit:
+regression_test: packages/contracts/test/regression/T09_HederaForgeSimulation.t.sol::test_Regression_RTC08_DeployHederaRunsUnderStandIns (with test_Regression_RTC08_PlainDeployRevertsOnLiveHederaCode, test_Regression_RTC08_DeployHederaRefusesOtherChains)
+fix_commit: (recorded by the follow-up commit)
 verified_at:
 duplicate_of:
 sign_off:
@@ -61,3 +61,24 @@ Regression test to add (builder, with A or B): a fork-free test that etches `0xe
 `0x167` on `vm.chainId(296)` and asserts the chosen path does not revert in local execution.
 
 ## Builder notes (optional)
+
+Fix A (2026-11-05, builder-contracts). `script/Deploy.s.sol` gains `contract DeployHedera is Deploy` in the same file (so
+`broadcast/Deploy.s.sol/296/run-latest.json` and `pnpm deploy:txs` are unchanged) plus two inline stand-ins,
+`HtsSystemStandIn` (`associateToken` → 22) and `HtsUsdcStandIn` (`decimals()` → 6, `isAssociated()` → true), `vm.etch`ed at
+`0x…0167` and at `vm.parseAddress(chain.usdc)` before the audited `Deploy.deploy` runs; it refuses any chain other than
+295/296 and logs that the stand-ins serve only Foundry's local run, naming the two post-broadcast `cast call`s. The
+override sits on `deploy(chain, cfg)` (now `virtual`; nothing else in `Deploy` changed) rather than on `run()`: `run()`
+dispatches to it virtually, so the live command path is identical, and the regression test drives it with an explicit
+`Config` instead of `vm.setEnv`, which is process-wide and would race `DeployTest` under forge's parallel runner. The
+on-chain facade code is the 23-byte designator `0xef01000000000000000000000000000000000000000167` (a 21-byte spelling
+elides two zero bytes and `vm.etch` rejects it); `vm.etch` parses the `ef01` prefix as EIP-7702 bytecode, which is how
+the regression reproduces the failure without a fork. `--skip-simulation` is needed for a dry run as much as for the
+broadcast: without it forge re-simulates the collected transactions on a fresh fork (no stand-ins) and
+`0x…0167::associateToken` dies there although the local run succeeded. Verified in forge 1.5.1
+`crates/script/src/broadcast.rs`: `estimate_via_rpc = has_different_gas_calc(chain) || skip_simulation`, after which
+`estimate_gas` sets each transaction's gas to `provider.estimate_gas(tx) * estimate_multiplier / 100`
+(`--gas-estimate-multiplier`, default 130). Dry run against testnet (no broadcast, `--sender` = the deployer's public EVM
+address): `DeployHedera … --skip-simulation` exits 0 with the `DataDrop …` lines and three transactions in the dry-run
+JSON (CREATE, `associateHts`, `transferOwnership`); plain `Deploy` still fails at `0x…068cDa::decimals()` with
+`InvalidFEOpcode`. Runbook step 3, the README and THREAT-MODEL T-09 / §6.1 rule 4 now describe the in-script assertion
+as running against stand-ins on 296, with the two `cast call`s as the live T-08/T-09 gate.

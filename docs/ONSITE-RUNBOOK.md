@@ -138,11 +138,15 @@ on a team phone, and run `/esim/cancel` if it is unused. MegaeSIM: if no API doc
    cd packages/contracts
    export HEDERA_TESTNET_RPC_URL=https://testnet.hashio.io/api
    export PAYOUT_ADDRESS=<payout EVM address> ATTESTOR_ADDRESS=$(cast wallet address --account attestor) OWNER_ADDRESS=<cold owner>
-   CHAIN=296 forge script script/Deploy.s.sol:Deploy --rpc-url hedera_testnet --broadcast --account deployer
+   CHAIN=296 forge script script/Deploy.s.sol:DeployHedera --rpc-url hedera_testnet --broadcast --skip-simulation --account deployer
    #   token mode: associateHts(usdc) runs in the same broadcast, then transferOwnership(OWNER_ADDRESS)
+   #   DeployHedera + --skip-simulation because Foundry cannot execute HTS (RT-C-08): the local run sees stand-ins, the
+   #   relay's eth_estimateGas sets each tx's gas, and the two cast calls below are the live T-08/T-09 gate
    #   if the HTS ERC-20 facade misbehaves: LEDGER_ONLY=true … (THREAT-MODEL §6.1 rule 5; say so in DISCLOSURE.md)
    CHAIN=296 pnpm deploy:txs                                              # fills txs in deploy/addresses.hedera_testnet.json
    DD=$(jq -r .dataDrop deploy/addresses.hedera_testnet.json)
+   cast call $DD "isHtsAssociated(address)(bool)" 0x0000000000000000000000000000000000068cDa --rpc-url hedera_testnet   # must print true
+   cast call 0x0000000000000000000000000000000000068cDa "decimals()(uint8)" --rpc-url hedera_testnet                     # must print 6
    cast send $DD "acceptOwnership()" --account owner --rpc-url hedera_testnet   # the cold owner (RT-C-05)
    CHAIN=296 RPC_URL=$HEDERA_TESTNET_RPC_URL pnpm deploy:txs              # refresh owner/pendingOwner from the chain
    git add deploy/addresses.hedera_testnet.json                           # committed for live chains

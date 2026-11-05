@@ -146,7 +146,7 @@ contract Deploy is Script {
     /// @param chain The chain's record from chains.json.
     /// @param cfg Roles and mode.
     /// @return result The deployed addresses.
-    function deploy(ChainRecord memory chain, Config memory cfg) public returns (Result memory result) {
+    function deploy(ChainRecord memory chain, Config memory cfg) public virtual returns (Result memory result) {
         _checkChain(chain);
         bool anvil = block.chainid == ANVIL;
         bool hedera = block.chainid == 295 || block.chainid == 296;
@@ -230,9 +230,12 @@ contract Deploy is Script {
         }
     }
 
-    /// @dev RT-C-04: the immutable `usdc` must be a contract with 6 decimals (T-08). On Hedera an HTS token's long-zero
-    ///      address may expose no EVM bytecode to `extcodesize` [verify Wed]; there a missing code is tolerated (the
-    ///      runbook checks decimals on the mirror node), but a contract that answers `decimals()` must answer 6.
+    /// @dev RT-C-04: the immutable `usdc` must be a contract with 6 decimals (T-08). On Hedera (verified 2026-11-05 on
+    ///      296, RT-C-08) the HTS USDC facade's long-zero address reports an EIP-7702 delegation designator to the HTS
+    ///      system contract `0x…0167`, whose code is the single INVALID opcode (`0xfe`): the relay answers `decimals()`
+    ///      = 6 natively, but Foundry's local EVM follows the designator and dies with `InvalidFEOpcode`, hence
+    ///      `DeployHedera` below. A missing code is still tolerated on Hedera (the runbook checks decimals on the mirror
+    ///      node), but a contract that answers `decimals()` must answer 6.
     function _checkUsdc(address usdc, bool hedera) internal view {
         if (usdc.code.length == 0) {
             require(hedera, string.concat("usdc ", vm.toString(usdc), " has no code on this chain"));
@@ -278,5 +281,62 @@ contract Deploy is Script {
         );
         // forge-lint: disable-next-line(unsafe-cheatcode)
         vm.writeFile(r.addressesPath, json);
+    }
+}
+
+/// @dev Local-run stand-in for the HTS system contract at `0x…0167`: `associateToken` answers SUCCESS (22). RT-C-08.
+contract HtsSystemStandIn {
+    function associateToken(address, address) external pure returns (int64) {
+        return 22;
+    }
+}
+
+/// @dev Local-run stand-in for the HIP-719 USDC facade: `decimals()` = 6, `isAssociated()` = true. RT-C-08.
+contract HtsUsdcStandIn {
+    function decimals() external pure returns (uint8) {
+        return 6;
+    }
+
+    function isAssociated() external pure returns (bool) {
+        return true;
+    }
+}
+
+/// @title DeployHedera
+/// @notice `Deploy` for Hedera (295/296) under Foundry's local EVM (RT-C-08). The relay reports the HTS USDC facade
+///         `0x…068cDa` as an EIP-7702 delegation designator to the HTS system contract `0x…0167`, whose code is the
+///         single INVALID opcode (`0xfe`). Foundry follows the designator, so `decimals()`, `associateToken` and
+///         `isAssociated()` all die with `InvalidFEOpcode` in the script's local run, although the relay executes
+///         them natively. This wrapper `vm.etch`es two stand-ins (a cheatcode, never a transaction) before the audited
+///         `Deploy.deploy` runs, so the broadcast list is exactly `Deploy`'s. Always pass `--skip-simulation` (dry
+///         run or broadcast): forge then skips the on-chain re-simulation (a fresh fork without the stand-ins, which
+///         hits the same designator) and takes each transaction's gas from the relay's `eth_estimateGas`, which runs
+///         the real HTS. The live T-08/T-09 gate is the post-broadcast
+///         `cast call $DD "isHtsAssociated(address)(bool)" 0x…068cDa` (true) and
+///         `cast call 0x…068cDa "decimals()(uint8)"` (6) — runbook step 3.
+///
+///         CHAIN=296 forge script script/Deploy.s.sol:DeployHedera --rpc-url hedera_testnet --broadcast \
+///             --skip-simulation --account deployer
+contract DeployHedera is Deploy {
+    address internal constant HTS_SYSTEM = 0x0000000000000000000000000000000000000167;
+
+    /// @inheritdoc Deploy
+    /// @dev Same transactions as `Deploy.deploy`; only Foundry's local EVM sees the stand-ins.
+    function deploy(ChainRecord memory chain, Config memory cfg) public override returns (Result memory) {
+        require(
+            block.chainid == 295 || block.chainid == 296,
+            string.concat(
+                "DeployHedera is for Hedera (295/296) only; the RPC reports chain ", vm.toString(block.chainid)
+            )
+        );
+        vm.etch(HTS_SYSTEM, type(HtsSystemStandIn).runtimeCode);
+        vm.etch(vm.parseAddress(chain.usdc), type(HtsUsdcStandIn).runtimeCode);
+        console.log(
+            "HTS stand-ins etched at 0x...0167 and %s for Foundry's local run only (RT-C-08); after the broadcast check: cast call <DataDrop> \"isHtsAssociated(address)(bool)\" %s == true, cast call %s \"decimals()(uint8)\" == 6",
+            chain.usdc,
+            chain.usdc,
+            chain.usdc
+        );
+        return super.deploy(chain, cfg);
     }
 }

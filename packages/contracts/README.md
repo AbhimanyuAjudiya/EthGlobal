@@ -11,7 +11,7 @@ src/DataDrop.sol                    sponsor pools: one claim per (id, claimKey),
 src/EIP3009Token.sol                abstract 6-dec ERC-20 + EIP-3009 (configurable EIP-712 name/version, Circle digest layout)
 src/MockUSDC3009.sol                EIP3009Token("USD Coin","USDC","2") + open mint — Anvil only
 src/interfaces/                     IDataDrop, IEIP3009 (verbatim INTERFACES §6.1–6.2), IHederaTokenService (associateToken only)
-script/Deploy.s.sol                 chain-agnostic deploy (CHAIN env), writes deploy/addresses.<slug>.json
+script/Deploy.s.sol                 chain-agnostic deploy (CHAIN env), writes deploy/addresses.<slug>.json; DeployHedera wraps it for 295/296 (RT-C-08)
 script/fill-deploy-txs.mjs          copies creation tx hashes from broadcast/ into addresses.<slug>.json → txs
 script/EmitVectors.s.sol            writes fixtures/eip3009/vectors.json (16 vectors: 8 tuples × 2 domains)
 script/abi.sh                       abi/*.json export and drift check
@@ -125,10 +125,14 @@ deployer; required elsewhere), `LEDGER_ONLY` (default `false`), `ANVIL_MNEMONIC`
   for the connected `block.chainid`, with a slug matching `[a-z0-9_]+`. An unknown chain id, another chain's record or an
   unsafe slug reverts.
 - On Hedera token mode, after `associateHts(usdc)` the script requires `isHtsAssociated(usdc)`: SUCCESS was recorded and
-  the token's HIP-719 `isAssociated()` (answered for DataDrop) does not deny it [verify Wed]. Otherwise the broadcast fails.
+  the token's HIP-719 `isAssociated()` (answered for DataDrop) does not deny it. Otherwise the broadcast fails. Foundry
+  cannot execute HTS (RT-C-08: the facade `0x…068cDa` is an EIP-7702 designator to `0x…0167`, whose code is `0xfe`), so
+  on 295/296 run `script/Deploy.s.sol:DeployHedera` with `--skip-simulation`: it `vm.etch`es stand-ins for the local
+  run only, the relay's `eth_estimateGas` sets each transaction's gas, and the live gate is the post-broadcast
+  `cast call $DD "isHtsAssociated(address)(bool)" 0x…068cDa` (true) and `cast call 0x…068cDa "decimals()(uint8)"` (6).
 - Live token mode refuses a `usdc` without code or with `decimals() != 6` (RT-C-04). On Hedera a codeless HTS
-  long-zero alias is tolerated ([verify Wed]; check decimals on the mirror node), but a contract that answers
-  `decimals()` must answer 6.
+  long-zero alias is tolerated (check decimals on the mirror node), but a contract that answers `decimals()` must
+  answer 6; the real facade answers 6 through the relay (verified 2026-11-05).
 - Output: `deploy/addresses.<slug>.json` in the INTERFACES §6.3 shape (`txs` filled by `pnpm deploy:txs`). `owner` is the
   on-chain owner and `pendingOwner` the cold owner that still has to `acceptOwnership()` (RT-C-05). After accepting, run
   `CHAIN=<id> RPC_URL=… pnpm deploy:txs` to refresh both fields from the chain.
@@ -159,9 +163,11 @@ cd packages/contracts
 pnpm deps && forge build && forge test && pnpm abi:check && pnpm snapshot:check
 export PAYOUT_ADDRESS=0x… ATTESTOR_ADDRESS=0x… OWNER_ADDRESS=0x…           # on-site keys, never Anvil's
 # 1. token mode (default)
-CHAIN=296 forge script script/Deploy.s.sol:Deploy --rpc-url hedera_testnet --broadcast --legacy \
-  --gas-limit 1000000 --private-key $DEPLOYER_PRIVATE_KEY
+CHAIN=296 forge script script/Deploy.s.sol:DeployHedera --rpc-url hedera_testnet --broadcast --skip-simulation \
+  --legacy --gas-limit 1000000 --private-key $DEPLOYER_PRIVATE_KEY        # DeployHedera + --skip-simulation: RT-C-08
 CHAIN=296 pnpm deploy:txs                                                   # file shows pendingOwner = OWNER_ADDRESS
+cast call $DATADROP "isHtsAssociated(address)(bool)" 0x0000000000000000000000000000000000068cDa --rpc-url hedera_testnet  # true
+cast call 0x0000000000000000000000000000000000068cDa "decimals()(uint8)" --rpc-url hedera_testnet                          # 6
 cast send $DATADROP "acceptOwnership()" --rpc-url hedera_testnet --legacy --private-key $OWNER_PRIVATE_KEY
 CHAIN=296 RPC_URL=$HEDERA_TESTNET_RPC_URL pnpm deploy:txs                   # file now: owner = cold, pendingOwner = 0
 # payout must be associated with HTS USDC before the first claim (else every claim reverts; campaigns stay refundable)

@@ -4,9 +4,9 @@
   "private": true,
   "description": "Next.js app: the Recharge consumer PWA (/, /verify, /plan, /install, /pay, /agent, /gift, /card, /receipts), the sponsor console (/sponsor) and the print route; /ui/* is tooling.",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "dev": "NODE_OPTIONS=--experimental-require-module next dev",
+    "build": "NODE_OPTIONS=--experimental-require-module next build",
+    "start": "NODE_OPTIONS=--experimental-require-module next start",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "e2e": "playwright test",

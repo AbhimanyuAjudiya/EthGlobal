@@ -13,6 +13,7 @@ import {
   ReplayGuard,
   sha256,
   sha256Hex,
+  sha384,
   timingSafeEqual,
   utf8,
   verifyWebhookSignature,
@@ -20,6 +21,12 @@ import {
 } from '../src/index.js';
 
 describe('hashes (known-answer vectors)', () => {
+  it('sha384 (FIPS 180-2 "abc")', () => {
+    expect(Buffer.from(sha384('abc')).toString('hex')).toBe(
+      'cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7',
+    );
+  });
+
   it('sha256 (FIPS 180-2 "abc") for string and bytes input', () => {
     const abc = '0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
     expect(sha256Hex('abc')).toBe(abc);

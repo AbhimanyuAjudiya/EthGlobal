@@ -8,6 +8,7 @@
 # Always MODE=local: no testnet RPC, no vendor API, no real keys (PLAN §7.1). Tools used: bash, grep -P, awk, jq, git, pnpm, forge,
 # slither, semgrep, jscpd (via `pnpm dupcheck`). Nothing is installed or fetched except what pnpm's frozen lockfile already pins.
 set -uo pipefail
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../scripts/lib/gnu-path.sh" 2>/dev/null || true  # macOS GNU grep/timeout
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TOOLS="$ROOT/security/redteam/tools"
 cd "$ROOT"

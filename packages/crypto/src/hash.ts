@@ -1,11 +1,13 @@
 /** SHA-256, keccak-256 and HMAC-SHA256 (@noble/hashes). */
 import { hmac } from '@noble/hashes/hmac.js';
-import { sha256 as nobleSha256 } from '@noble/hashes/sha2.js';
+import { sha256 as nobleSha256, sha384 as nobleSha384 } from '@noble/hashes/sha2.js';
 import { keccak_256 } from '@noble/hashes/sha3.js';
 
 import { bytesToHex, concat, toBytes, type Hex } from './bytes.js';
 
 export const sha256 = (data: Uint8Array | string): Uint8Array => nobleSha256(toBytes(data));
+/** SHA-384 (HCS-14 UAID digests). */
+export const sha384 = (data: Uint8Array | string): Uint8Array => nobleSha384(toBytes(data));
 
 export const sha256Hex = (data: Uint8Array | string): Hex => bytesToHex(sha256(data));
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Prints the versions of every tool the repo needs. Exit code 1 if one is missing.
 set -uo pipefail
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../scripts/lib/gnu-path.sh" 2>/dev/null || true  # macOS GNU grep/timeout
 
 missing=0
 report() {

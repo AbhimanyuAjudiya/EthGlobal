@@ -9,6 +9,7 @@
 # Implementation note: GNU grep -P accepts ONE pattern only ("the -P option only supports a single pattern"), so the pattern
 # file is compiled into a single alternation (?:p1)|(?:p2)|… . A grep exit status of 2 is treated as a failure.
 set -euo pipefail
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../scripts/lib/gnu-path.sh" 2>/dev/null || true  # macOS GNU grep/timeout
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PATTERNS="${SCAN_PATTERNS:-$HERE/forbidden-patterns.txt}"
 [[ $# -ge 1 ]] || { echo "usage: scan.sh <paths...>" >&2; exit 2; }
@@ -38,18 +39,27 @@ done < "$PATTERNS"
 tracked() { git -C "$(dirname "$1")" ls-files --error-unmatch -- "$1" > /dev/null 2>&1; }
 [[ -n "$FULL" ]] || { echo "scan: no patterns compiled" >&2; exit 2; }
 
+# -P needs a PCRE grep: GNU grep (Linux; Homebrew's ggrep) or ugrep (-P via pcre2). macOS BSD grep has no -P, and a scan
+# that cannot run must not read as "clean" (exit 2).
+PGREP=""
+for cand in ggrep grep ugrep; do
+  if command -v "$cand" >/dev/null 2>&1 && echo x | "$cand" -q -P -- 'x' 2>/dev/null; then PGREP="$cand"; break; fi
+done
+[[ -n "$PGREP" ]] || { echo "scan: no PCRE-capable grep (install GNU grep: brew install grep; or ugrep)" >&2; exit 2; }
+pgrep_() { "$PGREP" "$@"; }
+
 # self-check: the compiled expression must be valid PCRE and must fire on a canary
-echo 'canary LPA:1$smdp'""'.carrier.com$K2-ABCD-EFGH' | grep -q -P -- "$FULL" || { echo "scan: compiled pattern failed its canary (grep -P error?)" >&2; exit 2; }
+echo 'canary LPA:1$smdp'""'.carrier.com$K2-ABCD-EFGH' | pgrep_ -q -P -- "$FULL" || { echo "scan: compiled pattern failed its canary (grep -P error?)" >&2; exit 2; }
 
 status=0
 scan_file() { # $1 file, $2 regex
   local out rc
-  set +e; out="$(grep -n -P -- "$2" "$1" 2>&1)"; rc=$?; set -e
+  set +e; out="$(pgrep_ -n -P -- "$2" "$1" 2>&1)"; rc=$?; set -e
   if [[ $rc -eq 0 && ${#ALLOW[@]} -gt 0 ]] && tracked "$1"; then
     local kept="" hit lit
     while IFS= read -r hit; do
       for lit in "${ALLOW[@]}"; do hit="${hit//"$lit"/}"; done
-      printf '%s\n' "${hit#*:}" | grep -q -P -- "$2" && kept+="$hit"$'\n'
+      printf '%s\n' "${hit#*:}" | pgrep_ -q -P -- "$2" && kept+="$hit"$'\n'
     done <<< "$out"
     out="${kept%$'\n'}"; [[ -z "$out" ]] && rc=1
   fi

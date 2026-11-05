@@ -20,6 +20,9 @@ before writing into it. A command that needs a secret reads it from `.env` (or t
 ```sh
 git clone <repo> && cd EthGlobal && git checkout claude/ethglobal-mumbai-build
 bash scripts/check-tools.sh                       # node 22, pnpm 10, forge/anvil/cast 1.5.1, solc 0.8.30
+# macOS only: the red-team tooling uses GNU grep -P and timeout. Install once; the scripts put gnubin on PATH themselves.
+brew install bash grep coreutils && source scripts/lib/gnu-path.sh   # then run scripts with `bash scripts/...` (Homebrew bash ≥ 5)
+# macOS: if `pnpm` hangs or Corepack reports "Cannot find matching keyid", use `corepack disable && npm i -g pnpm@10.28.0`.
 pnpm install --frozen-lockfile                    # exact pins only; fails until the Thu lockfile refresh (below)
 pnpm --filter @ethglobal/contracts run deps       # forge-std + OpenZeppelin into packages/contracts/lib
 pnpm -r run build

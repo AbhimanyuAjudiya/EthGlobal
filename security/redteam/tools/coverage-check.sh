@@ -6,6 +6,7 @@
 #       e.g. --require packages/contracts packages/octroi           (run-wave.sh passes the wave's packages)
 # Exit 0 = covered, 1 = gaps (listed), 2 = usage/parse error. Pure bash + grep -P + awk.
 set -uo pipefail
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../scripts/lib/gnu-path.sh" 2>/dev/null || true  # macOS GNU grep/timeout
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 TM="$ROOT/docs/THREAT-MODEL.md"
 ATTACKS="$ROOT/security/redteam/attacks"

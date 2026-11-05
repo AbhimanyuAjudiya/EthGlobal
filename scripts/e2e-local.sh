@@ -20,6 +20,7 @@
 # stale Recharge listener still holding the ports. Each run writes to its own .e2e/<run-id>/ (E2E_OUT), with
 # .e2e/latest pointing at it, so concurrent runs on different ports never share or truncate each other's files.
 set -euo pipefail
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../scripts/lib/gnu-path.sh" 2>/dev/null || true  # macOS GNU grep/timeout
 umask 077 # logs, seed PINs/keys and the audit key: owner-only (RT-P-11)
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

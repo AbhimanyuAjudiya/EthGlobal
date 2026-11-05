@@ -4,7 +4,7 @@
  * strings trimmed, protocol/registry lower-cased, skills sorted integers. The routing parameters are emitted in the
  * order the reference createUaid emits them: uid, registry, proto, nativeId.
  */
-import { sha384 } from '@noble/hashes/sha2.js';
+import { sha384 } from '@ethglobal/crypto';
 
 const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 

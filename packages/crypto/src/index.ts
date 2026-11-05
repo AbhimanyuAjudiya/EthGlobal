@@ -8,7 +8,7 @@ export {
   zeroize,
   type Hex,
 } from './bytes.js';
-export { hashToField, hmacKey, hmacSha256, keccak256, sha256, sha256Hex } from './hash.js';
+export { hashToField, hmacKey, hmacSha256, keccak256, sha256, sha256Hex, sha384 } from './hash.js';
 export {
   generateSessionKeypair,
   LPA_INFO,

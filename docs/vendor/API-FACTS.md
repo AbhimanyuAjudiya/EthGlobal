@@ -131,8 +131,16 @@ Facilitator settles by calling `transferWithAuthorization(...)` on the token. Pe
   `{ "success": true, "transaction": "0x<hash>", "network": "eip155:84532", "payer": "0x..." }` /
   `{ "success": false, "errorReason": "insufficient_funds", "transaction": "", "network": "...", "payer": "..." }`;
   optional `amount`, `extensions`. `errorReason: "settlement_pending"` is non-terminal and MUST carry the tx hash.
-- `GET /supported` -> `{ "kinds": [{ "x402Version": 2, "scheme": "exact", "network": "eip155:84532", "extra"?: {...} }], "extensions": [], "signers": { "eip155:*": ["0x..."], "solana:*": ["..."] } }`.
+- `GET /supported` -> `{ "kinds": [{ "x402Version": <int>, "scheme": "<string>", "network": "<string>", "extra"?: { <any JSON> } }], "extensions": [string], "signers": { "<namespace>:*": [string] } }`
+  (`@x402/core@2.29.0` `SupportedKind`: `x402Version: number`, `scheme: string`, `extra?: Record<string, unknown>`).
   Hedera kinds carry the fee payer in `extra` (hedera-docs: "along with the fee-payer account the facilitator will sponsor").
+  **Observed live 5 Nov 2026** (`fixtures/facilitator/x402org/live-supported.json`, RT-A-15): x402.org lists 11 kinds — v2
+  `exact`, `upto` (`extra.facilitatorAddress`) and `batch-settlement` on `eip155:84532`; v2 `exact` on `solana:…`
+  (`extra.feePayer` plus `transactionVersions: [0, 1]` and `features: { smartWalletSupported: true }`), `algorand:…`,
+  `aptos:2`, `stellar:testnet` (`extra.areFeesSponsored: true`), `hedera:testnet` (`extra: { "feePayer": "0.0.9185802" }`,
+  nothing else) and `xrpl:1` (`areFeesSponsored: false`); and **two `x402Version: 1` kinds under legacy, non-CAIP names**
+  (`base-sepolia`, `solana-devnet`). A reader must accept any version, any network string and any JSON in `extra`, then
+  pick `x402Version: 2, scheme: "exact"` on its own network; only Hedera's `extra.feePayer` is checked (a string, `0.0.x`).
 - `GET /discovery/resources?type=http&payTo=&scheme=&network=&limit=&offset=` (Bazaar).
 - Error codes (§9): `insufficient_funds`, `invalid_exact_evm_payload_authorization_valid_after`,
   `..._valid_before`, `..._value_mismatch`, `invalid_exact_evm_payload_signature`,
@@ -551,7 +559,7 @@ namehash("vitalik.eth"); // 0x...
 
 ## Known unknowns to verify on-site Wed 4 Nov
 
-1. `curl https://x402.org/facilitator/supported` — confirm `hedera:testnet` (fee payer `0.0.9185802`) and `eip155:84532` are listed and the exact `extra` shape; same for `https://api.testnet.blocky402.com/supported` and `https://testnet.facilitator.launa.dev/supported`. Pick the primary + fallback facilitator.
+1. `curl https://x402.org/facilitator/supported` — confirm `hedera:testnet` (fee payer `0.0.9185802`) and `eip155:84532` are listed and the exact `extra` shape; same for `https://api.testnet.blocky402.com/supported` and `https://testnet.facilitator.launa.dev/supported`. Pick the primary + fallback facilitator. **x402.org done 5 Nov** — both listed, fee payer `0.0.9185802` confirmed, shape recorded in §1.5 (RT-A-15: it also lists v1 kinds under legacy names, which our schema refused).
 2. Which Arkiv testnet the sponsor judges on (SDK 1.0.1 defaults to **rabdi 7794095**; the registry calls **tiramisu 7738577** the developer network; Kaolin appears retired). Get an access key at `hub.arkiv.network/access-keys` and tGLM from `hub.arkiv.network/faucet`; confirm the explorer URL for the chosen chain and whether the Swarm bonus needs a specific Bee gateway/postage batch.
 3. World ID: create the app (`app_mode: external`), RP (`rp_id` + one-time signing key into the server secret store) and a **production** action; confirm `allow_legacy_proofs` policy (Orb-only vs device fallback) with the World team; confirm whether "Agent Pass" in the prize text means AgentKit (beta) and whether judges accept AgentKit registration on World Chain mainnet only (CLI registers on World Chain; no testnet AgentBook mentioned).
 4. Hedera: fund testnet account via portal, associate `0.0.429274`, mint USDC from `faucet.circle.com`; confirm the facilitator accepts HTS USDC (not just HBAR) and the `transaction` vs `transactionId` field in `PAYMENT-RESPONSE` from the chosen facilitator; confirm HashScan topic URL pattern `hashscan.io/testnet/topic/{0.0.x}`.

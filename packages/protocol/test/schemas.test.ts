@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import { DELETE, example, examples, mutate, variants } from './helpers.js';
+import liveSupported from '../../../fixtures/facilitator/x402org/live-supported.json' with { type: 'json' };
 import * as schemas from '../src/schemas/index.js';
 
 const exported = Object.entries(schemas as Record<string, unknown>).filter(
@@ -171,6 +172,18 @@ describe('x402 requirement rules', () => {
     expect(parse({ ...hedera, maxTimeoutSeconds: 181 })).toBe(false);
   });
 
+  it('a Hedera accept whose feePayer is not a string in 0.0.x form is refused whatever else extra carries [RT-A-16]', () => {
+    const { amount: _amount, ...template } = hedera;
+    const accept = (extra: Record<string, unknown>): boolean =>
+      schemas.acceptTemplateSchema.safeParse({ ...template, extra }).success;
+    expect(accept({ feePayer: '0.0.9185802', features: { smartWalletSupported: true } })).toBe(
+      true,
+    );
+    for (const feePayer of [123, true, null, ['0.0.9185802'], { id: '0.0.9185802' }, '9185802'])
+      expect(accept({ feePayer })).toBe(false);
+    expect(parse({ ...hedera, extra: { feePayer: 123 } })).toBe(false);
+  });
+
   it('accept templates follow the same rules without an amount', () => {
     const { amount: _amount, ...template } = evm;
     expect(schemas.acceptTemplateSchema.safeParse(template).success).toBe(true);
@@ -199,6 +212,41 @@ describe('x402 requirement rules', () => {
     expect(
       schemas.isEvmExact(example<schemas.PaymentPayload>('paymentPayload.hedera').payload),
     ).toBe(false);
+  });
+});
+
+describe('facilitator /supported (RT-A-16, T-42)', () => {
+  const body: unknown = liveSupported.exchanges[0]?.response.body;
+
+  it('the x402.org recording parses: v1 kinds under legacy names and non-string extra values survive [RT-A-16]', () => {
+    const parsed = schemas.supportedResponseSchema.parse(body);
+    expect(parsed.kinds).toHaveLength(11);
+    // two version-1 kinds under legacy names that are not CAIP-2: listed, parsed, never selected
+    const legacy = parsed.kinds.filter((k) => k.x402Version === 1);
+    expect(legacy).toHaveLength(2);
+    for (const k of legacy)
+      expect(schemas.caipNetworkSchema.safeParse(k.network).success).toBe(false);
+    expect(parsed.kinds.find((k) => k.network === 'hedera:testnet')?.extra).toEqual({
+      feePayer: '0.0.9185802',
+    });
+    expect(parsed.kinds.find((k) => k.network.startsWith('solana:'))?.extra).toMatchObject({
+      transactionVersions: [0, 1],
+      features: { smartWalletSupported: true },
+    });
+    expect(parsed.signers?.['hedera:*']).toEqual(['0.0.9185802']);
+  });
+
+  it('a kind is still a bounded shape: no version, an empty network or an oversized list is refused', () => {
+    const kind = { x402Version: 2, scheme: 'exact', network: 'eip155:84532' };
+    const ok = (kinds: unknown[]): boolean =>
+      schemas.supportedResponseSchema.safeParse({ kinds }).success;
+    expect(ok([kind])).toBe(true);
+    expect(ok([{ ...kind, x402Version: '2' }])).toBe(false);
+    expect(ok([{ ...kind, x402Version: 0 }])).toBe(false);
+    expect(ok([{ ...kind, network: '' }])).toBe(false);
+    expect(ok([{ ...kind, network: 'x'.repeat(65) }])).toBe(false);
+    expect(ok([{ ...kind, extra: 'feePayer=0.0.1' }])).toBe(false);
+    expect(ok(Array.from({ length: 65 }, () => kind))).toBe(false);
   });
 });
 

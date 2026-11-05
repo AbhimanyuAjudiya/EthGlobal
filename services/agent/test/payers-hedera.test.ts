@@ -61,11 +61,19 @@ describe('HederaPayer (HederaAgentKitSigner)', () => {
     expect(payer.signatures).toBe(0);
   });
 
-  it('refuses: wrong network/asset, missing fee payer, validity above 180 s', () => {
+  it('refuses: wrong network/asset, missing or non-string fee payer, validity above 180 s [RT-A-15]', () => {
     const payer = hederaPayer();
     expect(payer.refusal(req({ network: 'hedera:mainnet' }))).toBe('network');
     expect(payer.refusal(req({ asset: '0.0.0' }))).toBe('asset');
     expect(payer.refusal(req({ extra: {} }))).toBe('fee-payer');
+    expect(payer.refusal(req({ extra: { feePayer: 123 } }))).toBe('fee-payer');
+    expect(payer.refusal(req({ extra: { feePayer: { id: FEE_PAYER } } }))).toBe('fee-payer');
+    // nested extra beside a well-formed feePayer is ignored, not a refusal
+    expect(
+      payer.refusal(
+        req({ extra: { feePayer: FEE_PAYER, features: { smartWalletSupported: true } } }),
+      ),
+    ).toBeUndefined();
     expect(payer.refusal(req({ maxTimeoutSeconds: 181 }))).toBe('timeout');
     expect(payer.choose([req({ asset: '0.0.0' }), req()])).toEqual(req());
   });

@@ -199,13 +199,17 @@ export type SettleResult = z.infer<typeof settleResultSchema>;
 export const paymentResponseSchema = settleResultSchema;
 
 /**
- * Facilitator `GET /supported` (API-FACTS §1.5, A-30): `kinds[]` per (version, scheme, network), Hedera kinds carry
- * `extra.feePayer`; `signers` maps a CAIP family to the facilitator's addresses. Unknown keys are stripped.
+ * Facilitator `GET /supported` (API-FACTS §1.5, A-30; @x402/core 2.29.0 `SupportedKind`): `kinds[]` per (version,
+ * scheme, network); `signers` maps a CAIP family to the facilitator's addresses. A facilitator lists everything it
+ * serves — x402.org advertises version-1 kinds under legacy non-CAIP network names, `upto` beside `exact`, and
+ * per-chain `extra` values of any JSON shape (RT-A-16) — so a kind is only a bounded shape here. Consumers pick
+ * `x402Version === 2 && scheme === 'exact'` on their own CAIP-2 network and check `extra.feePayer` themselves
+ * (a string in `0.0.x` form on hedera:*). Unknown keys are stripped.
  */
 export const supportedKindSchema = z.object({
-  x402Version: z.literal(2),
+  x402Version: z.int().positive(),
   scheme: z.string().max(32),
-  network: caipNetworkSchema,
+  network: z.string().min(1).max(64),
   extra: z.record(z.string(), z.unknown()).optional(),
 });
 export const supportedResponseSchema = z.object({

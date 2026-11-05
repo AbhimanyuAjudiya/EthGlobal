@@ -1,6 +1,6 @@
 {
   "name": "live-supported",
-  "recordedAt": "2026-11-05T08:39:51.007Z",
+  "recordedAt": "2026-11-05T10:12:04.053Z",
   "source": "live",
   "exchanges": [
     {
@@ -15,18 +15,18 @@
           "age": "0",
           "cache-control": "public, max-age=0, must-revalidate",
           "cf-cache-status": "DYNAMIC",
-          "cf-ray": "a55a8cdd3c4180af-BOM",
+          "cf-ray": "a55b13effaf87e90-MAA",
           "connection": "keep-alive",
           "content-encoding": "br",
           "content-type": "application/json",
-          "date": "Thu, 05 Nov 2026 08:39:50 GMT",
+          "date": "Thu, 05 Nov 2026 10:12:03 GMT",
           "server": "cloudflare",
           "strict-transport-security": "max-age=63072000; includeSubDomains; preload",
           "transfer-encoding": "chunked",
           "vary": "accept-encoding",
           "x-matched-path": "/facilitator/supported",
           "x-vercel-cache": "MISS",
-          "x-vercel-id": "bom1::iad1::x69cs-1793867990701-84108995cf9a"
+          "x-vercel-id": "bom1::iad1::fhh4f-1793873523474-456f525ff7b3"
         },
         "body": {
           "kinds": [
@@ -54,10 +54,7 @@
               "network": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
               "extra": {
                 "feePayer": "CKPKJWNdJEqa81x7CkZ14BVPiY6y16Sxs7owznqtWYp5",
-                "transactionVersions": [
-                  0,
-                  1
-                ],
+                "transactionVersions": [0, 1],
                 "features": {
                   "smartWalletSupported": true
                 }
@@ -114,38 +111,21 @@
               "network": "solana-devnet",
               "extra": {
                 "feePayer": "CKPKJWNdJEqa81x7CkZ14BVPiY6y16Sxs7owznqtWYp5",
-                "transactionVersions": [
-                  0,
-                  1
-                ]
+                "transactionVersions": [0, 1]
               }
             }
           ],
-          "extensions": [
-            "builder-code",
-            "eip2612GasSponsoring",
-            "erc20ApprovalGasSponsoring"
-          ],
+          "extensions": ["builder-code", "eip2612GasSponsoring", "erc20ApprovalGasSponsoring"],
           "signers": {
-            "eip155:*": [
-              "0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf"
-            ],
-            "solana:*": [
-              "CKPKJWNdJEqa81x7CkZ14BVPiY6y16Sxs7owznqtWYp5"
-            ],
-            "algorand:*": [
-              "G7QWRIJODICBDG6JAVXNKHNTCKTBJZBXTSCGQLSMXSCIKEJ5SNFPEJSFQQ"
-            ],
-            "aptos:*": [
-              "0x1be1a717b48c46c83a2a6a53205aff6123610961560b2b08968a344c4da24b1e"
-            ],
+            "eip155:*": ["0xd407e409E34E0b9afb99EcCeb609bDbcD5e7f1bf"],
+            "solana:*": ["CKPKJWNdJEqa81x7CkZ14BVPiY6y16Sxs7owznqtWYp5"],
+            "algorand:*": ["G7QWRIJODICBDG6JAVXNKHNTCKTBJZBXTSCGQLSMXSCIKEJ5SNFPEJSFQQ"],
+            "aptos:*": ["0x1be1a717b48c46c83a2a6a53205aff6123610961560b2b08968a344c4da24b1e"],
             "stellar:*": [
               "GC6CSXBV4C6RL3HEDTW57KXYXSSXKAWKGYDEOSATXM3XNKXSR2VRYN3K",
               "GC5OLUZ4WANPN6VT7YGTK2SRMZG762KOVKJXHWIO4K57UBASO2FMNRET"
             ],
-            "hedera:*": [
-              "0.0.9185802"
-            ],
+            "hedera:*": ["0.0.9185802"],
             "xrpl:*": []
           }
         }

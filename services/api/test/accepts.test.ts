@@ -58,6 +58,18 @@ describe('accepts templates (A-20, A-21)', () => {
     expect(() => buildAcceptTemplates({ env: env('eip155:31337') })).toThrow(/no USDC asset/);
   });
 
+  it('a fee payer outside the Hedera id form never reaches accepts[] [RT-A-16]', () => {
+    for (const hederaFeePayer of [
+      'CKPKJWNdJEqa81x7CkZ14BVPiY6y16Sxs7owznqtWYp5',
+      '0.0.9185802@1.2',
+      '9185802',
+      '',
+    ])
+      expect(() => buildAcceptTemplates({ env: env('hedera:testnet'), hederaFeePayer })).toThrow(
+        /feePayer/,
+      );
+  });
+
   it('no 402 body ever carries the v1 amount field (A-18)', async () => {
     const h = await harness();
     const res = await h.json('/gift', { name: 'bob.eth', mb: 300 });

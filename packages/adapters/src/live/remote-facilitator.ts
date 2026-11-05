@@ -3,7 +3,8 @@
  * `GET /supported`, `POST /verify`, `POST /settle` with `{ x402Version: 2, paymentPayload, paymentRequirements }`.
  * The facilitator is not trusted to tell the truth: every response is schema-checked, a settlement must carry a
  * plausible transaction for the requested network, `settlement_pending` is polled on chain, and the Hedera fee
- * payer it advertises must equal the pinned one.
+ * payer it advertises must equal the pinned one. `/supported` is read as the vendor shape (any version, scheme and
+ * network string, any JSON in `extra`; RT-A-16): only the v2 `exact` kind on a configured network is consulted.
  */
 import { z } from 'zod';
 
@@ -56,6 +57,12 @@ export function plausibleTransaction(network: string, tx: string | undefined): b
 /** `0.0.x@seconds.nanos` → the mirror node path form `0.0.x-seconds-nanos`. */
 export const mirrorTransactionId = (tx: string): string =>
   tx.replace('@', '-').replace(/\.(\d+)$/, '-$1');
+
+/** The v2 `exact` kind for `network`; v1 kinds (legacy names) and other schemes are listed too and ignored (RT-A-16). */
+const exactKind = (supported: SupportedResponse | undefined, network: string) =>
+  supported?.kinds.find(
+    (k) => k.network === network && k.scheme === 'exact' && k.x402Version === 2,
+  );
 
 const mirrorTransactions = z.object({
   transactions: z
@@ -154,8 +161,7 @@ export class RemoteFacilitator implements PaymentRail {
       );
     }
     if (input.network.startsWith('hedera:')) {
-      const advertised = this.#supportedValue?.kinds.find((k) => k.network === input.network)?.extra
-        ?.feePayer;
+      const advertised = exactKind(this.#supportedValue, input.network)?.extra?.feePayer;
       const given = input.extra?.feePayer;
       if (given !== undefined && advertised !== undefined && given !== advertised) {
         throw new AdapterError(
@@ -246,10 +252,7 @@ export class RemoteFacilitator implements PaymentRail {
   }
 
   async #kind(network: string) {
-    const supported = await this.supported();
-    const kind = supported.kinds.find(
-      (k) => k.network === network && k.scheme === 'exact' && k.x402Version === 2,
-    );
+    const kind = exactKind(await this.supported(), network);
     if (!kind) {
       this.#opts.logger?.warn(
         `x402: facilitator ${this.#base.host} does not list exact on ${network}`,

@@ -121,6 +121,66 @@ describe('RemoteFacilitator (A-18, A-20, A-30; T-42)', () => {
     });
   });
 
+  const hederaInput = () => ({
+    ...requirementInput({
+      network: 'hedera:testnet',
+      asset: '0.0.429274',
+      payTo: '0.0.5005',
+      maxTimeoutSeconds: 180,
+      extra: {},
+    }),
+    extra: undefined as never,
+  });
+
+  it('x402.org live /supported (v1 kinds, nested extra) parses and feePayer reads the v2 exact Hedera kind [RT-A-16]', async () => {
+    const f = x402('live-supported', { expectFeePayer: { 'hedera:testnet': '0.0.9185802' } });
+    await expect(f.feePayer('hedera:testnet')).resolves.toBe('0.0.9185802');
+    const { kinds } = await f.supported();
+    expect(kinds).toHaveLength(11);
+    // the two version-1 kinds carry legacy names without a CAIP-2 namespace; they parse and are never selected
+    expect(kinds.filter((k) => k.x402Version !== 2).map((k) => k.network.includes(':'))).toEqual([
+      false,
+      false,
+    ]);
+    // nested extra on other networks is carried, never read: no Hedera fee payer comes from it
+    await expect(f.feePayer('eip155:84532')).rejects.toMatchObject({ code: 'invalid_response' });
+    expect(f.createPaymentRequirement(hederaInput()).accepts[0]!.extra).toEqual({
+      feePayer: '0.0.9185802',
+    });
+  });
+
+  it('a Hedera feePayer that is not a string, or a v1 / upto kind listed first, never supplies the fee payer [RT-A-16]', async () => {
+    const serve = (kinds: unknown[]) =>
+      new RemoteFacilitator({
+        url: 'https://x402.org/facilitator',
+        fetch: async () => Response.json({ kinds }),
+        allowedHosts: ['x402.org'],
+        networks: ['hedera:testnet'],
+      });
+    const hederaKind = (x402Version: number, scheme: string, feePayer: unknown) => ({
+      x402Version,
+      scheme,
+      network: 'hedera:testnet',
+      extra: { feePayer },
+    });
+    for (const feePayer of [123, { id: '0.0.9185802' }, ['0.0.9185802'], undefined])
+      await expect(
+        serve([hederaKind(2, 'exact', feePayer)]).feePayer('hedera:testnet'),
+      ).rejects.toMatchObject({ code: 'invalid_response' });
+    const f = serve([
+      hederaKind(1, 'exact', '0.0.6666666'),
+      hederaKind(2, 'upto', '0.0.7777777'),
+      hederaKind(2, 'exact', '0.0.9185802'),
+    ]);
+    await expect(f.feePayer('hedera:testnet')).resolves.toBe('0.0.9185802');
+    expect(f.createPaymentRequirement(hederaInput()).accepts[0]!.extra).toEqual({
+      feePayer: '0.0.9185802',
+    });
+    await expect(
+      serve([hederaKind(1, 'exact', '0.0.9185802')]).feePayer('hedera:testnet'),
+    ).rejects.toMatchObject({ code: 'unavailable' });
+  });
+
   it('createPaymentRequirement fills extra.feePayer from /supported and refuses a different one', async () => {
     const f = blocky('supported');
     await f.feePayer('hedera:testnet');
@@ -131,9 +191,9 @@ describe('RemoteFacilitator (A-18, A-20, A-30; T-42)', () => {
       maxTimeoutSeconds: 180,
       extra: {},
     });
-    expect(
-      f.createPaymentRequirement({ ...input, extra: undefined as never }).accepts[0]!.extra,
-    ).toEqual({ feePayer: '0.0.7162784' });
+    expect(f.createPaymentRequirement(hederaInput()).accepts[0]!.extra).toEqual({
+      feePayer: '0.0.7162784',
+    });
     expect(() => f.createPaymentRequirement({ ...input, extra: { feePayer: '0.0.1' } })).toThrow(
       expect.objectContaining({ code: 'invalid_request' }),
     );

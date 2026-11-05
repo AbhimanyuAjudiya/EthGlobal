@@ -1,0 +1,24 @@
+# Arkiv friction: what was awkward, and what it cost
+
+Sources: [`docs/ARKIV_FEEDBACK.md`](../docs/ARKIV_FEEDBACK.md) §4–§5 and findings
+[RT-A-15](../security/redteam/findings/RT-A-15.md) and [RT-A-17](../security/redteam/findings/RT-A-17.md). Measured on
+rabdi on Thu 5 Nov 2026 from Mumbai, one sample per op.
+
+## Concrete friction
+
+| What | Time cost | What we did |
+|---|---|---|
+| **A bare `bigint` is a `u256`** (RT-A-15). With a schema that says `u64()`, SDK 1.0.1 still types an untagged bigint as u256 and refuses the write client-side. `MODE=local` never runs the SDK validator, so it surfaced only on the first live write: every `ArkivLedger.put`/`update` failed, a full write-path outage. | Found 15:55 IST, fix `85f3f69` at 16:02, verified live 16:12 IST: about 20 minutes, plus a regression suite against the real SDK. The error message named the column and the fix, which is why it was short. | tag every value at the one SDK boundary (`toSdkValues`) |
+| **Writes wait for a mined transaction.** `put` 8.8 s (an earlier raw-SDK create 12.0 s); `update` 14.9 s, because a patch plus a later lifetime is two transactions (`patchEntity`, then `extendEntity`). Reads are fast: `get` 0.4 s, `query` 0.7 s. | Each write on the claim path adds seconds. The real Orb claim of 18:53 IST took 64.5 s end to end and its 202 was lost to the browser timeout (RT-A-17); the finding attributes most of that to a 60 s eSIM Access poll and a Hedera receipt, not to Arkiv, but Arkiv writes are part of the same request. | re-bind a served-but-undelivered claim to the new session (`e4a8f87`); keep reads on the hot path, writes off it where possible |
+| **An update cannot shorten the lifetime.** A shorter `expiresIn` on update leaves the ledger expiry where it was. | a second clock in every store | the numeric `expiresAt` attribute; an entity is dead at `min(ledger expiry, expiresAt)` |
+| **Expired and never-existed look the same.** `getEntity` answers `null` for both. | the API keeps the last-seen `expiresAt` to answer 410 instead of 404 | in-process memory |
+| **No create-if-absent or compare-and-swap.** Red-team races RT-O-03/05/06 (double claim, lost usage patch, double create). | conditional writes enforced by one writer process | `ifAbsent` / `ifVersion` in our `Ledger` port |
+| **Query operators changed.** On Fri 6 Nov 2026 the rabdi node rejected `&&`: "symbol operators (&& \|\| ~) were removed — use AND, OR, STARTSWITH". SDK 1.0.1 already renders `and(...)` as `AND`, so our code was unaffected; only hand-written queries in our docs were. | one failed query | the docs use `AND` |
+| **Access key and faucet are human-only.** The Hub shows a new access key truncated (copy button only), and both the key and the 10 tGLM faucet sit behind a captcha. | a human step in every fresh environment bring-up | the on-site runbook keeps it a human step |
+
+## The one improvement
+
+**When a schema is given, coerce a bare `bigint` to the column's own integer type** (or make
+`CreateEntityValues<S>` reject a bare bigint for a `u64` column so `tsc` catches it). The column already knows it is
+u64. This is the only friction that stopped every write; everything else had a workaround that cost a second clock or a
+lock, not an outage.

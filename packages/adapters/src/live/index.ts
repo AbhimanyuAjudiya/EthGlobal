@@ -15,7 +15,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { mainnet, sepolia } from 'viem/chains';
 
 import { createViemRelayer } from '@ethglobal/eip3009';
-import { NETWORKS, USDC_ASSET } from '@ethglobal/protocol/ids';
+import { USDC_ASSET } from '@ethglobal/protocol/ids';
 
 import { ArkivLedger } from './arkiv-ledger.js';
 import { createArkivClient } from './arkiv-sdk.js';
@@ -78,7 +78,7 @@ export {
   type InventoryEntry,
 } from './inventory-reseller.js';
 export { FallbackReseller } from './fallback-reseller.js';
-export { HcsLog, HEDERA_TESTNET_MIRROR } from './hcs-log.js';
+export { HcsLog, HEDERA_MIRROR } from './hcs-log.js';
 export { createHederaClient, type HederaClientLike } from './hedera-sdk.js';
 export { hcs14Uaid, type Hcs14Input } from './hcs14.js';
 export { EnsResolver, type EnsClient } from './ens-resolver.js';
@@ -117,7 +117,8 @@ export function createLiveAdapters(config: LiveConfig, deps: LiveDeps = {}): Liv
   const logger = deps.logger ?? console;
   const fetchFn = deps.fetch;
   const transport = (url: string) => http(url, fetchFn ? { fetchFn } : {});
-  const hedera = deps.hederaClient ?? ((o) => createHederaClient({ network: 'testnet', ...o }));
+  const hederaNetwork = config.hedera.network;
+  const hedera = deps.hederaClient ?? ((o) => createHederaClient({ network: hederaNetwork, ...o }));
 
   const chain = evmChain(config.chain.id, config.chain.rpcUrl);
   const publicClient = createPublicClient({
@@ -223,13 +224,14 @@ export function createLiveAdapters(config: LiveConfig, deps: LiveDeps = {}): Liv
     });
   }
   if (config.treasury.hedera) {
-    treasuries[NETWORKS.hederaTestnet] = new HederaTreasury({
+    const network = `hedera:${hederaNetwork}` as const;
+    treasuries[network] = new HederaTreasury({
       client: hedera({
         accountId: config.treasury.hedera.accountId,
         privateKey: config.treasury.hedera.privateKey.reveal(),
       }),
-      tokenId: USDC_ASSET[NETWORKS.hederaTestnet],
-      network: NETWORKS.hederaTestnet,
+      tokenId: USDC_ASSET[network],
+      network,
     });
   }
 

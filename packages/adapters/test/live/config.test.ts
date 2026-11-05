@@ -23,6 +23,8 @@ import type { InventoryEntry } from '../../src/live/inventory-reseller.js';
 
 const k = (b: string) => `0x${b.repeat(32)}`;
 const SEAL = k('5e');
+/** T-52: a mainnet network boots only with both flags. */
+const SALES = { SALES_ENABLED: 'true', LEGAL_MEMO_OK: 'true' };
 
 function inventoryFile(): string {
   const file = join(mkdtempSync(join(tmpdir(), 'live-')), 'inventory.enc');
@@ -171,6 +173,63 @@ describe('liveConfigSchema (L15)', () => {
     expect(config.treasury.hedera).toBeUndefined();
     expect(config.reseller.primary).toBe('inventory');
   });
+
+  it('facilitator host allow-list (A-30): api.blocky402.com is accepted, an unknown host refused', () => {
+    expect(
+      parseLiveConfig(env({ X402_FACILITATOR_URL_HEDERA: 'https://api.blocky402.com' })).payments
+        .hederaUrl,
+    ).toBe('https://api.blocky402.com');
+    expect(() =>
+      parseLiveConfig(
+        env({ X402_FACILITATOR_URL_HEDERA: 'https://api.blocky402.com.evil.example' }),
+      ),
+    ).toThrow('allowed facilitator host');
+  });
+
+  it('Hedera network follows X402_NETWORKS: testnet by default, mainnet for hedera:mainnet, both → refused', () => {
+    expect(parseLiveConfig(env()).hedera).toMatchObject({
+      network: 'testnet',
+      mirrorUrl: 'https://testnet.mirrornode.hedera.com',
+    });
+    const mainnet = parseLiveConfig(
+      env({ ...SALES, CHAIN: '8453', X402_NETWORKS: 'eip155:8453,hedera:mainnet' }),
+    );
+    expect(mainnet.hedera).toMatchObject({
+      network: 'mainnet',
+      mirrorUrl: 'https://mainnet.mirrornode.hedera.com',
+    });
+    expect(mainnet.chain.usdc).toBe('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
+    expect(
+      parseLiveConfig(
+        env({
+          HEDERA_NETWORK: 'mainnet',
+          X402_NETWORKS: 'eip155:84532',
+          HEDERA_MIRROR_URL: 'https://mirror.example/',
+        }),
+      ).hedera,
+    ).toMatchObject({ network: 'mainnet', mirrorUrl: 'https://mirror.example/' });
+    for (const over of [
+      { ...SALES, X402_NETWORKS: 'hedera:testnet,hedera:mainnet' },
+      { HEDERA_NETWORK: 'mainnet' },
+      { ...SALES, X402_NETWORKS: 'hedera:previewnet' },
+    ]) {
+      expect(() => parseLiveConfig(env(over))).toThrow('one Hedera network per deployment');
+    }
+  });
+
+  it('USDC by chain id: 296 and 295 resolve the HTS long-zero alias; USDC_ADDRESS still overrides', () => {
+    expect(parseLiveConfig(env({ CHAIN: '296' })).chain.usdc).toBe(
+      '0x0000000000000000000000000000000000068cDa',
+    );
+    expect(
+      parseLiveConfig(env({ ...SALES, CHAIN: '295', X402_NETWORKS: 'hedera:mainnet' })).chain.usdc,
+    ).toBe('0x000000000000000000000000000000000006f89a');
+    expect(
+      parseLiveConfig(
+        env({ CHAIN: '296', USDC_ADDRESS: '0x34A1D3fff3958843C43aD80F30b94c510645C316' }),
+      ).chain.usdc,
+    ).toBe('0x34A1D3fff3958843C43aD80F30b94c510645C316');
+  });
 });
 
 describe('createLiveAdapters', () => {
@@ -246,5 +305,21 @@ describe('createLiveAdapters', () => {
     expect(typeof adapters.payments.verify).toBe('function');
     expect(SelfRunFacilitator).toBeDefined();
     expect(RemoteFacilitator).toBeDefined();
+  });
+
+  it('the Hedera treasury is keyed to the configured network: hedera:mainnet refunds USDC 0.0.456858', async () => {
+    const tokenBalance = vi.fn(async () => 7n);
+    const client: HederaClientLike = { ...fakeHedera(), tokenBalance };
+    const adapters = createLiveAdapters(
+      parseLiveConfig(
+        env({ ...SALES, CHAIN: '8453', X402_NETWORKS: 'eip155:8453,hedera:mainnet' }),
+      ),
+      { logger: { info: vi.fn(), warn: vi.fn() }, hederaClient: () => client },
+    );
+    await expect(adapters.treasury.balanceUsd6('hedera:mainnet')).resolves.toBe(7n);
+    expect(tokenBalance).toHaveBeenCalledWith('0.0.456858');
+    await expect(adapters.treasury.balanceUsd6('hedera:testnet')).rejects.toMatchObject({
+      code: 'unsupported_network',
+    });
   });
 });

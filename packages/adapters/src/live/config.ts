@@ -8,15 +8,17 @@ import { getAddress, isAddress, type Address, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { z } from 'zod';
 
-import { NETWORKS, TESTNET_NETWORKS, USDC_ASSET } from '@ethglobal/protocol/ids';
+import { NETWORKS, TESTNET_NETWORKS, usdcAssetFor } from '@ethglobal/protocol/ids';
 
 import { KAOLIN_CHAIN_ID, RABDI_CHAIN_ID, TIRAMISU_CHAIN_ID } from './arkiv-sdk.js';
 import { ESIMACCESS_BASE_URL, ESIMACCESS_WEBHOOK_IPS } from './esimaccess-reseller.js';
-import { HEDERA_TESTNET_MIRROR } from './hcs-log.js';
+import { HEDERA_MIRROR } from './hcs-log.js';
 import { DEFAULT_FACILITATOR_URL, FACILITATOR_HOSTS } from './remote-facilitator.js';
 import { Secret } from './secret.js';
 import { WORLD_VERIFY_BASE_URL } from './world-personhood.js';
 import { anvilKeys } from '../testing/anvil.js';
+
+import type { HederaSdkOptions } from './hedera-sdk.js';
 
 const ANVIL_KEYS: ReadonlySet<string> = new Set(anvilKeys.map((k) => k.toLowerCase()));
 const hex32 = z.string().regex(/^0x[0-9a-fA-F]{64}$/, '32-byte 0x-hex');
@@ -32,7 +34,7 @@ const opt = <T extends z.ZodType>(t: T) => t.optional();
 const envShape = z.object({
   CHAIN: z.coerce.number().int().positive(),
   RPC_URL: url,
-  /** Optional override of the USDC token for the self-run facilitator / treasury (Anvil: MockUSDC3009 address). */
+  /** Optional USDC override for the self-run facilitator / treasury (Anvil: MockUSDC3009); Base and Hedera are known. */
   USDC_ADDRESS: opt(z.string()),
   // x402
   X402_FACILITATOR: z.enum(['self', 'remote', 'mock']).default('remote'),
@@ -73,7 +75,10 @@ const envShape = z.object({
     .string()
     .regex(/^(0x)?[0-9a-fA-F]{64}$|^30[0-9a-fA-F]{60,}$/, 'ECDSA private key hex'),
   HCS_TOPIC_ID: hederaId,
-  HEDERA_MIRROR_URL: url.default(HEDERA_TESTNET_MIRROR),
+  /** testnet | mainnet; default: the hedera:* network in X402_NETWORKS, else testnet. Must agree with what is sold. */
+  HEDERA_NETWORK: opt(z.enum(['testnet', 'mainnet'])),
+  /** Default: the mirror node of HEDERA_NETWORK. */
+  HEDERA_MIRROR_URL: opt(url),
   // ens / swarm / treasury
   ENS_RPC_URL: url,
   ENS_FALLBACK_RPC_URL: opt(url),
@@ -127,7 +132,13 @@ export interface LiveConfig {
       | undefined;
     inventory: { file: string; sealKey: Secret<Hex> } | undefined;
   };
-  hedera: { accountId: string; privateKey: Secret; topicId: string; mirrorUrl: string };
+  hedera: {
+    accountId: string;
+    privateKey: Secret;
+    topicId: string;
+    network: HederaSdkOptions['network'];
+    mirrorUrl: string;
+  };
   ens: { rpcUrl: string; fallbackRpcUrl: string | undefined };
   swarm: { beeUrl: string; postageBatchId: string } | undefined;
   treasury: { evmKey: Secret<Hex>; hedera: { accountId: string; privateKey: Secret } | undefined };
@@ -158,6 +169,11 @@ function refine(env: Env, ctx: z.RefinementCtx): void {
         issue('X402_NETWORKS', `self-run facilitator serves eip155:${env.CHAIN} only, not ${n}`);
   }
   if (!usdcFor(env)) issue('USDC_ADDRESS', `no USDC address known for eip155:${env.CHAIN}`);
+  if (!hederaNetworkOf(env))
+    issue(
+      'X402_NETWORKS',
+      'one Hedera network per deployment: hedera:testnet or hedera:mainnet (HEDERA_NETWORK, when set, must agree)',
+    );
   if (env.ARKIV_CHAIN_ID === KAOLIN_CHAIN_ID)
     issue('ARKIV_CHAIN_ID', 'Kaolin (60138453025) is retired (A-23): use rabdi 7794095');
   else if (env.ARKIV_CHAIN_ID !== RABDI_CHAIN_ID && env.ARKIV_CHAIN_ID !== TIRAMISU_CHAIN_ID) {
@@ -218,13 +234,32 @@ function refine(env: Env, ctx: z.RefinementCtx): void {
   }
 }
 
+/** USDC on the Hedera EVM: the HTS token's long-zero alias (296 testnet 0.0.429274, 295 mainnet 0.0.456858). */
+const HEDERA_EVM_USDC: Readonly<Record<number, string>> = {
+  296: '0x0000000000000000000000000000000000068cDa',
+  295: '0x000000000000000000000000000000000006f89a',
+};
+
 function usdcFor(env: Env): Address | undefined {
   if (env.USDC_ADDRESS)
     return isAddress(env.USDC_ADDRESS, { strict: false })
       ? getAddress(env.USDC_ADDRESS)
       : undefined;
-  const known = (USDC_ASSET as Record<string, string>)[`eip155:${env.CHAIN}`];
+  const known = usdcAssetFor(`eip155:${env.CHAIN}`) ?? HEDERA_EVM_USDC[env.CHAIN];
   return known ? getAddress(known) : undefined;
+}
+
+/** The one Hedera network this deployment runs on; undefined when X402_NETWORKS and HEDERA_NETWORK disagree. */
+function hederaNetworkOf(env: Env): HederaSdkOptions['network'] | undefined {
+  const wanted = new Set<string>(
+    list(env.X402_NETWORKS)
+      .filter((n) => n.startsWith('hedera:'))
+      .map((n) => n.slice('hedera:'.length)),
+  );
+  if (env.HEDERA_NETWORK) wanted.add(env.HEDERA_NETWORK);
+  if (wanted.size === 0) return 'testnet';
+  const [only] = wanted;
+  return wanted.size === 1 && (only === 'testnet' || only === 'mainnet') ? only : undefined;
 }
 
 const secret = <T extends string>(value: T | undefined): Secret<T> | undefined =>
@@ -232,6 +267,7 @@ const secret = <T extends string>(value: T | undefined): Secret<T> | undefined =
 
 function toConfig(env: Env): LiveConfig {
   const networks = list(env.X402_NETWORKS);
+  const hederaNetwork = hederaNetworkOf(env) ?? 'testnet'; // refine() already refused a disagreement
   const writer = env.ARKIV_WRITER_ADDRESS
     ? getAddress(env.ARKIV_WRITER_ADDRESS)
     : privateKeyToAccount(env.ARKIV_PRIVATE_KEY as Hex).address;
@@ -286,7 +322,8 @@ function toConfig(env: Env): LiveConfig {
       accountId: env.HEDERA_ACCOUNT_ID,
       privateKey: new Secret(env.HEDERA_PRIVATE_KEY),
       topicId: env.HCS_TOPIC_ID,
-      mirrorUrl: env.HEDERA_MIRROR_URL,
+      network: hederaNetwork,
+      mirrorUrl: env.HEDERA_MIRROR_URL ?? HEDERA_MIRROR[hederaNetwork],
     },
     ens: { rpcUrl: env.ENS_RPC_URL, fallbackRpcUrl: env.ENS_FALLBACK_RPC_URL },
     swarm:

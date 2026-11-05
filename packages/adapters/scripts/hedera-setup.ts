@@ -1,8 +1,10 @@
 /**
  * On-site Hedera account setup (docs/ONSITE-RUNBOOK.md "Key generation"): for each ECDSA key in the git-ignored
- * .env (API, agent, treasury) and .env.payout (payout), look up the auto-created testnet account behind its EVM alias
- * on the mirror node, write the `0.0.x` id back into .env, associate USDC 0.0.429274 when missing, and create the
+ * .env (API, agent, treasury) and .env.payout (payout), look up the auto-created account behind its EVM alias on
+ * the mirror node, write the `0.0.x` id back into .env, associate the network's USDC when missing, and create the
  * receipts HCS topic once (HCS_TOPIC_ID). Keys never leave the process: only ids and aliases are printed.
+ * HEDERA_NETWORK=testnet|mainnet (environment or .env; default testnet) picks the mirror node, the SDK client,
+ * the USDC token id and the HashScan base.
  *
  *   pnpm --filter @ethglobal/scripts exec tsx ../packages/adapters/scripts/hedera-setup.ts [--dry-run]
  */
@@ -14,10 +16,11 @@ import { AccountId, Client, PrivateKey, TokenId } from '@x402/hedera';
 import { z } from 'zod';
 
 import { HttpError, httpJson } from '@ethglobal/protocol/http';
+import { USDC_ASSET } from '@ethglobal/protocol/ids';
+
+import { HEDERA_MIRROR } from '../src/live/hcs-log.js';
 
 const ROOT = resolve(import.meta.dirname, '../../..');
-const MIRROR = 'https://testnet.mirrornode.hedera.com';
-const USDC = '0.0.429274';
 const DRY = process.argv.includes('--dry-run');
 
 function readEnv(file: string): Map<string, string> {
@@ -36,6 +39,18 @@ function setEnv(file: string, key: string, value: string): void {
     : `${text.replace(/\n?$/, '\n')}${key}=${value}\n`;
   if (!DRY) writeFileSync(file, next, { mode: 0o600 });
 }
+
+const envFile = resolve(ROOT, '.env');
+const payoutFile = resolve(ROOT, '.env.payout');
+const env = readEnv(envFile);
+const payout = readEnv(payoutFile);
+
+const NETWORK = z
+  .enum(['testnet', 'mainnet'])
+  .parse([process.env.HEDERA_NETWORK, env.get('HEDERA_NETWORK')].find(Boolean) ?? 'testnet');
+const MIRROR = HEDERA_MIRROR[NETWORK];
+const USDC = USDC_ASSET[`hedera:${NETWORK}`];
+const hederaClient = () => (NETWORK === 'mainnet' ? Client.forMainnet() : Client.forTestnet());
 
 const mirrorAccount = z
   .object({ account: z.string(), balance: z.object({ balance: z.number() }) })
@@ -59,11 +74,6 @@ async function mirror<T extends z.ZodType>(
     throw error;
   }
 }
-
-const envFile = resolve(ROOT, '.env');
-const payoutFile = resolve(ROOT, '.env.payout');
-const env = readEnv(envFile);
-const payout = readEnv(payoutFile);
 
 const roles = [
   {
@@ -107,7 +117,7 @@ for (const role of roles) {
   const acct = await mirror(`/api/v1/accounts/${alias}`, mirrorAccount);
   if (!acct) {
     console.log(
-      `${role.name}: alias ${alias} has no account yet — fund it at portal.hedera.com/faucet`,
+      `${role.name}: alias ${alias} has no account yet — fund it${NETWORK === 'testnet' ? ' at portal.hedera.com/faucet' : ''}`,
     );
     continue;
   }
@@ -121,7 +131,7 @@ for (const role of roles) {
     `${role.name}: ${id} (alias ${alias}, ${hbar} ℏ) USDC ${associated ? 'associated' : 'NOT associated'}`,
   );
   if (!associated && !DRY) {
-    const client = Client.forTestnet().setOperator(AccountId.fromString(id), key);
+    const client = hederaClient().setOperator(AccountId.fromString(id), key);
     const tx = await new TokenAssociateTransaction()
       .setAccountId(id)
       .setTokenIds([TokenId.fromString(USDC)])
@@ -137,7 +147,7 @@ for (const role of roles) {
 if (apiOperator && !env.get('HCS_TOPIC_ID')) {
   if (DRY) console.log('hcs: would create the receipts topic with the api account as admin');
   else {
-    const client = Client.forTestnet().setOperator(
+    const client = hederaClient().setOperator(
       AccountId.fromString(apiOperator.id),
       apiOperator.key,
     );
@@ -149,7 +159,7 @@ if (apiOperator && !env.get('HCS_TOPIC_ID')) {
     const topic = receipt.topicId?.toString();
     if (!topic) throw new Error('topic create returned no id');
     setEnv(envFile, 'HCS_TOPIC_ID', topic);
-    console.log(`hcs: topic ${topic} created (https://hashscan.io/testnet/topic/${topic})`);
+    console.log(`hcs: topic ${topic} created (https://hashscan.io/${NETWORK}/topic/${topic})`);
     client.close();
   }
 } else if (env.get('HCS_TOPIC_ID'))

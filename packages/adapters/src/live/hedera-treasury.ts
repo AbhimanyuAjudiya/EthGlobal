@@ -1,4 +1,4 @@
-/** HederaTreasury (A-31, T-71): HTS TransferTransaction of USDC 0.0.429274 (6 dp) from the separate refund account. */
+/** HederaTreasury (A-31, T-71): HTS TransferTransaction of the network's USDC (6 dp) from the separate refund account. */
 import { AdapterError } from '../errors.js';
 import { assertRefund, type RefundInput } from '../treasury-rules.js';
 import { guard } from './errors.js';

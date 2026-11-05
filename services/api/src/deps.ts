@@ -28,7 +28,7 @@ import {
 import { MAX_MB_PER_PURCHASE, STEP_MB, isHederaNetwork, type Hex } from '@ethglobal/protocol/ids';
 import type { AcceptTemplate, RpContext } from '@ethglobal/protocol/schemas';
 
-import { buildAcceptTemplates, loadAddresses } from './accepts.js';
+import { addressesSlug, buildAcceptTemplates, loadAddresses } from './accepts.js';
 import { Admission, KeyedMutex, WindowLimiter } from './admission.js';
 import { AnomalyGuard } from './anomaly.js';
 import { LedgerHealth, MeCache, observedLedger } from './cache.js';
@@ -309,7 +309,7 @@ async function liveWiring(
     env.X402_FACILITATOR === 'self' && usdc !== undefined && env.RPC_URL !== undefined
       ? selfRun(env, env.RPC_URL, env.CHAIN, usdc, now)
       : undefined;
-  const slug = env.CHAIN === 296 ? 'hedera_testnet' : `chain${env.CHAIN}`;
+  const slug = addressesSlug(env.CHAIN);
   return {
     adapters: live,
     rpSigner: live.rpContext,

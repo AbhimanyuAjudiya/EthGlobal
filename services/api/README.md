@@ -79,7 +79,7 @@ ignored.
 ## Where Hedera lives in the code
 
 - `src/routes/claim.ts`: the x402 top-ups the agent pays from its Hedera wallet. `src/accepts.ts` builds the
-  `hedera:testnet` accept template (HTS USDC `0.0.429274`, `extra.feePayer` from the facilitator, 180 s).
+  `hedera:*` accept template (the network's HTS USDC: `0.0.429274` testnet, `0.0.456858` mainnet; `extra.feePayer` from the facilitator, 180 s).
 - `src/chain.ts`: `DataDrop.claim` from the attestor on Hedera EVM 296 in live (Anvil locally).
 - `src/flows/record.ts`, called from `fulfil.ts`, `gift.ts` and `reclaim.ts`: every receipt is also an HCS message
   (`claim`, `settle`, `gift`, `gift-claim`, `gift-reclaim`, `card-redeem`).

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { NETWORKS } from '@ethglobal/protocol/ids';
 
-import { buildAcceptTemplates, loadAddresses } from '../src/accepts.js';
+import { addressesSlug, buildAcceptTemplates, loadAddresses } from '../src/accepts.js';
 import { parseEnv } from '../src/env.js';
 import { harness } from './support/harness.js';
 
@@ -77,6 +77,42 @@ describe('accepts templates (A-20, A-21)', () => {
     expect(Buffer.from(res.headers.get('PAYMENT-REQUIRED') ?? '', 'base64').toString()).not.toMatch(
       /maxAmountRequired/,
     );
+  });
+
+  it('hedera:mainnet names HTS USDC 0.0.456858 (fee payer still pinned); eip155:8453 names Base USDC with the "USD Coin" domain', () => {
+    const sales = { SALES_ENABLED: 'true', LEGAL_MEMO_OK: 'true' };
+    const [hedera, base] = buildAcceptTemplates({
+      env: env('hedera:mainnet,eip155:8453', sales),
+      hederaFeePayer: '0.0.10571514',
+    });
+    expect(hedera).toMatchObject({
+      network: 'hedera:mainnet',
+      asset: '0.0.456858',
+      payTo: '0.0.5005',
+      maxTimeoutSeconds: 180,
+      extra: { feePayer: '0.0.10571514' },
+    });
+    expect(base).toMatchObject({
+      network: 'eip155:8453',
+      asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+      extra: { name: 'USD Coin', version: '2' },
+    });
+    expect(() =>
+      buildAcceptTemplates({
+        env: env('hedera:mainnet', { ...sales, X402_HEDERA_FEE_PAYER: '0.0.9185802' }),
+        hederaFeePayer: '0.0.10571514',
+      }),
+    ).toThrow(/fee payer/);
+  });
+
+  it('addressesSlug names the deploy file of known chains and falls back to chain<id>', () => {
+    expect([296, 295, 84532, 8453, 1].map(addressesSlug)).toEqual([
+      'hedera_testnet',
+      'hedera_mainnet',
+      'base_sepolia',
+      'base_mainnet',
+      'chain1',
+    ]);
   });
 
   it('loadAddresses reads deploy/addresses.<slug>.json and answers undefined for an unknown slug', () => {

@@ -7,10 +7,10 @@ import {
   HEDERA_MAX_TIMEOUT_S,
   NETWORKS,
   PAYMENT_VALIDITY_S,
-  USDC_ASSET,
   USDC_EIP712_DOMAIN,
   isEvmNetwork,
   isHederaNetwork,
+  usdcAssetFor,
 } from '@ethglobal/protocol/ids';
 import { acceptTemplateSchema, type AcceptTemplate } from '@ethglobal/protocol/schemas';
 
@@ -26,6 +26,15 @@ export const addressesSchema = z.object({
   attestor: z.string(),
 });
 export type DeployAddresses = z.infer<typeof addressesSchema>;
+
+/** `deploy/addresses.<slug>.json` slug per chain id (chains.json); other chains fall back to `chain<id>`. */
+const CHAIN_SLUGS: Readonly<Record<number, string>> = {
+  296: 'hedera_testnet',
+  295: 'hedera_mainnet',
+  84532: 'base_sepolia',
+  8453: 'base_mainnet',
+};
+export const addressesSlug = (chainId: number): string => CHAIN_SLUGS[chainId] ?? `chain${chainId}`;
 
 export function loadAddresses(slug: string): DeployAddresses | undefined {
   try {
@@ -69,8 +78,7 @@ export function buildAcceptTemplates(inputs: AcceptInputs): AcceptTemplate[] {
 function evmTemplate(network: string, { env, anvilUsdc }: AcceptInputs): AcceptTemplate {
   const domain = USDC_EIP712_DOMAIN[network];
   if (!domain) throw new Error(`accepts: no USDC EIP-712 domain for ${network} (A-21)`);
-  const asset =
-    network === NETWORKS.anvil ? anvilUsdc : (USDC_ASSET as Record<string, string>)[network];
+  const asset = network === NETWORKS.anvil ? anvilUsdc : usdcAssetFor(network);
   if (asset === undefined) throw new Error(`accepts: no USDC asset for ${network}`);
   return {
     scheme: 'exact',
@@ -93,10 +101,12 @@ function hederaTemplate(network: string, { env, hederaFeePayer }: AcceptInputs):
       `accepts: facilitator fee payer ${hederaFeePayer} ≠ pinned X402_HEDERA_FEE_PAYER`,
     );
   }
+  const asset = usdcAssetFor(network);
+  if (asset === undefined) throw new Error(`accepts: no USDC asset for ${network}`);
   return {
     scheme: 'exact',
     network,
-    asset: USDC_ASSET[NETWORKS.hederaTestnet],
+    asset,
     payTo: env.PAYOUT_HEDERA_ACCOUNT,
     maxTimeoutSeconds: HEDERA_MAX_TIMEOUT_S,
     extra: { feePayer: hederaFeePayer },

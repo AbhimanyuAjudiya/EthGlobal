@@ -36,6 +36,7 @@ import type {
 export const FACILITATOR_HOSTS = [
   'x402.org',
   'api.testnet.blocky402.com',
+  'api.blocky402.com',
   'testnet.facilitator.launa.dev',
   'localhost',
 ] as const;

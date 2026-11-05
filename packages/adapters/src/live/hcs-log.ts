@@ -14,7 +14,11 @@ import { checkedBaseUrl, joinUrl, withFetch } from './http.js';
 import type { ConsensusLog } from '../types.js';
 import type { HederaClientLike } from './hedera-sdk.js';
 
-export const HEDERA_TESTNET_MIRROR = 'https://testnet.mirrornode.hedera.com';
+/** Mirror node REST base per Hedera network (HEDERA_MIRROR_URL overrides). */
+export const HEDERA_MIRROR = {
+  testnet: 'https://testnet.mirrornode.hedera.com',
+  mainnet: 'https://mainnet.mirrornode.hedera.com',
+} as const;
 
 const page = z.object({
   messages: z

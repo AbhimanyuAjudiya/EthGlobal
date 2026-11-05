@@ -17,6 +17,7 @@ import {
   TESTNET_NETWORKS,
   USDC_ASSET,
   USDC_EIP712_DOMAIN,
+  usdcAssetFor,
   type Hex,
 } from '../src/ids.js';
 import { caipNetworkSchema, hcsMessageSchema } from '../src/schemas/index.js';
@@ -39,6 +40,15 @@ describe('ids', () => {
     expect(USDC_ASSET['hedera:testnet']).toBe('0.0.429274');
     expect(USDC_EIP712_DOMAIN['eip155:84532']).toEqual({ name: 'USDC', version: '2' });
     expect(USDC_EIP712_DOMAIN['eip155:31337']).toEqual({ name: 'USD Coin', version: '2' });
+  });
+
+  it('mainnet USDC: hedera:mainnet is HTS 0.0.456858, eip155:8453 is Base USDC; usdcAssetFor is undefined elsewhere', () => {
+    expect(USDC_ASSET['hedera:mainnet']).toBe('0.0.456858');
+    expect(USDC_ASSET['eip155:8453']).toBe('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913');
+    expect(usdcAssetFor('eip155:8453')).toBe(USDC_ASSET['eip155:8453']);
+    expect(usdcAssetFor('hedera:mainnet')).toBe('0.0.456858');
+    expect(usdcAssetFor('eip155:1')).toBeUndefined();
+    expect(USDC_EIP712_DOMAIN['eip155:8453']).toEqual({ name: 'USD Coin', version: '2' });
   });
 
   it('logical keys use the §9 prefixes and lower-case their hex parts', () => {

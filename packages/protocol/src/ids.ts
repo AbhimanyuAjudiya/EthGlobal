@@ -10,7 +10,9 @@ export const isHex = (value: unknown): value is Hex =>
 export const NETWORKS = {
   anvil: 'eip155:31337',
   baseSepolia: 'eip155:84532',
+  baseMainnet: 'eip155:8453',
   hederaTestnet: 'hedera:testnet',
+  hederaMainnet: 'hedera:mainnet',
 } as const;
 export type Network = (typeof NETWORKS)[keyof typeof NETWORKS];
 export const isEvmNetwork = (network: string): boolean => network.startsWith('eip155:');
@@ -26,8 +28,13 @@ export const USDC_DECIMALS = 6;
 /** Asset ids per network. Anvil's MockUSDC3009 comes from deploy/addresses.anvil.json at runtime. */
 export const USDC_ASSET = {
   [NETWORKS.baseSepolia]: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+  [NETWORKS.baseMainnet]: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
   [NETWORKS.hederaTestnet]: '0.0.429274', // HTS id, 6 decimals (A-20); EVM long-zero alias 0x0000000000000000000000000000000000068cDa (EIP-55; viem getAddress)
+  [NETWORKS.hederaMainnet]: '0.0.456858', // HTS id, 6 decimals; EVM long-zero alias 0x000000000000000000000000000000000006f89a
 } as const;
+/** USDC_ASSET by any network string; undefined where no USDC is pinned (Anvil's comes from the deploy file). */
+export const usdcAssetFor = (network: string): string | undefined =>
+  (USDC_ASSET as Record<string, string>)[network];
 /**
  * EIP-712 domain of USDC per EVM network (A-21). Circle's Base Sepolia USDC signs as name "USDC"; Ethereum, Base mainnet and
  * World Chain sign as "USD Coin"; version is "2" everywhere. The API copies this into accepts[].extra and every EVM signer takes
@@ -36,7 +43,7 @@ export const USDC_ASSET = {
 export const USDC_EIP712_DOMAIN: Readonly<Record<string, { name: string; version: string }>> = {
   [NETWORKS.anvil]: { name: 'USD Coin', version: '2' }, // MockUSDC3009 (§6.2)
   [NETWORKS.baseSepolia]: { name: 'USDC', version: '2' }, // 0x036CbD53842c5426634e7929541eC2318f3dCF7e
-  'eip155:8453': { name: 'USD Coin', version: '2' }, // Base mainnet; never advertised while SALES_ENABLED=false
+  [NETWORKS.baseMainnet]: { name: 'USD Coin', version: '2' }, // Base mainnet; never advertised while SALES_ENABLED=false
 };
 /** Hedera transactions are valid for at most 180 s (A-20): accepts[].maxTimeoutSeconds on hedera:* never exceeds this. */
 export const HEDERA_MAX_TIMEOUT_S = 180;

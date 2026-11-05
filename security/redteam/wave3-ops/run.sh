@@ -23,10 +23,16 @@ ok()      { echo "✓ $*"; pass=$((pass+1)); }
 finding() { echo "✗ RT-FINDING $1 ${2}_RTFINDING: $3"; fail=$((fail+1)); }
 regress() { echo "✗ REGRESSION: $*"; fail=$((fail+1)); }
 section() { echo; echo "── $* ──"; }
-port_listen() { # $1 port → "127.0.0.1" | "0.0.0.0" | "" (IPv4 listeners, /proc/net/tcp)
+port_listen() { # $1 port → "127.0.0.1" | "0.0.0.0" | "" (IPv4 listeners; /proc/net/tcp on Linux, lsof elsewhere)
   local hex; hex="$(printf '%04X' "$1")"
-  awk -v h=":$hex" 'NR>1 && $4=="0A" && substr($2, length($2)-4)==h {print $2}' /proc/net/tcp | head -1 |
-    awk -F: '{ if ($1=="00000000") print "0.0.0.0"; else if ($1=="0100007F") print "127.0.0.1"; else print $1 }'
+  if [[ -r /proc/net/tcp ]]; then
+    awk -v h=":$hex" 'NR>1 && $4=="0A" && substr($2, length($2)-4)==h {print $2}' /proc/net/tcp | head -1 |
+      awk -F: '{ if ($1=="00000000") print "0.0.0.0"; else if ($1=="0100007F") print "127.0.0.1"; else print $1 }'
+  elif command -v lsof >/dev/null 2>&1; then
+    lsof -nP -iTCP:"$1" -sTCP:LISTEN 2>/dev/null | awk 'NR>1 {print $9}' | grep -oE '^[^:]+' | sed 's/^\*$/0.0.0.0/' | head -1
+  else
+    echo "port_listen: no /proc/net/tcp and no lsof" >&2; echo ""
+  fi
 }
 ADDR="$ROOT/packages/contracts/deploy/addresses.anvil.json"
 backup_addresses()  { [[ -f "$ADDR" ]] && cp "$ADDR" "$RT_OUT/addresses.anvil.json.bak"; }

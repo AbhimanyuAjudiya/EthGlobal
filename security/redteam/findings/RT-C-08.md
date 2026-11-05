@@ -12,7 +12,7 @@ found_at: 2026-11-05T14:20+05:30
 due: before the first live DataDrop deploy on 296 (blocks runbook step 3)
 attack_test: n/a (tooling): the repro below is the runbook command itself
 regression_test: packages/contracts/test/regression/T09_HederaForgeSimulation.t.sol::test_Regression_RTC08_DeployHederaRunsUnderStandIns (with test_Regression_RTC08_PlainDeployRevertsOnLiveHederaCode, test_Regression_RTC08_DeployHederaRefusesOtherChains)
-fix_commit: (recorded by the follow-up commit)
+fix_commit: bb8abc2680d9a6528abddf5a6731fdb3a9902f5c
 verified_at:
 duplicate_of:
 sign_off:

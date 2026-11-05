@@ -100,15 +100,30 @@ gift is an HCS message.
 | Hedera Agent Kit 4.2.0 (`AgentMode.AUTONOMOUS`, `ASSOCIATE_TOKEN_TOOL`, `SUBMIT_TOPIC_MESSAGE_TOOL`, driven by code, no LLM tools) and the x402 Hedera client payload (`@x402/hedera`) | `services/agent/src/payers/hedera.ts`, `services/agent/src/receipts.ts`                                                                                                                         |
 | HCS-14 UAID (`uaid:aid:…`, conformance-tested against vectors recorded from `@hashgraphonline/standards-sdk@0.1.192`)                                                                  | `services/agent/src/identity.ts`, `packages/adapters/src/live/hcs14.ts`                                                                                                                         |
 
-| Artefact                                      | Value                                                                                |
-| --------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Live x402 endpoint                            | `https://<vps>/esim/topup`: TBD by human (Integrations, Fri 06:00)                   |
-| `DataDrop` (296)                              | TBD by human (Integrations, Wed 14:00) · HashScan link                               |
-| `Claimed` event (in-window)                   | TBD by human (Integrations, Fri 06:00) · HashScan link                               |
-| Human x402 settlement · agent x402 settlement | TBD by human (Integrations, Fri 06:00) · HashScan links                              |
-| HCS topic                                     | TBD by human (Integrations, Wed 14:00) · `https://hashscan.io/testnet/topic/<0.0.x>` |
-| Agent UAID                                    | TBD by human (Provisioning/Agent, Fri 14:00)                                         |
-| Video timestamp                               | TBD by human (Design/Producer, Fri 23:30)                                            |
+Payment flow (x402 v2 `exact` on `hedera:testnet`, one paid request):
+
+1. **Setup.** `MODE=live` with `X402_NETWORKS` including `hedera:testnet`, `X402_FACILITATOR=remote` (x402.org) and
+   `PAYOUT_HEDERA_ACCOUNT`; at boot the API reads the facilitator's `/supported` and takes `extra.feePayer` from it.
+2. **402.** `POST /gift` (or `GET /esim/topup`) without payment answers 402 with `PAYMENT-REQUIRED`: `hedera:testnet`,
+   asset `0.0.429274`, `400000` (0.40 USDC), payTo `0.0.11322453`, feePayer `0.0.9185802` (`accepts.ts`, `middleware/x402.ts`).
+3. **Pay.** The payer (the agent's Agent Kit wallet, `services/agent/src/payers/hedera.ts`, or HashPack in the PWA)
+   signs an HTS transfer with the fee payer as transaction payer and retries with `PAYMENT-SIGNATURE`.
+4. **Settle.** The API calls the facilitator's `/verify` and `/settle`; the facilitator co-signs and submits; the
+   paid request succeeds (201 on `/gift`) with `PAYMENT-RESPONSE` carrying the Hedera `transaction` id.
+5. **HCS receipt.** The API writes the receipt to topic `0.0.11322448` (`flows/record.ts`); the agent adds `agent-topup`.
+
+| Artefact                                    | Value                                                                                                                                                                                                                                                       |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Live x402 endpoints                         | `https://api.recharge.ajudiya.com/gift` · `https://api.recharge.ajudiya.com/esim/topup` (`GET /healthz` → `mode: live`, `chainId: 296`)                                                                                                                     |
+| `DataDrop` (Hedera EVM 296)                 | [`0x2d4d52989545FF0d0CD91D77A33f14063f57c9E6`](https://hashscan.io/testnet/contract/0x2d4d52989545FF0d0CD91D77A33f14063f57c9E6) · deploy tx [`0x234ec50e…1304b`](https://hashscan.io/testnet/transaction/0x234ec50e7187d149fdd4d26b508c579273672f0a9c81553b45c862e61781304b) |
+| `Claimed` event (pre-kickoff)               | [`0xec5f963f…86c53`](https://hashscan.io/testnet/transaction/0xec5f963f2bacf55c8c408d4d699650197f19077dbfa209b723039ad75f886c53) (paid 500000, hello campaign)                                                                                              |
+| Settlement asset                            | HTS USDC [`0.0.429274`](https://hashscan.io/testnet/token/0.0.429274)                                                                                                                                                                                       |
+| Facilitator · fee payer                     | x402.org (`https://x402.org/facilitator`) · [`0.0.9185802`](https://hashscan.io/testnet/account/0.0.9185802)                                                                                                                                                |
+| Settled x402 payment                        | [`0.0.9185802@1793882124.642565779`](https://hashscan.io/testnet/transaction/0.0.9185802@1793882124.642565779): `POST /gift` to `re-charge.eth`, 0.40 USDC from `0.0.11320978` to `0.0.11322453`, Thu 5 Nov 18:05 IST. This is the **pre-kickoff** pay-flow proof (`docs/DISCLOSURE.md` §2), not an in-window payment |
+| HCS receipts topic                          | [`0.0.11322448`](https://hashscan.io/testnet/topic/0.0.11322448); the receipt for the payment above is seq 3 (`t: gift`, gift `0xd8462ad9…`)                                                                                                               |
+| Agent UAID (HCS-14, self-issued, not registered) | `uaid:aid:q4YxqiHBaGpeMoD1gvzCVQ6k6WtBLutszq5Ked4Y23g5HvFeFU83agQ7UovrE8RWd;uid=0;registry=hedera;proto=x402;nativeId=hedera:testnet:0.0.11320978`                                                                                                     |
+| Autonomous agent top-up (in-window)         | pending — being run now                                                                                                                                                                                                                                     |
+| Video timestamp                             | TBD by human (Design/Producer, Fri 23:30)                                                                                                                                                                                                                   |
 
 ## World
 

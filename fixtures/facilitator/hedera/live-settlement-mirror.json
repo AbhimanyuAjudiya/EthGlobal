@@ -1,0 +1,85 @@
+{
+  "name": "live-settlement-mirror",
+  "recordedAt": "2026-11-05T12:37:00.024Z",
+  "source": "live",
+  "exchanges": [
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.9185802-1793882124-642565779",
+        "headers": {}
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "access-control-allow-origin": "*",
+          "access-control-expose-headers": "x-cluster-id",
+          "alt-svc": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000",
+          "cache-control": "public, max-age=600",
+          "content-length": "969",
+          "content-type": "application/json; charset=utf-8",
+          "date": "Thu, 05 Nov 2026 12:36:59 GMT",
+          "etag": "W/\"3c9-+0u7APlmjWgpjmd0GG3aGXubWOU\"",
+          "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+          "vary": "Accept-Encoding",
+          "via": "1.1 google",
+          "x-cluster-id": "4527bd0"
+        },
+        "body": {
+          "transactions": [
+            {
+              "batch_key": null,
+              "bytes": null,
+              "charged_tx_fee": 1524889,
+              "consensus_timestamp": "1793882133.351157835",
+              "entity_id": null,
+              "high_volume": false,
+              "high_volume_pricing_multiplier": 0,
+              "max_fee": "100000000",
+              "max_custom_fees": [],
+              "memo_base64": "",
+              "name": "CRYPTOTRANSFER",
+              "nft_transfers": [],
+              "node": "0.0.7",
+              "nonce": 0,
+              "parent_consensus_timestamp": null,
+              "result": "SUCCESS",
+              "scheduled": false,
+              "staking_reward_transfers": [],
+              "token_transfers": [
+                {
+                  "token_id": "0.0.429274",
+                  "account": "0.0.11320978",
+                  "amount": -400000,
+                  "is_approval": false
+                },
+                {
+                  "token_id": "0.0.429274",
+                  "account": "0.0.11322453",
+                  "amount": 400000,
+                  "is_approval": false
+                }
+              ],
+              "transaction_hash": "PWECYNNnlmIVHt8zXnwhqmsMXC+uvzDc+ZDuVDrXntwHlCL1AnPHvzHB1Vp327n4",
+              "transaction_id": "0.0.9185802-1793882124-642565779",
+              "transfers": [
+                {
+                  "account": "0.0.802",
+                  "amount": 1524889,
+                  "is_approval": false
+                },
+                {
+                  "account": "0.0.9185802",
+                  "amount": -1524889,
+                  "is_approval": false
+                }
+              ],
+              "valid_duration_seconds": "120",
+              "valid_start_timestamp": "1793882124.642565779"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

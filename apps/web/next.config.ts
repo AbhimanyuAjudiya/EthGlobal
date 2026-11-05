@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import type { NextConfig } from 'next';
@@ -11,6 +12,21 @@ try {
   process.loadEnvFile(path.join(repoRoot, '.env'));
 } catch (error) {
   if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+}
+
+// MODE=local: the sponsor console's DataDrop falls back to the dev chain's deploy record (packages/contracts/deploy/
+// addresses.anvil.json — git-ignored, written by `pnpm dev:chain`). It is filled into NEXT_PUBLIC_DATADROP_ADDRESS here,
+// never imported from lib/, so a clone without it still builds and a live bundle cannot carry it (RT-W-12). Read once,
+// when the build or dev server starts: start the chain first, or restart `next dev`. An explicit value wins.
+if (process.env.NEXT_PUBLIC_MODE === 'local' && !process.env.NEXT_PUBLIC_DATADROP_ADDRESS) {
+  try {
+    const anvil = JSON.parse(
+      readFileSync(path.join(repoRoot, 'packages/contracts/deploy/addresses.anvil.json'), 'utf8'),
+    ) as { dataDrop?: string };
+    if (anvil.dataDrop) process.env.NEXT_PUBLIC_DATADROP_ADDRESS = anvil.dataDrop;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
 }
 
 const nextConfig: NextConfig = {

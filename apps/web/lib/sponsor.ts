@@ -1,13 +1,13 @@
 /**
  * The sponsor's own transactions (from the sponsor's wallet, never the API's keys): USDC approve,
  * DataDrop.createCampaign, pause, refund — plus the EIP-712 SponsorLogin the API checks on POST /sponsor and
- * GET /sponsor/:id. ABIs from @ethglobal/contracts/abi; addresses from NEXT_PUBLIC_DATADROP_ADDRESS or, in
- * MODE=local, deploy/addresses.anvil.json.
+ * GET /sponsor/:id. ABIs from @ethglobal/contracts/abi; the address from NEXT_PUBLIC_DATADROP_ADDRESS, which
+ * next.config.ts fills from deploy/addresses.anvil.json in MODE=local (never imported here: the file is git-ignored
+ * and must stay out of a live bundle, RT-W-12).
  */
 import { encodeFunctionData, parseAbi, type Abi, type Address } from 'viem';
 
 import DataDropAbi from '@ethglobal/contracts/abi/DataDrop.json';
-import anvilAddresses from '@ethglobal/contracts/addresses/anvil.json';
 import type { Hex } from '@ethglobal/protocol/ids';
 import { rechargeDomain, SPONSOR_LOGIN_TYPES } from '@ethglobal/protocol/typed-data';
 
@@ -18,10 +18,13 @@ const DATADROP = DataDropAbi as Abi;
 const ERC20 = parseAbi(['function approve(address spender, uint256 amount) returns (bool)']);
 
 export function dataDropAddress(): Address {
-  const address =
-    config.dataDropAddress ||
-    (process.env.NEXT_PUBLIC_MODE === 'local' ? anvilAddresses.dataDrop : '');
-  if (!/^0x[0-9a-fA-F]{40}$/.test(address)) throw new Error('DataDrop address is not configured');
+  const address = config.dataDropAddress;
+  if (!/^0x[0-9a-fA-F]{40}$/.test(address))
+    throw new Error(
+      process.env.NEXT_PUBLIC_MODE === 'local'
+        ? 'DataDrop address is not configured: run `pnpm dev:chain`, then rebuild or restart the web app'
+        : 'DataDrop address is not configured',
+    );
   return address as Address;
 }
 

@@ -3,6 +3,8 @@
  * Anvil #3 (the demo sponsor wallet), then POST /sponsor signed with SponsorLogin. Shared by the suite's global setup
  * and the red-team seeds (test/redteam/rt-seed.ts), so both exercise the console's own path.
  */
+import { createRequire } from 'node:module';
+
 import {
   createPublicClient,
   createWalletClient,
@@ -16,7 +18,6 @@ import { mnemonicToAccount } from 'viem/accounts';
 import { foundry } from 'viem/chains';
 
 import DataDropAbi from '@ethglobal/contracts/abi/DataDrop.json' with { type: 'json' };
-import anvil from '@ethglobal/contracts/addresses/anvil.json' with { type: 'json' };
 import { httpJson } from '@ethglobal/protocol/http';
 import { rechargeDomain, SPONSOR_LOGIN_TYPES } from '@ethglobal/protocol/typed-data';
 
@@ -24,6 +25,12 @@ import { ANVIL_MNEMONIC, API_URL, RPC_URL } from './env';
 
 const ERC20 = parseAbi(['function approve(address spender, uint256 amount) returns (bool)']);
 const DAY_S = 86_400n;
+// The deploy record is git-ignored (written by `pnpm dev:chain`): required at run time, never imported, so lint,
+// typecheck and `next build` do not need the chain to have run.
+const anvil = createRequire(import.meta.url)('@ethglobal/contracts/addresses/anvil.json') as {
+  dataDrop: Address;
+  usdc: Address;
+};
 
 export const chainReader = createPublicClient({ chain: foundry, transport: http(RPC_URL) });
 
@@ -46,16 +53,16 @@ export async function registerCampaign(seed: CampaignSeed): Promise<Hex> {
     `0x${sponsor.address.slice(2).toLowerCase()}00000000${seed.salt.toString(16).padStart(16, '0').slice(-16)}` as Hex;
   await chainReader.waitForTransactionReceipt({
     hash: await wallet.writeContract({
-      address: anvil.usdc as Address,
+      address: anvil.usdc,
       abi: ERC20,
       functionName: 'approve',
-      args: [anvil.dataDrop as Address, seed.budget],
+      args: [anvil.dataDrop, seed.budget],
     }),
   });
   const expiresAtS = (await chainReader.getBlock()).timestamp + BigInt(seed.expiresInDays) * DAY_S;
   await chainReader.waitForTransactionReceipt({
     hash: await wallet.writeContract({
-      address: anvil.dataDrop as Address,
+      address: anvil.dataDrop,
       abi: DataDropAbi as Abi,
       functionName: 'createCampaign',
       args: [id, seed.budget, 500_000n, 120, expiresAtS],

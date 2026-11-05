@@ -27,8 +27,9 @@ octroi or services.
 
 Public (inlined at build time): `NEXT_PUBLIC_MODE` (`local` compiles in the demo wallet and the simulated World ID),
 `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_ANVIL_RPC_URL`, `NEXT_PUBLIC_WORLD_APP_ID|ACTION|ENVIRONMENT`,
-`NEXT_PUBLIC_EXPLORER_EVM|HEDERA`, `NEXT_PUBLIC_ARKIV_EXPLORER`, `NEXT_PUBLIC_DATADROP_ADDRESS` (live; local reads
-`deploy/addresses.anvil.json`), `NEXT_PUBLIC_CHAIN_ID`, `NEXT_PUBLIC_ATTACH_MEDIAN_S`, `NEXT_PUBLIC_PUBLIC_ORIGIN`
+`NEXT_PUBLIC_EXPLORER_EVM|HEDERA`, `NEXT_PUBLIC_ARKIV_EXPLORER`, `NEXT_PUBLIC_DATADROP_ADDRESS` (live; in local
+next.config.ts fills it from `deploy/addresses.anvil.json` once `pnpm dev:chain` has written it), `NEXT_PUBLIC_CHAIN_ID`,
+`NEXT_PUBLIC_ATTACH_MEDIAN_S`, `NEXT_PUBLIC_PUBLIC_ORIGIN`
 (the host printed QR codes encode; required outside local). Server-only: `DEMO_WALLET_MNEMONIC` (local only),
 `PRINT_TOKEN` (≥ 16 chars), `PRINT_CARDS_FILE`.
 

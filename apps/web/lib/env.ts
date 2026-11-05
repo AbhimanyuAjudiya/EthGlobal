@@ -44,7 +44,7 @@ export const config = {
   arkivExplorer: process.env.NEXT_PUBLIC_ARKIV_EXPLORER ?? 'https://rabdi.explorer.arkiv.network',
   /** Wednesday's measured median attach time in seconds; empty → the "1–3 min" range is shown. */
   attachMedianS: Number(process.env.NEXT_PUBLIC_ATTACH_MEDIAN_S ?? '') || undefined,
-  /** DataDrop for the sponsor's createCampaign; local falls back to deploy/addresses.anvil.json. */
+  /** DataDrop for the sponsor's createCampaign; in MODE=local next.config.ts fills it from deploy/addresses.anvil.json. */
   dataDropAddress: process.env.NEXT_PUBLIC_DATADROP_ADDRESS ?? '',
   chainId,
 } as const;

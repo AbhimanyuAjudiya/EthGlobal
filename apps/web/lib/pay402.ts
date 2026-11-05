@@ -30,7 +30,7 @@ import {
   type PaymentSigner,
 } from '@ethglobal/protocol/x402';
 
-import { ApiError, call, requestId, toApiError } from './api';
+import { ApiError, call, ENTITLE_TIMEOUT_MS, requestId, toApiError } from './api';
 import { config } from './env';
 import { isUserRejection, type Wallet } from './wallet';
 
@@ -181,6 +181,8 @@ export async function pay<T>(
     now: () => Date.now() + skew,
     keccak256,
     ...(sessionPubKey ? { sessionPubKey } : {}),
+    // the settled request runs the facilitator's receipt wait and the reseller order before it answers (RT-W-13)
+    timeoutMs: ENTITLE_TIMEOUT_MS,
   });
   const text = await result.response.text();
   const body: unknown = text ? JSON.parse(text) : undefined;

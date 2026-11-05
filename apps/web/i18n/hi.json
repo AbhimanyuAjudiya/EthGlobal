@@ -240,5 +240,8 @@
   "error.pass_required": "खरीदने से पहले आपके एजेंट को आपकी World ID स्वीकृति चाहिए।",
   "error.idp_unavailable": "World ID जवाब नहीं दे रहा। कुछ नहीं बदला।",
   "error.internal_error": "सर्वर इस अनुरोध पर विफल रहा। कुछ नहीं बदला।",
-  "error.network": "Recharge तक नहीं पहुँच पा रहे। अपना कनेक्शन जाँचें।"
+  "error.network": "Recharge तक नहीं पहुँच पा रहे। अपना कनेक्शन जाँचें।",
+  "verify.checkingLong": "चेन पर क्लेम और आपकी eSIM तैयार हो रही है · {elapsed} · इसमें एक मिनट लग सकता है",
+  "verify.unconfirmed": "Recharge ने समय पर जवाब नहीं दिया। आपका क्लेम शायद हमारी तरफ़ पूरा हो गया हो। फिर कोशिश करने से पहले अपने प्लान देखें — एक ही World ID दो बार क्लेम नहीं कर सकता।",
+  "verify.checkPlans": "मेरे प्लान देखें"
 }

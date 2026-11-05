@@ -240,5 +240,8 @@
   "error.pass_required": "Your agent needs your World ID approval before it can buy.",
   "error.idp_unavailable": "World ID is not answering. Nothing changed.",
   "error.internal_error": "The server failed on this request. Nothing changed.",
-  "error.network": "Can't reach Recharge. Check your connection."
+  "error.network": "Can't reach Recharge. Check your connection.",
+  "verify.checkingLong": "Claiming on-chain and preparing your eSIM · {elapsed} · this can take a minute",
+  "verify.unconfirmed": "Recharge didn't answer in time. Your claim may still have gone through on our side. Check your plans before trying again — the same World ID can't claim twice.",
+  "verify.checkPlans": "Check my plans"
 }

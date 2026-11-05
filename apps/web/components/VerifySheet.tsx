@@ -25,6 +25,8 @@ type Phase =
   | { kind: 'ready' }
   | { kind: 'waiting'; since: number; connectorURI?: string }
   | { kind: 'checking'; since: number }
+  /** The claim request died (timeout, network) after the proof left: the API may have served it (RT-W-13). */
+  | { kind: 'unconfirmed' }
   | { kind: 'failed' }
   | { kind: 'seen' }
   | { kind: 'noCredential' }
@@ -32,6 +34,8 @@ type Phase =
   | { kind: 'closed'; retryS: number; message: string };
 
 const SEED_KEY = 'recharge.sim.seed';
+/** Past this the "Checking" line says what is running (chain claim + eSIM order) and that it takes a while. */
+export const SLOW_CLAIM_MS = 10_000;
 
 /** One simulated human per browser profile, so a second claim from the same browser replays the nullifier. */
 function simulatedSeed(): string {
@@ -141,9 +145,12 @@ export function VerifySheet() {
           you: '$0.00',
           sponsor: campaign.name,
         });
+        // 201 and 202 deliver the same way: a pending profile has no LPA yet and /plan says so (T-25)
         router.push(planHref(key));
       } catch (e) {
-        fail(e);
+        // no answer is not "nothing happened": the API keeps claiming after the socket drops (RT-W-13)
+        if (e instanceof ApiError && e.code === 'network') setPhase({ kind: 'unconfirmed' });
+        else fail(e);
       }
     },
     [plans, router, fail],
@@ -202,10 +209,22 @@ export function VerifySheet() {
     case 'checking':
       status = (
         <p role="status" lang={lang}>
-          {t('verify.checking', {
+          {t(now - phase.since >= SLOW_CLAIM_MS ? 'verify.checkingLong' : 'verify.checking', {
             elapsed: `${Math.max(1, Math.round((now - phase.since) / 1000))} s`,
           })}
         </p>
+      );
+      break;
+    case 'unconfirmed':
+      status = (
+        <div role="status" data-testid="claim-unconfirmed">
+          <p lang={lang}>{t('verify.unconfirmed')}</p>
+          <p className="quiet-rows">
+            <Link href="/plan" prefetch={false}>
+              {t('verify.checkPlans')}
+            </Link>
+          </p>
+        </div>
       );
       break;
     case 'failed':

@@ -43,6 +43,16 @@ export class ApiError extends Error {
 
 const ERROR_STATUSES = [400, 401, 402, 404, 409, 410, 423, 429, 500, 502, 503];
 
+/**
+ * The entitling routes (/claim, /card/redeem, /gift/claim and the paid settlements) answer only after the API's own
+ * step budgets have run: DataDrop read + simulate + send ≤ 60 s (viem http 10 s × retry 1, 20 s send) plus the receipt
+ * wait (seconds on Hedera/Base, capped at 180 s), the reseller order (≤ 30 s of status polls, 10 s per call) and the
+ * ledger and HCS writes. A live Orb claim answered 202 after 64.5 s and the former 30 s client timeout rendered it as
+ * "check your connection" (RT-W-13). 180 s covers the sum of the nominal budgets with margin; past it the sheet says
+ * the claim may have gone through (the API never serves the same human twice).
+ */
+export const ENTITLE_TIMEOUT_MS = 180_000;
+
 const isErrorCode = (value: unknown): value is ErrorCode =>
   typeof value === 'string' && value in ERROR_CODES;
 
@@ -78,6 +88,8 @@ interface CallOptions<T> {
   schema?: z.ZodType<T>;
   /** Statuses returned to the caller instead of thrown (e.g. 402 for a quote). */
   accept?: number[];
+  /** Default 30 s (a cheap call); the entitling routes pass ENTITLE_TIMEOUT_MS. */
+  timeoutMs?: number;
 }
 
 export async function call<T>(
@@ -91,7 +103,7 @@ export async function call<T>(
       headers: { [REQUEST_ID_HEADER]: requestId(), ...opts.headers },
       ...(opts.body === undefined ? {} : { body: opts.body }),
       allowStatus: [...ERROR_STATUSES, 202, 201, 204],
-      timeoutMs: 30_000,
+      timeoutMs: opts.timeoutMs ?? 30_000,
     });
     if (res.status >= 400 && !accept.includes(res.status))
       throw toApiError(res.status, res.data, res.headers);
@@ -128,7 +140,7 @@ export const api = {
     campaignId: Hex;
     challenge: ChallengeWire;
     sessionPubKey: Hex;
-  }) => call('/claim', { body, schema: entitledResponseSchema }),
+  }) => call('/claim', { body, schema: entitledResponseSchema, timeoutMs: ENTITLE_TIMEOUT_MS }),
   me: async (key: string, refresh = false) =>
     (await call(`/me/${enc(key)}${refresh ? '?refresh=1' : ''}`, { schema: meResponseSchema }))
       .data,
@@ -137,11 +149,11 @@ export const api = {
   card: async (serial: string) =>
     (await call(`/card/${enc(serial)}`, { schema: cardPreviewSchema })).data,
   redeemCard: (body: { pin: string; challenge: ChallengeWire; sessionPubKey: Hex }) =>
-    call('/card/redeem', { body, schema: entitledResponseSchema }),
+    call('/card/redeem', { body, schema: entitledResponseSchema, timeoutMs: ENTITLE_TIMEOUT_MS }),
   /** The quote: 402 = the name resolves and the price is known; 404 name_unresolved before any 402 (T-43). */
   giftQuote: (name: string, mb: number) => call('/gift', { body: { name, mb }, accept: [402] }),
   giftClaim: (body: Record<string, unknown>) =>
-    call('/gift/claim', { body, schema: entitledResponseSchema }),
+    call('/gift/claim', { body, schema: entitledResponseSchema, timeoutMs: ENTITLE_TIMEOUT_MS }),
   giftReclaim: (body: Record<string, unknown>) =>
     call('/gift/reclaim', { body, schema: giftReclaimResponseSchema }),
   agentPolicy: async (key: string) =>

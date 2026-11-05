@@ -13,6 +13,9 @@ password manager, never into a file that git tracks. `.env` is git-ignored. Chec
 before writing into it. A command that needs a secret reads it from `.env` (or the VPS env), loaded with
 `set -a; source .env; set +a`. Never type a secret inline as `KEY=… command`: it lands in shell history and `ps`.
 
+**The VPS** is built by `ops/vps/bootstrap.sh` in one command (`https://$DOMAIN` web, `https://api.$DOMAIN` API, the
+agent; Caddy HTTPS, hardened systemd units): the recipe and the live `.env` names are in `ops/vps/README.md`.
+
 ---
 
 ## 0. Once per machine (Wed morning)

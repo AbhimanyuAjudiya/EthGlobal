@@ -3,6 +3,8 @@ export const ERROR_CODES = {
   invalid_request: 400,
   invalid_proof: 401,
   unauthorized: 401,
+  /** The agent policy has no armed World ID Agent Pass (docs/WORLD_AGENT_PASS.md); refused before any 402. */
+  pass_required: 403,
   payment_required: 402,
   invalid_payment: 402,
   settlement_failed: 402,
@@ -23,6 +25,8 @@ export const ERROR_CODES = {
   reseller_unavailable: 503,
   facilitator_unavailable: 503,
   chain_unavailable: 503,
+  /** World IdP (auth.world.org) did not answer or refused the client: the pass attempt did not start. */
+  idp_unavailable: 503,
   internal_error: 500,
 } as const;
 

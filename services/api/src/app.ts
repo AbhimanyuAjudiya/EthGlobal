@@ -14,6 +14,7 @@ import { accessLog, bodyLimit, cors, requestId, securityHeaders } from './middle
 import { idempotency } from './middleware/idempotency.js';
 import { rateLimit } from './middleware/rate-limit.js';
 import { openApiDocument } from './openapi.js';
+import { registerAgentPass } from './routes/agent-pass.js';
 import { registerAgentPolicy } from './routes/agent-policy.js';
 import { registerClaim } from './routes/claim.js';
 import { registerFacilitator } from './routes/facilitator.js';
@@ -79,6 +80,7 @@ export function createApp(deps: Deps, options: AppOptions = {}) {
   registerMe(app, deps);
   registerSponsor(app, deps);
   registerAgentPolicy(app, deps);
+  registerAgentPass(app, deps);
   registerFacilitator(app, deps);
   const document = openApiDocument();
   app.get('/openapi.json', (c) => c.json(document));
@@ -101,6 +103,44 @@ export function createApp(deps: Deps, options: AppOptions = {}) {
     app.get('/__local/ledger', async (c) => {
       const entities = await deps.adapters.ledger.query({ limit: LOCAL_LEDGER_DUMP_MAX });
       return c.json({ count: entities.length, entities });
+    });
+    // The simulated World ID Agent Pass (docs/WORLD_AGENT_PASS.md; only with WORLD_AGENT_PASS_CLIENT_ID=simulated):
+    // the "phone" page the QR / verification URL opens (approve or deny this user code), and the script the next
+    // device attempt follows (e2e: approve | deny | expire before the agent runs).
+    app.get('/__local/agent-pass/:code', (c) => {
+      const sim = deps.agentPass?.sim;
+      if (!sim) throw fail('not_found');
+      const outcome = c.req.query('outcome') === 'deny' ? 'deny' : 'approve';
+      const ok = sim.resolve(c.req.param('code'), outcome);
+      c.get('log').warn(
+        { event: 'seed-hook', hook: 'agent-pass', outcome, ok },
+        'simulated Agent Pass',
+      );
+      return c.json({ simulated: true, outcome, resolved: ok });
+    });
+    app.post('/__local/agent-pass', async (c) => {
+      const sim = deps.agentPass?.sim;
+      if (!sim) throw fail('not_found');
+      const body = (await c.req.json().catch(() => ({}))) as {
+        outcome?: unknown;
+        expiresInS?: unknown;
+      };
+      const outcome = (['pending', 'approve', 'deny', 'expire'] as const).find(
+        (o) => o === body.outcome,
+      );
+      if (!outcome) throw fail('invalid_request');
+      const expiresInS =
+        typeof body.expiresInS === 'number' &&
+        Number.isInteger(body.expiresInS) &&
+        body.expiresInS > 0
+          ? Math.min(body.expiresInS, 1200)
+          : undefined;
+      sim.script = { outcome, ...(expiresInS === undefined ? {} : { expiresInS }) };
+      c.get('log').warn(
+        { event: 'seed-hook', hook: 'agent-pass', outcome },
+        'simulated Agent Pass scripted',
+      );
+      return c.json({ simulated: true, outcome });
     });
     // The PWA's "Simulated World ID" button: an IDKit-4-shaped result bound to the challenge signal, so the
     // browser never builds a proof itself (MODE=local only; the route does not exist in live).

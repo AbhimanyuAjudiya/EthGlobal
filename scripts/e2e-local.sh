@@ -206,7 +206,8 @@ echo "PASS setup: anvil on $RPC_URL, contracts deployed ($(elapsed) ms)"
 # 2. the API (local mode: Anvil + mocks, self-run facilitator; no other network). HOST stays loopback (RT-P-01).
 # shellcheck disable=SC2016
 spawn_group api "$OUT/api.log" bash -c 'cd "$0" && exec "$@"' "$API" env MODE=local HOST=127.0.0.1 X402_FACILITATOR=self RESELLER=mock \
-  ANVIL_RPC_URL="$RPC_URL" PORT="$API_PORT" LOG_LEVEL=info TRUST_PROXY=1 CAMPAIGN_ID= "$TSX" src/index.ts
+  ANVIL_RPC_URL="$RPC_URL" PORT="$API_PORT" LOG_LEVEL=info TRUST_PROXY=1 CAMPAIGN_ID= \
+  WORLD_AGENT_PASS_CLIENT_ID=simulated WORLD_AGENT_PASS_CLIENT_SECRET="${E2E_AGENT_PASS_SECRET:-e2e-simulated}" "$TSX" src/index.ts
 API_PID=$SPAWNED
 for _ in $(seq 1 300); do
   curl -fsS "$API_URL/healthz" >/dev/null 2>&1 && break
@@ -224,7 +225,32 @@ else
   cat "$OUT/seed.log"; echo "FAIL seed (demo-seed.ts)"; exit 1
 fi
 
-# 4. I-10: the agent's --once pass against this API (before the flow's time travel ages the seeded plan)
+# 3b. I-21 World ID Agent Pass (docs/WORLD_AGENT_PASS.md) against the simulated World IdP (MODE=local only): a denied
+# and an expired checkpoint leave the agent's top-up refused with 403 pass_required BEFORE any 402; then the next
+# attempt is scripted to approve, so the I-10 agent below hits 403, runs the checkpoint, is approved and buys once.
+PAID_KEY="$(grep -o '"paid": *"[^"]*"' "$OUT/keys.json" | head -1 | sed 's/.*: *"//; s/"$//')"
+[[ -n "$PAID_KEY" ]] || { echo "FAIL I-21 agent pass: no paid key in $OUT/keys.json"; exit 1; }
+PAID_KEY_ENC="${PAID_KEY//:/%3A}"
+PASS_URL="$API_URL/agent/policy/$PAID_KEY_ENC/pass"
+pass_round() { # $1 outcome the simulator follows for the next attempt → prints the poll answer
+  curl -fsS -X POST -H 'content-type: application/json' --data "{\"outcome\":\"$1\"}" "$API_URL/__local/agent-pass" >/dev/null \
+    || { echo "FAIL I-21 agent pass: could not script $1"; exit 1; }
+  curl -fsS -X POST "$PASS_URL/start" | grep -q '"user_code"' || { echo "FAIL I-21 agent pass: start ($1)"; exit 1; }
+  curl -fsS -X POST "$PASS_URL/poll"
+}
+agent_topup_status() { curl -sS -o /dev/null -w '%{http_code}' -H 'X-Agent-Uaid: uaid:aid:e2e' "$API_URL/esim/topup?key=$PAID_KEY_ENC&mb=100"; }
+pass_round deny | grep -q '"state":"denied"' || { echo "FAIL I-21 agent pass: deny did not end as denied"; exit 1; }
+STATUS="$(agent_topup_status)"
+[[ "$STATUS" == 403 ]] || { echo "FAIL I-21 agent pass: agent top-up after deny answered $STATUS, want 403 pass_required"; exit 1; }
+pass_round expire | grep -q '"state":"expired"' || { echo "FAIL I-21 agent pass: expire did not end as expired"; exit 1; }
+STATUS="$(agent_topup_status)"
+[[ "$STATUS" == 403 ]] || { echo "FAIL I-21 agent pass: agent top-up after expiry answered $STATUS, want 403 pass_required"; exit 1; }
+curl -fsS -X POST -H 'content-type: application/json' --data '{"outcome":"approve"}' "$API_URL/__local/agent-pass" >/dev/null \
+  || { echo "FAIL I-21 agent pass: could not script approve"; exit 1; }
+echo "PASS I-21 agent pass (simulated World IdP): deny → denied + 403, expire → expired + 403, approve scripted for I-10 ($(elapsed) ms)"
+
+# 4. I-10: the agent's --once pass against this API (before the flow's time travel ages the seeded plan); with the
+# simulated Agent Pass on, its first buy is 403 pass_required, the checkpoint approves at the first poll, then it buys
 "$SCRIPTS_TSX" "$ROOT/scripts/e2e-agent.ts"
 
 # 5. the flow, headless (I-0…I-18)

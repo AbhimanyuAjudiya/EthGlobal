@@ -67,6 +67,14 @@ export const hcsMessageSchema = z.discriminatedUnion('t', [
     mb: mbSchema,
     reason: z.enum(['threshold', 'expiry']),
   }),
+  /** The agent's World ID Agent Pass checkpoint (docs/WORLD_AGENT_PASS.md): one line per state change, no URL. */
+  z.object({
+    ...hcsBase,
+    t: z.literal('agent-pass'),
+    uaid: z.string().max(200),
+    state: z.enum(['pending', 'approved', 'denied', 'expired']),
+    code: z.string().max(32).optional(),
+  }),
 ]);
 export type HcsMessage = z.infer<typeof hcsMessageSchema>;
 

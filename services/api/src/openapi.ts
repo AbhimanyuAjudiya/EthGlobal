@@ -7,6 +7,8 @@
 import { z } from 'zod';
 
 import {
+  agentPassPollSchema,
+  agentPassStartSchema,
   agentPolicyPutSchema,
   agentPolicyViewSchema,
   cardPreviewSchema,
@@ -111,12 +113,14 @@ export const OPERATIONS: readonly Operation[] = [
   {
     method: 'get',
     path: '/esim/topup',
-    summary: 'Paid top-up of a live entitlement (x402)',
+    summary:
+      'Paid top-up of a live entitlement (x402); an agent under a policy needs an armed World ID Agent Pass (403 pass_required before any 402)',
     query: topUpQuerySchema,
     headers: ['PAYMENT-SIGNATURE', 'X-Agent-Uaid'],
     responses: {
       200: topUpResponseSchema,
       402: paymentRequiredSchema,
+      403: errorBodySchema,
       404: errorBodySchema,
       410: errorBodySchema,
       429: errorBodySchema,
@@ -248,9 +252,25 @@ export const OPERATIONS: readonly Operation[] = [
   {
     method: 'get',
     path: '/agent/policy/{key}',
-    summary: 'Read the agent policy',
+    summary: 'Read the agent policy (with its World ID Agent Pass state when the feature is on)',
     params: ['key'],
     responses: { 200: agentPolicyViewSchema, 404: errorBodySchema },
+  },
+  {
+    method: 'post',
+    path: '/agent/policy/{key}/pass/start',
+    summary:
+      'World ID Agent Pass: start the device authorization (auth.world.org, RFC 8628); returns user_code and the verification URL, never the device code',
+    params: ['key'],
+    responses: { 200: agentPassStartSchema, 404: errorBodySchema, 503: errorBodySchema },
+  },
+  {
+    method: 'post',
+    path: '/agent/policy/{key}/pass/poll',
+    summary:
+      'World ID Agent Pass: poll the token endpoint; the ID token is validated here (RS256, iss, aud, exp, nonce, acr, auth_time, one use) and arms the policy',
+    params: ['key'],
+    responses: { 200: agentPassPollSchema, 404: errorBodySchema, 503: errorBodySchema },
   },
   {
     method: 'get',

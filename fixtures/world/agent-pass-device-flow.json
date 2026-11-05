@@ -1,0 +1,93 @@
+{
+  "name": "world agent-pass device flow",
+  "recordedAt": "2026-11-05T13:30:00Z",
+  "source": "docs",
+  "note": "Authored from https://auth.world.org/docs/guides/oidc ('Device Authorization Grant', 'Device flow', the poll-response table) and https://auth.world.org/docs/guides/step-up ('Accept Orb or Selfie Check'): the exact form fields services/api/src/world-agent-pass.ts sends and the answers it handles. Nothing here was recorded against auth.world.org (no client registered yet); the local simulator (LocalIdp) answers with these shapes and services/api/test/agent-pass.test.ts drives every one of them. Re-record with the registered client.",
+  "exchanges": [
+    {
+      "name": "start (RFC 8628 §3.1) — client_secret_post, essential acr through claims",
+      "request": {
+        "method": "POST",
+        "url": "https://auth.world.org/api/v1/device_authorization",
+        "headers": { "content-type": "application/x-www-form-urlencoded" },
+        "form": {
+          "client_id": "<portal client id>",
+          "client_secret": "<backend secret, never logged>",
+          "scope": "openid",
+          "nonce": "<32 hex, fresh per attempt; the docs say device tokens omit it>",
+          "claims": "{\"id_token\":{\"acr\":{\"essential\":true,\"values\":[\"https://world.org/oidc/acr/orb\",\"https://world.org/oidc/acr/selfie\"]}}}"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "device_code": "<private; stays in the API's sealed state, never returned or logged>",
+          "user_code": "7F3A-91C2",
+          "verification_uri": "https://auth.world.org/device",
+          "verification_uri_complete": "https://auth.world.org/device?user_code=7F3A-91C2",
+          "expires_in": 1200,
+          "interval": 5
+        }
+      }
+    },
+    {
+      "name": "poll (RFC 8628 §3.4) — still waiting",
+      "request": {
+        "method": "POST",
+        "url": "https://auth.world.org/api/v1/token",
+        "headers": { "content-type": "application/x-www-form-urlencoded" },
+        "form": {
+          "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+          "client_id": "<same client id>",
+          "client_secret": "<same secret>",
+          "device_code": "<private>"
+        }
+      },
+      "response": { "status": 400, "body": { "error": "authorization_pending" } }
+    },
+    {
+      "name": "poll — too fast (add five seconds to every later interval)",
+      "response": { "status": 400, "body": { "error": "slow_down" } }
+    },
+    {
+      "name": "poll — the human cancelled or the essential acr was not met (stop; denied)",
+      "response": { "status": 400, "body": { "error": "access_denied" } }
+    },
+    {
+      "name": "poll — the 20-minute attempt lifetime passed (stop; expired)",
+      "response": { "status": 400, "body": { "error": "expired_token" } }
+    },
+    {
+      "name": "poll — approved; the ID token is validated in the backend before anything is armed",
+      "response": {
+        "status": 200,
+        "body": {
+          "id_token": "<compact RS256 JWT: header {alg:RS256, kid, typ:JWT}>",
+          "token_type": "Bearer"
+        },
+        "id_token_claims": {
+          "iss": "https://auth.world.org",
+          "sub": "<pairwise subject for this client's sector>",
+          "aud": "<portal client id>",
+          "exp": 1793708400,
+          "iat": 1793708100,
+          "jti": "<unique>",
+          "auth_time": 1793708095,
+          "acr": "https://world.org/oidc/acr/orb",
+          "amr": ["<method; see Tokens and identity>"]
+        },
+        "note": "No nonce in a device-grant ID token ('accept its absence for this profile'). The API checks alg, signature (JWKS kid), iss, aud, exp, iat, acr in WORLD_AGENT_PASS_ACR, auth_time within WORLD_AGENT_PASS_MAX_AGE_S, one use (jti), and the policy's bound (iss, sub)."
+      }
+    },
+    {
+      "name": "private_key_jwt alternative (RFC 7523) — the same two requests with an assertion instead of the secret",
+      "request": {
+        "form": {
+          "client_id": "<portal client id>",
+          "client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+          "client_assertion": "<fresh RS256 JWT per request: iss=sub=client id, aud=the endpoint, iat, exp ≤ iat+3600, unique jti, kid of the registered public JWKS>"
+        }
+      }
+    }
+  ]
+}

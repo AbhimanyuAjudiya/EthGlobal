@@ -21,6 +21,7 @@ import type { BuyOutcome, Buyer } from './buyer.js';
 import type { NotificationFacts } from './facts.js';
 import type { AgentState, Journal } from './journal.js';
 import type { Notifier } from './notifier.js';
+import type { PassClient } from './pass.js';
 import type { AgentReads, PlansCache } from './reads.js';
 import type { ReceiptWriter } from './receipts.js';
 
@@ -50,6 +51,8 @@ export interface AgentDeps {
   inFlight: Set<string>;
   /** Last notified non-buy reason per key, so cap/paused notify on change, not every 5 s. */
   lastNotice?: Map<string, string>;
+  /** The World ID Agent Pass checkpoint run when the API answers 403 pass_required (docs/WORLD_AGENT_PASS.md). */
+  pass?: Pick<PassClient, 'checkpoint'>;
 }
 
 /** How far the clock may sit behind the newest purchase on file before the agent stops buying (RT-G-03). */
@@ -187,21 +190,36 @@ async function run(deps: AgentDeps, key: string): Promise<TickResult> {
   const claim = await deps.state.claimTrigger(trigger, now);
   if (!claim.ok) return skip(claim.reason, verdict);
 
-  let outcome: BuyOutcome;
-  try {
-    outcome = await deps.buyer.buy({
-      key,
-      mb: verdict.mb,
-      reason: verdict.reason,
-      expectedUsd6: verdict.costUsd6,
-      expiresAt: e.expiresAt,
-      mbTotalBefore: e.mbTotal,
-      onSigned: (validBefore) => deps.state.markSigned(trigger, deps.now(), validBefore),
+  const attempt = async (): Promise<BuyOutcome> => {
+    try {
+      return await deps.buyer.buy({
+        key,
+        mb: verdict.mb,
+        reason: verdict.reason,
+        expectedUsd6: verdict.costUsd6,
+        expiresAt: e.expiresAt,
+        mbTotalBefore: e.mbTotal,
+        onSigned: (validBefore) => deps.state.markSigned(trigger, deps.now(), validBefore),
+      });
+    } catch (error) {
+      // unknown whether anything was signed: keep the claim (it goes stale on its own), report the throw
+      await deps.journal.write({ at: now, ent, event: 'error', message: String(error) });
+      throw error;
+    }
+  };
+  let outcome = await attempt();
+  // World ID Agent Pass (docs/WORLD_AGENT_PASS.md): the API refused before any 402 — pause for the human, buy
+  // only once the backend accepted the authentication; denied / expired is a skip and the trigger is free again
+  if (!outcome.ok && outcome.reason === 'pass-required' && deps.pass !== undefined) {
+    const pass = await deps.pass.checkpoint(key).catch(async (error: unknown) => {
+      await deps.journal.write({ at: now, ent, event: 'error', message: String(error) });
+      throw error;
     });
-  } catch (error) {
-    // unknown whether anything was signed: keep the claim (it goes stale on its own), report the throw
-    await deps.journal.write({ at: now, ent, event: 'error', message: String(error) });
-    throw error;
+    if (pass !== 'approved') {
+      await deps.state.releaseTrigger(trigger);
+      return skip(pass, verdict);
+    }
+    outcome = await attempt();
   }
 
   if (!outcome.ok) {

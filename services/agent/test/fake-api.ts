@@ -48,6 +48,8 @@ export interface FakeApiOptions {
   body?: (required: PaymentRequired) => unknown;
   /** Per paid request n (1-based): inject a failure. */
   fault?: (n: number) => Fault;
+  /** World ID Agent Pass on: an agent top-up is 403 pass_required until a poll answers `approved`. */
+  pass?: { outcomes: ('pending' | 'approved' | 'denied' | 'expired')[] };
 }
 
 export interface FakeApi {
@@ -59,6 +61,9 @@ export interface FakeApi {
   settled: SettleResult[];
   /** Raw requests to /esim/topup. */
   topups: { headers: Record<string, string>; url: string }[];
+  /** `start` / `poll` calls of the pass routes, in order. */
+  passCalls: string[];
+  passArmed: boolean;
 }
 
 const RESOURCE_DESCRIPTION = '100 MB top-up';
@@ -75,6 +80,8 @@ export function createFakeApi(opts: FakeApiOptions): FakeApi {
     paid: [],
     settled: [],
     topups: [],
+    passCalls: [],
+    passArmed: false,
   };
   const app = api.app;
   let paidCount = 0;
@@ -136,12 +143,35 @@ export function createFakeApi(opts: FakeApiOptions): FakeApi {
     });
   });
 
+  app.post('/agent/policy/:key/pass/start', (c) => {
+    api.passCalls.push('start');
+    return c.json({
+      verification_uri: 'https://auth.world.org/device',
+      verification_uri_complete: 'https://auth.world.org/device?user_code=ABCD-1234',
+      user_code: 'ABCD-1234',
+      expires_in: 300,
+      interval: 5,
+    });
+  });
+  app.post('/agent/policy/:key/pass/poll', (c) => {
+    api.passCalls.push('poll');
+    const next = opts.pass?.outcomes.shift() ?? 'pending';
+    if (next === 'approved') api.passArmed = true;
+    if (next === 'pending') return c.json({ state: 'pending', retryInS: 5 });
+    if (next === 'approved')
+      return c.json({ state: 'approved', passUntil: opts.now() + 86_400_000 });
+    return c.json({ state: next, reason: next === 'denied' ? 'access_denied' : 'expired_token' });
+  });
+
   app.get('/esim/topup', async (c) => {
     api.topups.push({ url: c.req.url, headers: Object.fromEntries(c.req.raw.headers.entries()) });
     const key = c.req.query('key') ?? '';
     const mb = Number(c.req.query('mb'));
     const found = await entitlements.getByKey(key);
     if (!found) return c.json({ error: 'not_found', message: 'unknown entitlement' }, 404);
+    // the API's pass guard: refused before any 402 (docs/WORLD_AGENT_PASS.md)
+    if (opts.pass && c.req.header('X-Agent-Uaid') !== undefined && !api.passArmed)
+      return c.json({ error: 'pass_required', message: 'agent pass required' }, 403);
     const accepts = buildAccepts(
       { accepts: opts.accepts, priceUsd6PerStep: price, stepMb: 100 },
       mb,

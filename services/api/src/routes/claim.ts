@@ -140,6 +140,13 @@ const topUpGuard = createMiddleware<AppEnv>(async (c, next) => {
   try {
     if (found.payload.iccidEnc === undefined)
       throw fail('invalid_request', { detail: 'profile not provisioned yet' });
+    // World ID Agent Pass (docs/WORLD_AGENT_PASS.md): an agent buying under a policy needs an armed pass. Decided
+    // here, before octroi() can answer 402, so nothing is quoted, signed or settled without the human checkpoint.
+    // Human top-ups (no X-Agent-Uaid, payer not an AGENT_PAYER) are untouched.
+    const pass = deps.agentPass;
+    if (pass !== undefined && isAgentRequest(c) && (await deps.stores.policies.get(key))) {
+      if (!pass.armed(key)) throw fail('pass_required', { detail: pass.view(key).state });
+    }
     await next();
     release(c.res.status === 200);
   } finally {
@@ -191,6 +198,15 @@ async function topUp(c: Ctx): Promise<Response> {
     settlement,
     receipt: { arkivKey: existing.entityKey, ...(recorded.hcs ? { hcs: recorded.hcs } : {}) },
   });
+}
+
+/** The request says it is the agent's: the X-Agent-Uaid header, or an EVM payment from an AGENT_PAYERS wallet. */
+function isAgentRequest(c: Ctx): boolean {
+  if (c.req.header('x-agent-uaid') !== undefined) return true;
+  const payment = c.get('payment');
+  if (payment === undefined || !isEvmExact(payment.payload)) return false;
+  const from = payment.payload.authorization.from.toLowerCase();
+  return c.get('deps').env.AGENT_PAYERS.some((p) => p.toLowerCase() === from);
 }
 
 /** X-Agent-Uaid is recorded only for payers on the AGENT_PAYERS allow-list; anyone else's is ignored (T-77). */

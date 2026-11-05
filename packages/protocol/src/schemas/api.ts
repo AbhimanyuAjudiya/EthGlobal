@@ -363,12 +363,43 @@ export const agentPolicyPutSchema = z.object({
   sessionPubKey: hex32Schema.optional(),
   ...signedAuth,
 });
+/** The policy's World ID Agent Pass (docs/WORLD_AGENT_PASS.md), as GET /agent/policy/:key reports it. */
+export const agentPassViewSchema = z.object({
+  state: z.enum(['none', 'pending', 'armed', 'denied', 'expired']),
+  /** armed: ms until which the agent may buy under the policy. */
+  passUntil: msSchema.optional(),
+  /** pending: what the human opens (the device code never leaves the API). */
+  userCode: z.string().max(64).optional(),
+  verificationUri: z.string().max(2048).optional(),
+  verificationUriComplete: z.string().max(2048).optional(),
+  expiresAt: msSchema.optional(),
+  /** denied | expired: the OAuth error or `invalid_pass`. */
+  reason: z.string().max(64).optional(),
+  /** MODE=local simulator (never in live). */
+  simulated: z.boolean().optional(),
+});
+export const agentPassStartSchema = z.object({
+  verification_uri: z.string().max(2048),
+  verification_uri_complete: z.string().max(2048).optional(),
+  user_code: z.string().max(64),
+  expires_in: z.int().positive(),
+  interval: z.int().positive(),
+});
+export const agentPassPollSchema = z.object({
+  state: z.enum(['pending', 'approved', 'denied', 'expired']),
+  reason: z.string().max(64).optional(),
+  /** pending: seconds before the next poll (slow_down adds five). */
+  retryInS: z.int().positive().optional(),
+  passUntil: msSchema.optional(),
+});
 export const agentPolicyViewSchema = z.object({
   policy: topUpPolicySchema,
   owner: evmAddressSchema,
   spentTodayUsd6: digitsSchema,
   updatedAt: msSchema,
   lastTickAt: msSchema.optional(),
+  /** Present when the API has WORLD_AGENT_PASS_CLIENT_ID (the feature is off otherwise). */
+  pass: agentPassViewSchema.optional(),
 });
 
 export const errorBodySchema = z.object({
@@ -410,5 +441,8 @@ export type SponsorCardsResponse = z.infer<typeof sponsorCardsResponseSchema>;
 export type SponsorView = z.infer<typeof sponsorViewSchema>;
 export type AgentPolicyPut = z.infer<typeof agentPolicyPutSchema>;
 export type AgentPolicyView = z.infer<typeof agentPolicyViewSchema>;
+export type AgentPassView = z.infer<typeof agentPassViewSchema>;
+export type AgentPassStart = z.infer<typeof agentPassStartSchema>;
+export type AgentPassPoll = z.infer<typeof agentPassPollSchema>;
 export type ErrorBody = z.infer<typeof errorBodySchema>;
 export type Health = z.infer<typeof healthSchema>;

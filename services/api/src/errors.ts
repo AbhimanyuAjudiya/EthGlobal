@@ -49,6 +49,7 @@ const MESSAGES: Readonly<Record<ErrorCode, string>> = {
   invalid_request: 'The request is malformed.',
   invalid_proof: 'The proof or challenge was not accepted.',
   unauthorized: 'The signature or credential was not accepted.',
+  pass_required: 'The agent needs an armed World ID Agent Pass for this policy.',
   payment_required: 'Payment is required.',
   invalid_payment: 'The payment was not accepted.',
   settlement_failed: 'The payment could not be settled.',
@@ -69,6 +70,7 @@ const MESSAGES: Readonly<Record<ErrorCode, string>> = {
   reseller_unavailable: 'The eSIM provider is unavailable; try again shortly.',
   facilitator_unavailable: 'The payment facilitator is unavailable; try again shortly.',
   chain_unavailable: 'The chain is unavailable; try again shortly.',
+  idp_unavailable: 'World ID is unavailable; try again shortly.',
   internal_error: 'Internal error.',
 };
 

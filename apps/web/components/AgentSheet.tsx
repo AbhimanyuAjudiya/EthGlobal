@@ -13,6 +13,7 @@ import type {
 import { AGENT_POLICY_TYPES, canonicalJson, rechargeDomain } from '@ethglobal/protocol/typed-data';
 import { Button, Hash } from '@ethglobal/ui/components';
 
+import { QrCode } from './QrCode';
 import { AppHeader, Screen, TabBar, WalletButton } from './Shell';
 import { useLang, useNetworkName } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
@@ -63,6 +64,21 @@ export function AgentSheet() {
       setRows(receipts.filter((r) => r.kind === 'agent-topup'));
     })();
   }, []);
+
+  // World ID Agent Pass (docs/WORLD_AGENT_PASS.md): while the agent waits for the human, re-read the policy
+  const passState = view?.pass?.state;
+  useEffect(() => {
+    if (!key || passState !== 'pending') return;
+    const id = setInterval(
+      () =>
+        void api
+          .agentPolicy(key)
+          .then(setView)
+          .catch(() => undefined),
+      5000,
+    );
+    return () => clearInterval(id);
+  }, [key, passState]);
 
   const save = useCallback(
     async (next: TopUpPolicyWire) => {
@@ -198,6 +214,44 @@ export function AgentSheet() {
               ? t('agent.capReached', { cap: money(capUsd6), price: money(step) })
               : t('agent.spent', { spent: money(spent), cap: money(capUsd6) })}
           </p>
+        ) : null}
+        {view?.pass && view.pass.state !== 'none' ? (
+          <div
+            className="agent__pass"
+            data-testid="agent-pass"
+            data-state={view.pass.state}
+            lang={lang}
+          >
+            {view.pass.state === 'pending' ? (
+              <>
+                <p className="note">{t('agent.passPending', { code: view.pass.userCode ?? '' })}</p>
+                <QrCode
+                  url={view.pass.verificationUriComplete ?? view.pass.verificationUri ?? ''}
+                  label={t('agent.passQr')}
+                  sizeMm={40}
+                />
+                <p className="mono-key" data-testid="agent-pass-code">
+                  {view.pass.userCode}
+                </p>
+                <a
+                  className="note"
+                  href={view.pass.verificationUriComplete ?? view.pass.verificationUri}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {t('agent.passOpen')}
+                </a>
+              </>
+            ) : view.pass.state === 'armed' ? (
+              <p className="note">
+                {t('agent.passArmed', { until: clockIst(view.pass.passUntil ?? 0) })}
+              </p>
+            ) : view.pass.state === 'denied' ? (
+              <p className="note">{t('agent.passDenied', { reason: view.pass.reason ?? '' })}</p>
+            ) : (
+              <p className="note">{t('agent.passExpired')}</p>
+            )}
+          </div>
         ) : null}
       </section>
       <section className="agent__rows" aria-label="Agent top-ups">

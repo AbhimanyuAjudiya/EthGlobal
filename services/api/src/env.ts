@@ -220,6 +220,30 @@ export const envSchema = z
     WORLD_ACTION: z.string().min(1).max(64).default(WORLD_ACTION),
     WORLD_ENVIRONMENT: z.enum(['production', 'staging']).default('production'),
 
+    /**
+     * World ID Agent Pass (docs/WORLD_AGENT_PASS.md): the OIDC device grant that arms an agent policy. OFF while
+     * WORLD_AGENT_PASS_CLIENT_ID is unset; MODE=local accepts the literal `simulated` (a labelled in-process IdP).
+     */
+    WORLD_AGENT_PASS_ISSUER: z.url().default('https://auth.world.org'),
+    WORLD_AGENT_PASS_CLIENT_ID: z.string().min(1).max(200).optional(),
+    /** client_secret_post; server secret, never logged. */
+    WORLD_AGENT_PASS_CLIENT_SECRET: z.string().min(1).max(500).optional(),
+    /** private_key_jwt (RFC 7523): a private RSA JWK (JSON); used instead of the secret when set. */
+    WORLD_AGENT_PASS_PRIVATE_KEY_JWK: z.string().min(1).max(8192).optional(),
+    /** auth_time may be at most this old when the ID token is validated. */
+    WORLD_AGENT_PASS_MAX_AGE_S: z.coerce.number().int().min(1).max(86_400).default(300),
+    /** How long an accepted pass arms the policy (from auth_time). */
+    WORLD_AGENT_PASS_VALID_S: z.coerce
+      .number()
+      .int()
+      .min(60)
+      .max(30 * 86_400)
+      .default(86_400),
+    /** Accepted `acr` values (essential claim request and the backend check). */
+    WORLD_AGENT_PASS_ACR: csv(
+      'https://world.org/oidc/acr/orb,https://world.org/oidc/acr/selfie',
+    ).pipe(z.array(z.url()).min(1).max(8)),
+
     /** One topic per deployment (INTERFACES §9); local: a mock topic id. */
     HCS_TOPIC_ID: hederaAccountSchema.default('0.0.1001'),
   })
@@ -294,6 +318,20 @@ export const envSchema = z
       fail('RESELLER', 'RESELLER=megaesim is a fixture-only stub; refused in live (A-28)');
     if (env.X402_FACILITATOR === 'mock')
       fail('X402_FACILITATOR', 'X402_FACILITATOR=mock is refused in live (T-85)');
+    if (env.WORLD_AGENT_PASS_CLIENT_ID === 'simulated')
+      fail('WORLD_AGENT_PASS_CLIENT_ID', 'the Agent Pass simulator is local-only; refused in live');
+    if (
+      env.WORLD_AGENT_PASS_CLIENT_ID !== undefined &&
+      env.WORLD_AGENT_PASS_CLIENT_SECRET === undefined &&
+      env.WORLD_AGENT_PASS_PRIVATE_KEY_JWK === undefined
+    ) {
+      fail(
+        'WORLD_AGENT_PASS_CLIENT_SECRET',
+        'WORLD_AGENT_PASS_CLIENT_ID needs WORLD_AGENT_PASS_CLIENT_SECRET or WORLD_AGENT_PASS_PRIVATE_KEY_JWK',
+      );
+    }
+    if (!env.WORLD_AGENT_PASS_ISSUER.startsWith('https://'))
+      fail('WORLD_AGENT_PASS_ISSUER', 'WORLD_AGENT_PASS_ISSUER must be https in live');
     if (env.RESELLER === 'esimaccess' && env.ESIMACCESS_WEBHOOK_TOKEN === undefined) {
       fail(
         'ESIMACCESS_WEBHOOK_TOKEN',

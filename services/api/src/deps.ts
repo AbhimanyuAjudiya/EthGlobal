@@ -45,6 +45,7 @@ import { evmNetworks, parseEnv, resolveFacilitator, type Env } from './env.js';
 import { createLogger, type Logger } from './logger.js';
 import { Metrics } from './metrics.js';
 import { DurableState, type DurableMap } from './state.js';
+import { createAgentPass, type AgentPass } from './world-agent-pass.js';
 
 export type ServeFreeDecision = Extract<Decision, { kind: 'serve-free' }>;
 
@@ -121,6 +122,8 @@ export interface Deps {
    * human completes it (durable, RT-A-11; expires with INTENT_TTL_MS).
    */
   intents: DurableMap<ClaimIntent>;
+  /** World ID Agent Pass (docs/WORLD_AGENT_PASS.md); undefined = off (no WORLD_AGENT_PASS_CLIENT_ID). */
+  agentPass: AgentPass | undefined;
   /** Set when deps seeded a campaign (tests and the local seed). */
   seedCampaignId?: Hex;
 }
@@ -229,6 +232,12 @@ export async function buildDeps(
     usagePolls: new WindowLimiter(1, 60_000, now),
     orderRetries: new WindowLimiter(1, 60_000, now),
     intents: state.map<ClaimIntent>('intents'),
+    agentPass: createAgentPass(env, {
+      ...(overrides.fetch === undefined ? {} : { fetch: overrides.fetch }),
+      now,
+      logger,
+      state,
+    }),
   };
 }
 

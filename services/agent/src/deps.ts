@@ -16,6 +16,7 @@ import { AgentState, Journal } from './journal.js';
 import { createLogger, type Log } from './log.js';
 import { MAX_WATCHED_KEYS } from './loop.js';
 import { createNotifier, type PhrasingModel } from './notifier.js';
+import { PassClient } from './pass.js';
 import { EvmPayer } from './payers/evm.js';
 import { ApiReads, LedgerReads, PlansCache, type AgentReads } from './reads.js';
 import { ReceiptWriter } from './receipts.js';
@@ -189,6 +190,8 @@ export async function buildAgent(config: AgentConfig, opts: BuildOptions = {}): 
     fetch: fetchFn,
   });
 
+  const journal = new Journal(config.stateDir);
+  const receipts = new ReceiptWriter({ consensus, topic: config.hcsTopic, uaid, now, log });
   const deps: AgentDeps = {
     reads,
     plans: new PlansCache({ apiUrl: config.apiUrl, fetch: fetchFn, now }),
@@ -204,8 +207,17 @@ export async function buildAgent(config: AgentConfig, opts: BuildOptions = {}): 
       log,
       ...(opts.sleep ? { sleep: opts.sleep } : {}),
     }),
-    receipts: new ReceiptWriter({ consensus, topic: config.hcsTopic, uaid, now, log }),
-    journal: new Journal(config.stateDir),
+    receipts,
+    journal,
+    pass: new PassClient({
+      apiUrl: config.apiUrl,
+      fetch: fetchFn,
+      now,
+      log,
+      journal,
+      receipts,
+      ...(opts.sleep ? { sleep: opts.sleep } : {}),
+    }),
     state: new AgentState(config.stateDir),
     now,
     log,

@@ -71,6 +71,9 @@ export function registerAgentPolicy(app: Hono<AppEnv>, deps: Deps): void {
         : { lastExpiryBought: existing.payload.lastExpiryBought }),
     };
     await deps.stores.policies.put(wire);
+    // a changed policy is a new operation: its Agent Pass must be approved again (docs/WORLD_AGENT_PASS.md)
+    if (existing && canonicalJson(existing.payload.policy) !== canonicalJson(put.policy))
+      deps.agentPass?.revoke(put.entitlementKey);
     return c.json(await view(deps, wire));
   });
 
@@ -92,5 +95,6 @@ async function view(deps: Deps, p: AgentPolicyWire): Promise<AgentPolicyView> {
     owner: p.owner,
     spentTodayUsd6: usd6ToWire(spent),
     updatedAt: p.updatedAt,
+    ...(deps.agentPass === undefined ? {} : { pass: deps.agentPass.view(p.entitlementKey) }),
   };
 }

@@ -159,6 +159,12 @@
   "agent.spent": "Spent today {spent} of {cap}",
   "agent.empty": "Your agent's top-ups will appear here",
   "agent.noPlan": "Open a plan first; the agent tops up one plan.",
+  "agent.passPending": "Your agent is waiting for you: open the link or scan the code, then enter {code} in World.",
+  "agent.passQr": "World ID Agent Pass approval link",
+  "agent.passOpen": "Open in World",
+  "agent.passArmed": "World ID Agent Pass armed until {until}",
+  "agent.passDenied": "World ID Agent Pass not granted ({reason}). Your agent buys nothing until you approve it.",
+  "agent.passExpired": "The World ID Agent Pass request expired. Your agent will ask again.",
   "gift.title": "Who gets it?",
   "gift.name": "ENS name",
   "gift.resolving": "Resolving…",
@@ -231,6 +237,8 @@
   "error.reseller_unavailable": "The eSIM provider is not answering. Nothing was charged.",
   "error.facilitator_unavailable": "The payment facilitator is not answering. Nothing was charged.",
   "error.chain_unavailable": "The chain is not answering. Nothing changed.",
+  "error.pass_required": "Your agent needs your World ID approval before it can buy.",
+  "error.idp_unavailable": "World ID is not answering. Nothing changed.",
   "error.internal_error": "The server failed on this request. Nothing changed.",
   "error.network": "Can't reach Recharge. Check your connection."
 }

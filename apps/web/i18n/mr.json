@@ -159,6 +159,12 @@
   "agent.spent": "आज खर्च {spent} / {cap}",
   "agent.empty": "तुमच्या एजंटचे टॉप-अप इथे दिसतील",
   "agent.noPlan": "आधी प्लॅन उघडा; एजंट एका प्लॅनला टॉप-अप करतो.",
+  "agent.passPending": "तुमचा एजंट तुमची वाट पाहत आहे: लिंक उघडा किंवा कोड स्कॅन करा, मग World मध्ये {code} टाका.",
+  "agent.passQr": "World ID Agent Pass मंजुरी लिंक",
+  "agent.passOpen": "World मध्ये उघडा",
+  "agent.passArmed": "World ID Agent Pass {until} पर्यंत सक्रिय",
+  "agent.passDenied": "World ID Agent Pass मिळाला नाही ({reason}). तुम्ही मंजुरी देईपर्यंत एजंट काही खरेदी करणार नाही.",
+  "agent.passExpired": "World ID Agent Pass विनंतीची मुदत संपली. एजंट पुन्हा विचारेल.",
   "gift.title": "कोणाला मिळेल?",
   "gift.name": "ENS नाव",
   "gift.resolving": "शोधत आहोत…",
@@ -231,6 +237,8 @@
   "error.reseller_unavailable": "eSIM पुरवठादार उत्तर देत नाही. काहीही घेतले नाही.",
   "error.facilitator_unavailable": "पेमेंट फॅसिलिटेटर उत्तर देत नाही. काहीही घेतले नाही.",
   "error.chain_unavailable": "चेन उत्तर देत नाही. काहीही बदलले नाही.",
+  "error.pass_required": "खरेदी करण्यापूर्वी तुमच्या एजंटला तुमची World ID मंजुरी हवी आहे.",
+  "error.idp_unavailable": "World ID उत्तर देत नाही. काही बदलले नाही.",
   "error.internal_error": "सर्व्हर या विनंतीवर अयशस्वी झाला. काहीही बदलले नाही.",
   "error.network": "Recharge पर्यंत पोहोचता येत नाही. तुमचे कनेक्शन तपासा."
 }

@@ -16,6 +16,7 @@ import { RechargeError } from '@ethglobal/protocol/errors';
 import { REQUEST_ID_HEADER } from '@ethglobal/protocol/events';
 import { HEDERA_MAX_TIMEOUT_S, PAYMENT_VALIDITY_S } from '@ethglobal/protocol/ids';
 import {
+  errorBodySchema,
   isEvmExact,
   topUpResponseSchema,
   type PaymentPayload,
@@ -63,7 +64,9 @@ export type SkipReason =
   | 'payment-rejected'
   | 'settlement-pending'
   | 'unexpected-status'
-  | 'network-error';
+  | 'network-error'
+  /** 403 pass_required: the policy has no armed World ID Agent Pass (docs/WORLD_AGENT_PASS.md). */
+  | 'pass-required';
 
 export type BuyOutcome =
   | { ok: true; tx: string; network: string; usd6: bigint; mb: number; recovered: boolean }
@@ -199,6 +202,13 @@ export class TermsGuard implements PaymentSigner {
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+/** The `error` code of an API error body, if the response is one. */
+async function errorCodeOf(response: Response): Promise<string | undefined> {
+  const body: unknown = await response.json().catch(() => undefined);
+  const parsed = errorBodySchema.safeParse(body);
+  return parsed.success ? parsed.data.error : undefined;
+}
+
 function settlementOf(response: Response): SettleResult | undefined {
   const header = response.headers.get(PAYMENT_RESPONSE_HEADER);
   if (header === null) return undefined;
@@ -283,6 +293,12 @@ export class Buyer {
           field: guard.rejections[0]?.field,
           rejections: guard.rejections,
         });
+      }
+      if (
+        result?.response.status === 403 &&
+        (await errorCodeOf(result.response)) === 'pass_required'
+      ) {
+        return this.#skip('pass-required', false, {});
       }
       return this.#skip('unexpected-status', false, { status: result?.response.status });
     }

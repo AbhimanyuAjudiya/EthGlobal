@@ -36,6 +36,7 @@ export const HCS_TYPES = [
   'gift-reclaim',
   'card-redeem',
   'agent-topup',
+  'agent-pass',
 ] as const;
 export type HcsType = (typeof HCS_TYPES)[number];
 
@@ -53,6 +54,7 @@ export const LOG_EVENTS = [
   'agent.tick',
   'agent.buy',
   'agent.skip',
+  'agent.pass',
   'degraded',
 ] as const;
 export type LogEvent = (typeof LOG_EVENTS)[number];

@@ -1572,7 +1572,7 @@
     },
     "/esim/topup": {
       "get": {
-        "summary": "Paid top-up of a live entitlement (x402)",
+        "summary": "Paid top-up of a live entitlement (x402); an agent under a policy needs an armed World ID Agent Pass (403 pass_required before any 402)",
         "operationId": "getEsimTopup",
         "parameters": [
           {
@@ -1827,6 +1827,30 @@
                     }
                   },
                   "required": ["x402Version", "resource", "accepts"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "403",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
                   "additionalProperties": false
                 }
               }
@@ -4453,6 +4477,46 @@
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 9007199254740991
+                    },
+                    "pass": {
+                      "type": "object",
+                      "properties": {
+                        "state": {
+                          "type": "string",
+                          "enum": ["none", "pending", "armed", "denied", "expired"]
+                        },
+                        "passUntil": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "userCode": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "verificationUri": {
+                          "type": "string",
+                          "maxLength": 2048
+                        },
+                        "verificationUriComplete": {
+                          "type": "string",
+                          "maxLength": 2048
+                        },
+                        "expiresAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "reason": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "simulated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": ["state"],
+                      "additionalProperties": false
                     }
                   },
                   "required": ["policy", "owner", "spentTodayUsd6", "updatedAt"],
@@ -4514,7 +4578,7 @@
     },
     "/agent/policy/{key}": {
       "get": {
-        "summary": "Read the agent policy",
+        "summary": "Read the agent policy (with its World ID Agent Pass state when the feature is on)",
         "operationId": "getAgentPolicyKey",
         "parameters": [
           {
@@ -4591,6 +4655,46 @@
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 9007199254740991
+                    },
+                    "pass": {
+                      "type": "object",
+                      "properties": {
+                        "state": {
+                          "type": "string",
+                          "enum": ["none", "pending", "armed", "denied", "expired"]
+                        },
+                        "passUntil": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "userCode": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "verificationUri": {
+                          "type": "string",
+                          "maxLength": 2048
+                        },
+                        "verificationUriComplete": {
+                          "type": "string",
+                          "maxLength": 2048
+                        },
+                        "expiresAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "reason": {
+                          "type": "string",
+                          "maxLength": 64
+                        },
+                        "simulated": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": ["state"],
+                      "additionalProperties": false
                     }
                   },
                   "required": ["policy", "owner", "spentTodayUsd6", "updatedAt"],
@@ -4601,6 +4705,206 @@
           },
           "404": {
             "description": "404",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/policy/{key}/pass/start": {
+      "post": {
+        "summary": "World ID Agent Pass: start the device authorization (auth.world.org, RFC 8628); returns user_code and the verification URL, never the device code",
+        "operationId": "postAgentPolicyKeyPassStart",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verification_uri": {
+                      "type": "string",
+                      "maxLength": 2048
+                    },
+                    "verification_uri_complete": {
+                      "type": "string",
+                      "maxLength": 2048
+                    },
+                    "user_code": {
+                      "type": "string",
+                      "maxLength": 64
+                    },
+                    "expires_in": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "interval": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["verification_uri", "user_code", "expires_in", "interval"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "503",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/policy/{key}/pass/poll": {
+      "post": {
+        "summary": "World ID Agent Pass: poll the token endpoint; the ID token is validated here (RS256, iss, aud, exp, nonce, acr, auth_time, one use) and arms the policy",
+        "operationId": "postAgentPolicyKeyPassPoll",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": ["pending", "approved", "denied", "expired"]
+                    },
+                    "reason": {
+                      "type": "string",
+                      "maxLength": 64
+                    },
+                    "retryInS": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "passUntil": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["state"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "503",
             "content": {
               "application/json": {
                 "schema": {

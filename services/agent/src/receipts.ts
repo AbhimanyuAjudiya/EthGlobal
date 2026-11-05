@@ -49,9 +49,33 @@ export class ReceiptWriter {
   }
 
   /** Submits the receipt; returns the HCS sequence number, or undefined when the submit failed (logged). */
-  async submit(r: TopUpReceipt): Promise<number | undefined> {
+  submit(r: TopUpReceipt): Promise<number | undefined> {
+    return this.#submit(this.message(r));
+  }
+
+  /** The Agent Pass checkpoint note (docs/WORLD_AGENT_PASS.md): state and user code only, never a URL or token. */
+  pass(r: {
+    key: string;
+    state: 'pending' | 'approved' | 'denied' | 'expired';
+    code?: string;
+  }): Promise<number | undefined> {
+    return this.#submit(
+      encodeHcsMessage({
+        v: 1,
+        t: 'agent-pass',
+        at: new Date(this.opts.now()).toISOString(),
+        svc: 'agent',
+        ent: sha256Hex(r.key),
+        uaid: this.opts.uaid,
+        state: r.state,
+        ...(r.code === undefined ? {} : { code: r.code }),
+      }),
+    );
+  }
+
+  async #submit(text: string): Promise<number | undefined> {
     try {
-      const { sequence } = await this.opts.consensus.submit(this.opts.topic, this.message(r));
+      const { sequence } = await this.opts.consensus.submit(this.opts.topic, text);
       return sequence > 0 ? sequence : undefined;
     } catch (error) {
       logEvent(this.opts.log, 'warn', 'degraded', {

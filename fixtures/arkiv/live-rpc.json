@@ -1,0 +1,87 @@
+{
+  "name": "live-rpc",
+  "recordedAt": "2026-11-05T09:58:52.476Z",
+  "source": "live",
+  "exchanges": [
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://rpc.rabdi.db-chain.testnet.arkiv.network/",
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "method": "eth_chainId",
+          "params": []
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "access-control-allow-origin": "*",
+          "access-control-expose-headers": "RateLimit, Retry-After, Link, Arkiv-Quota-Used-Percent, Arkiv-Cost, Arkiv-Block-Rewritten",
+          "cf-cache-status": "DYNAMIC",
+          "cf-ray": "a55b009dcb6e3be0-BOM",
+          "connection": "keep-alive",
+          "content-encoding": "br",
+          "content-length": "47",
+          "content-type": "application/json; charset=utf-8",
+          "date": "Thu, 05 Nov 2026 09:58:52 GMT",
+          "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+          "ratelimit": "limit=2000, remaining=1999, reset=10",
+          "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=Xrd9HNbbzXHKSxJDdrmh%2BfIjClOkmBGpwF%2F3mmZLqPYU%2B2ZDcRAdJQA4C60PjRA%2F6aQ8er1On6irDA1XkRXxgSeNA2FSaH%2BkJMIIz5YLMg5bWDQzWHUzLO%2Box6lpLk%2FyCowsJ1J%2B7uGix3FpaGcDLVCUNS%2B%2FGqlYwN3x2UQ8atJtnWcis8s%3D\"}]}",
+          "server": "cloudflare",
+          "vary": "accept-encoding",
+          "x-envoy-upstream-service-time": "24"
+        },
+        "body": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0x76edaf"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://rpc.rabdi.db-chain.testnet.arkiv.network/",
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": {
+          "jsonrpc": "2.0",
+          "id": 2,
+          "method": "eth_blockNumber",
+          "params": []
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "access-control-allow-origin": "*",
+          "access-control-expose-headers": "RateLimit, Retry-After, Link, Arkiv-Quota-Used-Percent, Arkiv-Cost, Arkiv-Block-Rewritten",
+          "cf-cache-status": "DYNAMIC",
+          "cf-ray": "a55b00a00d743be0-BOM",
+          "connection": "keep-alive",
+          "content-encoding": "br",
+          "content-length": "46",
+          "content-type": "application/json; charset=utf-8",
+          "date": "Thu, 05 Nov 2026 09:58:52 GMT",
+          "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+          "ratelimit": "limit=2000, remaining=1998, reset=10",
+          "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=d9BzHL91YxE1AJkqwEnK2YCmF52UDAatGOrdZdQhN6BRGVzF%2BqPbOnLNfeSlh3fpiWwjd9XbvT7fywOhI%2BsvUyIk0KuOnSiPssXvy9HT6iGgiIplP8OX95ft1JGAgIYpjBHw%2F81GDnY2kykBjSW%2F%2B4SmHdZITK%2BkhbbGZZlf9gafX4%2FRgAg%3D\"}]}",
+          "server": "cloudflare",
+          "vary": "accept-encoding",
+          "x-envoy-upstream-service-time": "16"
+        },
+        "body": {
+          "jsonrpc": "2.0",
+          "id": 2,
+          "result": "0x3b721"
+        }
+      }
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 {
   "name": "USDC EIP-712 domains per chain",
-  "recordedAt": "2026-11-03T12:00:00Z",
-  "source": "docs",
-  "note": "[verify Wed] `cast call <usdc> \"name()(string)\"` and \"version()(string)\" on each chain; Base Sepolia is \"USDC\" (API-FACTS §7). 31337 is MockUSDC3009 (packages/contracts).",
+  "recordedAt": "2026-11-05T10:15:49Z",
+  "source": "live",
+  "note": "Recorded 2026-11-05 with `cast call <usdc> \"name()(string)\"` / \"version()(string)\": Base Sepolia 0x036C…dCF7e = \"USDC\"/\"2\" (decimals 6), Base mainnet 0x8335…2913 = \"USD Coin\"/\"2\" (decimals 6). 31337 is MockUSDC3009 (packages/contracts); Hedera settles over HTS, no EIP-3009 domain.",
   "domains": [
     {
       "network": "eip155:31337",

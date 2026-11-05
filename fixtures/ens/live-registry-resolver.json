@@ -1,0 +1,52 @@
+{
+  "name": "live-registry-resolver",
+  "recordedAt": "2026-11-05T10:15:13.874Z",
+  "source": "live",
+  "exchanges": [
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://ethereum-rpc.publicnode.com/",
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "method": "eth_call",
+          "params": [
+            {
+              "to": "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e",
+              "data": "0x0178b8bfee6c4522aab0003e8d14cd40a6af439055fd2577951148c14b6cea9a53475835"
+            },
+            "latest"
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "access-control-max-age": "1728000",
+          "alt-svc": "h3=\":443\"; ma=86400",
+          "cf-cache-status": "DYNAMIC",
+          "cf-ray": "a55b18950d0786eb-BOM",
+          "connection": "keep-alive",
+          "content-encoding": "br",
+          "content-type": "application/json",
+          "date": "Thu, 05 Nov 2026 10:15:13 GMT",
+          "server": "cloudflare",
+          "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+          "transfer-encoding": "chunked",
+          "vary": "Origin, accept-encoding",
+          "x-content-type-options": "nosniff",
+          "x-envoy-upstream-service-time": "12"
+        },
+        "body": {
+          "jsonrpc": "2.0",
+          "id": 1,
+          "result": "0x000000000000000000000000231b0ee14048e9dccd1d247744d114a4eb5e8e63"
+        }
+      }
+    }
+  ]
+}

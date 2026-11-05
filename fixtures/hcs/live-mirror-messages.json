@@ -1,0 +1,37 @@
+{
+  "name": "live-mirror-messages",
+  "recordedAt": "2026-11-05T09:58:54.559Z",
+  "source": "live",
+  "exchanges": [
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.11322448/messages?limit=5&order=desc",
+        "headers": {}
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "access-control-allow-origin": "*",
+          "access-control-expose-headers": "x-cluster-id",
+          "alt-svc": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000",
+          "cache-control": "public, max-age=1",
+          "content-length": "37",
+          "content-type": "application/json; charset=utf-8",
+          "date": "Thu, 05 Nov 2026 09:58:54 GMT",
+          "etag": "W/\"25-EGGVo4sdIOf4bTPAB9BBjAIZVNQ\"",
+          "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+          "vary": "Accept-Encoding",
+          "via": "1.1 google",
+          "x-cluster-id": "4527bd0"
+        },
+        "body": {
+          "messages": [],
+          "links": {
+            "next": null
+          }
+        }
+      }
+    }
+  ]
+}

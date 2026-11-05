@@ -120,7 +120,7 @@ ModeSet(bool ledgerOnly) event (expected ledgerOnly == false) and name the RT-C-
 | Hedera testnet accounts | 4 ECDSA accounts, all funded with test HBAR and associated with USDC `0.0.429274` (`packages/adapters/scripts/hedera-setup.ts`, `e195ebc`): API/HCS operator [`0.0.11320948`](https://hashscan.io/testnet/account/0.0.11320948) · agent [`0.0.11320978`](https://hashscan.io/testnet/account/0.0.11320978) · treasury [`0.0.11321020`](https://hashscan.io/testnet/account/0.0.11321020) · payout [`0.0.11322453`](https://hashscan.io/testnet/account/0.0.11322453) | Integrations · Thu 5 Nov 2026 (done) |
 | Faucet claims | HBAR (portal.hedera.com): done for the 4 accounts above. Test USDC (faucet.circle.com, "Hedera Testnet" and "Base Sepolia"): the agent EVM address `0x27e2CA12f288a7d1c549C53Ca0E01E7cE2B32C25` holds test USDC on `hedera:testnet` and `eip155:84532`. tGLM (hub.arkiv.network/faucet) for the writer `0xC3358be9F35fDF5C8e1922be7376980C93734d3c`: `TODO(20:59): tGLM claimed? (captcha, human)`. Base Sepolia ETH: `TODO(20:59): claimed?` | Integrations · Thu 5 Nov 2026 (HBAR, USDC done) · by 20:59 IST (tGLM, ETH) |
 | World Developer Portal | `TODO(20:59): app (app_mode: external), RP, production action recharge-welcome` (portal login pending, human) | Integrations · by Thu 5 Nov 2026 20:59 IST |
-| AgentKit beta | applied? granted? (Agent Pass is claimed only if granted by Thu 5 Nov 2026 21:00 IST) | TBD by human (Founder, Thu 5 Nov 2026 21:00 IST) |
+| AgentKit beta | applied? granted? (Agent Pass is claimed only if granted by Thu 5 Nov 2026 21:00 IST) | TBD by human (Founder, Thu 21:00) |
 | Free pre-arrival campaign | team-funded, zero price, planned from Wed 4 Nov 2026 16:00 IST — `TODO(20:59): did it run (it needs DataDrop on 296, RT-C-08)? claim count at kickoff` | Founder · by Thu 5 Nov 2026 20:59 IST |
 
 ## 4. AI use
@@ -139,11 +139,11 @@ in `docs/ONSITE-RUNBOOK.md`. The AI never had network access to a vendor or test
 
 | Asked of | Question | Answer |
 |---|---|---|
-| ETHGlobal staff | "Our repository was created on 3 Nov with documented pre-existing work and a dated tag; is it an eligible Continuity base?" (if no → DECISION §7.5) | TBD by human (Founder, Thu 5 Nov 2026 21:30 IST) |
-| Hedera devrel | "We have had an x402 endpoint settling on Hedera testnet and a pool contract on Hedera EVM since 4 Nov. Are Continuity entries eligible for the x402 track, or only for the Continuity prize? Would you fund a 100-claim testnet campaign from your account this weekend?" | TBD by human (Founder, Thu 5 Nov 2026 21:30 IST) |
-| World devrel | "Is [Cont] Best IDKit Use Case the right submission for us, and may we also be considered for Best Use of IDKit? Can we get AgentKit beta access before Saturday?" | TBD by human (Founder, Thu 5 Nov 2026 21:30 IST) |
-| Arkiv devrel | "Continuity ($4k) or from-scratch ($3k/$1k): which lane do you want a project with one pre-kickoff entity in? Does a 60-second cached read on the hot path count as reading from Arkiv when every window boundary and the agent query live? Swarm gateway access for the bonus?" | TBD by human (Founder, Thu 5 Nov 2026 21:30 IST) |
-| ENS (only if a swap becomes likely) | "Which Mumbai track fits gifting-by-name and sponsor subnames?" | TBD by human (Founder, Fri 6 Nov 2026 06:00 IST) |
+| ETHGlobal staff | "Our repository was created on 3 Nov with documented pre-existing work and a dated tag; is it an eligible Continuity base?" (if no → DECISION §7.5) | TBD by human (Founder, Thu 21:30) |
+| Hedera devrel | "We have had an x402 endpoint settling on Hedera testnet and a pool contract on Hedera EVM since 4 Nov. Are Continuity entries eligible for the x402 track, or only for the Continuity prize? Would you fund a 100-claim testnet campaign from your account this weekend?" | TBD by human (Founder, Thu 21:30) |
+| World devrel | "Is [Cont] Best IDKit Use Case the right submission for us, and may we also be considered for Best Use of IDKit? Can we get AgentKit beta access before Saturday?" | TBD by human (Founder, Thu 21:30) |
+| Arkiv devrel | "Continuity ($4k) or from-scratch ($3k/$1k): which lane do you want a project with one pre-kickoff entity in? Does a 60-second cached read on the hot path count as reading from Arkiv when every window boundary and the agent query live? Swarm gateway access for the bonus?" | TBD by human (Founder, Thu 21:30) |
+| ENS (only if a swap becomes likely) | "Which Mumbai track fits gifting-by-name and sponsor subnames?" | TBD by human (Founder, Fri 06:00) |
 
 ## 6. What changed in the window
 

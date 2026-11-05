@@ -1,4 +1,7 @@
-# On-site runbook: Wed 4 → Sun 8 Nov 2026 (the human team)
+# On-site runbook: Wed 4 → Sat 7 Nov 2026 (the human team)
+
+**Submissions close Sat 7 Nov 2026 09:00 IST; ETHGlobal accepts no late submissions.** Everything that goes into the
+submission (video, README, form) is done before then.
 
 This is the day-by-day checklist from DECISION §6.7, ops-demo §7 and BUILD-PLAN §6, written as commands. Kaolin is
 retired: wherever the committee text says Kaolin, read **Arkiv rabdi, chain 7794095** (INTERFACES A-23). All times are
@@ -321,7 +324,7 @@ claim, provision, Arkiv entity, Hedera settlement by a human). Add a `CHANGELOG.
 | Arkiv | an in-window write + attribute query on rabdi **and** one entity observed expiring | explorer link; `curl -s -o /dev/null -w '%{http_code}' https://<vps>/me/<short-lived key>` = 410 after `expiresAt` |
 
 A failed gate takes the fallback listed in `DEMO-SCRIPT.md`, and the partner slot swap is decided now and confirmed
-Sat 18:00.
+Fri 18:00.
 
 **06:00–14:00** credential tiering live, Arkiv entitlements and the three reads live, agent live on Hedera:
 
@@ -339,19 +342,17 @@ owner, unpause from the sponsor. Write down the timings.
 **20:00** the first full live loop on three devices. Design pass starts. The Producer drafts the per-sponsor README
 sections. Film B-roll (airport/hall "No Service → LTE", scratch, agent notification). Nothing is sold to anyone.
 
-## Sat 7 Nov
+## Fri 6 Nov evening → Sat 7 Nov 09:00 IST (submission)
 
-- **09:00** scope freeze (AgentKit discount mode, Reloadly only if ahead).
-- **09:00–13:00** three-device rehearsal with every cutover rule of `DEMO-SCRIPT.md` triggered once.
-- **13:00–18:00** design pass complete (dark/light, Hindi), scratch-card redeem flow, print QA.
 - **18:00 · Founder · partner selection locked in the Hacker Dashboard:** three programs (default Hedera, World, Arkiv;
   ENS replaces any that failed its gate). Write the selection and the reason into `CHANGELOG.md`.
-- **18:00–23:00** video ≤ 3:00 (the three hooks, DECISION §8.6; renders in `marketing/videos/renders`), the X post,
-  README/CHANGELOG/DISCLOSURE, `pnpm schema:check`, `ARKIV_FEEDBACK.md` (with Wednesday's numbers), `SWARM.md` (the live
-  entity key ↔ Swarm reference pair).
-- **23:00** pitch dry run ×2 (4:00 + the Q&A card).
+- **21:00–23:30** video 2–4 min (ETHGlobal: 2–4 min, ≥ 720p, not shot on a phone; Hedera: ≤ 5 min with the payment
+  settling and a HashScan tab on screen; the three hooks, DECISION §8.6; renders in `marketing/videos/renders`), the X
+  post, README/CHANGELOG/DISCLOSURE, `pnpm schema:check`, `ARKIV_FEEDBACK.md`, `SWARM.md` (the live entity key ↔ Swarm
+  reference pair).
+- **23:30** pitch dry run ×2 (4:00 + the Q&A card).
 
-## Sun 8 Nov (Diwali)
+## Sat 7 Nov
 
 - **06:00** README freeze. Run `pnpm run audit` on a clean checkout (`pnpm audit` alone is pnpm's built-in registry
   audit, not our gate). Then generate the "pre-kickoff vs in-window" table at the end of `CHANGELOG.md`.
@@ -363,14 +364,16 @@ sections. Film B-roll (airport/hall "No Service → LTE", scratch, agent notific
 | Project name | Recharge |
 | One sentence | the README's first line, verbatim |
 | Track | Continuity, with a link to `docs/DISCLOSURE.md` |
-| Partner programs (3) | as locked Sat 18:00 |
+| Partner programs (3) | as locked Fri 18:00 |
 | Per partner: how it is used + code links | the README's per-sponsor section anchors |
-| Repository | the repo URL at the submission commit |
+| Repository | the repo URL at the submission commit (public) |
 | Live URL | `https://app.recharge.ajudiya.com` (`MODE=live`, API `https://api.recharge.ajudiya.com`, since Fri 6 Nov 2026 02:50 IST) |
-| Video | the ≤ 3:00 cut (YouTube/Loom link) |
+| Video | the 2–4 min cut (YouTube/Loom link) |
 | Team members and roles | the five roles, the teammate who plays the sponsor named as such |
 | AI use | the README "AI use" paragraph |
 
-- **08:00 submit**, with one hour of buffer before 09:00.
+- **08:00 submit**, with one hour of buffer before **09:00 IST, when submissions close**.
+- **After 09:00:** nothing changes the submission. The scope freeze, the three-device rehearsal and the design pass
+  that were planned for Sat 09:00–18:00 happen only as judging prep.
 - **Judging prep:** pre-installed phone charged, three scratch cards per judge, HashScan and Arkiv explorer tabs
   pinned, the teammate who plays the sponsor named as such.

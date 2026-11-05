@@ -9,7 +9,7 @@ good people want on day one._
 
 Built for ETHGlobal Mumbai 2026 (Continuity track; see [the disclosure](#continuity-disclosure)). Partner programs:
 **Hedera**, **World** and **Arkiv** (+ Swarm). **ENS** is integrated but not claimed. Video: **TBD by human
-(Design/Producer, Sat 23:00)** · Live: **https://app.recharge.ajudiya.com** (API `https://api.recharge.ajudiya.com`, testnet rails; since Fri 6 Nov 2026 02:50 IST).
+(Design/Producer, Fri 6 Nov 23:30 IST)**; submissions close **Sat 7 Nov 2026 09:00 IST** (no late submissions) · Live: **https://app.recharge.ajudiya.com** (API `https://api.recharge.ajudiya.com`, testnet rails; since Fri 6 Nov 2026 02:50 IST).
 
 ## How it works
 
@@ -108,7 +108,7 @@ gift is an HCS message.
 | Human x402 settlement · agent x402 settlement | TBD by human (Integrations, Fri 06:00) · HashScan links                              |
 | HCS topic                                     | TBD by human (Integrations, Wed 14:00) · `https://hashscan.io/testnet/topic/<0.0.x>` |
 | Agent UAID                                    | TBD by human (Provisioning/Agent, Fri 14:00)                                         |
-| Video timestamp                               | TBD by human (Design/Producer, Sat 23:00)                                            |
+| Video timestamp                               | TBD by human (Design/Producer, Fri 23:30)                                            |
 
 ## World
 
@@ -128,7 +128,7 @@ once per human per campaign.
 | `app_id` · action                                 | TBD by human (Integrations, Wed 14:00) · `recharge-welcome`                                                       |
 | Verification logs (hashed nullifiers, timestamps) | TBD by human (Integrations, Fri 06:00)                                                                            |
 | Tier table                                        | Orb 300 MB free · Document 150 MB free · Device: paid at $0.40 / 100 MB (demo campaign; sizes come from `/plans`) |
-| Video timestamp                                   | TBD by human (Design/Producer, Sat 23:00)                                                                         |
+| Video timestamp                                   | TBD by human (Design/Producer, Fri 23:30)                                                                         |
 
 ## Arkiv (+ Swarm)
 
@@ -148,7 +148,7 @@ once per human per campaign.
 | Entity keys (pre-kickoff · in-window)                                  | TBD by human (Integrations, Wed 14:00) · TBD by human (Integrations, Fri 06:00)                                                                                                                                     |
 | Queries (attribute filters, built with the SDK's `eq(...)`/`and(...)`) | `type = "entitlement" && logicalKey = "hk:…" && $creator = <writer>`; `type = "gift" && namehash = <namehash(name)> && state = "open"`; `type = "receipt" && entitlementKeyHash = <sha256(key)> && day = <utc day>` |
 | Entity key ↔ Swarm reference                                           | TBD by human (Integrations, Fri 06:00), see `docs/SWARM.md`                                                                                                                                                         |
-| Video timestamp                                                        | TBD by human (Design/Producer, Sat 23:00)                                                                                                                                                                           |
+| Video timestamp                                                        | TBD by human (Design/Producer, Fri 23:30)                                                                                                                                                                           |
 
 ## ENS (integrated, unclaimed)
 
@@ -210,8 +210,8 @@ seed. Live mode ignores them, and `env.ts` refuses `SEED_*` variables.
 
 ## Continuity disclosure
 
-Recharge is entered in the Continuity track. The full text, the pre-kickoff inventory (`v0-prekickoff`, Thu 5 Nov 20:59
-IST), every pre-deployed tx hash and entity key, and the kickoff eligibility answers are in
+Recharge is entered in the Continuity track. The full text, the pre-kickoff inventory (`v0-prekickoff` = commit `380ff32`,
+committed Thu 5 Nov 20:20:57 IST; the tag object was created at 21:16 IST, after kickoff, with no commit in between), every pre-deployed tx hash and entity key, and the kickoff eligibility answers are in
 [`docs/DISCLOSURE.md`](docs/DISCLOSURE.md). The dated in-window work is in [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 
 ## AI use

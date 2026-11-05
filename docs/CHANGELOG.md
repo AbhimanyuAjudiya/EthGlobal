@@ -116,17 +116,15 @@ From 21:00 IST. Each line: `HH:MM IST · author · package · sponsor · what ·
 
 - 06:00 IST · TBD by human (Sponsor lead, Fri 06:00) · — · Hedera / World / Arkiv · swap-gate verdicts (`DEMO-SCRIPT.md`) · —
 
+- 18:00 IST · TBD by human (Founder, Fri 18:00) · — · — · partner selection locked in the dashboard · —
+
 ## [2026-11-07]
 
-- 18:00 IST · TBD by human (Founder, Sat 18:00) · — · — · partner selection locked in the dashboard · —
-
-## [2026-11-08]
-
-- 08:00 IST · TBD by human (Founder, Sun 08:00) · — · — · submitted · —
+- 08:00 IST · TBD by human (Founder, Sat 08:00) · — · — · submitted (submissions close 09:00 IST, no late submissions) · —
 
 ## Pre-kickoff vs in-window lines per sponsor path
 
-Generate at submission (Sun 07:30, **TBD by human (Design/Producer, Sun 07:30)**), one command per row:
+Generate at submission (Sat 07:30, **TBD by human (Design/Producer, Sat 07:30)**), one command per row:
 
 ```sh
 git diff --stat v0-prekickoff..HEAD -- packages/contracts/src services/api/src/routes/claim.ts services/api/src/accepts.ts services/api/src/chain.ts services/api/src/flows/record.ts services/agent/src/payers/hedera.ts services/agent/src/receipts.ts services/agent/src/identity.ts packages/adapters/src/live/hcs-log.ts packages/adapters/src/live/remote-facilitator.ts   # Hedera

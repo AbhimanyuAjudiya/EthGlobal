@@ -1,4 +1,7 @@
-import { ExpirationTime } from '@arkiv-network/sdk';
+import { createWalletClient, ExpirationTime } from '@arkiv-network/sdk';
+import { SchemaMismatchError } from '@arkiv-network/sdk/schema';
+import { http } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -8,6 +11,7 @@ import {
   fromSdkRow,
   KAOLIN_CHAIN_ID,
   toSdkExpiration,
+  toSdkValues,
   toSdkWhere,
 } from '../../src/live/arkiv-sdk.js';
 import {
@@ -93,6 +97,7 @@ describe('@arkiv-network/sdk binding (A-23, A-24)', () => {
       (_k, v: unknown) => (typeof v === 'bigint' ? `${v}n` : v),
     );
     for (const part of ['$creator', 'gift', 'day', '$key']) expect(many).toContain(part);
+    expect(many).toContain('"u64"'); // numeric equalities are u64-tagged, like the written columns (RT-A-15)
   });
 
   it('schemaless rows map to ArkivRow (bytes hex → Uint8Array, u64 bigint, str)', () => {
@@ -142,6 +147,104 @@ describe('@arkiv-network/sdk binding (A-23, A-24)', () => {
       fetchFn,
     });
     expect(writer).toBeDefined();
+  });
+});
+
+/**
+ * RT-A-15 (T-35): the first live write on rabdi (2026-11-05) failed inside the SDK — `SchemaMismatchError: Column
+ * "createdAtMs": a u64 column, but the value is a u256` — because SDK 1.0.1 types a bare bigint as u256. The SDK's
+ * schema check runs before any RPC, so a transport that refuses every request tells the two apart: a write that is
+ * refused by the schema never reaches it; a write that reaches it fails with the transport's own error.
+ */
+describe('RT-A-15: u64 columns cross the SDK boundary as u64(value), never a bare bigint', () => {
+  const RPC = 'https://rpc.rabdi.db-chain.testnet.arkiv.network';
+  const ENTITY_KEY = `0x${'a'.repeat(64)}` as const;
+  /** Every JSON-RPC request is answered with one error (a code viem never retries), recording the method asked. */
+  function sentinelRpc() {
+    const methods: string[] = [];
+    const fetchFn: typeof fetch = async (_input, init) => {
+      const body = JSON.parse(init?.body as string) as { id: number; method: string };
+      methods.push(body.method);
+      return new Response(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          id: body.id,
+          error: { code: 4242, message: 'SENTINEL_TRANSPORT' },
+        }),
+        { headers: { 'content-type': 'application/json' } },
+      );
+    };
+    return { fetchFn, methods };
+  }
+  /** What ArkivLedger.encodeValues hands over for a gift: payload bytes, u64 createdAtMs/rev/expiresAt/day, str type. */
+  const values = {
+    payload: new TextEncoder().encode('{"v":1}'),
+    createdAtMs: 1_762_340_700_000n,
+    rev: 1n,
+    type: 'gift',
+    expiresAt: 1_762_945_500_000n,
+    day: 20_397n,
+  };
+  const chainOf = (fetchFn: typeof fetch) => ({
+    chain: arkivChain(7_794_095, RPC, 'k'),
+    transport: http(undefined, { fetchFn }),
+    account: privateKeyToAccount(anvilKeys[2]),
+  });
+  /** The error chain's messages, so a sentinel wrapped by viem (`cause`) is still found. */
+  const chain = (error: unknown): string[] =>
+    error instanceof Error ? [error.message, ...chain(error.cause)] : [];
+
+  it('toSdkValues tags every value by its column type: bigint → u64, string → str, Uint8Array → bytes', () => {
+    const tagged = toSdkValues(values) as Record<string, { type: string; value: unknown }>;
+    expect(Object.fromEntries(Object.entries(tagged).map(([k, v]) => [k, v.type]))).toEqual({
+      payload: 'bytes',
+      createdAtMs: 'u64',
+      rev: 'u64',
+      type: 'str',
+      expiresAt: 'u64',
+      day: 'u64',
+    });
+    expect(tagged.createdAtMs!.value).toBe(1_762_340_700_000n);
+  });
+
+  it('pre-fix shape (bare bigint): the real SDK refuses the create and the patch before any RPC — SchemaMismatchError', async () => {
+    const { fetchFn, methods } = sentinelRpc();
+    const wallet = createWalletClient(chainOf(fetchFn));
+    const schema = arkivSchemas().gift as never;
+    const create = await wallet
+      .createEntity(schema, values as never, { expiration: ExpirationTime.fromSeconds(604_800) })
+      .catch((error: unknown) => error);
+    expect(create).toBeInstanceOf(SchemaMismatchError);
+    expect(String(create)).toMatch(/"createdAtMs": a u64 column, but the value is a u256/);
+    const patch = await wallet
+      .patchEntity(schema, ENTITY_KEY, { set: { rev: 2n } })
+      .catch((error: unknown) => error);
+    expect(patch).toBeInstanceOf(SchemaMismatchError);
+    expect(methods).toEqual([]); // the check is client-side: nothing was sent
+  });
+
+  it('createArkivClient: createEntity and patchEntity pass the schema check and fail only at the transport', async () => {
+    const { fetchFn, methods } = sentinelRpc();
+    const client = createArkivClient({
+      chainId: 7_794_095,
+      rpcUrl: RPC,
+      accessKey: 'k',
+      privateKey: anvilKeys[2],
+      fetchFn,
+    });
+    const create = await client
+      .createEntity('gift', values, { expiration: { kind: 'seconds', seconds: 604_800 } })
+      .catch((error: unknown) => error);
+    expect(create).not.toBeInstanceOf(SchemaMismatchError);
+    expect(chain(create).join('\n')).toMatch(/SENTINEL_TRANSPORT/);
+    expect(methods.length).toBeGreaterThan(0);
+    const sent = methods.length;
+    const patch = await client
+      .patchEntity('gift', ENTITY_KEY, { set: { ...values, rev: 2n }, unset: ['logicalKey'] })
+      .catch((error: unknown) => error);
+    expect(patch).not.toBeInstanceOf(SchemaMismatchError);
+    expect(chain(patch).join('\n')).toMatch(/SENTINEL_TRANSPORT/);
+    expect(methods.length).toBeGreaterThan(sent);
   });
 });
 

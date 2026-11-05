@@ -2,6 +2,8 @@
  * The one file that touches @arkiv-network/sdk (pinned 1.0.1, A-23): binds ArkivClientLike to the SDK's public and
  * wallet clients on rabdi (7794095) — or tiramisu (7738577) when configured. Kaolin is retired and refused.
  * [verify Wed] the schemaless select/getEntity row shape and `eq('$creator', …)` against rabdi.
+ * Verified live 2026-11-05 (RT-A-15): the SDK's client-side schema check types a bare bigint as u256, so every
+ * attribute value crosses this boundary tagged (toSdkValues) — a u64 column refuses anything else before any RPC.
  */
 import { createPublicClient, createWalletClient, ExpirationTime } from '@arkiv-network/sdk';
 import { rabdi } from '@arkiv-network/sdk/chains';
@@ -115,6 +117,24 @@ export function toSdkWhere(where: ArkivWhere) {
   return nodes.length === 1 ? nodes[0]! : and(...(nodes as [never, never, ...never[]]));
 }
 
+/**
+ * Attribute values → SDK tagged values for createEntity / patchEntity. SDK 1.0.1 infers a bare bigint as u256 (its
+ * `toValue`), which a `u64()` column rejects client-side with SchemaMismatchError (seen on the first rabdi write,
+ * RT-A-15); bare strings and Uint8Arrays would infer correctly, but tagging all three keeps the write shape explicit.
+ */
+export function toSdkValues(values: Record<string, ArkivAttribute | Uint8Array>) {
+  return Object.fromEntries(
+    Object.entries(values).map(([name, value]) => [
+      name,
+      typeof value === 'bigint'
+        ? u64(value)
+        : typeof value === 'string'
+          ? str(value)
+          : bytes(value),
+    ]),
+  );
+}
+
 interface SdkValue {
   type: string;
   value: unknown;
@@ -172,7 +192,7 @@ export function createArkivClient(opts: ArkivSdkOptions): ArkivClientLike {
   };
   return {
     async createEntity(type, values, { expiration }) {
-      return (await write().createEntity!(schemas[type], values, {
+      return (await write().createEntity!(schemas[type], toSdkValues(values), {
         expiration: toSdkExpiration(expiration),
       })) as { entityKey: Hex; txHash: Hex; expiresAt: bigint };
     },
@@ -194,7 +214,10 @@ export function createArkivClient(opts: ArkivSdkOptions): ArkivClientLike {
       return { entities: page.entities.map(fromSdkRow), skipped: page.skipped };
     },
     async patchEntity(type, entityKey, changes) {
-      return (await write().patchEntity!(schemas[type], entityKey, changes)) as { txHash: Hex };
+      return (await write().patchEntity!(schemas[type], entityKey, {
+        set: toSdkValues(changes.set),
+        unset: changes.unset,
+      })) as { txHash: Hex };
     },
     async extendEntity(entityKey, expiration) {
       return (await write().extendEntity!({

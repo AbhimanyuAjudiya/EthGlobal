@@ -101,5 +101,13 @@ These are the points we hit while designing and testing against the SDK's types 
    A cursor in the response would remove the need to re-sort client-side.
 8. **Payload as bytes.** The payload is a `bytes` attribute (UTF-8 JSON, ≤ 128 KiB). Content-type metadata on the
    entity would let explorers render JSON payloads directly.
+9. **A bare bigint is a u256, not a u64 (hit live, 2026-11-05, RT-A-15).** Our first real write on rabdi failed inside
+   the SDK, before any transaction: `SchemaMismatchError: Column "createdAtMs": a u64 column, but the value is a u256.
+   Write u64(...) around the value`. The schema said `u64()`, the value was a JavaScript `bigint`, and `toValue` picks
+   the widest integer type for an untagged bigint. The message is excellent — it names the column and the fix — but
+   nothing in the `defineSchema` typing forced the tag at compile time, and `MODE=local` never runs the SDK's validator,
+   so it surfaced only on the live chain. Suggestion: when a schema is given, coerce a bare bigint to the column's own
+   integer type (the column already knows it is u64), or make `CreateEntityValues<S>` reject a bare bigint for a u64
+   column so `tsc` catches it. We now tag every value at the boundary (`toSdkValues`).
 
 Live feedback from the Wednesday pre-deploy and the window: **TBD by human (Integrations, Sat 18:00)**.

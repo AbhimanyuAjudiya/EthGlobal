@@ -358,6 +358,13 @@ const page = await publicClient.select({ $key: true, $expiresAt: true, iccid: tr
   .from(Entitlements).where(and(eq("nullifier", n), gt("bundleMb", 0n))).ownedBy(account.address)
   .orderBy(asc("$key")).limit(100).offset(0).fetch()   // -> { entities, skipped }
 ```
+- **Value typing (verified live on rabdi, 2026-11-05, RT-A-15):** `createEntity` / `patchEntity` values are checked against the schema
+  **client-side, before any RPC**. A bare value is typed by the SDK's `toValue`: `bigint` → **u256**, `number` → i32, `string` → str,
+  `Uint8Array` → bytes. A `u64()` column therefore refuses a bare bigint — `SchemaMismatchError: Column "createdAtMs": a u64 column,
+  but the value is a u256. Write u64(...) around the value` — so every u64 value must be written `u64(value)` (from
+  `@arkiv-network/sdk/schema`); a bare `Uint8Array` for a `bytes()` column and a bare string for a `str()` column are accepted as is.
+  The same applies to `patchEntity`'s `set` and to `where()` predicates on a schemaless select (`eq("day", u64(n))`); `extendEntity`
+  carries no values. Our boundary tags every value (`toSdkValues` in `packages/adapters/src/live/arkiv-sdk.ts`).
 - Expiry: `ExpirationTime.fromSeconds|fromMinutes|fromHours|fromDays|fromWeeks(n)` (must be a whole number of 2-s blocks), or absolute
   `ExpirationTime.atBlock(n, { atLeast })` / `atDate(date, { atLeast })`. Max lifetime **7,884,000 blocks (~182.5 days)**; chain reverts `ExpiryBeyondMaxLifetime`.
   The old `expiresIn`/BTL naming is gone; the option is `expiration` and the system field is `$expiresAt` (block number). Entities expire and disappear from queries.

@@ -12,7 +12,7 @@ found_at: 2026-11-05T15:55+05:30
 due: 2026-11-05T19:55+05:30
 attack_test: 'packages/adapters/test/live/sdk-bindings.test.ts::pre-fix shape (bare bigint): the real SDK refuses the create and the patch before any RPC — SchemaMismatchError'
 regression_test: 'packages/adapters/test/live/sdk-bindings.test.ts::createArkivClient: createEntity and patchEntity pass the schema check and fail only at the transport (+ ::toSdkValues tags every value by its column type: bigint → u64, string → str, Uint8Array → bytes; ::where: $creator first, then attribute equalities, then $key pagination asserts the u64 tag on numeric equalities)'
-fix_commit: 4c77949
+fix_commit: 85f3f69 (cherry-picked from the worktree commit 4c77949)
 verified_at:
 duplicate_of:
 sign_off:

@@ -245,23 +245,35 @@ campaign-funded from the sponsor's own wallet. They are minted through the live 
 (INTERFACES §7, A-43). The request is a fresh EIP-712 `SponsorCards` signature over this exact batch by the
 campaign's on-chain sponsor, ≤ 200 cards and ≤ what the remaining budget pays for. The PINs come back once, in that
 response. `print-cards.ts` signs with the Foundry keystore (`cast wallet sign --data --account sponsor` prompts for
-its password), saves the PINs 0600 **before** rendering, then prints:
+its password), saves the PINs 0600 **before** rendering (each card with its `Expires <date>` from the API's `claimBy`
+and the campaign's public name), then prints. Every QR encodes `NEXT_PUBLIC_PUBLIC_ORIGIN/card/<serial>`: the script
+refuses `--mint` and `--input` without an `https://` origin, and refuses a rendered sheet whose QR codes carry anything
+else (a web server that never saw the variable renders `http://127.0.0.1:3100/card/…`). The order matters:
 
 ```sh
-ID=<the registered campaign id>                       # scopedCampaignId(sponsor, salt) from Wed 14:00 step 4
-API_URL=https://<vps> pnpm print:cards -- --mint 200 --campaign $ID --mb 300 --save /secure/cards.json
-#   a failed render: re-run with --input /secure/cards.json (the batch is minted once; a new --mint is a new batch)
-shred -u /secure/cards.json out/cards-*.pdf           # after the printer has the file
+# 1. the origin goes into .env FIRST, the build after: Next can freeze NEXT_PUBLIC_* into apps/web at build time
+NEXT_PUBLIC_PUBLIC_ORIGIN=https://<public web host>       # the line in .env (.env.example)
+pnpm -r run build
+# 2. the script reads the shell, not .env
+export NEXT_PUBLIC_PUBLIC_ORIGIN=https://<public web host> API_URL=https://<api origin>
+# 3. proof: fake PINs, real QR codes; exit 0 and a success line with "first QR → https://<public web host>/card/d0000000"
+pnpm print:cards -- --count 3 --out out/proof
+#    decode one QR of out/proof/cards-<date>-proof.pdf with a phone camera: it must open https://<public web host>/card/…
+# 4. the batch, with --out per batch (same-day runs overwrite out/cards-<date>.*)
+ID=<the registered campaign id>                             # scopedCampaignId(sponsor, salt) from Wed 14:00 step 4
+pnpm print:cards -- --mint 200 --campaign $ID --mb 300 --save /secure/cards.json --out out/batch-1
+# 5. a failed render: re-print the saved batch; NEVER --mint again (a second --mint is a second, paid batch of PINs)
+pnpm print:cards -- --input /secure/cards.json --out out/batch-1
+# 6. after the printer has the file
+shred -u /secure/cards.json out/batch-1/cards-*.pdf
 ```
 
 `MODE=local` on the VPS is never the way to get cards. The `X-Seed-Card-Campaign` hook exists only in `MODE=local`,
 and its cards are not redeemable on the live stack.
 
-Before sending the file to the printer, decode one QR code from page 1 with a phone camera. It must read
-`https://<public host>/card/<serial>`. The web route builds the URL from the request's `Host` header, and
-`print-cards.ts` renders through `127.0.0.1`, so a local run encodes `http://127.0.0.1:<port>/card/…`. The fix is a configured public
-origin for the QR in the web route, which `print-cards.ts` would pass with the PIN file. This is **open with the web
-workstream: TBD by human (Product/PWA, Wed 19:00)**. Until it lands, a local run is a proof only.
+Before sending the file to the printer, decode one QR code from page 1 with a phone camera (step 3 did it on the
+proof; do it again on the batch). It must read `https://<public host>/card/<serial>`. The script has already refused
+the sheet if any QR carried another origin and shows the first one in its success line; the phone is the second lock.
 
 **10:00–17:00 · Founder · ≥ 5 sponsor meetings:** the drop and the free testnet pilot (E1 at 18:00).
 

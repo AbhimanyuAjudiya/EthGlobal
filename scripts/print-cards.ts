@@ -6,7 +6,7 @@
  * git-ignored, and the script says so.
  *
  *   pnpm print:cards                         # .e2e/cards.json from demo-seed.ts (real, redeemable local cards)
- *   pnpm print:cards -- --input cards.json   # re-print a saved batch (serial, pin, mb)
+ *   pnpm print:cards -- --input cards.json   # re-print a saved batch (serial, pin, mb, expires, sponsor)
  *   API_URL=https://<vps> pnpm print:cards -- --mint 200 --campaign 0x… --mb 300 --save /secure/cards.json
  *                                            # Thursday: mint the live campaign-funded cards through the API
  *                                            # (POST /sponsor/:id/cards, A-43), signed by the sponsor's keystore
@@ -29,6 +29,11 @@
  * PRINT_TOKEN (T-64): an operator-supplied token must be ≥ 43 base64url characters (32 random bytes); the local
  * fallback is 32 CSPRNG bytes. The PIN temp dir is deleted in `finally` and, if this process is SIGKILLed, by the
  * harness watchdog (removeOnDeath).
+ *
+ * QR origin: `--mint` and `--input` refuse to start without an https:// NEXT_PUBLIC_PUBLIC_ORIGIN (set it in .env
+ * BEFORE `pnpm -r run build`: Next can inline NEXT_PUBLIC_* at build time), and every QR on the rendered sheet is
+ * checked against it — a web server that never saw the variable renders `http://127.0.0.1:<port>/card/…`. A
+ * `--count` proof may run without it (loopback QR codes, and the success line says so).
  */
 import { execFileSync } from 'node:child_process';
 import {
@@ -50,14 +55,20 @@ import { encode } from 'uqr';
 import { bytesToHex, randomBytes } from '@ethglobal/crypto';
 import { httpJson } from '@ethglobal/protocol/http';
 import { generatePin } from '@ethglobal/protocol/pin';
-import { sponsorCardsResponseSchema } from '@ethglobal/protocol/schemas';
+import { cardPreviewSchema, sponsorCardsResponseSchema } from '@ethglobal/protocol/schemas';
 import {
   rechargeDomain,
   SPONSOR_CARDS_MAX,
   SPONSOR_CARDS_TYPES,
 } from '@ethglobal/protocol/typed-data';
 
-import { sponsorCardsTypedData } from './lib/cards.js';
+import {
+  assertQrUrls,
+  expiresLabel,
+  PUBLIC_ORIGIN_VAR,
+  qrOrigin,
+  sponsorCardsTypedData,
+} from './lib/cards.js';
 import {
   answers,
   cliArgs,
@@ -73,6 +84,9 @@ interface Card {
   serial: string;
   pin: string;
   mb: number;
+  /** Front of the card, from the mint: "Expires 30 Nov 2026" (the API's claimBy, IST) and the campaign's name. */
+  expires?: string;
+  sponsor?: string;
 }
 
 const FALLBACK_MAX = 20;
@@ -194,13 +208,38 @@ async function mintCards(): Promise<Card[]> {
       `POST /sponsor/${campaignId}/cards → ${reply.status} ${JSON.stringify(reply.data)}`,
     );
   const minted = sponsorCardsResponseSchema.parse(reply.data);
-  const cards = minted.cards.map(({ serial, pin, mb: size }) => ({ serial, pin, mb: size }));
-  writeFileSync(flags.save, `${JSON.stringify(cards, null, 2)}\n`, { mode: 0o600 });
-  chmodSync(flags.save, 0o600);
+  const expires = expiresLabel(minted.claimBy);
+  const cards: Card[] = minted.cards.map(({ serial, pin, mb: size }) => ({
+    serial,
+    pin,
+    mb: size,
+    expires,
+  }));
+  const saveTo = flags.save;
+  const save = () => {
+    writeFileSync(saveTo, `${JSON.stringify(cards, null, 2)}\n`, { mode: 0o600 });
+    chmodSync(saveTo, 0o600);
+  };
+  save();
   console.log(
-    `print-cards: minted ${cards.length} × ${mb} MB cards on ${apiUrl} (claim by ${new Date(minted.claimBy).toISOString()}); ` +
-      `PINs saved 0600 to ${flags.save} — shred it after the printer has the PDF`,
+    `print-cards: minted ${cards.length} × ${mb} MB cards on ${apiUrl} (${expires}); ` +
+      `PINs saved 0600 to ${saveTo} — shred it after the printer has the PDF`,
   );
+  // the campaign's public name (GET /card/:serial) goes on the front; looked up only once the PINs are on disk
+  try {
+    const preview = await httpJson(`${apiUrl}/card/${cards[0]?.serial ?? ''}`, {
+      timeoutMs: 10_000,
+    });
+    const { sponsorName } = cardPreviewSchema.parse(preview.data);
+    if (sponsorName !== undefined) {
+      for (const card of cards) card.sponsor = sponsorName;
+      save();
+    }
+  } catch (error: unknown) {
+    console.warn(
+      `print-cards: the cards print without a sponsor name (GET /card/<serial>: ${error instanceof Error ? error.message : String(error)})`,
+    );
+  }
   return cards;
 }
 
@@ -272,6 +311,11 @@ const pageCount = (pdf: Buffer): number =>
 async function main(): Promise<void> {
   stopWithParent();
   const token = printToken();
+  // real cards need the public origin before anything is minted; a --count proof may encode 127.0.0.1 and says so
+  const origin = qrOrigin(
+    process.env.NEXT_PUBLIC_PUBLIC_ORIGIN,
+    flags.mint !== undefined || flags.input !== undefined,
+  );
   const { cards, dryRun } = await loadCards();
   const hasPrintRoute = existsSync(join(ROOT, 'apps/web/app/print/cards/page.tsx'));
   if (!hasPrintRoute && !dryRun && !flags.proof) {
@@ -337,9 +381,13 @@ async function main(): Promise<void> {
         );
       }
       // the web route draws its own codes (apps/web/components/QrCode.tsx, same uqr pin); the gallery has slots
-      const drawn = hasPrintRoute
-        ? await page.$$eval('svg[data-qr-url]', (n) => n.length)
-        : await drawQrCodes(page);
+      if (!hasPrintRoute) await drawQrCodes(page);
+      const qrUrls = await page.$$eval('svg[data-qr-url]', (nodes) =>
+        nodes.map((n) => n.getAttribute('data-qr-url') ?? ''),
+      );
+      // a build that never saw the origin renders this sheet on 127.0.0.1: 200 loopback QRs, caught here, not on paper
+      if (origin !== undefined) assertQrUrls(qrUrls, origin);
+      const drawn = qrUrls.length;
       await page.evaluate(() => document.fonts.ready);
       mkdirSync(flags.out, { recursive: true });
       const date = new Date().toISOString().slice(0, 10);
@@ -366,7 +414,9 @@ async function main(): Promise<void> {
       writeFileSync(`${stem}.manifest.json`, `${JSON.stringify(manifest, null, 2)}\n`);
       console.log(
         `print-cards: ${stem}.pdf — ${pages} pages (${count} coupons + 1 keyline), ${drawn} QR codes drawn, ` +
-          `${Math.round(performance.now() - started)} ms; manifest without PINs at ${stem}.manifest.json`,
+          `first QR → ${qrUrls[0] ?? 'none'}` +
+          (origin === undefined ? ` (loopback: ${PUBLIC_ORIGIN_VAR} unset, proof only)` : '') +
+          `, ${Math.round(performance.now() - started)} ms; manifest without PINs at ${stem}.manifest.json`,
       );
       console.log(
         'print-cards: the PDF holds PINs — out/ is git-ignored; hand it to the printer, then delete it.',

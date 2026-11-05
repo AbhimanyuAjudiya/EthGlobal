@@ -153,3 +153,41 @@ describe('print-cards PRINT_TOKEN (RT-P-11, T-64)', () => {
     40_000,
   );
 });
+
+describe('print-cards public origin: real cards never encode the loopback host', () => {
+  const saved = join(scratch, 'minted.json');
+  it.each([
+    {
+      flag: '--mint',
+      args: ['--mint', '1', '--campaign', `0x${'1'.repeat(64)}`, '--save', saved],
+      env: {},
+    },
+    { flag: '--input', args: ['--input', join(scratch, 'absent.json')], env: {} },
+    {
+      flag: '--input with an http:// origin',
+      args: ['--input', join(scratch, 'absent.json')],
+      env: { NEXT_PUBLIC_PUBLIC_ORIGIN: 'http://127.0.0.1:3100' },
+    },
+  ])(
+    '$flag without an https:// NEXT_PUBLIC_PUBLIC_ORIGIN exits 1 before any request or file read',
+    ({ args, env }) => {
+      const r = spawnSync(TSX, [join(SCRIPTS, 'print-cards.ts'), ...args, '--out', scratch], {
+        cwd: SCRIPTS,
+        encoding: 'utf8',
+        // nothing listens on port 9: a mint that got past the guard would fail on /healthz instead
+        env: {
+          PATH: process.env.PATH ?? '',
+          PRINT_TOKEN: 'a'.repeat(43),
+          API_URL: 'http://127.0.0.1:9',
+          ...env,
+        },
+        timeout: 30_000,
+      });
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/NEXT_PUBLIC_PUBLIC_ORIGIN must be the https:\/\/ origin/);
+      expect(r.stderr).not.toMatch(/healthz|missing: run pnpm demo:seed/);
+      expect(existsSync(saved)).toBe(false);
+    },
+    40_000,
+  );
+});

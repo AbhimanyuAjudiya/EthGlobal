@@ -82,9 +82,10 @@ async function Sheet({ searchParams }: { searchParams: SearchParams }) {
     ...(c.validity ? { validity: c.validity } : {}),
     pin: c.pin,
     serial: c.serial,
-    expires: c.expires ?? 'Expires 30 Nov 2026',
+    // expiry and price come from the minted batch (print-cards.ts); nothing is guessed on a real card
+    ...(c.expires ? { expires: c.expires } : {}),
     qrUrl: `${origin}/card/${c.serial}`,
-    sponsorPaid: c.sponsorPaid ?? '$0.50',
+    ...(c.sponsorPaid ? { sponsorPaid: c.sponsorPaid } : {}),
     networkFee: '$0.00',
   }));
   if (cards.length === 0) return <p className="print-chrome">No cards in PRINT_CARDS_FILE.</p>;

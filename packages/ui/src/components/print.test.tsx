@@ -96,4 +96,30 @@ describe('PrintSheet', () => {
       container.querySelector('.print-sheet[data-side="keyline"] .coupon__panel'),
     ).not.toBeNull();
   });
+
+  it('prints the expiry, sponsor and price it is given, and guesses none of them when absent', () => {
+    const bare: PrintCard = { mb: 300, pin: '4821993011275064', serial: '7f3a0000' };
+    const given: PrintCard = {
+      ...bare,
+      sponsor: 'Hedera',
+      expires: 'Expires 30 Nov 2026',
+      sponsorPaid: '$0.50',
+    };
+    const paidRow = (root: HTMLElement) =>
+      [...root.querySelectorAll('.ruled__value')].map((n) => n.textContent)[1];
+
+    const front = render(<PrintSheet cards={[given]} layout="single" />).container;
+    expect(front.querySelector('.coupon__expires')?.textContent).toBe('Expires 30 Nov 2026');
+    expect(front.textContent).toContain('from Hedera');
+    const back = render(<PrintSheet cards={[given]} side="back" layout="single" />).container;
+    expect(back.textContent).toContain('Paid by Hedera');
+    expect(paidRow(back)).toBe('$0.50');
+
+    const bareFront = render(<PrintSheet cards={[bare]} layout="single" />).container;
+    expect(bareFront.querySelector('.coupon__expires')).toBeNull();
+    expect(bareFront.textContent).not.toMatch(/Expires|from /);
+    const bareBack = render(<PrintSheet cards={[bare]} side="back" layout="single" />).container;
+    expect(bareBack.textContent).toContain('Paid by');
+    expect(paidRow(bareBack)).toBe('—');
+  });
 });

@@ -5,7 +5,7 @@ module: packages/adapters/src/live/arkiv-sdk.ts
 threat: T-35
 severity: High
 likelihood: H
-status: fixed
+status: verified
 found_by: orchestrator (live pre-deploy)
 owner: builder-adapters
 found_at: 2026-11-05T15:55+05:30
@@ -13,7 +13,7 @@ due: 2026-11-05T19:55+05:30
 attack_test: 'packages/adapters/test/live/sdk-bindings.test.ts::pre-fix shape (bare bigint): the real SDK refuses the create and the patch before any RPC — SchemaMismatchError'
 regression_test: 'packages/adapters/test/live/sdk-bindings.test.ts::createArkivClient: createEntity and patchEntity pass the schema check and fail only at the transport (+ ::toSdkValues tags every value by its column type: bigint → u64, string → str, Uint8Array → bytes; ::where: $creator first, then attribute equalities, then $key pagination asserts the u64 tag on numeric equalities)'
 fix_commit: 85f3f69 (cherry-picked from the worktree commit 4c77949)
-verified_at:
+verified_at: 2026-11-05T16:20+05:30 (orchestrator, live: see Verification)
 duplicate_of:
 sign_off:
 ---
@@ -73,3 +73,9 @@ that found it.
 ## Verification (red team)
 
 Pending (`status: fixed`): re-run the two cases above and one real `createEntity` on rabdi, then set `verified_at`.
+
+## Verification (orchestrator, 2026-11-05 16:12 IST, live rabdi)
+With 85f3f69 built, the real `ArkivLedger` path wrote and read on rabdi: `put` → entity
+`0xb9429fbd706f46a55d16788d9446f147f9d65b9ef005b7f463bae9caadb2abb1` (8.8 s), `get` found it (0.37 s), `update` kept the key
+and reset the lifetime (14.9 s), `query` by `kind` returned the row (0.68 s). Recorded reads: `fixtures/arkiv/live-get.json`
+and, for the earlier 180-second entity, `fixtures/arkiv/live-expired.json` (`arkiv_getEntity` → `null` after expiry).

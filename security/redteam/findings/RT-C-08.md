@@ -5,7 +5,7 @@ module: packages/contracts/script/Deploy.s.sol (_checkUsdc, deploy hedera branch
 threat: T-09 (and the T-08 decimals check, RT-C-04)
 severity: Med
 likelihood: H
-status: fixed
+status: verified
 found_by: orchestrator (live pre-deploy, Wed 14:00 slot)
 owner: builder-contracts
 found_at: 2026-11-05T14:20+05:30
@@ -13,7 +13,7 @@ due: before the first live DataDrop deploy on 296 (blocks runbook step 3)
 attack_test: n/a (tooling): the repro below is the runbook command itself
 regression_test: packages/contracts/test/regression/T09_HederaForgeSimulation.t.sol::test_Regression_RTC08_DeployHederaRunsUnderStandIns (with test_Regression_RTC08_PlainDeployRevertsOnLiveHederaCode, test_Regression_RTC08_DeployHederaRefusesOtherChains)
 fix_commit: 708a683 (cherry-picked from the worktree commit bb8abc26)
-verified_at:
+verified_at: 2026-11-05T16:20+05:30 (orchestrator, live: see Verification)
 duplicate_of:
 sign_off:
 ---
@@ -82,3 +82,11 @@ address): `DeployHedera … --skip-simulation` exits 0 with the `DataDrop …` l
 JSON (CREATE, `associateHts`, `transferOwnership`); plain `Deploy` still fails at `0x…068cDa::decimals()` with
 `InvalidFEOpcode`. Runbook step 3, the README and THREAT-MODEL T-09 / §6.1 rule 4 now describe the in-script assertion
 as running against stand-ins on 296, with the two `cast call`s as the live T-08/T-09 gate.
+
+## Verification (orchestrator, 2026-11-05 15:05 IST, live Hedera testnet)
+`CHAIN=296 forge script script/Deploy.s.sol:DeployHedera --rpc-url hedera_testnet --broadcast --skip-simulation --account hedera-api`
+deployed DataDrop `0x2d4d52989545FF0d0CD91D77A33f14063f57c9E6` (tx `0x234ec50e…`), `associateHts` (tx `0x5b8ce6cd…`) and
+`transferOwnership` (tx `0x43c85694…`) in one run; the relay-estimated gas was enough for the HTS call. Post-broadcast gates:
+`isHtsAssociated(0x…068cDa)` = true, `decimals()` = 6 via the relay. The cold owner accepted (tx `0x71e925ab…`), a 10 USDC hello
+campaign was created (tx `0x713c00b5…`) and one claim emitted `Claimed(bytes32,bytes32,uint96,uint64)` with 500000 reaching
+the payout account (tx `0xec5f963f…`). `deploy/addresses.hedera_testnet.json` is committed (7bc0a2b).

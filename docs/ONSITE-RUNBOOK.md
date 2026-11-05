@@ -155,6 +155,7 @@ on a team phone, and run `/esim/cancel` if it is unused. MegaeSIM: if no API doc
    The same pattern works for any other chain in `deploy/chains.json`
    (`CHAIN=<id> forge script … --rpc-url <slug> --broadcast --account deployer`, then `CHAIN=<id> pnpm deploy:txs`).
    Base Sepolia is `CHAIN=84532 … --rpc-url base_sepolia`.
+   Mainnets: `CHAIN=295 … --rpc-url hedera_mainnet` (USDC HTS `0.0.456858`) and `CHAIN=8453 … --rpc-url base_mainnet`.
 
 4. The hello campaign and one claim on 296 (a `Claimed` with `paid == 500000` on HashScan):
 

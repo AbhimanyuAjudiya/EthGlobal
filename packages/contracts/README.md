@@ -142,6 +142,8 @@ CHAIN=31337 forge script script/Deploy.s.sol:Deploy --rpc-url anvil --broadcast 
 CHAIN=84532 forge script script/Deploy.s.sol:Deploy --rpc-url base_sepolia --broadcast --private-key $DEPLOYER_PRIVATE_KEY
 ```
 
+Mainnets are registered too: `CHAIN=295 … --rpc-url hedera_mainnet` (USDC HTS `0.0.456858`) and `CHAIN=8453 … --rpc-url base_mainnet`.
+
 ### Hedera notes ([verify Wed] unless stated)
 
 - USDC = HTS **`0.0.429274`**, 6 decimals; EVM long-zero alias **`0x0000000000000000000000000000000000068cDa`**

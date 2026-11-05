@@ -21,6 +21,8 @@ contract DeployTest is Test {
     address internal constant SPONSOR = 0x90F79bf6EB2c4f870365E785982E1f101E93b906; // Anvil #3
     address internal constant HEDERA_USDC = 0x0000000000000000000000000000000000068cDa; // 0.0.429274
     address internal constant BASE_SEPOLIA_USDC = 0x036CbD53842c5426634e7929541eC2318f3dCF7e;
+    address internal constant HEDERA_MAINNET_USDC = 0x000000000000000000000000000000000006f89a; // 0.0.456858
+    address internal constant BASE_USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
 
     function setUp() public {
         deploy = new Deploy();
@@ -122,7 +124,7 @@ contract DeployTest is Test {
     }
 
     function test_EveryConfiguredChainDecodes() public view {
-        uint256[8] memory ids = [uint256(31_337), 1301, 5_042_002, 16_602, 296, 4801, 1874, 84_532];
+        uint256[10] memory ids = [uint256(31_337), 1301, 5_042_002, 16_602, 296, 4801, 1874, 84_532, 295, 8453];
         for (uint256 i = 0; i < ids.length; i++) {
             Deploy.ChainRecord memory chain = deploy.loadChain(ids[i]);
             assertGt(bytes(chain.name).length, 0);
@@ -140,6 +142,15 @@ contract DeployTest is Test {
         Deploy.ChainRecord memory base = deploy.loadChain(84_532);
         assertEq(vm.parseAddress(base.usdc), BASE_SEPOLIA_USDC);
         assertEq(base.usdcHts, "");
+        Deploy.ChainRecord memory hederaMain = deploy.loadChain(295);
+        assertEq(hederaMain.slug, "hedera_mainnet");
+        assertEq(vm.parseAddress(hederaMain.usdc), HEDERA_MAINNET_USDC);
+        assertEq(uint160(HEDERA_MAINNET_USDC), 456_858); // long-zero form of 0.0.456858
+        assertEq(hederaMain.usdcHts, "0.0.456858");
+        Deploy.ChainRecord memory baseMain = deploy.loadChain(8453);
+        assertEq(baseMain.slug, "base_mainnet");
+        assertEq(vm.parseAddress(baseMain.usdc), BASE_USDC);
+        assertEq(baseMain.usdcHts, "");
     }
 
     function test_HederaLedgerOnlyDeploysDataDropWithZeroUsdc() public {

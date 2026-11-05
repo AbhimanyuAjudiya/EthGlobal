@@ -70,5 +70,23 @@
     "slug": "base_sepolia",
     "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
     "usdcHts": ""
+  },
+  "295": {
+    "explorer": "https://hashscan.io/mainnet",
+    "gasToken": "HBAR",
+    "name": "Hedera Mainnet",
+    "rpcEnv": "HEDERA_MAINNET_RPC_URL",
+    "slug": "hedera_mainnet",
+    "usdc": "0x000000000000000000000000000000000006f89a",
+    "usdcHts": "0.0.456858"
+  },
+  "8453": {
+    "explorer": "https://basescan.org",
+    "gasToken": "ETH",
+    "name": "Base",
+    "rpcEnv": "BASE_MAINNET_RPC_URL",
+    "slug": "base_mainnet",
+    "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "usdcHts": ""
   }
 }

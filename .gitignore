@@ -55,3 +55,4 @@ apps/web/playwright-report/
 apps/web/blob-report/
 # raw live recordings before scripts/record-fixture.ts redacts them (RT-P-10); only the redacted live-*.json is committed
 fixtures/**/live-*.raw.json
+.state/

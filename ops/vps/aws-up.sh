@@ -49,7 +49,7 @@ for i in $(seq 1 30); do $SSH true 2>/dev/null && break; sleep 10; done
 $SSH 'sudo install -d -m 0700 /etc/recharge'; scp -i "$KEY" -o StrictHostKeyChecking=accept-new "$ENV_FILE" "ubuntu@$IP:/tmp/recharge.env"
 $SSH 'sudo install -m 0600 /tmp/recharge.env /etc/recharge/.env && rm -f /tmp/recharge.env'
 
-say "code (private repo: ship a git bundle, no token on the box)"; BUNDLE="$S/recharge.bundle"
+say "code (private repo: ship a git bundle, no token on the box)"; BUNDLE="$(mktemp -d)/recharge.bundle"
 git bundle create "$BUNDLE" "$REF" >/dev/null; scp -i "$KEY" "$BUNDLE" "ubuntu@$IP:/tmp/recharge.bundle"; scp -i "$KEY" ops/vps/bootstrap.sh "ubuntu@$IP:/tmp/bootstrap.sh"; $SSH 'sudo install -m 0644 /tmp/recharge.bundle /opt/recharge.bundle'
 
 if [[ "${SKIP_BOOTSTRAP:-0}" == 1 ]]; then say "bootstrap skipped (SKIP_BOOTSTRAP=1)"; else

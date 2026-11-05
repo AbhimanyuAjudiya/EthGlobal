@@ -366,7 +366,7 @@ sections. Film B-roll (airport/hall "No Service → LTE", scratch, agent notific
 | Partner programs (3) | as locked Sat 18:00 |
 | Per partner: how it is used + code links | the README's per-sponsor section anchors |
 | Repository | the repo URL at the submission commit |
-| Live URL | `https://<vps>` (`MODE=live`) |
+| Live URL | `https://app.recharge.ajudiya.com` (`MODE=live`, API `https://api.recharge.ajudiya.com`, since Fri 6 Nov 2026 02:50 IST) |
 | Video | the ≤ 3:00 cut (YouTube/Loom link) |
 | Team members and roles | the five roles, the teammate who plays the sponsor named as such |
 | AI use | the README "AI use" paragraph |

@@ -9,7 +9,7 @@ good people want on day one._
 
 Built for ETHGlobal Mumbai 2026 (Continuity track; see [the disclosure](#continuity-disclosure)). Partner programs:
 **Hedera**, **World** and **Arkiv** (+ Swarm). **ENS** is integrated but not claimed. Video: **TBD by human
-(Design/Producer, Sat 23:00)** · Live: **TBD by human (Integrations, Fri 06:00)**.
+(Design/Producer, Sat 23:00)** · Live: **https://app.recharge.ajudiya.com** (API `https://api.recharge.ajudiya.com`, testnet rails; since Fri 6 Nov 2026 02:50 IST).
 
 ## How it works
 

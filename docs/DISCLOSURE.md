@@ -6,7 +6,7 @@ and how the AI orchestrator was used. It is kept current through Sunday. The dat
 [`CHANGELOG.md`](CHANGELOG.md).
 
 Every slot marked `TODO(20:59): …` is filled in one pass at the tag (Thu 5 Nov 2026, 20:59 IST; `grep -n 'TODO(20:59)'`
-lists them all). Every slot marked **TBD by human** names an owner and a time after kickoff. No key, seed phrase, access
+lists them all). Every slot still left to a human names that owner and a time after kickoff. No key, seed phrase, access
 code or signing key is ever written here. Only public identifiers are: transaction ids, entity keys, contract addresses
 and hashes.
 
@@ -103,7 +103,7 @@ Arkiv is the rabdi testnet, chain id 7794095. The x402 facilitator is x402.org (
 | eSIM Access | one real order (order no.), refunded with `/esim/cancel` if unused | `TODO(20:59): order no. (and cancelled?)` | — | Integrations · by Thu 5 Nov 2026 20:59 IST (console login pending, human) |
 
 DataDrop on 296 uses token mode with HTS USDC `0.0.429274` unless the HTS ERC-20 facade misbehaves. In that case it uses
-`LEDGER_ONLY` (THREAT-MODEL §6.1 rule 5). Mode chosen: **token mode** (intended). The facade behaves: `decimals()` = 6
+`LEDGER_ONLY` (THREAT-MODEL §6.1 rule 5). Mode chosen: *token mode* (intended). The facade behaves: `decimals()` = 6
 and `symbol()` = "USDC" through the relay on Thu 5 Nov 2026. Its reported EVM code is an EIP-7702 designator to the HTS
 system contract `0x167`, which Foundry's local EVM cannot execute, so the 296 branch of `Deploy.s.sol` reverts before any
 broadcast: finding [RT-C-08](../security/redteam/findings/RT-C-08.md), open, fix in progress. That is a simulation limit,

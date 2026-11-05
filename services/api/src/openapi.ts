@@ -309,7 +309,10 @@ const json = (schema: z.ZodType, io: 'input' | 'output'): JsonSchema => {
   return rest;
 };
 
-export function openApiDocument(): Record<string, unknown> {
+/** The public API origin, served as `servers` in MODE=live; the committed openapi.json keeps the local default. */
+export const LIVE_SERVER_URL = 'https://api.recharge.ajudiya.com';
+
+export function openApiDocument(serverUrl = 'http://127.0.0.1:8787'): Record<string, unknown> {
   const paths: Record<string, Record<string, unknown>> = {};
   for (const op of OPERATIONS) {
     const query = op.query ? json(op.query, 'input') : {};
@@ -369,7 +372,7 @@ export function openApiDocument(): Record<string, unknown> {
       version: '0.0.0',
       description: 'services/api — INTERFACES §7. Generated from @ethglobal/protocol/schemas.',
     },
-    servers: [{ url: 'http://127.0.0.1:8787' }],
+    servers: [{ url: serverUrl }],
     paths,
   };
 }

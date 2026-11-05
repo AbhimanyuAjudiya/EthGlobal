@@ -13,7 +13,7 @@ import { fail, respondError } from './errors.js';
 import { accessLog, bodyLimit, cors, requestId, securityHeaders } from './middleware/basics.js';
 import { idempotency } from './middleware/idempotency.js';
 import { rateLimit } from './middleware/rate-limit.js';
-import { openApiDocument } from './openapi.js';
+import { LIVE_SERVER_URL, openApiDocument } from './openapi.js';
 import { registerAgentPass } from './routes/agent-pass.js';
 import { registerAgentPolicy } from './routes/agent-policy.js';
 import { registerClaim } from './routes/claim.js';
@@ -82,7 +82,7 @@ export function createApp(deps: Deps, options: AppOptions = {}) {
   registerAgentPolicy(app, deps);
   registerAgentPass(app, deps);
   registerFacilitator(app, deps);
-  const document = openApiDocument();
+  const document = openApiDocument(deps.env.MODE === 'live' ? LIVE_SERVER_URL : undefined);
   app.get('/openapi.json', (c) => c.json(document));
 
   const clock = options.localClock;

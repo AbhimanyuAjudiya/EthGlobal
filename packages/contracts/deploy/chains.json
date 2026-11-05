@@ -1,0 +1,92 @@
+{
+  "31337": {
+    "explorer": "",
+    "gasToken": "ETH",
+    "name": "Anvil",
+    "rpcEnv": "ANVIL_RPC_URL",
+    "slug": "anvil",
+    "usdc": "",
+    "usdcHts": ""
+  },
+  "1301": {
+    "explorer": "https://sepolia.uniscan.xyz",
+    "gasToken": "ETH",
+    "name": "Unichain Sepolia",
+    "rpcEnv": "UNICHAIN_SEPOLIA_RPC_URL",
+    "slug": "unichain_sepolia",
+    "usdc": "",
+    "usdcHts": ""
+  },
+  "5042002": {
+    "explorer": "https://testnet.arcscan.app",
+    "gasToken": "USDC",
+    "name": "Arc Testnet",
+    "rpcEnv": "ARC_TESTNET_RPC_URL",
+    "slug": "arc_testnet",
+    "usdc": "",
+    "usdcHts": ""
+  },
+  "16602": {
+    "explorer": "https://chainscan-galileo.0g.ai",
+    "gasToken": "OG",
+    "name": "0G Galileo",
+    "rpcEnv": "ZG_GALILEO_RPC_URL",
+    "slug": "zg_galileo",
+    "usdc": "",
+    "usdcHts": ""
+  },
+  "296": {
+    "explorer": "https://hashscan.io/testnet",
+    "gasToken": "HBAR",
+    "name": "Hedera Testnet",
+    "rpcEnv": "HEDERA_TESTNET_RPC_URL",
+    "slug": "hedera_testnet",
+    "usdc": "0x0000000000000000000000000000000000068cDa",
+    "usdcHts": "0.0.429274"
+  },
+  "4801": {
+    "explorer": "https://worldchain-sepolia.explorer.alchemy.com",
+    "gasToken": "ETH",
+    "name": "World Chain Sepolia",
+    "rpcEnv": "WORLDCHAIN_SEPOLIA_RPC_URL",
+    "slug": "worldchain_sepolia",
+    "usdc": "",
+    "usdcHts": ""
+  },
+  "1874": {
+    "explorer": "",
+    "gasToken": "WBT",
+    "name": "Whitechain Sepolia",
+    "rpcEnv": "WHITECHAIN_SEPOLIA_RPC_URL",
+    "slug": "whitechain_sepolia",
+    "usdc": "",
+    "usdcHts": ""
+  },
+  "84532": {
+    "explorer": "https://sepolia.basescan.org",
+    "gasToken": "ETH",
+    "name": "Base Sepolia",
+    "rpcEnv": "BASE_SEPOLIA_RPC_URL",
+    "slug": "base_sepolia",
+    "usdc": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "usdcHts": ""
+  },
+  "295": {
+    "explorer": "https://hashscan.io/mainnet",
+    "gasToken": "HBAR",
+    "name": "Hedera Mainnet",
+    "rpcEnv": "HEDERA_MAINNET_RPC_URL",
+    "slug": "hedera_mainnet",
+    "usdc": "0x000000000000000000000000000000000006f89a",
+    "usdcHts": "0.0.456858"
+  },
+  "8453": {
+    "explorer": "https://basescan.org",
+    "gasToken": "ETH",
+    "name": "Base",
+    "rpcEnv": "BASE_MAINNET_RPC_URL",
+    "slug": "base_mainnet",
+    "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "usdcHts": ""
+  }
+}

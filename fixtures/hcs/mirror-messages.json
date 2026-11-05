@@ -1,0 +1,100 @@
+{
+  "name": "hcs mirror messages, two pages",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "note": "[verify Wed] authored from hedera-docs@836b856 openapi.yaml (topics/{id}/messages) and @hiero-ledger/sdk 2.90.1 TransactionReceipt; re-record against HCS_TOPIC_ID.",
+  "exchanges": [
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.4242/messages?sequencenumber=gte:1&limit=100&order=asc"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "messages": [
+            {
+              "chunk_info": null,
+              "consensus_timestamp": "1793707201.000000001",
+              "message": "eyJ2IjoxLCJuIjoxfQ==",
+              "payer_account_id": "0.0.6006",
+              "running_hash": "aGFzaC0x",
+              "running_hash_version": 3,
+              "sequence_number": 1,
+              "topic_id": "0.0.4242"
+            },
+            {
+              "chunk_info": null,
+              "consensus_timestamp": "1793707202.000000002",
+              "message": "eyJ2IjoxLCJuIjoyfQ==",
+              "payer_account_id": "0.0.6006",
+              "running_hash": "aGFzaC0y",
+              "running_hash_version": 3,
+              "sequence_number": 2,
+              "topic_id": "0.0.4242"
+            }
+          ],
+          "links": {
+            "next": "/api/v1/topics/0.0.4242/messages?sequencenumber=gte:3&limit=100&order=asc"
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.4242/messages?sequencenumber=gte:3&limit=100&order=asc"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "messages": [
+            {
+              "chunk_info": null,
+              "consensus_timestamp": "1793707203.000000003",
+              "message": "eyJ2IjoxLCJuIjozfQ==",
+              "payer_account_id": "0.0.6006",
+              "running_hash": "aGFzaC0z",
+              "running_hash_version": 3,
+              "sequence_number": 3,
+              "topic_id": "0.0.4242"
+            }
+          ],
+          "links": {
+            "next": null
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.9999/messages?sequencenumber=gte:1&limit=100&order=asc"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "_status": {
+            "messages": [
+              {
+                "message": "Not found"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://testnet.mirrornode.hedera.com/api/v1/topics/0.0.7777/messages?sequencenumber=gte:1&limit=100&order=asc"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "messages": "nope"
+        }
+      }
+    }
+  ]
+}

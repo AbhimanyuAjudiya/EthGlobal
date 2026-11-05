@@ -1,0 +1,70 @@
+/*
+ * Tailwind v4 theme bridge: exposes the tokens from tokens.css and fonts.css as utilities
+ * (bg-canvas, text-ink-secondary, border-input, bg-series-3, font-display, text-14, duration-state, …).
+ * `inline` keeps the var() references so light/dark and the type pairing stay live at runtime.
+ * Import after `@import "tailwindcss"` and the two token files.
+ */
+@theme inline {
+  --color-*: initial;
+  --color-canvas: var(--bg-canvas);
+  --color-surface: var(--bg-surface);
+  --color-sunken: var(--bg-sunken);
+  --color-raised: var(--bg-raised);
+  --color-overlay: var(--bg-overlay);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-border-input: var(--border-input);
+  --color-ink: var(--text-primary);
+  --color-ink-secondary: var(--text-secondary);
+  --color-ink-tertiary: var(--text-tertiary);
+  --color-ink-disabled: var(--text-disabled);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-on-accent: var(--on-accent);
+  --color-focus: var(--focus);
+  --color-positive: var(--positive);
+  --color-positive-subtle: var(--positive-subtle);
+  --color-negative: var(--negative);
+  --color-negative-subtle: var(--negative-subtle);
+  --color-warning: var(--warning);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+  --color-series-4: var(--series-4);
+  --color-series-5: var(--series-5);
+  --color-series-6: var(--series-6);
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  --font-display: var(--font-display);
+  --font-text: var(--font-text);
+  --font-mono: var(--font-mono);
+  --default-font-family: var(--font-text);
+  --default-mono-font-family: var(--font-mono);
+
+  --text-11: var(--text-11);
+  --text-11--line-height: var(--leading-text);
+  --text-12: var(--text-12);
+  --text-12--line-height: var(--leading-text);
+  --text-13: var(--text-13);
+  --text-13--line-height: var(--leading-text);
+  --text-14: var(--text-14);
+  --text-14--line-height: var(--leading-text);
+  --text-16: var(--text-16);
+  --text-16--line-height: var(--leading-text);
+  --text-20: var(--text-20);
+  --text-20--line-height: var(--leading-display);
+  --text-24: var(--text-24);
+  --text-24--line-height: var(--leading-display);
+  --text-32: var(--text-32);
+  --text-32--line-height: var(--leading-display);
+  --text-44: var(--text-44);
+  --text-44--line-height: var(--leading-display);
+  --text-64: var(--text-64);
+  --text-64--line-height: var(--leading-display);
+
+  --ease-standard: var(--ease-standard);
+  --ease-exit: var(--ease-exit);
+}

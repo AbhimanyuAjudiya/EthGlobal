@@ -1,0 +1,50 @@
+{
+  "name": "arkiv patchEntity + extendEntity",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "note": "[verify Wed] ArkivClientLike-level exchanges authored from @arkiv-network/sdk@1.0.1 README/src (createEntity returns { entityKey, txHash, expiresAt } with expiresAt the block of the EntityCreated event; getEntity throws NoEntityFoundError \u2192 null). Re-record against rabdi (7794095) with scripts/record-fixture.ts; block numbers and the measured block time will differ.",
+  "calls": [
+    {
+      "method": "blockNumber",
+      "result": {
+        "$bigint": "1000000"
+      }
+    },
+    {
+      "method": "getEntity",
+      "result": {
+        "key": "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+        "creator": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "expiresAt": {
+          "$bigint": "1000150"
+        },
+        "values": {
+          "payload": {
+            "$utf8": "{\"v\":1}"
+          },
+          "createdAtMs": {
+            "$bigint": "1793707200000"
+          },
+          "type": "gift",
+          "logicalKey": "gift:0xefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef",
+          "state": "open"
+        }
+      }
+    },
+    {
+      "method": "patchEntity",
+      "result": {
+        "txHash": "0x7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e"
+      }
+    },
+    {
+      "method": "extendEntity",
+      "result": {
+        "txHash": "0x7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e",
+        "expiresAt": {
+          "$bigint": "1302400"
+        }
+      }
+    }
+  ]
+}

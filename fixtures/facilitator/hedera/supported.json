@@ -1,0 +1,33 @@
+{
+  "name": "hedera facilitator supported",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "note": "[verify Wed] authored from @x402/hedera 2.29.0 (scheme_exact_hedera.md, facilitator returns transaction = 0.0.x@s.n) and hedera-docs facilitators.mdx (Blocky402 fee payer 0.0.7162784); re-record at the Wed 14:00 pre-deploy.",
+  "exchanges": [
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.testnet.blocky402.com/supported"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "kinds": [
+            {
+              "x402Version": 2,
+              "scheme": "exact",
+              "network": "hedera:testnet",
+              "extra": {
+                "feePayer": "0.0.7162784"
+              }
+            }
+          ],
+          "extensions": [],
+          "signers": {
+            "eip155:*": ["0x976EA74026E726554dB657fA54763abd0C3a0aa9"]
+          }
+        }
+      }
+    }
+  ]
+}

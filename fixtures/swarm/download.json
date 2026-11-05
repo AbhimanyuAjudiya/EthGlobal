@@ -1,0 +1,34 @@
+{
+  "name": "bee download",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "note": "[verify Wed] authored from ethersphere/bee@ed32cfa openapi/Swarm.yaml (POST /bzz → { reference }); no hosted gateway/batch is confirmed for the hackathon.",
+  "exchanges": [
+    {
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:1633/bzz/abababababababababababababababababababababababababababababababab/"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"v\":1,\"alg\":\"x25519-xchacha20poly1305\",\"epk\":\"AAAA\",\"nonce\":\"BBBB\",\"ct\":\"CCCC\"}"
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:1633/bzz/0000000000000000000000000000000000000000000000000000000000000000/"
+      },
+      "response": {
+        "status": 404,
+        "body": {
+          "code": 404,
+          "message": "Not Found"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "maxUsd6PerDay": "10000000",
+  "thresholdMb": 60,
+  "stepMb": 100,
+  "paused": false,
+  "topUpOnExpiry": true,
+  "expiryLeadS": 1800
+}

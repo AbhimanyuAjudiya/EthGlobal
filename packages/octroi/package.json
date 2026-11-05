@@ -1,0 +1,41 @@
+{
+  "name": "@ethglobal/octroi",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The proof-or-pay quota engine: credential tiers, bundle sizing, pseudonymous keys, MAC-bound challenges, decide(), the agent's shouldTopUp, the gift-reclaim rule and the ledger stores (the only code that builds annotations).",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./store": {
+      "types": "./dist/store/index.d.ts",
+      "import": "./dist/store/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@ethglobal/adapters": "workspace:*",
+    "@ethglobal/crypto": "workspace:*",
+    "@ethglobal/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "fast-check": "catalog:",
+    "typescript": "catalog:",
+    "viem": "catalog:",
+    "vitest": "catalog:"
+  }
+}

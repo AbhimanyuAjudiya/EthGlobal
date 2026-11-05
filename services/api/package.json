@@ -1,0 +1,39 @@
+{
+  "name": "@ethglobal/api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "HTTP service (Hono on Node): challenges, World ID claims, x402 top-ups, gifts, cards, webhooks, sponsor dashboard and a self-run facilitator.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts | pino-pretty",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node --env-file-if-exists=../../.env dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage",
+    "openapi": "tsx scripts/openapi.ts",
+    "openapi:check": "tsx scripts/openapi.ts --check",
+    "e2e:flow": "tsx scripts/e2e-flow.ts"
+  },
+  "dependencies": {
+    "@ethglobal/adapters": "workspace:*",
+    "@ethglobal/contracts": "workspace:*",
+    "@ethglobal/crypto": "workspace:*",
+    "@ethglobal/eip3009": "workspace:*",
+    "@ethglobal/octroi": "workspace:*",
+    "@ethglobal/protocol": "workspace:*",
+    "@hono/node-server": "catalog:",
+    "hono": "catalog:",
+    "pino": "catalog:",
+    "viem": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "pino-pretty": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

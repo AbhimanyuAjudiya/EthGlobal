@@ -1,0 +1,21 @@
+{
+  "README": "THE one props file the team edits on Saturday (SCRIPTS.md §9, Sat 14:00-17:00). Every headless capture in footage/screen/ was recorded against the LOCAL stack (Anvil 31337, MODE=local), so its hashes, keys, addresses and PINs are seed data, and every frame showing them carries 'SEED DATA · not a real record'. To clear the label: (1) re-run scripts/capture-screens.mjs against the live testnet stack (WEB_URL/API_URL), or drop the real subject-phone recordings into footage/ (they win over the headless ones automatically); (2) replace every value below with the real one from capture/NN-notes.md; (3) only then set provenance to 'rehearsal'.",
+  "provenance": "local-stack",
+  "sponsorName": "Recharge (demo sponsor)",
+  "short01": {
+    "push": "300 MB · from Recharge (demo sponsor) · because you're human. Install takes 2 minutes."
+  },
+  "short02": { "serial": "<serial of the scratched card>" },
+  "short03": { "push": "+100 MB · paid by your agent · $0.40 · 03:12" },
+  "short04": {
+    "to": "priya.eth",
+    "from": "rahul.eth",
+    "size": "1 GB",
+    "validUntil": "Sun 15 Nov 09:12"
+  },
+  "judge": {
+    "endpoint": "https://recharge.example",
+    "repo": "github.com/AbhimanyuAjudiya/EthGlobal",
+    "disclosure": "Continuity · v0-prekickoff 5 Nov 20:59 IST · in-window commits by the named team · AI assisted tests, fixtures and docs · keys generated on-site"
+  }
+}

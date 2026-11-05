@@ -1,0 +1,206 @@
+{
+  "name": "eSIM Access topup",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "note": "[verify Wed] authored from esimaccess-api@b9421b3 references/api-reference.md (envelope { success, errorCode, errorMsg, obj }, price ×10 000, volume bytes). Re-record with the console account: real packageCodes, the real `ac` (LPA) and its fill latency.",
+  "exchanges": [
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://api.esimaccess.com/api/v1/open/esim/query",
+        "body": {
+          "orderNo": "",
+          "iccid": "89852240000000000001",
+          "pager": {
+            "pageNum": 1,
+            "pageSize": 20
+          }
+        },
+        "expectHeaders": {
+          "RT-AccessCode": "test-access-code",
+          "RT-Timestamp": "*",
+          "RT-RequestID": "*",
+          "RT-Signature": "*"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "errorCode": null,
+          "errorMsg": null,
+          "obj": {
+            "esimList": [
+              {
+                "esimTranNo": "ESIM-TRAN-1",
+                "orderNo": "B26110300001",
+                "transactionId": "x",
+                "imsi": "",
+                "iccid": "89852240000000000001",
+                "msisdn": "",
+                "ac": "LPA:1$rsp.esimaccess.example$MATCH1ID",
+                "qrCodeUrl": "https://p.qrsim.net/example.png",
+                "shortUrl": "",
+                "smdpStatus": "RELEASED",
+                "esimStatus": "GOT_RESOURCE",
+                "eid": "",
+                "totalVolume": 1073741824,
+                "orderUsage": 0,
+                "expiredTime": "2026-11-10T12:00:00+0000"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://api.esimaccess.com/api/v1/open/package/list",
+        "body": {
+          "locationCode": "",
+          "type": "TOPUP",
+          "slug": "",
+          "packageCode": "",
+          "iccid": "89852240000000000001"
+        },
+        "expectHeaders": {
+          "RT-AccessCode": "test-access-code",
+          "RT-Timestamp": "*",
+          "RT-RequestID": "*",
+          "RT-Signature": "*"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "errorCode": null,
+          "errorMsg": null,
+          "obj": {
+            "packageList": [
+              {
+                "packageCode": "TOPUP-IN-1G",
+                "slug": "topup-in-1g",
+                "name": "India 1GB 7Days",
+                "price": 9000,
+                "retailPrice": 18000,
+                "currencyCode": "USD",
+                "volume": 1073741824,
+                "duration": 7,
+                "durationUnit": "DAY",
+                "location": "IN",
+                "speed": "4G/5G",
+                "supportTopUpType": 2
+              },
+              {
+                "packageCode": "TOPUP-IN-3G",
+                "slug": "topup-in-3g",
+                "name": "India 3GB 30Days",
+                "price": 20000,
+                "retailPrice": 40000,
+                "currencyCode": "USD",
+                "volume": 3221225472,
+                "duration": 30,
+                "durationUnit": "DAY",
+                "location": "IN",
+                "speed": "4G/5G",
+                "supportTopUpType": 2
+              },
+              {
+                "packageCode": "BASE-IN-1G",
+                "slug": "base-in-1g",
+                "name": "India 1GB 7Days",
+                "price": 9000,
+                "retailPrice": 18000,
+                "currencyCode": "USD",
+                "volume": 1073741824,
+                "duration": 7,
+                "durationUnit": "DAY",
+                "location": "IN",
+                "speed": "4G/5G",
+                "supportTopUpType": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://api.esimaccess.com/api/v1/open/esim/topup",
+        "body": {
+          "esimTranNo": "ESIM-TRAN-1",
+          "iccid": "",
+          "packageCode": "TOPUP-IN-1G",
+          "transactionId": "e1f39cfa3d908656945f493522d8b7d6"
+        },
+        "expectHeaders": {
+          "RT-AccessCode": "test-access-code",
+          "RT-Timestamp": "*",
+          "RT-RequestID": "*",
+          "RT-Signature": "*"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "errorCode": null,
+          "errorMsg": null,
+          "obj": null
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://api.esimaccess.com/api/v1/open/esim/query",
+        "body": {
+          "orderNo": "",
+          "iccid": "89852240000000000001",
+          "pager": {
+            "pageNum": 1,
+            "pageSize": 20
+          }
+        },
+        "expectHeaders": {
+          "RT-AccessCode": "test-access-code",
+          "RT-Timestamp": "*",
+          "RT-RequestID": "*",
+          "RT-Signature": "*"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "errorCode": null,
+          "errorMsg": null,
+          "obj": {
+            "esimList": [
+              {
+                "esimTranNo": "ESIM-TRAN-1",
+                "orderNo": "B26110300001",
+                "transactionId": "x",
+                "imsi": "",
+                "iccid": "89852240000000000001",
+                "msisdn": "",
+                "ac": "LPA:1$rsp.esimaccess.example$MATCH1ID",
+                "qrCodeUrl": "https://p.qrsim.net/example.png",
+                "shortUrl": "",
+                "smdpStatus": "RELEASED",
+                "esimStatus": "GOT_RESOURCE",
+                "eid": "",
+                "totalVolume": 2147483648,
+                "orderUsage": 0,
+                "expiredTime": "2026-11-10T12:00:00+0000"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

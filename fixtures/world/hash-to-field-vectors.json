@@ -1,0 +1,20 @@
+{
+  "name": "World ID hash_to_field vectors",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "note": "API-FACTS §4.2 (developer-docs world-id/idkit/signatures.mdx): keccak256(utf8) >> 8",
+  "vectors": [
+    {
+      "input": "",
+      "output": "0x00c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a4"
+    },
+    {
+      "input": "test_signal",
+      "output": "0x00c1636e0a961a3045054c4d61374422c31a95846b8442f0927ad2ff1d6112ed"
+    },
+    {
+      "input": "hello",
+      "output": "0x001c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36dea"
+    }
+  ]
+}

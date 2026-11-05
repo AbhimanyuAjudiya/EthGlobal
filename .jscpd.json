@@ -1,0 +1,26 @@
+{
+  "threshold": 1,
+  "minLines": 5,
+  "minTokens": 50,
+  "ignore": [
+    "**/node_modules/**",
+    "**/out/**",
+    "**/lib/**",
+    "**/.next/**",
+    "**/.next-*/**",
+    "**/dist/**",
+    "**/cache/**",
+    "**/broadcast/**",
+    "**/pnpm-lock.yaml",
+    "**/*.md",
+    "docs/**",
+    "research/**",
+    "marketing/**",
+    "security/**",
+    "**/abi/**",
+    "**/fixtures/**",
+    "**/*.json"
+  ],
+  "reporters": ["console"],
+  "blame": false
+}

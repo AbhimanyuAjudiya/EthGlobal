@@ -1,0 +1,488 @@
+PRIZE SAMPLE: [{"sponsor": "ENS", "trackName": "Integrate ENS", "prizeType": "pool", "placement": "pool", "rawText": "ENS -  Integrate ENS"}]
+badge sample: ['bw7y9']
+
+==== ETHGlobal Bangkok: 713 projects, 461 winners, 10 finalists ====
+- Dark Factory (ZKP) [5 prizes] :: Dark Factory combines the exploration of Dark Forest with the automation of Factorio. Players design layouts for islands to optimize resourc
+      * Blockscout
+      * Scroll
+      * Polygon
+      * World
+      * ETHGlobal
+- Industry AI [5 prizes] :: Industry.ai: An autonomous Web3 agent agency where specialized AI agents collaborate seamlessly to automate complex tasks across DeFi, NFTs 
+      * Coinbase
+      * Coinbase
+      * Base
+      * Scroll
+      * ETHGlobal
+- DAOGenie [5 prizes] :: DAO Genie turns community decisions into real-world actions with simple governance and automated execution, building the bridge between digi
+      * Flow Foundation
+      * Hedera
+      * Rome Protocol
+      * MetaMask & Linea
+      * ETHGlobal
+- Cat In A Box [5 prizes] :: Cat In A Box is a DeSci and Social Fi platform empowering anyone to participate in community science and decentralized experiments. It incen
+      * Blockscout
+      * Protocol Labs
+      * Phala Network
+      * Zircuit
+      * ETHGlobal
+- BubbleWars [5 prizes] :: BubbleWars is a gamified Telegram-implementation of our novel Ethereum Referral Protocol.
+      * Blockscout
+      * Coinbase
+      * Pyth Network
+      * ENS
+      * ETHGlobal
+- ETHPark-QR [4 prizes] :: Allows to settle QR Parking tickets (and beyond) on-chain with various options. Also settle QR payments without owning Local Thai Bank Accou
+      * Blockscout
+      * Coinbase
+      * Bitkub
+      * ETHGlobal
+- LootGO [4 prizes] :: LootGO is like a Pokémon GO but collecting memecoins,  turning your daily life into a treasure hunt for finding the next 100x memecoins
+      * Blockscout
+      * Celo
+      * Flow Foundation
+      * ETHGlobal
+- Zubernetes | ZK8S [3 prizes] :: The first TEE ZK container orchestrator for SP1-based verifiable execution trace with state attestation
+      * Blockscout
+      * Phala Network
+      * ETHGlobal
+- Metaloot [2 prizes] :: Metaloot is a launchpad for games which brings on chain logic capability to players and game devs. Metaloot connects games to Flow, so that 
+      * Flow Foundation
+      * ETHGlobal
+- minidao [2 prizes] :: Mini DAO is a telegram bot that enables DAO's inside of Telegram. Add the bot to your telegram group to get started. The group members can d
+      * Blockscout
+      * ETHGlobal
+
+==== Agentic Ethereum: 517 projects, 304 winners, 10 finalists ====
+- Synapze [3 prizes] :: Synapze is a one-click AI agent hosting platform built for Eliza-based agents. Enjoy streamlined deployment and real-time monitoring.
+      * Coinbase
+      * EigenLayer
+      * ETHGlobal
+- SecretAgent [3 prizes] :: SecretAgent - Secure secret management tools for crypto-native AI agents. Pay-as-you-go LLM keys allow autonomous agents to pay for their ow
+      * Coinbase
+      * Coinbase
+      * ETHGlobal
+- PVPVAI [3 prizes] :: PvPvAI is a prediction market game where players create AI agents to discuss and analyze tokens. Bet on their decisions while influencing co
+      * Coinbase
+      * Nethermind
+      * ETHGlobal
+- Nimble [2 prizes] :: AI agent powered Intent Settlement Network. Nimble is an AI‐agent‐based solver network that helps users get the best price for swaps and als
+      * Coinbase
+      * ETHGlobal
+- YieldSeeker [2 prizes] :: AI Agent that will find and execute the best yield options for you, automatically
+      * Coinbase
+      * ETHGlobal
+- Streme.fun [2 prizes] :: Streme.fun enables the AI Agent deployment of native streamable tokens with built-in staking rewards.
+      * Autonome
+      * ETHGlobal
+- AIMen [2 prizes] :: Create reusable onchain agentic workflows with natural language programming
+      * Coinbase
+      * ETHGlobal
+- Smol Universe [1 prizes] :: smol universe is a world simulation full of ai clones of twitter people, each own with money they can use to improve in the game and "live e
+      * ETHGlobal
+- bouncerAI [1 prizes] :: BouncerAI is a token launchpad of AI-powered ‘bouncers’ that access-restrict who can buy tokens and at what amount, based on a user’s knowle
+      * ETHGlobal
+- Shaman [1 prizes] :: Shaman: Your onchain autopilot. Automate workflows with agentic intelligence.
+      * ETHGlobal
+
+==== ETHGlobal Taipei: 226 projects, 129 winners, 8 finalists ====
+- Solva [4 prizes] :: Empower anyone to receive and transfer funds, instantly & without fees.
+      * Curvegrid
+      * ETHGlobal
+      * Polygon
+      * ENS
+- EthereumFighter [3 prizes] :: Pin AI-Agents against each other to make them compete in DeFi trading competition using FHE.
+      * 1inch
+      * ETHGlobal
+      * Celo
+- DynaVest [2 prizes] :: DynaVest — your AI-powered gateway to seamless DeFi access.
+      * ETHGlobal
+      * Celo
+- How Doxxed Am I? [2 prizes] :: "Chainalysis for privacy hygiene." What is your public on-chain behavior revealing?
+      * 1inch
+      * ETHGlobal
+- Signals [2 prizes] :: More accurate, more rewarding. Financially incentivized BTC price predictions visualized as heat map
+      * ETHGlobal
+      * Citrea
+- Nomadia [1 prizes] :: A peer-to-peer currency exchange Mini App built with MiniKit and World ID integration.
+      * ETHGlobal
+- Ask CaiShen [1 prizes] :: AI god of wealth that help you optimize your DeFi portfolio with reasoning.
+      * ETHGlobal
+- cellfi [1 prizes] :: SMS-based peer-to-peer payments using USDC digital currency—no internet required.
+      * ETHGlobal
+
+==== ETHGlobal Prague: 217 projects, 124 winners, 10 finalists ====
+- conduct.chat [4 prizes] :: AI workflow orchestrator: natural language → multi-agent blockchain execution with smart contracts
+      * Blockscout
+      * Flow Foundation
+      * Hedera
+      * ETHGlobal
+- Wrld Map [3 prizes] :: WrldMap: Your Globe, Verified! zk-proven travel tracker for unique humans on WorldChain.
+      * World
+      * Blockscout
+      * ETHGlobal
+- 0xCollateral [3 prizes] :: Anonymous and permissionless use of your Web2 creditworthiness to borrow Web3 assets.
+      * vlayer Labs
+      * Blockscout
+      * ETHGlobal
+- Detox-Hook [3 prizes] :: DetoxHook transforms MEV extraction into LP earnings via Uniswap V4 hooks and Pyth real-time oracles
+      * Blockscout
+      * Pyth Network
+      * ETHGlobal
+- Karma Proof [3 prizes] :: Turning real-world public good into onchain proof and rewards.
+      * vlayer Labs
+      * Blockscout
+      * ETHGlobal
+- Decycle [2 prizes] :: A smart trash can that automatically separates garbage and rewards users who recycle with tokens
+      * Blockscout
+      * ETHGlobal
+- 𝐃𝐔𝐒𝐓.𝐎𝐏𝐒 [2 prizes] :: DUST.OPS is a token sweeper that declutters your wallets and ghosts your exit.
+      * Blockscout
+      * ETHGlobal
+- MCPay.fun [2 prizes] :: MCPay.fun: Pay-per-use APIs! Leveraging x402 and MCP for a new payment web.
+      * Blockscout
+      * ETHGlobal
+- Yetris [1 prizes] :: Yetris allows for you to prove you're the best tetris player in the world, on chain
+      * ETHGlobal
+- Pomodoki [1 prizes] :: Pomodoki combines the Pomodoro technique with gamification and a Tamagotchi-style virtual pet
+      * ETHGlobal
+
+==== ETHGlobal Cannes: 333 projects, 137 winners, 10 finalists ====
+- PrivyCycle [4 prizes] :: Decentralized period tracker with user-owned data, private sharing, and AI-driven insights.
+      * Privy
+      * Zircuit
+      * 0G
+      * ETHGlobal
+- PolyBet [3 prizes] :: AI powered, privacy enforcing, prediction market smart router
+      * Oasis Protocol
+      * Artificial Superintelligence Alliance
+      * ETHGlobal
+- Hashlocked [2 prizes] :: Trustless EVM ↔ Bitcoin atomic swaps using 1inch battle-tested contracts
+      * 1inch
+      * ETHGlobal
+- ChromaMind [2 prizes] :: Guide your brain. Tokenize your journey.. Enjoy the experience.
+      * World
+      * ETHGlobal
+- PrivacyLinks [2 prizes] :: A privacy-by-default browser wallet that leverages PrivacyPools for no-effort private Web3 browsing.
+      * Chainlink Labs
+      * ETHGlobal
+- BeamPay [2 prizes] :: Seamless eip-7702 payment system with a wallet, supports three chains and multichain, and eip draft
+      * Zircuit
+      * ETHGlobal
+- POAPrivacy [2 prizes] :: Mint POAPs to stealth addresses. Prove attendance without doxxing your physical location.
+      * ENS
+      * ETHGlobal
+- OnlyDanks [2 prizes] :: Private end-to-end encrypted messenger built on blobs, fully anonymous and censorship-resistant.
+      * World
+      * ETHGlobal
+- Pace Club [1 prizes] :: Turn “let’s run” into real miles. Meet IRL. Earn points. Repeat.
+      * ETHGlobal
+- livestakes [1 prizes] :: Betting platform creating parallel prize pools for hackathons. Winners earn more, bettors profit.
+      * ETHGlobal
+
+==== Unite Defi: 400 projects, 48 winners, 7 finalists ====
+- 1inchTeleport [2 prizes] :: Cross-protocol DeFi: collect fees & migrate liquidity between multiple protocols in 1 transaction
+      * 1inch
+      * ETHGlobal
+- zkFusion [2 prizes] :: ZK-powered Dutch auctions for fast, private, provable intent settlement - Extension for 1inch LOP
+      * 1inch
+      * ETHGlobal
+- Enju [2 prizes] :: Swap cross-chain, earn rewards, unlock NFTs, and grow your 3D island with Enju + Fusion+.
+      * 1inch
+      * ETHGlobal
+- 1Option [2 prizes] :: 1Option allows anyone to mint, buy, and exercise options on top of the 1inch Limit Order Protocol
+      * 1inch
+      * ETHGlobal
+- DungeonHeim [2 prizes] :: Dungeon crawler: stake to play, collect keys, unlock rooms, defeat boss, win tokens.
+      * 1inch
+      * ETHGlobal
+- Zeroinch [1 prizes] :: Zeroinch is a privacy layer for 1inch’s Limit Order Protocol on Optimism using ZK and JIT MASP
+      * ETHGlobal
+- PonyHof [1 prizes] :: A privacy-first, permissioned, decentralized off-chain dark pool relay network
+      * ETHGlobal
+
+==== ETHGlobal New York 2025: 275 projects, 130 winners, 10 finalists ====
+- Pumpkin Spice latte [4 prizes] :: Deposit, save, and win jackpot yields. Everyone keeps their principal investment.
+      * Flare Network
+      * Flow Foundation
+      * katana
+      * ETHGlobal
+- Pika Vault [3 prizes] :: Omnichain vaults with native USDC settlement and cross-chain positions.
+      * LayerZero
+      * LayerZero
+      * ETHGlobal
+- Hardhat3-Ledger [3 prizes] :: Added ledger wallet integration to hardhat 3, enabling secure hardware transaction signing
+      * Ledger
+      * Hardhat
+      * ETHGlobal
+- Swap Pay [3 prizes] :: Swap Pay is an SDK that turns fragmented token balances into smooth payments using EIP-5792
+      * Chainlink Labs
+      * PayPal
+      * ETHGlobal
+- Rivals [3 prizes] :: AR PVP shooter where you battle zombies in real life to earn $RIVAL tokens.
+      * Flow Foundation
+      * Flow Foundation
+      * ETHGlobal
+- x402-flash [2 prizes] :: Supporting x402 micropayments with zero settlement latency overhead.
+      * Coinbase
+      * ETHGlobal
+- TX Delay Insurance [2 prizes] :: Delay and Quarantine Insurance for EVM Transactions using RPC Proxy for non-intrusive operation
+      * Flow Foundation
+      * ETHGlobal
+- Noah [2 prizes] :: We are a solution that ensures your crypto cant be lost no matter what happens to you, or your keys.
+      * Flow Foundation
+      * ETHGlobal
+- Primer [2 prizes] :: Crypto payments on Amazon that feel as seamless as credit cards
+      * Coinbase
+      * ETHGlobal
+- Kyma Pay [1 prizes] :: Onchain infra for instant & global GENIUS Act Compliant stablecoin payments for 10x less than Stripe
+      * ETHGlobal
+
+==== ETHGlobal New Delhi: 614 projects, 88 winners, 10 finalists ====
+- Autonome [3 prizes] :: Bringing humans and AI agents onto equal footing in the agentic economy
+      * ETHGlobal
+      * Polygon
+      * The Graph
+- calendefi [2 prizes] :: Your Calendar is Now a Wallet | “Schedule payments like meetings. Approve transactions like RSVPs."
+      * ETHGlobal
+      * ENS
+- NoNet [2 prizes] :: Enable onchain transactions completly without internet or cellular
+      * Hedera
+      * ETHGlobal
+- UniPerp [2 prizes] :: A decentralized perpetual futures DEX on Uniswap v4 with vAMM, oracle pricing & lower funding rates.
+      * ETHGlobal
+      * Uniswap Foundation
+- ad-402 [2 prizes] :: ad-402 is a project that combines frontend widgets, crypto payments, and dynamic ad serving.
+      * ETHGlobal
+      * Polygon
+- KagamiAI [1 prizes] :: AI-powered SocialDeFi: build, copy, and pool trading bots for smarter yield
+      * ETHGlobal
+- Nox [1 prizes] :: Private perp DEX trading with ZK notes and a proxy linking dark pool to ClearingHouse.
+      * ETHGlobal
+- MemeWarp [1 prizes] :: Cross-chain memecoin launchers where price differences aren't bugs—they're features.
+      * ETHGlobal
+- Dike [1 prizes] :: Limited Capital, Unlimited Predictions branch out with DIKE Protocol.
+      * ETHGlobal
+- Igris AI [1 prizes] :: IgrisAI, your security agent lurking in the shadows of crypto to defend your assets from dark forces
+      * ETHGlobal
+
+==== ETHOnline 2025: 633 projects, 62 winners, 10 finalists ====
+- CronPay [2 prizes] :: Universal crypto payment gateway that merchants need to boost their sales (Coming soon to Shopify)
+      * ETHGlobal
+      * Avail
+- DeFlow [2 prizes] :: AI-powered DeFi workflows with natural language - swap, bridge, and interact.
+      * ETHGlobal
+      * Lit Protocol
+- ChronoVault [2 prizes] :: Web3 wallet with TOTP 2 factor authentication and zero-knowledge proofs.
+      * ETHGlobal
+      * Hardhat
+- Siphon Protocol [2 prizes] :: Enabling untraceable, hyper-liquid, and institutional-grade DeFi privacy.
+      * ETHGlobal
+      * Avail
+- WannaBet [1 prizes] :: WannaBet is a Farcaster mini app for peer-to-peer betting on Base
+      * ETHGlobal
+- EthVaultPQ [1 prizes] :: A quantum safe vesting vault that allows time based payments. Ideal for Vesting and Unlocking.
+      * ETHGlobal
+- SafeSend [1 prizes] :: Stablecoin payments that protect you — automatic refunds when fraud is attested.
+      * ETHGlobal
+- Common-Lobbyist [1 prizes] :: Collective memory for decentralized governance with autonomous agents
+      * ETHGlobal
+- Sippy [1 prizes] :: Send and receive PYUSD via WhatsApp — no wallets, no gas, just your phone number.
+      * ETHGlobal
+- OpenPayAI [1 prizes] :: Empowering websites to charge AI crawlers — decentralized, transparent, and open
+      * ETHGlobal
+
+==== ETHGlobal Buenos Aires: 473 projects, 200 winners, 9 finalists ====
+- Aqua0 [4 prizes] :: Mini App for Cross-Chain shared liquidity via Aqua AMMs and LayerZero
+      * ETHGlobal
+      * World
+      * 1inch
+      * LayerZero
+- BMCP [4 prizes] :: From Taproot to Uniswap: Sign on Bitcoin, trade on Polygon. Hybrid relayer, zero trust bridges
+      * ETHGlobal
+      * Citrea
+      * Chainlink Labs
+      * Chainlink Labs
+- payload.exchange [4 prizes] :: Accept anything as payment! x402 proxy where sponsors pay for user access in exchange for actions
+      * ETHGlobal
+      * Polygon
+      * Coinbase
+      * vlayer Labs
+- Halo [3 prizes] :: Receipts become rewards for World ID verified humans with Fluence compute and Filecoin storage.
+      * ETHGlobal
+      * Fluence
+      * World
+- LensMint Camera [2 prizes] :: Tamper-proof Web3 camera with ZK authenticity and instant NFT memories for everyone.
+      * ETHGlobal
+      * vlayer Labs
+- Yoga [2 prizes] :: An improved position manager that allows for arbitrary liquidity distribution
+      * ETHGlobal
+      * Octav.fi
+- JetLagged [1 prizes] :: Turn your travel anxiety into profit. Bet on flight delays and cancellations.
+      * ETHGlobal
+- Paybot [1 prizes] :: x402 payment gateway for robot rentals. Gasless blockchain payments for physical devices.
+      * ETHGlobal
+- zkx402 [1 prizes] :: x402 protocol extension that integrates ZK for verified variable payments and verifiable content
+      * ETHGlobal
+
+==== HackMoney 2026: 620 projects, 166 winners, 10 finalists ====
+- Magnee [3 prizes] :: Cross-chain payments interceptor and router in a form of a browser extension
+      * LI.FI
+      * ENS
+      * ETHGlobal
+- claw2claw [2 prizes] :: P2P Trading for OpenClaw Bots — Uniswap v4 hook, ENS identity, LI.FI market access
+      * ENS
+      * ETHGlobal
+- BorrowBot [2 prizes] :: Borrow against your crypto assets with agents managing everything for you
+      * ENS
+      * ETHGlobal
+- Oikonomos [2 prizes] :: Agent keychain & portfolio manager deploying tokens via Clanker/Uniswap v4 and resolving via ENS.
+      * ENS
+      * ETHGlobal
+- router402 [2 prizes] :: One API, multiple LLMs, true pay-per-use, x402 micropayments on Base leveraging Flashblocks.
+      * LI.FI
+      * ETHGlobal
+- AutoPay [1 prizes] :: Stripe for Crypto Subscriptions 50% Cheaper, Non-Custodial, Multi-Chain
+      * ETHGlobal
+- Blip Market [1 prizes] :: Tap to trade ultra-short price moves with fast, binary precision markets.
+      * ETHGlobal
+- PulsePlay [1 prizes] :: Real-time micro-prediction markets on yellow network with LMSR + P2P and decentralized liquidity
+      * ETHGlobal
+- GrimSwap [1 prizes] :: Privacy DEX on Uniswap v4 — ZK-SNARK proofs + stealth addresses break the sender-receiver link.
+      * ETHGlobal
+- Xpack [1 prizes] :: Installs that finally pays!! Monetize every package installs effortlessly.
+      * ETHGlobal
+
+==== ETHGlobal Cannes 2026: 265 projects, 67 winners, 10 finalists ====
+- VEIL VPN [4 prizes] :: Verifiable Encrypted Internet Layer, is the pay as you go VPN protocol that proves no logs are kept.
+      * World
+      * Arc
+      * ENS
+      * ETHGlobal
+- DIVE [4 prizes] :: AI swarm engine verifying real-world truth for prediction markets and autonomous on-chain settlement
+      * World
+      * Hedera
+      * 0G
+      * ETHGlobal
+- ALMA [2 prizes] :: Automated Liquidity Management Agent for your Uniswap positions
+      * Uniswap
+      * ETHGlobal
+- npmguard [2 prizes] :: NpmGuard: AI agents audit npm packages for malicious code, publish verifiable results on-chain.
+      * ENS
+      * ETHGlobal
+- ENShell [2 prizes] :: ENShell Prevents AI agents from executing malicious transactions caused by prompt injection attacks.
+      * Chainlink Labs
+      * ETHGlobal
+- EVM PORST [1 prizes] :: The PORST signature scheme is a superior building block on the EVM than existing PQ implementations
+      * ETHGlobal
+- maki [1 prizes] :: Maki — AI agent for onchain DeFi. Keys locked in hardware, unreachable by the model.
+      * ETHGlobal
+- PaintGlobal [1 prizes] :: NFC wristbands power an on-chain art contest with voting, NFTs and auctions from the workshop.
+      * ETHGlobal
+- Défi [1 prizes] :: Défi is a gamified 1v1 live DeFi trading competition platform.
+      * ETHGlobal
+- Corpus [1 prizes] :: Turn any product into an autonomous AI agent corp that runs GTM, trades, and earns for you.
+      * ETHGlobal
+
+==== Open Agents: 468 projects, 32 winners, 7 finalists ====
+- Clan World: Ælder... [1 prizes] :: 4 AI agents play a fully onchain game. Collaboration, negotiations, bartering, and betrayal.
+      * ETHGlobal
+- Mnemosyne [1 prizes] :: Trusted Wikipedia for AI Agents for High-Stakes Knowledge and Decisions
+      * ETHGlobal
+- Aegis402 [1 prizes] :: AI-powered security layer for safer onchain payments—pre-audits, post-audits, and escrow protection.
+      * ETHGlobal
+- DAIO [1 prizes] :: AI agents stake, deliberate, and earn rewards for fair consensus scoring across complex decisions.
+      * ETHGlobal
+- Slopstock [1 prizes] :: Wall Street for AI agents: tokenized equity, inference-revenue dividends, sealed weights
+      * ETHGlobal
+- Common OS [1 prizes] :: Deploy and run agent swarms with each agent having their own dedicated runtime and filesystem
+      * ETHGlobal
+- LPlens [1 prizes] :: Autonomous 0G agent that diagnoses bleeding Uniswap LP positions and migrates them via Permit2.
+      * ETHGlobal
+
+==== ETHGlobal New York 2026: 232 projects, 98 winners, 10 finalists ====
+- Immunity [2 prizes] :: On-chain immune system for AI agents : earn by minting antibody
+      * ETHGlobal
+      * ENS
+      * Chainlink Labs
+- Proof of Scan [2 prizes] :: Crowdsourced website scanner for security researchers to bypass cloaked phishing sites
+      * ETHGlobal
+      * Sui
+      * ENS
+- Void Tactics [2 prizes] :: Tactical onchain fleet combat: Dynamic Flow purchases, World ID sybil resistance, Walrus game replay
+      * ETHGlobal
+      * World
+      * Dynamic
+- UNSU [1 prizes] :: unsu is a crypto wallet that works in any browser. No apps, no extensions, no accounts.
+      * ETHGlobal
+      * ENS
+- Canary [1 prizes] :: Parametric insurance instrument underwritten and priced by prediction markets
+      * ETHGlobal
+      * Chainlink Labs
+- Distro [1 prizes] :: Distro fixes clipping marketplaces to give brands and builders more reach with crypto infra.
+      * ETHGlobal
+      * World
+- Accrue [1 prizes] :: Get paid to wait. The most-watched line on Earth is now a bot-proof on-chain ad market.
+      * ETHGlobal
+      * Hedera
+- The Wallet Shift [1 prizes] :: DeFiLlama for the on-chain AI agent economy: a live, agent-callable ERC-8004 directory.
+      * ETHGlobal
+      * Google Cloud
+- Cumulant [1 prizes] :: Structured products on prediction markets - baskets, tranches, PPNs, & continuous markets
+      * ETHGlobal
+      * Arc
+- LYNX [0 prizes] :: The terminal that turns prediction markets into baskets you can buy beside real assets.
+      * ETHGlobal
+
+==== ETHGlobal Lisbon 2026: 173 projects, 55 winners, 10 finalists ====
+- ArcBook [3 prizes] :: An onchain order book where makers publish executable curves instead of fixed-price orders.
+      * 1inch
+      * The Graph
+      * ETHGlobal
+- KOLlateral [3 prizes] :: The accountability layer for crypto influencers: build a verifiable record, back the real traders.
+      * 0G
+      * Uniswap
+      * ETHGlobal
+- Hands Unchained [3 prizes] :: Book a robot arm, execute tasks. Book on chain, drive from your browser, get paid if you did well.
+      * 0G
+      * World
+      * ETHGlobal
+- Glassbox402 [2 prizes] :: Google Analytics for x402 - Convert any API into an x402. Track every payment in one dashboard.
+      * Hedera
+      * ETHGlobal
+- Lortnoc Tahc [2 prizes] :: Hide real messages inside ordinary Telegram chats. Everyone else sees small talk.
+      * 0G
+      * ETHGlobal
+- Happy Hour [2 prizes] :: Find local happy hours and earn punch-card rewards at your favorite venues.
+      * 0G
+      * ETHGlobal
+- Lean Silicon [1 prizes] :: A physical chip prototype to speed up Ethereum proof-generation
+      * ETHGlobal
+- ethui agentic wallet [1 prizes] :: ethui, the first developer wallet and toolkit agents can safely drive
+      * ETHGlobal
+- Carte Bleue [1 prizes] :: Recover any smart wallet using real credit cards and a standard cheap card reader.
+      * ETHGlobal
+- explorador.pt [1 prizes] :: Collateralize the home you're selling to draw stablecoin liquidity for the new one.
+      * ETHGlobal
+
+==== ETHOnline 2026: 812 projects, 58 winners, 8 finalists ====
+- OpenBook [2 prizes] :: The data marketplace for AI agents. Fresh data or your money back.
+      * ETHGlobal
+      * The Graph
+      * Arc
+- TARE [1 prizes] :: Measures what a Uniswap v4 hook really takes from your swap. 125,072 measurements, each replayable.
+      * ETHGlobal
+      * Uniswap
+- Novi Corpus [1 prizes] :: A Wyoming legal body for AI agents. Agents pay on Arc, now Hedera too; human guardians via World.
+      * ETHGlobal
+      * World
+- ETH Arcade [0 prizes] :: Trading was boring. So we built a handheld arcade where ETH price becomes the game, plus an SDK.
+      * ETHGlobal
+- Cordon [0 prizes] :: Cordon helps AI teams balance performance and cost within a shared budget
+      * ETHGlobal
+- Petri [0 prizes] :: Darwinian evolution for AI agents: harnesses mutate, get tested, and only verified winners survive.
+      * ETHGlobal
+- OnchainRouter [0 prizes] :: OpenRouter for onchain tools. AI agents discover, call and pay per use with x402.
+      * ETHGlobal
+- LeekDIYHardwareWallet [0 prizes] :: Open-source ESP32 hardware wallet with on-device verification and refuse-by-default signing.
+      * ETHGlobal

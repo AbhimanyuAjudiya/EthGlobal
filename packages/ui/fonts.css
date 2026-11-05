@@ -1,0 +1,134 @@
+/*
+ * Type pairings — research/design-foundations.md §3 and Appendix A.
+ * Select one on <html data-type="ledger|terminal|bazaar">; "ledger" is the default token set.
+ *
+ * Only the product pairing, "bazaar", ships faces: Anek Devanagari, Chivo Mono and Baloo 2 (the latex line only),
+ * self-hosted (font-src 'self', no third-party request before the traveller has data) and subset to Latin and
+ * Devanagari with unicode-range, so an English page downloads ≈ 97 KB of type and a Devanagari page adds one
+ * 217 KB variable file. font-display: swap everywhere (the print run waits on document.fonts.ready).
+ * The "ledger" and "terminal" blocks below keep their tokens (the /ui/tokens tooling switches them) but fall back to
+ * the system faces in their stacks: they are not product pairings. Sources, axes and the OFL: fonts/OFL.txt.
+ */
+/*
+ * Anek Devanagari: two variable files with IDENTICAL descriptors, split only by unicode-range (Chrome groups faces
+ * by descriptors before it applies unicode-range, so a mismatch sends Devanagari to the system face): Latin at
+ * wdth 100–110 / wght 400–700, Devanagari at wdth 100 / wght 400–700 (a 110 % heading uses the 100 % width).
+ */
+@font-face {
+  font-family: 'Anek Devanagari';
+  src: url('./fonts/anek-devanagari-latin.woff2') format('woff2');
+  font-weight: 400 700;
+  font-stretch: 100% 110%;
+  font-display: swap;
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20B9,
+    U+2190-2199, U+2212, U+2215, U+2264-2265, U+25CF, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Anek Devanagari';
+  src: url('./fonts/anek-devanagari-devanagari.woff2') format('woff2');
+  font-weight: 400 700;
+  font-stretch: 100% 110%;
+  font-display: swap;
+  unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+25CC, U+A830-A839, U+A8E0-A8FF;
+}
+/* Chivo Mono sets figures, hashes and PINs only (Latin); Devanagari is never set in the mono face. */
+@font-face {
+  font-family: 'Chivo Mono';
+  src: url('./fonts/chivo-mono-latin.woff2') format('woff2');
+  font-weight: 400 700;
+  font-display: swap;
+}
+/* Baloo 2 carries only the glyphs of "rub here · यहाँ रगड़ें" (and the Marathi "इथे घासा"). */
+@font-face {
+  font-family: 'Baloo 2';
+  src: url('./fonts/baloo-2-rub.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+/* Anek Devanagari draws U+00B7 (the "·" in every spec string: "300 MB · from Hedera") with zero advance
+   width, so the dot collides with the next word. This face lends the middle dot, and only that code point,
+   from a system sans; where none is installed the browser falls through to Anek unchanged. */
+@font-face {
+  font-family: 'Bazaar Middot';
+  src:
+    local('Roboto'), local('Helvetica Neue'), local('Helvetica'), local('Arial'),
+    local('Noto Sans'), local('DejaVu Sans'), local('Liberation Sans');
+  unicode-range: U+00B7;
+}
+
+/* Baloo 2 is used once: "rub here · यहाँ रगड़ें" on the scratch latex (DECISION §8.3). */
+:root {
+  --font-scratch: 'Baloo 2', 'Anek Devanagari', system-ui, sans-serif;
+}
+
+/* A. "Ledger" — editorial-financial: Eczar display, Schibsted Grotesk text, Mukta for Devanagari, Plex Mono. */
+:root,
+[data-type='ledger'] {
+  --font-display: 'Eczar', Georgia, 'Noto Serif Devanagari', serif;
+  --font-text: 'Schibsted Grotesk', 'Mukta', system-ui, 'Noto Sans Devanagari', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  --font-width-table: 100%;
+  --font-width-form: 100%;
+}
+
+/* B. "Terminal" — data-dense desktop: one family (IBM Plex), Archivo for the single hero number; the width
+   axis is the density control (85 % in tables, 100 % in forms). */
+[data-type='terminal'] {
+  --font-display: 'Archivo', 'IBM Plex Sans', system-ui, sans-serif;
+  --font-text:
+    'IBM Plex Sans', 'IBM Plex Sans Devanagari', system-ui, 'Noto Sans Devanagari', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  --font-width-table: 85%;
+  --font-width-form: 100%;
+}
+
+/* C. "Bazaar" — mobile-first consumer: Anek Devanagari does display and text in both scripts
+   (wdth 110 / wght 700 for amounts and headlines, wdth 100 / wght 400–500 for body); Chivo Mono. */
+[data-type='bazaar'] {
+  --font-display: 'Bazaar Middot', 'Anek Devanagari', system-ui, 'Noto Sans Devanagari', sans-serif;
+  --font-text: 'Bazaar Middot', 'Anek Devanagari', system-ui, 'Noto Sans Devanagari', sans-serif;
+  --font-mono: 'Chivo Mono', 'IBM Plex Mono', ui-monospace, monospace;
+  --font-width-table: 100%;
+  --font-width-form: 100%;
+}
+
+/* Rules for all three (§3). */
+html {
+  font-family: var(--font-text);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-hash],
+[data-address],
+.amount-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+
+/* Marathi letterforms (ल, श) come from the MAR language system when lang="mr" is set. */
+:lang(hi),
+:lang(mr) {
+  line-height: var(--leading-devanagari, 1.6);
+  letter-spacing: 0;
+  text-transform: none;
+  font-style: normal;
+}
+
+/* Numeric utilities. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+.tnum-zero {
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+.pnum {
+  font-variant-numeric: proportional-nums;
+}
+.density-table {
+  font-stretch: var(--font-width-table);
+}
+.density-form {
+  font-stretch: var(--font-width-form);
+}

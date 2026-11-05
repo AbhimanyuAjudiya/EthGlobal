@@ -1,0 +1,26 @@
+{
+  "name": "world agent-pass jwks",
+  "recordedAt": "2026-11-05T13:30:00Z",
+  "source": "docs",
+  "note": "Shape of https://auth.world.org/.well-known/jwks.json (discovery jwks_uri) as the client parses it: RSA, RS256, use sig, one key today with the kid shown (observed 2026-11-05; the modulus is elided — the live key is fetched, never pinned). The client caches keys by kid and refetches once on an unknown kid (rotation). services/api/src/world-agent-pass.ts LocalIdp serves this shape with a generated 2048-bit key for the local simulator and the tests.",
+  "exchanges": [
+    {
+      "request": { "method": "GET", "url": "https://auth.world.org/.well-known/jwks.json" },
+      "response": {
+        "status": 200,
+        "body": {
+          "keys": [
+            {
+              "kty": "RSA",
+              "kid": "xDQ0qjmm6_Jlrx61ER2YuxNLQmXgmC7eDQITsMMuDGM",
+              "alg": "RS256",
+              "use": "sig",
+              "n": "<base64url modulus, 2048 bits>",
+              "e": "AQAB"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

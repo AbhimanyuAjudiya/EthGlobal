@@ -1,0 +1,888 @@
+{
+  "name": "protocol schema examples",
+  "source": "docs",
+  "note": "One valid example per exported schema of @ethglobal/protocol/schemas (INTERFACES §1). Values are synthetic; addresses are Anvil's public test accounts.",
+  "examples": {
+    "hexSchema": "0x",
+    "hex32Schema": "0xabababababababababababababababababababababababababababababababab",
+    "hex24Schema": "0x4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e",
+    "evmAddressSchema": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "hederaAccountSchema": "0.0.429274",
+    "digitsSchema": "400000",
+    "caipNetworkSchema": "hedera:testnet",
+    "msSchema": 1793707200000,
+    "mbSchema": 300,
+    "tierSchema": "document",
+    "verificationLevelSchema": "secure_document",
+    "lpaSchema": "LPA:1$smdp.example.com$ABCD-1234-EFGH",
+    "entitlementKindSchema": "gift",
+    "entitlementStatusSchema": "pending-profile",
+    "usageSourceSchema": "poll",
+    "receiptKindSchema": "gift-reclaim",
+    "hcsRefSchema": {
+      "topic": "0.0.7001",
+      "sequence": 0
+    },
+    "receiptPublicSchema": {
+      "v": 1,
+      "kind": "provision",
+      "mb": 300,
+      "usd6": "1200000",
+      "network": "eip155:31337",
+      "tx": "0x7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b",
+      "payer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "hcs": {
+        "topic": "0.0.7001",
+        "sequence": 42
+      },
+      "at": 1793707200000
+    },
+    "sealedBoxSchema": {
+      "v": 1,
+      "epk": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e",
+      "nonce": "0x4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e",
+      "ct": "0xc7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7"
+    },
+    "entitlementSchema": {
+      "v": 1,
+      "key": "ent:v1:0xe1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1",
+      "kind": "free",
+      "status": "ready",
+      "tier": "orb",
+      "campaignId": "0xc1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+      "planId": "IN-1GB-7D",
+      "mbTotal": 300,
+      "mbUsed": 12,
+      "usageAsOf": 1793707200000,
+      "usageSource": "simulated",
+      "iccidHash": "0x1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c",
+      "iccidEnc": {
+        "v": 1,
+        "epk": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "nonce": "0x4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e",
+        "ct": "0xc7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7"
+      },
+      "sealedRef": "blob_000001",
+      "createdAt": 1793707200000,
+      "expiresAt": 1794312000000
+    },
+    "campaignSchema": {
+      "v": 1,
+      "id": "0xc1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+      "sponsor": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+      "name": "Mumbai Tech Week welcome data",
+      "bundleMb": {
+        "orb": 300,
+        "document": 160,
+        "device": 0
+      },
+      "pricePerClaimUsd6": "250000",
+      "maxClaims": 500,
+      "claimsPerHour": 60,
+      "validityDays": 7,
+      "wholesaleUsd6PerGb": "2500000",
+      "idResaleUsd6": "500000",
+      "planId": "IN-1GB-7D",
+      "network": "eip155:31337",
+      "contract": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+      "createdAt": 1793707200000,
+      "expiresAt": 1794916800000
+    },
+    "giftSchema": {
+      "v": 1,
+      "giftId": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a",
+      "kind": "gift",
+      "state": "open",
+      "name": "alice.eth",
+      "namehash": "0x4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a",
+      "to": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "mb": 500,
+      "validityDays": 7,
+      "pinKey": "0x9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b",
+      "serial": "9a9a9a9a",
+      "fundedBy": "payment",
+      "paidTx": "0x7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b",
+      "payer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "usd6": "2000000",
+      "network": "eip155:31337",
+      "message": "Happy Diwali! शुभ दीपावली",
+      "createdAt": 1793707200000,
+      "claimBy": 1794312000000
+    },
+    "nonceSchema": {
+      "v": 1,
+      "nonce": "0x3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c",
+      "audience": "recharge",
+      "path": "/claim",
+      "exp": 1793707320000,
+      "consumedAt": 1793707205000
+    },
+    "claimSchema": {
+      "v": 1,
+      "key": "claim:0x7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c",
+      "scope": "free-live",
+      "expiresAt": 1762300000000
+    },
+    "receiptSchema": {
+      "v": 1,
+      "key": "rcpt:eip155:31337:0x7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b",
+      "kind": "provision",
+      "entitlementKeyHash": "0xe2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2",
+      "mb": 300,
+      "usd6": "1200000",
+      "network": "eip155:31337",
+      "tx": "0x7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b",
+      "payer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "hcs": {
+        "topic": "0.0.7001",
+        "sequence": 42
+      },
+      "at": 1793707200000
+    },
+    "topUpPolicySchema": {
+      "maxUsd6PerDay": "2000000",
+      "thresholdMb": 50,
+      "stepMb": 100,
+      "paused": false,
+      "topUpOnExpiry": true,
+      "expiryLeadS": 3600
+    },
+    "agentPolicySchema": {
+      "v": 1,
+      "entitlementKey": "ent:v1:0xe1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1",
+      "owner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "policy": {
+        "maxUsd6PerDay": "2000000",
+        "thresholdMb": 50,
+        "stepMb": 100,
+        "paused": false,
+        "topUpOnExpiry": true,
+        "expiryLeadS": 3600
+      },
+      "updatedAt": 1793707200000,
+      "lastExpiryBought": 1794312000000
+    },
+    "paymentResourceSchema": {
+      "url": "http://127.0.0.1:8787/esim/provision?mb=300",
+      "description": "300 MB India eSIM data, 7 days",
+      "mimeType": "application/json"
+    },
+    "paymentRequirementsSchema": {
+      "scheme": "exact",
+      "network": "eip155:84532",
+      "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      "amount": "1200000",
+      "payTo": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "maxTimeoutSeconds": 300,
+      "extra": {
+        "name": "USDC",
+        "version": "2"
+      }
+    },
+    "acceptTemplateSchema": {
+      "scheme": "exact",
+      "network": "hedera:testnet",
+      "asset": "0.0.429274",
+      "payTo": "0.0.5001234",
+      "maxTimeoutSeconds": 180,
+      "extra": {
+        "feePayer": "0.0.9185802"
+      }
+    },
+    "paymentRequiredSchema": {
+      "x402Version": 2,
+      "resource": {
+        "url": "http://127.0.0.1:8787/esim/provision?mb=300",
+        "description": "300 MB India eSIM data, 7 days",
+        "mimeType": "application/json"
+      },
+      "accepts": [
+        {
+          "scheme": "exact",
+          "network": "eip155:31337",
+          "asset": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+          "amount": "1200000",
+          "payTo": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "maxTimeoutSeconds": 300,
+          "extra": {
+            "name": "USD Coin",
+            "version": "2"
+          }
+        },
+        {
+          "scheme": "exact",
+          "network": "eip155:84532",
+          "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          "amount": "1200000",
+          "payTo": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "maxTimeoutSeconds": 300,
+          "extra": {
+            "name": "USDC",
+            "version": "2"
+          }
+        },
+        {
+          "scheme": "exact",
+          "network": "hedera:testnet",
+          "asset": "0.0.429274",
+          "amount": "1200000",
+          "payTo": "0.0.5001234",
+          "maxTimeoutSeconds": 180,
+          "extra": {
+            "feePayer": "0.0.9185802"
+          }
+        }
+      ],
+      "error": "PAYMENT-SIGNATURE header is required"
+    },
+    "paymentAuthorizationSchema": {
+      "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "to": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "value": "1200000",
+      "validAfter": "0",
+      "validBefore": "1793707500",
+      "nonce": "0x5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a"
+    },
+    "evmExactPayloadSchema": {
+      "signature": "0x2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d",
+      "authorization": {
+        "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "to": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "value": "1200000",
+        "validAfter": "0",
+        "validBefore": "1793707500",
+        "nonce": "0x5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a"
+      }
+    },
+    "hederaExactPayloadSchema": {
+      "transaction": "CgQQBxgLEgQQBRgTGgwIgICAgICAgICAARIAIgIIeDIAwgEaCgsKBRAEGNYIEgIYyQEKCwoFEAQY1ggSAhjK"
+    },
+    "paymentPayloadSchema": {
+      "x402Version": 2,
+      "resource": {
+        "url": "http://127.0.0.1:8787/esim/provision?mb=300",
+        "description": "300 MB India eSIM data, 7 days",
+        "mimeType": "application/json"
+      },
+      "accepted": {
+        "scheme": "exact",
+        "network": "eip155:84532",
+        "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "amount": "1200000",
+        "payTo": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "maxTimeoutSeconds": 300,
+        "extra": {
+          "name": "USDC",
+          "version": "2"
+        }
+      },
+      "payload": {
+        "signature": "0x2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d",
+        "authorization": {
+          "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+          "to": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "value": "1200000",
+          "validAfter": "0",
+          "validBefore": "1793707500",
+          "nonce": "0x5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a"
+        }
+      }
+    },
+    "verifyResultSchema": {
+      "isValid": true,
+      "payer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+    },
+    "settleResultSchema": {
+      "success": true,
+      "transaction": "0x7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b",
+      "network": "eip155:84532",
+      "payer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+    },
+    "paymentResponseSchema": {
+      "success": false,
+      "errorReason": "insufficient_funds",
+      "network": "eip155:84532",
+      "transaction": "",
+      "payer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+    },
+    "personhoodProofSchema": {
+      "protocol_version": "4.0",
+      "nonce": "0x0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d",
+      "action": "recharge-welcome",
+      "environment": "production",
+      "responses": [
+        {
+          "identifier": "proof_of_human",
+          "issuer_schema_id": 1,
+          "nullifier": "1234567890123456789012345678901234567890",
+          "expires_at_min": 1793710800,
+          "proof": [
+            "0x1111111111111111111111111111111111111111111111111111111111111111",
+            "0x2222222222222222222222222222222222222222222222222222222222222222",
+            "0x3333333333333333333333333333333333333333333333333333333333333333",
+            "0x4444444444444444444444444444444444444444444444444444444444444444",
+            "0x5555555555555555555555555555555555555555555555555555555555555555"
+          ],
+          "signal_hash": "0x00ababababababababababababababababababababababababababababababab"
+        }
+      ]
+    },
+    "rpContextRequestSchema": {
+      "audience": "recharge",
+      "path": "/claim"
+    },
+    "rpContextSchema": {
+      "rp_id": "rp_local0test",
+      "nonce": "0x0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d",
+      "created_at": 1793707200,
+      "expires_at": 1793707500,
+      "signature": "0x5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b",
+      "app_id": "app_staging_local",
+      "action": "recharge-welcome",
+      "environment": "staging"
+    },
+    "challengeRequestSchema": {
+      "audience": "recharge",
+      "path": "/claim",
+      "sessionPubKey": "0x5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b"
+    },
+    "challengeSchema": {
+      "nonce": "0x3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c",
+      "audience": "recharge",
+      "path": "/claim",
+      "exp": 1793707320000,
+      "signal": "0x5151515151515151515151515151515151515151515151515151515151515151"
+    },
+    "claimRequestSchema": {
+      "proof": {
+        "protocol_version": "3.0",
+        "nonce": "0x0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d",
+        "action": "recharge-welcome",
+        "environment": "production",
+        "responses": [
+          {
+            "identifier": "device",
+            "merkle_root": "0x1212121212121212121212121212121212121212121212121212121212121212",
+            "nullifier": "0x3434343434343434343434343434343434343434343434343434343434343434",
+            "proof": "0x56565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656",
+            "signal_hash": "0x00ababababababababababababababababababababababababababababababab",
+            "max_age": 7200
+          }
+        ]
+      },
+      "campaignId": "0xc1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+      "challenge": {
+        "nonce": "0x3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c",
+        "audience": "recharge",
+        "path": "/claim",
+        "exp": 1793707320000,
+        "signal": "0x5151515151515151515151515151515151515151515151515151515151515151"
+      },
+      "sessionPubKey": "0x5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b"
+    },
+    "receiptRefSchema": {
+      "arkivKey": "0xaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeae",
+      "hcs": {
+        "topic": "0.0.7001",
+        "sequence": 42
+      }
+    },
+    "entitledResponseSchema": {
+      "entitlementKey": "ent:v1:0xe1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1",
+      "kind": "free",
+      "status": "ready",
+      "tier": "orb",
+      "mbTotal": 300,
+      "expiresAt": 1794312000000,
+      "validityDays": 7,
+      "sealedLpa": {
+        "v": 1,
+        "epk": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e",
+        "nonce": "0x4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e",
+        "ct": "0xc7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7"
+      },
+      "claimTx": "0xc0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0",
+      "receipt": {
+        "arkivKey": "0xaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeae",
+        "hcs": {
+          "topic": "0.0.7001",
+          "sequence": 42
+        }
+      }
+    },
+    "topUpResponseSchema": {
+      "entitlementKey": "ent:v1:0xe1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1",
+      "mbTotal": 400,
+      "mbUsed": 12,
+      "expiresAt": 1794312000000,
+      "settlement": {
+        "success": true,
+        "transaction": "0x7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b",
+        "network": "eip155:84532",
+        "payer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+      },
+      "receipt": {
+        "arkivKey": "0xaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeae",
+        "hcs": {
+          "topic": "0.0.7001",
+          "sequence": 42
+        }
+      }
+    },
+    "provisionQuerySchema": {
+      "mb": "300",
+      "planId": "IN-1GB-7D"
+    },
+    "topUpQuerySchema": {
+      "key": "ent:v1:0xe1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1",
+      "mb": "100"
+    },
+    "giftRequestSchema": {
+      "name": "alice.eth",
+      "mb": 500,
+      "message": "Happy Diwali!"
+    },
+    "giftResponseSchema": {
+      "giftId": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a",
+      "serial": "9a9a9a9a",
+      "pin": "4821993011275064",
+      "name": "alice.eth",
+      "to": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "mb": 500,
+      "claimBy": 1794312000000,
+      "settlement": {
+        "success": true,
+        "transaction": "0x7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b",
+        "network": "eip155:84532",
+        "payer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+      },
+      "receipt": {
+        "arkivKey": "0xaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeae",
+        "hcs": {
+          "topic": "0.0.7001",
+          "sequence": 42
+        }
+      }
+    },
+    "giftClaimRequestSchema": {
+      "giftId": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a",
+      "signature": "0x5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
+      "recipient": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "challenge": {
+        "nonce": "0x3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c",
+        "audience": "recharge",
+        "path": "/gift/claim",
+        "exp": 1793707320000,
+        "signal": "0x5151515151515151515151515151515151515151515151515151515151515151"
+      },
+      "sessionPubKey": "0x5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b"
+    },
+    "giftReclaimRequestSchema": {
+      "giftId": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a",
+      "payer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "signature": "0x5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d",
+      "challenge": {
+        "nonce": "0x3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c",
+        "audience": "recharge",
+        "path": "/gift/reclaim",
+        "exp": 1793707320000,
+        "signal": "0x5151515151515151515151515151515151515151515151515151515151515151"
+      }
+    },
+    "giftReclaimResponseSchema": {
+      "giftId": "0x9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a",
+      "refundedUsd6": "2000000",
+      "feeUsd6": "0",
+      "network": "eip155:31337",
+      "tx": "0x7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c",
+      "receipt": {
+        "arkivKey": "0xaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeae",
+        "hcs": {
+          "topic": "0.0.7001",
+          "sequence": 42
+        }
+      }
+    },
+    "cardPreviewSchema": {
+      "serial": "9a9a9a9a",
+      "mb": 300,
+      "sponsorName": "Mumbai Tech Week",
+      "state": "open",
+      "claimBy": 1794312000000
+    },
+    "cardRedeemRequestSchema": {
+      "pin": "4821993011275064",
+      "challenge": {
+        "nonce": "0x3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c",
+        "audience": "recharge",
+        "path": "/card/redeem",
+        "exp": 1793707320000,
+        "signal": "0x5151515151515151515151515151515151515151515151515151515151515151"
+      },
+      "sessionPubKey": "0x5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b"
+    },
+    "meResponseSchema": {
+      "entitlementKey": "ent:v1:0xe1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1",
+      "kind": "free",
+      "status": "active",
+      "tier": "orb",
+      "campaignId": "0xc1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+      "sponsorName": "Mumbai Tech Week",
+      "mbTotal": 300,
+      "mbUsed": 12,
+      "remainingMb": 288,
+      "usageAsOf": 1793707200000,
+      "usageSource": "webhook",
+      "expiresAt": 1794312000000,
+      "arkivKey": "0xaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeae",
+      "ledgerReadAt": 1793707200000,
+      "cached": false,
+      "degraded": false,
+      "network": "eip155:31337"
+    },
+    "receiptsResponseSchema": {
+      "receipts": [
+        {
+          "v": 1,
+          "kind": "claim",
+          "campaignId": "0xc1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+          "mb": 300,
+          "network": "eip155:31337",
+          "tx": "0xc0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0",
+          "at": 1793707200000
+        }
+      ]
+    },
+    "plansResponseSchema": {
+      "mode": "local",
+      "campaign": {
+        "id": "0xc1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+        "name": "Mumbai Tech Week",
+        "sponsor": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+        "bundleMb": {
+          "orb": 300,
+          "document": 160,
+          "device": 0
+        },
+        "remainingClaims": 499,
+        "maxClaims": 500,
+        "paused": false,
+        "expiresAt": 1794916800000,
+        "network": "eip155:31337"
+      },
+      "paid": {
+        "stepMb": 100,
+        "priceUsd6PerStep": "400000",
+        "validityDays": 7,
+        "accepts": [
+          {
+            "scheme": "exact",
+            "network": "eip155:31337",
+            "asset": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+            "payTo": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+            "maxTimeoutSeconds": 300,
+            "extra": {
+              "name": "USD Coin",
+              "version": "2"
+            }
+          }
+        ]
+      },
+      "gift": {
+        "sizesMb": [100, 300, 500, 1000],
+        "claimWindowS": 604800
+      },
+      "simulated": {
+        "usage": true,
+        "personhood": true
+      }
+    },
+    "sponsorRegisterSchema": {
+      "campaign": {
+        "id": "0xc1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+        "sponsor": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+        "name": "Mumbai Tech Week welcome data",
+        "bundleMb": {
+          "orb": 300,
+          "document": 160,
+          "device": 0
+        },
+        "pricePerClaimUsd6": "250000",
+        "maxClaims": 500,
+        "claimsPerHour": 60,
+        "validityDays": 7,
+        "wholesaleUsd6PerGb": "2500000",
+        "idResaleUsd6": "500000",
+        "planId": "IN-1GB-7D",
+        "network": "eip155:31337",
+        "contract": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+        "expiresAt": 1794916800000
+      },
+      "auth": {
+        "issuedAt": 1793707200000,
+        "signature": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e"
+      }
+    },
+    "sponsorCardsRequestSchema": {
+      "count": 200,
+      "mb": 300,
+      "auth": {
+        "sponsor": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+        "nonce": "0x4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e",
+        "issuedAt": 1793707200000,
+        "signature": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e"
+      }
+    },
+    "sponsorCardsResponseSchema": {
+      "campaignId": "0xc1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+      "mb": 300,
+      "claimBy": 1794916800000,
+      "cards": [
+        {
+          "serial": "0a1b2c3d",
+          "pin": "0000000000000000",
+          "mb": 300
+        }
+      ]
+    },
+    "sponsorViewSchema": {
+      "campaign": {
+        "v": 1,
+        "id": "0xc1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+        "sponsor": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+        "name": "Mumbai Tech Week welcome data",
+        "bundleMb": {
+          "orb": 300,
+          "document": 160,
+          "device": 0
+        },
+        "pricePerClaimUsd6": "250000",
+        "maxClaims": 500,
+        "claimsPerHour": 60,
+        "validityDays": 7,
+        "wholesaleUsd6PerGb": "2500000",
+        "idResaleUsd6": "500000",
+        "planId": "IN-1GB-7D",
+        "network": "eip155:31337",
+        "contract": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+        "createdAt": 1793707200000,
+        "expiresAt": 1794916800000
+      },
+      "chain": {
+        "budgetUsd6": "125000000",
+        "spentUsd6": "250000",
+        "paused": false,
+        "claims": 1,
+        "claimsThisHour": 1,
+        "hourBucket": 498252
+      },
+      "claims": [
+        {
+          "at": 1793707200000,
+          "campaignClaimKey": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "tier": "orb",
+          "mb": 300,
+          "usd6": "250000",
+          "tx": "0xc0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0",
+          "status": "confirmed"
+        }
+      ],
+      "expiring": [
+        {
+          "arkivKey": "0xaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeae",
+          "remainingMb": 288,
+          "expiresAt": 1794312000000,
+          "tier": "orb"
+        }
+      ],
+      "auditKey": "0xadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadad"
+    },
+    "agentPolicyPutSchema": {
+      "entitlementKey": "ent:v1:0xe1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1",
+      "owner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "policy": {
+        "maxUsd6PerDay": "2000000",
+        "thresholdMb": 50,
+        "stepMb": 100,
+        "paused": false,
+        "topUpOnExpiry": true,
+        "expiryLeadS": 3600
+      },
+      "issuedAt": 1793707200000,
+      "signature": "0x5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f5f"
+    },
+    "agentPolicyViewSchema": {
+      "policy": {
+        "maxUsd6PerDay": "2000000",
+        "thresholdMb": 50,
+        "stepMb": 100,
+        "paused": false,
+        "topUpOnExpiry": true,
+        "expiryLeadS": 3600
+      },
+      "owner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "spentTodayUsd6": "400000",
+      "updatedAt": 1793707200000,
+      "lastTickAt": 1793707260000
+    },
+    "agentPassViewSchema": {
+      "state": "pending",
+      "userCode": "7F3A-91C2",
+      "verificationUri": "https://auth.world.org/device",
+      "verificationUriComplete": "https://auth.world.org/device?user_code=7F3A-91C2",
+      "expiresAt": 1793708400000
+    },
+    "agentPassStartSchema": {
+      "verification_uri": "https://auth.world.org/device",
+      "verification_uri_complete": "https://auth.world.org/device?user_code=7F3A-91C2",
+      "user_code": "7F3A-91C2",
+      "expires_in": 1200,
+      "interval": 5
+    },
+    "agentPassPollSchema": {
+      "state": "approved",
+      "passUntil": 1793793600000
+    },
+    "errorBodySchema": {
+      "error": "invalid_payment",
+      "message": "payment nonce already used",
+      "requestId": "req_01"
+    },
+    "healthSchema": {
+      "ok": true,
+      "mode": "local",
+      "chainId": 31337
+    },
+    "usageEventSchema": {
+      "provider": "mock",
+      "eventId": "evt_000001",
+      "iccid": "8991000000000000001",
+      "usedMb": 12,
+      "totalMb": 300,
+      "asOf": 1793707200000,
+      "status": "active"
+    },
+    "mockWebhookEnvelopeSchema": {
+      "events": [
+        {
+          "provider": "mock",
+          "eventId": "evt_000001",
+          "iccid": "8991000000000000001",
+          "usedMb": 12,
+          "totalMb": 300,
+          "asOf": 1793707200000
+        }
+      ]
+    },
+    "hcsMessageSchema": {
+      "v": 1,
+      "at": "2026-11-03T12:00:00.000Z",
+      "svc": "agent",
+      "ent": "0xe2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2",
+      "t": "agent-topup",
+      "uaid": "uaid:aid:2bnewJwP95isoCUkT5mee5gm212WS76tphHwBQvbWoquRa9kt89UanrBqHXpaSh4AN;uid=0;registry=hedera;nativeId=hedera:testnet:0.0.5001234;proto=x402",
+      "network": "hedera:testnet",
+      "tx": "0.0.5001234@1793707200.000000001",
+      "usd6": "400000",
+      "mb": 100,
+      "reason": "threshold"
+    },
+    "supportedKindSchema": {
+      "x402Version": 2,
+      "scheme": "exact",
+      "network": "hedera:testnet",
+      "extra": {
+        "feePayer": "0.0.9185802"
+      }
+    },
+    "supportedResponseSchema": {
+      "kinds": [
+        {
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "eip155:84532"
+        },
+        {
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "hedera:testnet",
+          "extra": {
+            "feePayer": "0.0.9185802"
+          }
+        }
+      ],
+      "extensions": [],
+      "signers": {
+        "eip155:*": ["0x976EA74026E726554dB657fA54763abd0C3a0aa9"]
+      }
+    }
+  },
+  "variants": {
+    "paymentRequired.hedera": {
+      "x402Version": 2,
+      "resource": {
+        "url": "http://127.0.0.1:8787/esim/provision?mb=300",
+        "description": "300 MB India eSIM data, 7 days",
+        "mimeType": "application/json"
+      },
+      "accepts": [
+        {
+          "scheme": "exact",
+          "network": "hedera:testnet",
+          "asset": "0.0.429274",
+          "amount": "1200000",
+          "payTo": "0.0.5001234",
+          "maxTimeoutSeconds": 180,
+          "extra": {
+            "feePayer": "0.0.9185802"
+          }
+        }
+      ]
+    },
+    "paymentPayload.hedera": {
+      "x402Version": 2,
+      "accepted": {
+        "scheme": "exact",
+        "network": "hedera:testnet",
+        "asset": "0.0.429274",
+        "amount": "1200000",
+        "payTo": "0.0.5001234",
+        "maxTimeoutSeconds": 180,
+        "extra": {
+          "feePayer": "0.0.9185802"
+        }
+      },
+      "payload": {
+        "transaction": "CgQQBxgLEgQQBRgTGgwIgICAgICAgICAARIAIgIIeDIAwgEaCgsKBRAEGNYIEgIYyQEKCwoFEAQY1ggSAhjK"
+      }
+    },
+    "personhoodProof.v3": {
+      "protocol_version": "3.0",
+      "nonce": "0x0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d",
+      "action": "recharge-welcome",
+      "environment": "production",
+      "responses": [
+        {
+          "identifier": "device",
+          "merkle_root": "0x1212121212121212121212121212121212121212121212121212121212121212",
+          "nullifier": "0x3434343434343434343434343434343434343434343434343434343434343434",
+          "proof": "0x56565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656",
+          "signal_hash": "0x00ababababababababababababababababababababababababababababababab",
+          "max_age": 7200
+        }
+      ]
+    },
+    "settle.hedera": {
+      "success": true,
+      "transaction": "0.0.9185802@1793707200.000000123",
+      "network": "hedera:testnet",
+      "payer": "0.0.5001234"
+    },
+    "settle.pending": {
+      "success": false,
+      "errorReason": "settlement_pending",
+      "network": "eip155:84532",
+      "transaction": "0x7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d"
+    }
+  }
+}

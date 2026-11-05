@@ -1,0 +1,788 @@
+/*
+ * @ethglobal/ui components — design-foundations §1–§7 and design-references §1–§6.
+ * Colours, type, radii and motion come only from tokens.css / fonts.css custom properties.
+ * Animate transform and opacity only; the token durations already collapse under reduced motion.
+ */
+
+.ui-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ui-icon {
+  flex: none;
+  vertical-align: -0.125em;
+}
+
+/* ── Button ──────────────────────────────────────────────────────────────── */
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 48px;
+  min-width: 48px;
+  padding: 0 1.25rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  font-family: var(--font-text);
+  font-size: var(--text-16);
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    transform var(--duration-micro) var(--ease-standard),
+    background-color var(--duration-micro) var(--ease-standard),
+    color var(--duration-micro) var(--ease-standard);
+}
+.ui-button--block {
+  width: 100%;
+}
+.ui-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.ui-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.ui-button[data-variant='primary'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.ui-button[data-variant='primary']:hover:not(:disabled),
+.ui-button[data-variant='primary']:active:not(:disabled) {
+  background: var(--accent-hover);
+}
+.ui-button[data-variant='secondary'] {
+  background: transparent;
+  border-color: var(--border-input);
+  color: var(--text-primary);
+}
+.ui-button[data-variant='secondary']:hover:not(:disabled) {
+  background: var(--bg-sunken);
+}
+.ui-button[data-variant='quiet'] {
+  background: transparent;
+  color: var(--accent);
+  padding: 0 0.75rem;
+}
+.ui-button[data-variant='quiet']:hover:not(:disabled) {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.ui-button:disabled {
+  background: var(--bg-sunken);
+  border-color: var(--border-subtle);
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+/* ── Field ───────────────────────────────────────────────────────────────── */
+.ui-field {
+  display: grid;
+  gap: 0.375rem;
+  font-family: var(--font-text);
+}
+.ui-field__label {
+  font-size: var(--text-14);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.ui-field__input {
+  min-height: 48px;
+  padding: 0 0.75rem;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-control);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-16);
+}
+.ui-field__input::placeholder {
+  color: var(--text-tertiary);
+}
+.ui-field__input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.ui-field__input--mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums slashed-zero;
+  letter-spacing: 0.04em;
+}
+.ui-field__hint {
+  margin: 0;
+  font-size: var(--text-13);
+  color: var(--text-tertiary);
+}
+.ui-field__error {
+  margin: 0;
+  font-size: var(--text-13);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.ui-field[data-invalid] .ui-field__input {
+  padding: 0 calc(0.75rem - 1px);
+  border-width: 2px;
+  border-color: var(--text-primary);
+}
+
+/* ── Hash: short 0x value, copy, explorer ───────────────────────────────── */
+.hash {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: var(--text-13);
+  white-space: nowrap;
+}
+.hash__value {
+  color: var(--text-primary);
+}
+/* A 44 × 44 box (WCAG 2.5.5, RT-W-07) around the 16 px icon; negative margins keep the line of text tight. */
+.hash__copy {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  min-width: 44px;
+  height: 44px;
+  margin: -8px -6px;
+  padding: 0 0.25rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-12);
+  cursor: pointer;
+}
+.hash__copy:hover {
+  color: var(--text-primary);
+}
+.hash__copy:focus-visible,
+.hash__explorer:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.hash__copy-text:empty {
+  display: none;
+}
+.hash__explorer {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 44px;
+  margin: -8px 0;
+  padding: 0 0.25rem;
+  border-radius: var(--radius-control);
+  color: var(--accent);
+  text-decoration: none;
+}
+.hash__explorer:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+/* ── Ruled lines (Receipt, OnchainAction review) ─────────────────────────── */
+.ruled {
+  display: grid;
+  margin: 0;
+}
+.ruled__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--text-14);
+}
+.ruled__row:last-child {
+  border-bottom: 1px solid var(--border-subtle);
+}
+.ruled__label {
+  color: var(--text-secondary);
+}
+/* Values are prose by default (left-aligned under a narrow label column, so a sentence never wraps ragged-right);
+   figures opt into tabular mono, right-aligned (RT design review #6). */
+.ruled__value {
+  margin: 0;
+  min-width: 0;
+  color: var(--text-primary);
+  font-family: var(--font-text);
+  text-align: right;
+}
+.ruled__value--mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+:where(:lang(hi), :lang(mr)) .ruled__value {
+  font-family: var(--font-text);
+}
+.ruled__row[data-tone='negative'] .ruled__value {
+  color: var(--negative);
+}
+
+/* ── Receipt ─────────────────────────────────────────────────────────────── */
+.receipt {
+  display: grid;
+  gap: 0.5rem;
+  font-family: var(--font-text);
+  color: var(--text-primary);
+}
+.receipt__heading {
+  margin: 0;
+  font-size: var(--text-14);
+  font-weight: 600;
+}
+
+/* ── UsageAsOf ───────────────────────────────────────────────────────────── */
+.usage-as-of {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-12);
+  font-variant-numeric: tabular-nums slashed-zero;
+  color: var(--text-tertiary);
+}
+/* Devanagari: Anek, 14 px floor, leading 1.6; the clock digits stay Latin. */
+.usage-as-of:lang(hi),
+.usage-as-of:lang(mr) {
+  font-family: var(--font-text);
+  font-size: var(--text-14);
+}
+.usage-as-of[data-tone='warning'] {
+  color: var(--warning);
+}
+
+/* ── MbMeter ─────────────────────────────────────────────────────────────── */
+.mb-meter {
+  display: grid;
+  gap: 0.375rem;
+  font-family: var(--font-text);
+}
+.mb-meter__text {
+  margin: 0;
+  font-size: var(--text-14);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+.mb-meter__left {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.mb-meter__track {
+  height: 4px;
+  overflow: hidden;
+  background: var(--bg-sunken);
+}
+/* Remaining data, anchored right so the bar drains left → right. No transition: data ticks snap. */
+.mb-meter__fill {
+  height: 100%;
+  background: var(--accent);
+  transform-origin: right center;
+}
+.mb-meter[data-warning] .mb-meter__fill {
+  background: var(--warning);
+}
+.mb-meter__fill--once {
+  animation: ui-meter-fill var(--duration-spatial-in) var(--ease-standard) var(--duration-micro)
+    backwards;
+}
+@keyframes ui-meter-fill {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* ── Objects: the coupon, the boarding pass and the onchain sheet share one surface ── */
+.coupon,
+.boarding-pass,
+.onchain-action {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-object);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-text);
+}
+.boarding-pass__to,
+.boarding-pass__data,
+.onchain-action__title {
+  font-family: var(--font-display);
+  font-size: var(--text-24);
+  font-stretch: 110%;
+  font-weight: 700;
+  line-height: var(--leading-display);
+}
+
+/* ── Coupon (screen + notification; print lives in print.css) ───────────── */
+.coupon {
+  /* The coupon is an object: paper-light in both themes. */
+  color-scheme: light;
+  display: grid;
+  gap: 0.75rem;
+  max-width: 22rem;
+  padding: 1.25rem;
+}
+.coupon p {
+  margin: 0;
+}
+.coupon__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.coupon__wordmark {
+  font-family: var(--font-display);
+  font-size: var(--text-16);
+  font-stretch: 110%;
+  font-weight: 700;
+}
+.coupon__validity {
+  font-size: var(--text-12);
+  color: var(--text-secondary);
+}
+.coupon__headline {
+  display: grid;
+  gap: 0.25rem;
+}
+.coupon__amount {
+  font-family: var(--font-display);
+  font-stretch: 110%;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.coupon__value {
+  font-size: var(--text-64);
+}
+.coupon__unit {
+  font-size: var(--text-32);
+}
+.coupon__line {
+  font-size: var(--text-14);
+  color: var(--text-secondary);
+}
+.coupon__line:lang(hi),
+.coupon__line:lang(mr),
+.coupon__status:lang(hi),
+.coupon__status:lang(mr) {
+  line-height: var(--leading-devanagari);
+}
+.coupon__status {
+  font-size: var(--text-14);
+  color: var(--text-primary);
+}
+.coupon__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.coupon__panel {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 3.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+.coupon__pin {
+  font-family: var(--font-mono);
+  font-size: var(--text-20);
+  font-variant-numeric: tabular-nums slashed-zero;
+  word-spacing: 0.35em;
+  white-space: nowrap;
+}
+/* The unscratched coupon: silver latex (procedural foil grain, no gradient) over a ghost PIN row. */
+.coupon__panel--sealed {
+  flex: 1 1 14rem;
+  min-height: 4rem;
+  border-style: solid;
+  border-color: transparent;
+}
+.coupon__pin--ghost {
+  color: var(--text-disabled);
+}
+.coupon__latex {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--latex) url('./latex-grain.svg');
+  background-size: 180px 72px;
+}
+.coupon__rub {
+  font-family: var(--font-scratch);
+  font-size: var(--text-14);
+  font-weight: 600;
+  line-height: var(--leading-devanagari);
+  color: var(--text-primary);
+}
+/* The notch colour is the page canvas around the coupon (dark in dark mode), not the coupon's own light paper:
+   a registered <color> resolves at :root, before the coupon pins its scheme. */
+@property --notch {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: transparent;
+}
+:root {
+  --notch: var(--bg-canvas);
+}
+/* The perforated stub under the screen coupon: a dashed tear line with two notches, the live count below it. */
+.coupon__status[data-stub] {
+  position: relative;
+  margin: 0.25rem -1.25rem -0.25rem;
+  padding: 0.75rem 1.25rem 0;
+  border-top: 2px dashed var(--border-strong);
+  font-size: var(--text-13);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.coupon__status[data-stub]::before,
+.coupon__status[data-stub]::after {
+  content: '';
+  position: absolute;
+  top: -0.6875rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 50%;
+  background: var(--notch);
+}
+.coupon__status[data-stub]::before {
+  left: -0.6875rem;
+}
+.coupon__status[data-stub]::after {
+  right: -0.6875rem;
+}
+.coupon {
+  overflow: hidden;
+}
+
+.coupon__qr {
+  flex: none;
+  width: 5.5rem;
+  aspect-ratio: 1;
+}
+.coupon__qr > * {
+  width: 100%;
+  height: 100%;
+}
+.coupon__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  font-size: var(--text-12);
+  color: var(--text-tertiary);
+}
+.coupon__serial {
+  font-size: var(--text-11);
+}
+
+.coupon[data-variant='notification'] {
+  gap: 0.125rem;
+  padding: 0.75rem 1rem;
+}
+.coupon[data-variant='notification'] .coupon__headline {
+  display: block;
+  font-size: var(--text-16);
+  font-weight: 600;
+}
+.coupon[data-variant='notification'] .coupon__value,
+.coupon[data-variant='notification'] .coupon__unit {
+  font-size: inherit;
+}
+.coupon[data-variant='notification'] .coupon__amount {
+  font-family: inherit;
+  font-stretch: 100%;
+  line-height: inherit;
+}
+
+/* ── ScratchCard: silver latex over the PIN panel ───────────────────────── */
+.scratch {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+}
+.scratch__latex {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--latex);
+  background: var(--latex);
+  transition:
+    opacity var(--duration-state) var(--ease-exit),
+    visibility 0s linear var(--duration-state);
+}
+.scratch__latex[data-mode='canvas'] {
+  background: transparent;
+}
+.scratch__rub {
+  font-family: var(--font-scratch);
+  font-size: var(--text-13);
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: var(--leading-devanagari);
+  pointer-events: none;
+}
+.scratch__latex[data-mode='canvas'] .scratch__rub {
+  visibility: hidden;
+}
+.scratch__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: crosshair;
+}
+.scratch[data-revealed] .scratch__latex {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.scratch[data-via='button'] .scratch__latex {
+  transition:
+    opacity var(--duration-micro) var(--ease-exit),
+    visibility 0s linear var(--duration-micro);
+}
+.scratch__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 48px;
+}
+.scratch__status {
+  margin: 0;
+  font-family: var(--font-text);
+  font-size: var(--text-13);
+  color: var(--text-secondary);
+}
+.scratch__status:empty {
+  display: none;
+}
+
+/* ── BoardingPass ────────────────────────────────────────────────────────── */
+.boarding-pass {
+  --notch: var(--bg-canvas);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 0 minmax(7.5rem, 32%);
+  max-width: 34rem;
+  overflow: hidden;
+}
+.boarding-pass p,
+.boarding-pass dl,
+.boarding-pass dd {
+  margin: 0;
+}
+.boarding-pass__main {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+}
+.boarding-pass__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.boarding-pass__wordmark {
+  font-family: var(--font-display);
+  font-size: var(--text-16);
+  font-stretch: 110%;
+  font-weight: 700;
+}
+.boarding-pass__kind,
+.boarding-pass__label {
+  font-size: var(--text-11);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.boarding-pass__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+  gap: 0.5rem 1rem;
+}
+.boarding-pass__field:first-child {
+  grid-column: 1 / -1;
+}
+.boarding-pass__value {
+  font-size: var(--text-14);
+  font-variant-numeric: tabular-nums;
+}
+.boarding-pass__to,
+.boarding-pass__data {
+  overflow-wrap: anywhere;
+}
+.boarding-pass__window {
+  font-size: var(--text-13);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.boarding-pass__perforation {
+  position: relative;
+  border-left: 2px dashed var(--border-strong);
+}
+.boarding-pass__perforation::before,
+.boarding-pass__perforation::after {
+  content: '';
+  position: absolute;
+  left: -0.6875rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 50%;
+  background: var(--notch);
+}
+.boarding-pass__perforation::before {
+  top: -0.6875rem;
+}
+.boarding-pass__perforation::after {
+  bottom: -0.6875rem;
+}
+.boarding-pass__stub {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+}
+.boarding-pass__pin {
+  /* Two groups per line: 4821 9930 / 1127 5064. */
+  inline-size: 11ch;
+  font-family: var(--font-mono);
+  font-size: var(--text-14);
+  font-variant-numeric: tabular-nums slashed-zero;
+  text-align: center;
+  word-spacing: 0.3em;
+}
+.boarding-pass__qr {
+  width: 5.5rem;
+  aspect-ratio: 1;
+}
+.boarding-pass__qr > * {
+  width: 100%;
+  height: 100%;
+}
+.boarding-pass__serial {
+  font-size: var(--text-11);
+  color: var(--text-tertiary);
+}
+
+/* ── OnchainAction: receipt-shaped sheet ────────────────────────────────── */
+.onchain-action {
+  display: grid;
+  gap: 1rem;
+  max-width: 26rem;
+  padding: 1.25rem 1.25rem 1.5rem;
+  /* Receipt-shaped: a torn (dashed) bottom edge and square lower corners. */
+  border-bottom: 1px dashed var(--border-strong);
+  border-radius: var(--radius-object) var(--radius-object) 0 0;
+}
+.onchain-action p {
+  margin: 0;
+}
+.onchain-action__title {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.onchain-action__worst,
+.onchain-action__blocked {
+  font-size: var(--text-13);
+  color: var(--text-secondary);
+}
+.onchain-action__blocked {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.onchain-action__status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 1.5rem;
+  font-size: var(--text-14);
+  font-variant-numeric: tabular-nums;
+}
+.onchain-action__status:empty {
+  display: none;
+}
+.onchain-action__elapsed {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.onchain-action__sep {
+  color: var(--text-tertiary);
+}
+.onchain-action__ring {
+  flex: none;
+  margin-right: 0.25rem;
+}
+.onchain-action__ring-track,
+.onchain-action__ring-fill {
+  fill: none;
+  stroke-width: 2;
+}
+.onchain-action__ring-track {
+  stroke: var(--border-subtle);
+}
+.onchain-action__ring-fill {
+  stroke: var(--accent);
+  stroke-linecap: round;
+}
+.onchain-action__note {
+  font-size: var(--text-14);
+  color: var(--text-secondary);
+}
+.onchain-action__result {
+  font-size: var(--text-16);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.onchain-action__tag {
+  margin-left: 0.25rem;
+  padding: 0 0.375rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  font-family: var(--font-mono);
+  font-size: var(--text-12);
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+.onchain-action__failed {
+  color: var(--negative);
+  font-weight: 600;
+}
+.onchain-action__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.onchain-action__actions .ui-button--block {
+  flex: 1 1 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-button:active:not(:disabled) {
+    transform: none;
+  }
+  .mb-meter__fill--once {
+    animation: none;
+  }
+}

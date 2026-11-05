@@ -1,0 +1,21 @@
+{
+  "name": "bee upload 413",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "note": "[verify Wed] authored from ethersphere/bee@ed32cfa openapi/Swarm.yaml (POST /bzz → { reference }); no hosted gateway/batch is confirmed for the hackathon.",
+  "exchanges": [
+    {
+      "request": {
+        "method": "POST",
+        "url": "http://localhost:1633/bzz"
+      },
+      "response": {
+        "status": 413,
+        "body": {
+          "code": 413,
+          "message": "payload too large"
+        }
+      }
+    }
+  ]
+}

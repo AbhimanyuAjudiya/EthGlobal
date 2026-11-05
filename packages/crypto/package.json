@@ -1,0 +1,33 @@
+{
+  "name": "@ethglobal/crypto",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The one cryptography owner: X25519 + HKDF-SHA256 + XChaCha20-Poly1305 sealing, SHA-256, keccak-256, HMAC, CSPRNG and the webhook MAC check, all @noble, synchronous and browser-safe.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@noble/ciphers": "catalog:",
+    "@noble/curves": "catalog:",
+    "@noble/hashes": "catalog:"
+  },
+  "devDependencies": {
+    "fast-check": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

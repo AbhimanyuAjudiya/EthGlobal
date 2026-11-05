@@ -1,0 +1,110 @@
+{
+  "name": "hedera facilitator settle-pending",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "note": "[verify Wed] authored from @x402/hedera 2.29.0 (scheme_exact_hedera.md, facilitator returns transaction = 0.0.x@s.n) and hedera-docs facilitators.mdx (Blocky402 fee payer 0.0.7162784); re-record at the Wed 14:00 pre-deploy.",
+  "exchanges": [
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://api.testnet.blocky402.com/supported"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "kinds": [
+            {
+              "x402Version": 2,
+              "scheme": "exact",
+              "network": "hedera:testnet",
+              "extra": {
+                "feePayer": "0.0.7162784"
+              }
+            }
+          ],
+          "extensions": [],
+          "signers": {
+            "eip155:*": ["0x976EA74026E726554dB657fA54763abd0C3a0aa9"]
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://api.testnet.blocky402.com/settle",
+        "body": {
+          "x402Version": 2,
+          "paymentPayload": {
+            "x402Version": 2,
+            "accepted": {
+              "scheme": "exact",
+              "network": "hedera:testnet",
+              "asset": "0.0.429274",
+              "amount": "1000000",
+              "payTo": "0.0.5005",
+              "maxTimeoutSeconds": 180,
+              "extra": {
+                "feePayer": "0.0.7162784"
+              }
+            },
+            "payload": {
+              "transaction": "YXV0aG9yZWQgcGxhY2Vob2xkZXI6IGEgcGFydGlhbGx5IHNpZ25lZCBUcmFuc2ZlclRyYW5zYWN0aW9u"
+            }
+          },
+          "paymentRequirements": {
+            "scheme": "exact",
+            "network": "hedera:testnet",
+            "asset": "0.0.429274",
+            "amount": "1000000",
+            "payTo": "0.0.5005",
+            "maxTimeoutSeconds": 180,
+            "extra": {
+              "feePayer": "0.0.7162784"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": false,
+          "errorReason": "settlement_pending",
+          "transaction": "0.0.7162784@1793707200.123456789",
+          "network": "hedera:testnet",
+          "payer": "0.0.6006"
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1793707200-123456789"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "transactions": []
+        }
+      }
+    },
+    {
+      "request": {
+        "method": "GET",
+        "url": "https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.7162784-1793707200-123456789"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "transactions": [
+            {
+              "result": "SUCCESS",
+              "transaction_id": "0.0.7162784-1793707200-123456789",
+              "consensus_timestamp": "1793707201.000000001"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

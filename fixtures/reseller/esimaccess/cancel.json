@@ -1,0 +1,32 @@
+{
+  "name": "eSIM Access cancel",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "note": "[verify Wed] authored from esimaccess-api@b9421b3 references/api-reference.md (envelope { success, errorCode, errorMsg, obj }, price ×10 000, volume bytes). Re-record with the console account: real packageCodes, the real `ac` (LPA) and its fill latency.",
+  "exchanges": [
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://api.esimaccess.com/api/v1/open/esim/cancel",
+        "body": {
+          "esimTranNo": "ESIM-TRAN-1"
+        },
+        "expectHeaders": {
+          "RT-AccessCode": "test-access-code",
+          "RT-Timestamp": "*",
+          "RT-RequestID": "*",
+          "RT-Signature": "*"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "errorCode": null,
+          "errorMsg": null,
+          "obj": null
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "composition": "Short02Scratch",
+  "source": "marketing/videos/SCRIPTS.md §3 (Video 02) shot list",
+  "durationInFrames": 450,
+  "captions": [
+    { "from": 30, "to": 105, "text": "The 2004 recharge coupon.", "style": "hook", "lang": "en" },
+    {
+      "from": 110,
+      "to": 160,
+      "text": "Same scratch. Same 16 digits.",
+      "style": "footage",
+      "lang": "en"
+    },
+    {
+      "from": 170,
+      "to": 240,
+      "text": "Now it's 300 MB of Mumbai data",
+      "style": "ui",
+      "lang": "en"
+    },
+    { "from": 262, "to": 332, "text": "Expires by itself · Arkiv", "style": "ui", "lang": "en" },
+    {
+      "from": 346,
+      "to": 400,
+      "text": "Or write a name. Gift it.",
+      "style": "footage",
+      "lang": "en"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "chainId": 296,
+  "network": "eip155:296",
+  "ledgerOnly": false,
+  "dataDrop": "0x2d4d52989545FF0d0CD91D77A33f14063f57c9E6",
+  "usdc": "0x0000000000000000000000000000000000068cDa",
+  "usdcHts": "0.0.429274",
+  "payout": "0x3eD751480185b0ca2F7C3B8394954211b3511B8B",
+  "attestor": "0x69D0714a712B556bb950a7b4Bc3070c16b0dfc88",
+  "owner": "0x0fC84036F88E1C86744FE485bE6A8581eCaf0d6e",
+  "pendingOwner": "0x0000000000000000000000000000000000000000",
+  "deployer": "0x69D0714a712B556bb950a7b4Bc3070c16b0dfc88",
+  "deployedAt": 1793871801,
+  "txs": {
+    "dataDrop": "0x234ec50e7187d149fdd4d26b508c579273672f0a9c81553b45c862e61781304b",
+    "usdc": ""
+  }
+}

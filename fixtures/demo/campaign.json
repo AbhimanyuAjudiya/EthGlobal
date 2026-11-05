@@ -1,0 +1,18 @@
+{
+  "source": "demo-seed",
+  "id": "0x90f79bf6eb2c4f870365e785982e1f101e93b906000000005402b1ae5a4ee008",
+  "name": "Recharge (demo sponsor)",
+  "sponsor": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+  "network": "eip155:31337",
+  "contract": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+  "budgetUsd6": "1000000000",
+  "pricePerClaimUsd6": "500000",
+  "claimsPerHour": 120,
+  "bundleMb": {
+    "orb": 300,
+    "document": 150,
+    "device": 0
+  },
+  "validityDays": 7,
+  "planId": "in-300mb-7d"
+}

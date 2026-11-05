@@ -1,0 +1,5 @@
+# Real captures are never committed (people's faces, large files). Only the checklist is tracked.
+*
+!.gitignore
+!README.md
+!*-notes.md

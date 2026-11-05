@@ -1,0 +1,466 @@
+
+######## Uniswap: 53 prize rows since 2025 ########
+TRACKS: {'Best Uniswap API Integration': 12, 'Best Uniswap Stack Contribution': 11, 'Uniswap v4 Stable-Asset Hooks': 5, 'Uniswap v4 Volatile-Pairs Hooks': 5, 'Build with Uniswap v4 Hooks': 5, 'Best Uniswap API integration': 3, 'Uniswap v4 Privacy DeFi': 3, 'Uniswap v4 Agentic Finance': 3, 'v4 Hooks on Unichain': 3, 'Uniswap v4 Hook Integrations Runner Up': 2, 'Uniswap v4 Hook Integrations': 1}
+- 2026-09-04 ETHOnline 2026 | lpTOKEN.fun (1 prizes) | Best Uniswap Stack Contribution / 1st :: LP positions you can trade like tokens. One token, two ways to trade it. Built on Uniswap v4.
+- 2026-09-04 ETHOnline 2026 | TARE (1 prizes) | Best Uniswap Stack Contribution / None :: Measures what a Uniswap v4 hook really takes from your swap. 125,072 measurements, each replayable.
+- 2026-09-04 ETHOnline 2026 | Priime (1 prizes) | Best Uniswap Stack Contribution / 2nd :: The vault structuring platform to compose, test & distribute vaults; in one verifiable venue.
+- 2026-09-04 ETHOnline 2026 | Otter (1 prizes) | Best Uniswap Stack Contribution / None :: First implementation of a provably MEV-resilient AMM — Uniswap v4 hook + off-chain VCG solver.
+- 2026-09-04 ETHOnline 2026 | ClosingBell-Hook (1 prizes) | Best Uniswap Stack Contribution / None :: Uniswap v4 hook that prices tokenized-stock swap fees off the market calendar and chainlink feed
+- 2026-07-24 ETHGlobal Lisbon 2026 | r00t.fund (1 prizes) | Best Uniswap Stack Contribution / 3rd :: ReFi launchpad: a Uniswap v4 hook arbs a token's shielded + public pools to regenerate real land.
+- 2026-07-24 ETHGlobal Lisbon 2026 | WallCard (1 prizes) | Best Uniswap Stack Contribution / 2nd :: First Ever Self Custodial Wallet In a Card Form. No extensions - just card, CVV, PIN & OTP
+- 2026-07-24 ETHGlobal Lisbon 2026 | Umbra (1 prizes) | Best Uniswap API Integration / 3rd :: Autonomous DeFi circuit breaker that auto-evacuates funds before pools collapse
+- 2026-07-24 ETHGlobal Lisbon 2026 | Sentinel (1 prizes) | Best Uniswap API Integration / 1st :: Stop-loss for your entire portfolio. Sentinel auto-exits to stables when risk hits.
+- 2026-07-24 ETHGlobal Lisbon 2026 | RWA Outlet (1 prizes) | Best Uniswap API Integration / 3rd :: Instant RWA liquidity through 1inch Aqua, Uniswap v4, and ERC-7540 queues
+- 2026-07-24 ETHGlobal Lisbon 2026 | Pool Party (2 prizes) | Best Uniswap Stack Contribution / 1st :: An institutional-grade crypto neobank abstracting DeFi complexity for non-crypto natives via USDC.
+- 2026-07-24 ETHGlobal Lisbon 2026 | Peregrine (1 prizes) | Best Uniswap API Integration / 2nd :: Build custom flows that turn any signal into an automated, risk-controlled trade
+- 2026-07-24 ETHGlobal Lisbon 2026 | KOLlateral [FINALIST] (3 prizes) | Best Uniswap API Integration / 1st :: The accountability layer for crypto influencers: build a verifiable record, back the real traders.
+- 2026-06-12 ETHGlobal New York 2026 | Stream Vaults (2 prizes) | Best Uniswap API Integration / 2nd :: Stream USDC to a Ledger-signed DCA agent that buys ETH/BTC, bounded to hours of flow, not TVL.
+- 2026-06-12 ETHGlobal New York 2026 | Smile (1 prizes) | Best Uniswap API Integration / 3rd :: Standard options market potentially as popular as Robinhood, decentralized as Polymarket.
+- 2026-06-12 ETHGlobal New York 2026 | Pampalo Private Swap (1 prizes) | Best Uniswap Stack Contribution / None :: Private money on Pampalo - shield tokens, then send + swap privately on public Uniswap liquidity
+- 2026-06-12 ETHGlobal New York 2026 | Lotus (2 prizes) | Best Uniswap API Integration / 1st :: A directional liquidity for big holders, sell on the way up, never re-buy.
+- 2026-06-12 ETHGlobal New York 2026 | Chatter (2 prizes) | Best Uniswap Stack Contribution / None :: Pay $1, Research trends from keywords, Review, Swap and Own the data on ENS.
+- 2026-06-12 ETHGlobal New York 2026 | Better Wallet (1 prizes) | Best Uniswap Stack Contribution / None :: Open-source airgapped hardware wallet with clear signing for safer self-custody
+- 2026-04-24 Open Agents | Zuno (1 prizes) | Best Uniswap API integration / 1st :: Four AI agents debate every Uniswap v4 rebalance. You see the reasoning. Then you sign.
+- 2026-04-24 Open Agents | Moai (1 prizes) | Best Uniswap API integration / 2nd :: Agent that rescues idle Uniswap LP positions and migrates them to top yield vaults.
+- 2026-04-24 Open Agents | Alps (1 prizes) | Best Uniswap API integration / 3rd :: Agent-managed Uniswap vault turning onchain volume into yield
+- 2026-04-03 ETHGlobal Cannes 2026 | αβγ' (1 prizes) | Best Uniswap API Integration / 1st :: Onchain market making system that solves Impermanent loss and toxic orderflow problems
+- 2026-04-03 ETHGlobal Cannes 2026 | Flow Broker (2 prizes) | Best Uniswap API Integration / 3rd :: Autonomous AI brokers that pay per intelligence call via Arc, trades via Uniswap, run by CRE.
+- 2026-04-03 ETHGlobal Cannes 2026 | Casper (1 prizes) | Best Uniswap API Integration / 2nd :: Browser extension that automatically finds you better DeFi rates
+- 2026-04-03 ETHGlobal Cannes 2026 | ALMA [FINALIST] (2 prizes) | Best Uniswap API Integration / 3rd :: Automated Liquidity Management Agent for your Uniswap positions
+- 2026-01-30 HackMoney 2026 | Waiola (2 prizes) | Uniswap v4 Privacy DeFi / 3rd :: Private RFQ settlement on Uniswap v4 with ENS-based maker discovery and ZK enforcement
+- 2026-01-30 HackMoney 2026 | VeilSwap (2 prizes) | Uniswap v4 Privacy DeFi / 2nd :: A privacy-preserving intent-based DEX settlement layer using MPC.
+- 2026-01-30 HackMoney 2026 | Uniforum (2 prizes) | Uniswap v4 Agentic Finance / 3rd :: Uniforum is a social network where AI agents argue over DeFi & trade on Uniswap v4 when they agree.
+- 2026-01-30 HackMoney 2026 | PrivBatch (1 prizes) | Uniswap v4 Privacy DeFi / 1st :: Private batch swaps on Uniswap V4 with autonomous agents & ZK proofs.
+- 2026-01-30 HackMoney 2026 | EIDOLON (1 prizes) | Uniswap v4 Agentic Finance / 2nd :: Earn Uniswap fees without locking funds. Your wallet is the liquidity pool.
+- 2026-01-30 HackMoney 2026 | CrossLiquid (1 prizes) | Uniswap v4 Agentic Finance / 1st :: Agent-managed cross-chain liquidity for earning fees on USDC-ETH pairs on Uniswap v4
+- 2025-11-21 ETHGlobal Buenos Aires | antidote (2 prizes) | Uniswap v4 Stable-Asset Hooks / 2nd :: Permissioned  Institutional Margin Call Protection Protocol
+- 2025-11-21 ETHGlobal Buenos Aires | SAGE Protocol (1 prizes) | Uniswap v4 Stable-Asset Hooks / 3rd :: Dynamic fee hook integrating S&P SSA ratings - safer stablecoin pairs earn lower fees on Uniswap v4
+- 2025-11-21 ETHGlobal Buenos Aires | Redfish (2 prizes) | Uniswap v4 Volatile-Pairs Hooks / 3rd :: Using zero knowledge machine learning and zktls to create trustless anomaly detection
+- 2025-11-21 ETHGlobal Buenos Aires | Private FHE Intents (2 prizes) | Uniswap v4 Volatile-Pairs Hooks / 2nd :: We Solved The $700M MEV Problem Using Math That Breaks Wall Street's Playbook
+- 2025-11-21 ETHGlobal Buenos Aires | P.A.T (3 prizes) | Uniswap v4 Volatile-Pairs Hooks / 1st :: Proprietary Automated Market Maker launchpad built on top of Uniswap V4 using TEEs.
+- 2025-11-21 ETHGlobal Buenos Aires | Orbswap Prediction (1 prizes) | Uniswap v4 Volatile-Pairs Hooks / 2nd :: Uniswap v4 pm-AMM hook for an asymmetric LP payoff to simulate prediction markets.
+- 2025-11-21 ETHGlobal Buenos Aires | Orbital Hook (1 prizes) | Uniswap v4 Stable-Asset Hooks / 1st :: A Uniswap V4 Hook implementing a custom spherical AMM curve for efficient stable asset swaps.
+- 2025-11-21 ETHGlobal Buenos Aires | OneTx (2 prizes) | Uniswap v4 Stable-Asset Hooks / 2nd :: Universal DeFi router: one-click access to any DeFi instrument across chains via Global IDs
+- 2025-11-21 ETHGlobal Buenos Aires | Anti-Toxicity Hook (1 prizes) | Uniswap v4 Stable-Asset Hooks / 3rd :: This UniswapV4 hook reduces impermanent loss by rewarding trades that goes against the market
+- 2025-11-21 ETHGlobal Buenos Aires | ALA (2 prizes) | Uniswap v4 Volatile-Pairs Hooks / 3rd :: Crowdsourced Market Maker built by global data scientists to optimize on-chain liquidity.
+- 2025-09-26 ETHGlobal New Delhi | UniPerp [FINALIST] (2 prizes) | Build with Uniswap v4 Hooks / 2nd :: A decentralized perpetual futures DEX on Uniswap v4 with vAMM, oracle pricing & lower funding rates.
+- 2025-09-26 ETHGlobal New Delhi | Qlick (1 prizes) | Build with Uniswap v4 Hooks / 3rd :: A quantum market for decisions built on Uniswap V4 Hooks which eliminates fragmented capital
+- 2025-09-26 ETHGlobal New Delhi | MEVengers (1 prizes) | Build with Uniswap v4 Hooks / 2nd :: 🚀 MEVengers: World's first social mechanism to hedge against MEVs 💰⚡
+- 2025-09-26 ETHGlobal New Delhi | DepegSentinel (1 prizes) | Build with Uniswap v4 Hooks / 3rd :: DepegSentinel: Dynamically adjusts fees to punish depegs and reward peg-stabilizing trades.
+- 2025-09-26 ETHGlobal New Delhi | BondZero (1 prizes) | Build with Uniswap v4 Hooks / 1st :: Zero Coupon bonds using Uniswap V4 hooks, that allows to separate the fixed and the variable yield
+- 2025-08-15 ETHGlobal New York 2025 | stETHer (1 prizes) | v4 Hooks on Unichain / 3rd :: Uniswap v4 hook implementing dynamic fees and proper rebasing token handling
+- 2025-08-15 ETHGlobal New York 2025 | OpSwap on Unichain (1 prizes) | v4 Hooks on Unichain / 2nd :: Options Protocol based JIT Pools on Uniswap via V4 Hooks in Swaps
+- 2025-08-15 ETHGlobal New York 2025 | JIT Saving Vault (1 prizes) | v4 Hooks on Unichain / 1st :: Vault with Just-In-Time(JIT) liquidity using Uniswap v4 hooks and Aave yield saving
+- 2025-04-04 ETHGlobal Taipei | Watchtower (2 prizes) | Uniswap v4 Hook Integrations / 1st :: Atomic Liquidation and Other Actions via 1-time Hooks 4 Sale on Uniswap V4
+- 2025-04-04 ETHGlobal Taipei | Hook up to AMM (1 prizes) | Uniswap v4 Hook Integrations Runner Up / None :: Using Uniswap v4 Hooks to incentivize long-term liquidity with time-based rewards.
+- 2025-04-04 ETHGlobal Taipei | Calary (2 prizes) | Uniswap v4 Hook Integrations Runner Up / None :: Calary: Compliance toolkit empowering killer consumer dApps with on-chain payroll, swaps & rewards.
+
+######## Chainlink: 34 prize rows since 2025 ########
+TRACKS: {'Connect the World with Chainlink': 11, 'Best workflow with Chainlink CRE': 5, 'Best usage of Chainlink CCIP and/or CCT': 5, 'Best Chainlink-Powered Upgrade': 3, 'Best workflow with CRE': 3, 'Best Confidential Workflow': 2, 'Best usage of Chainlink Confidential AI Attester': 2, 'Best usage of Chainlink privacy standard': 2, 'Automated Liquidation Protection Challenge': 1}
+- 2026-09-04 ETHOnline 2026 | Sovereign (1 prizes) | Best Confidential Workflow / None :: Private financial agreements for autonomous agents, enforced onchain.
+- 2026-09-04 ETHOnline 2026 | Karwan (1 prizes) | Best Chainlink-Powered Upgrade / None :: An open trade market with reputation, protected USDC payments and trade finance.
+- 2026-09-04 ETHOnline 2026 | Deflow (1 prizes) | Best Confidential Workflow / None :: Non-custodial compliance payment gateway for crypto checkouts.
+- 2026-09-04 ETHOnline 2026 | AquaGhost Protocol (1 prizes) | Automated Liquidation Protection Challenge / None :: Self-custodial MEV & JIT defense for LPs via Uniswap v4, 1inch Aqua, Chainlink CRE & The Graph
+- 2026-06-12 ETHGlobal New York 2026 | goHealthMe (1 prizes) | Best usage of Chainlink Confidential AI Attester / None :: Verified health goals with instant USDC payouts — confidential AI oracle, proof-of-human gated.
+- 2026-06-12 ETHGlobal New York 2026 | WillowOne (1 prizes) | Connect the World with Chainlink / None :: WillowOne — a Polymarket oracle that kills tab-switching. One screen, live signals, auto-resolves.
+- 2026-06-12 ETHGlobal New York 2026 | Vouch DeFi (3 prizes) | Best workflow with CRE / None :: Zero-collateral credit backed by who you are, not what you own. Private AI, USDC on Arc.
+- 2026-06-12 ETHGlobal New York 2026 | Thurman Protocol (2 prizes) | Best Chainlink-Powered Upgrade / None :: Automated secondary loan sales with onchain USDC settlement and trustless execution
+- 2026-06-12 ETHGlobal New York 2026 | OpenPop (2 prizes) | Best workflow with CRE / None :: OpenPop is the OpenClaw of verifiable agent workflows. Proof over Promises.
+- 2026-06-12 ETHGlobal New York 2026 | Nyx (2 prizes) | Connect the World with Chainlink / None :: Fully private perp DEX, allowing leverage trading with yield-earning RWA collateral.
+- 2026-06-12 ETHGlobal New York 2026 | Lineage (2 prizes) | Best usage of Chainlink Confidential AI Attester / None :: AI drafts a cited pharma dossier chapter, independently checks each citation, anchors on-chain.
+- 2026-06-12 ETHGlobal New York 2026 | Immunity (2 prizes) | Best Chainlink-Powered Upgrade / None :: On-chain immune system for AI agents : earn by minting antibody
+- 2026-06-12 ETHGlobal New York 2026 | Canary (1 prizes) | Best workflow with CRE / None :: Parametric insurance instrument underwritten and priced by prediction markets
+- 2026-04-03 ETHGlobal Cannes 2026 | OpenCompliance (1 prizes) | Best usage of Chainlink privacy standard / None :: The shared compliance layer for institutional DeFi
+- 2026-04-03 ETHGlobal Cannes 2026 | Meridian (1 prizes) | Best usage of Chainlink privacy standard / None :: Autonomous treasury agent for companies converting between stablecoins with corporate level privacy
+- 2026-04-03 ETHGlobal Cannes 2026 | Flow Broker (2 prizes) | Best workflow with Chainlink CRE / None :: Autonomous AI brokers that pay per intelligence call via Arc, trades via Uniswap, run by CRE.
+- 2026-04-03 ETHGlobal Cannes 2026 | ENShell [FINALIST] (2 prizes) | Best workflow with Chainlink CRE / None :: ENShell Prevents AI agents from executing malicious transactions caused by prompt injection attacks.
+- 2026-04-03 ETHGlobal Cannes 2026 | DeltaFX (1 prizes) | Connect the World with Chainlink / None :: FX insurance for the stablecoin economy – hedge currency risk onchain
+- 2025-11-21 ETHGlobal Buenos Aires | Wolfy (3 prizes) | Best workflow with Chainlink CRE / None :: The ultimate smart wallet built for real life: EIP-7702, NFC-ready, FireFly / ArxHalo / CRE
+- 2025-11-21 ETHGlobal Buenos Aires | Saving Circles (1 prizes) | Connect the World with Chainlink / None :: Onchain saving circles (ROSCAs) with fair VRF draws and liquid positions.
+- 2025-11-21 ETHGlobal Buenos Aires | MultiSub (2 prizes) | Connect the World with Chainlink / None :: Multisub offers curated Multisig enabling day-to-day use with delegation of liquidity management.
+- 2025-11-21 ETHGlobal Buenos Aires | BMCP [FINALIST] (4 prizes) | Connect the World with Chainlink / None :: From Taproot to Uniswap: Sign on Bitcoin, trade on Polygon. Hybrid relayer, zero trust bridges
+- 2025-11-21 ETHGlobal Buenos Aires | BMCP [FINALIST] (4 prizes) | Best workflow with Chainlink CRE / None :: From Taproot to Uniswap: Sign on Bitcoin, trade on Polygon. Hybrid relayer, zero trust bridges
+- 2025-11-21 ETHGlobal Buenos Aires | AIMM (2 prizes) | Best workflow with Chainlink CRE / None :: AI Agents market making low liquidity/hard to price prediction markets
+- 2025-08-15 ETHGlobal New York 2025 | VoiceDoc (2 prizes) | Connect the World with Chainlink / None :: Health in your hands: AI consults, NFT records, and seamless USDC payments with VoiceDoc.
+- 2025-08-15 ETHGlobal New York 2025 | Swap Pay [FINALIST] (3 prizes) | Connect the World with Chainlink / None :: Swap Pay is an SDK that turns fragmented token balances into smooth payments using EIP-5792
+- 2025-08-15 ETHGlobal New York 2025 | OpenGrid (2 prizes) | Connect the World with Chainlink / None :: Decentralized data exchange for smart meter usage with Chainlink-powered exchange
+- 2025-08-15 ETHGlobal New York 2025 | Defi Guardian (1 prizes) | Best usage of Chainlink CCIP and/or CCT / None :: DeFi Guardian: Community-powered insurance that protects your crypto from hacks.
+- 2025-08-15 ETHGlobal New York 2025 | AnyPay (2 prizes) | Best usage of Chainlink CCIP and/or CCT / None :: Cross-chain payment settlement app with AI analysis. Any chain, any token, any payment
+- 2025-07-04 ETHGlobal Cannes | Romi (2 prizes) | Best usage of Chainlink CCIP and/or CCT / None :: Romi is a simple, secure crypto wallet integrating multiple chains and tokens into a pair (Tok/Cha)
+- 2025-07-04 ETHGlobal Cannes | RainGuard (1 prizes) | Connect the World with Chainlink / None :: On-chain P2P weather insurance protocol using parametric data triggers.
+- 2025-07-04 ETHGlobal Cannes | PrivacyLinks [FINALIST] (2 prizes) | Best usage of Chainlink CCIP and/or CCT / None :: A privacy-by-default browser wallet that leverages PrivacyPools for no-effort private Web3 browsing.
+- 2025-07-04 ETHGlobal Cannes | Full Circle (2 prizes) | Connect the World with Chainlink / None :: Full Circle: Multichain gas killer—pay with USDC, not ETH. Stablecoins in, gas pain out.
+- 2025-07-04 ETHGlobal Cannes | CCTUP (3 prizes) | Best usage of Chainlink CCIP and/or CCT / None :: Cross-chain management platform for indexing, replaying, and managing blockchain transactions
+
+######## World: 163 prize rows since 2025 ########
+TRACKS: {'World Pool Prize': 102, 'Best Mini App': 15, 'Best Mini App Honorable Mention': 12, 'AgentKit Continuity': 3, 'Selfie Check': 3, 'AgentKit New Use Cases': 3, 'Track A (AgentKit)': 3, 'Best use of World ID 4.0': 3, 'Best use of Minikit 2.0': 3, 'Best use of Agent Kit': 3, 'Selfie Check Beta -- Continuity': 2, 'Identity Check Beta Test -- Continuity': 2, 'Selfie Check Beta': 2, 'Track B (World ID)': 2, 'Track D (ProveKit)': 2, 'Track C (Existing Projects integrating World ID)': 2, '': 1}
+- 2026-09-04 ETHOnline 2026 | hors-luma (1 prizes) | AgentKit Continuity / None :: HORS is CORS for AI agents—private function sharing governed by human origin
+- 2026-09-04 ETHOnline 2026 | Novi Corpus (1 prizes) | AgentKit Continuity / None :: A Wyoming legal body for AI agents. Agents pay on Arc, now Hedera too; human guardians via World.
+- 2026-09-04 ETHOnline 2026 | Maneki (1 prizes) | AgentKit Continuity / None :: Web3 job board for AI agents: open MCP + AgentKit-verified AI matching. Discover free, act human.
+- 2026-09-04 ETHOnline 2026 | Creance (1 prizes) | Selfie Check / None :: Your occupation gets automated, you get paid.  Investors earn yield from betting it won't be.
+- 2026-09-04 ETHOnline 2026 | Automator (1 prizes) | Selfie Check / None :: Build, simulate, and run onchain workflows on a visual canvas.
+- 2026-09-04 ETHOnline 2026 | ArcAsset (1 prizes) | Selfie Check / None :: Agents that service tokenized private credit on Arc and sell the repayment data they generate.
+- 2026-07-24 ETHGlobal Lisbon 2026 | Turing Swap (1 prizes) | AgentKit New Use Cases / 3rd :: An identity-aware DEX where humans trade cheaper than bots, pay dynamic fee, and LPs earn smarter.
+- 2026-07-24 ETHGlobal Lisbon 2026 | TreasureHunt (1 prizes) | Selfie Check Beta -- Continuity / 2nd :: NFC treasure hunt at real events, now with ENS names, World ID sybil gates and Seal-encrypted clues
+- 2026-07-24 ETHGlobal Lisbon 2026 | NpmGuard (2 prizes) | Identity Check Beta Test -- Continuity / 2nd :: NpmGuard: AI agents audit npm packages for malicious code and publish verifiable results on-chain
+- 2026-07-24 ETHGlobal Lisbon 2026 | Novi Corpus (1 prizes) | Identity Check Beta Test -- Continuity / 1st :: Give an AI agent a real legal entity: an accountable human guardian, a governed on-chain treasury
+- 2026-07-24 ETHGlobal Lisbon 2026 | Human Bond (1 prizes) | Selfie Check Beta -- Continuity / 1st :: Human Bond is a World mini-app managing human partnerships with AI Agents.
+- 2026-07-24 ETHGlobal Lisbon 2026 | Hands Unchained [FINALIST] (3 prizes) |  / 1st :: Book a robot arm, execute tasks. Book on chain, drive from your browser, get paid if you did well.
+- 2026-07-24 ETHGlobal Lisbon 2026 | HORS (1 prizes) | AgentKit New Use Cases / 1st :: HORS is CORS for AI agents—private function sharing governed by human origin
+- 2026-07-24 ETHGlobal Lisbon 2026 | Commitment Issues (1 prizes) | Selfie Check Beta / 2nd :: Just like Apple's face ID but for your git commits. Agents can write the code, a human signs it.
+- 2026-07-24 ETHGlobal Lisbon 2026 | BookerBob (2 prizes) | AgentKit New Use Cases / 2nd :: Who's behind an agent changes terms, not price. Bots prepay; humans get deposit & pay later.
+- 2026-07-24 ETHGlobal Lisbon 2026 | BananaMesh (1 prizes) | Selfie Check Beta / 1st :: Privacy-Preserving Passive Radio Tomographic Tracking using BLE
+- 2026-06-12 ETHGlobal New York 2026 | pinch (1 prizes) | Track B (World ID) / 1st :: Agentic teleoperation payout system AR handcontrol robots that autonomously post bounties when stuck
+- 2026-06-12 ETHGlobal New York 2026 | Vouch DeFi (3 prizes) | Track D (ProveKit) / 2nd :: Zero-collateral credit backed by who you are, not what you own. Private AI, USDC on Arc.
+- 2026-06-12 ETHGlobal New York 2026 | Void Tactics (2 prizes) | Track C (Existing Projects integrating World ID) / 2nd :: Tactical onchain fleet combat: Dynamic Flow purchases, World ID sybil resistance, Walrus game replay
+- 2026-06-12 ETHGlobal New York 2026 | Proof-of-Human (1 prizes) | Track A (AgentKit) / 1st :: Bot-proof scarce-goods drops: 1 verified human = 1 raffle slot, for both web users and AI agents
+- 2026-06-12 ETHGlobal New York 2026 | Mars (3 prizes) | Track A (AgentKit) / 2nd :: On-chain audited marketplace where AI agents safely buy verified skills.
+- 2026-06-12 ETHGlobal New York 2026 | Justify (1 prizes) | Track C (Existing Projects integrating World ID) / 1st :: Creator-based prediction market powered by AI agents and social distribution
+- 2026-06-12 ETHGlobal New York 2026 | Distro (1 prizes) | Track B (World ID) / 2nd :: Distro fixes clipping marketplaces to give brands and builders more reach with crypto infra.
+- 2026-06-12 ETHGlobal New York 2026 | Aragorn (3 prizes) | Track D (ProveKit) / 1st :: Private compliant ledgers that give institutions full control. Canton/Tempo Zones but on Ethereum
+- 2026-06-12 ETHGlobal New York 2026 | AgentRank (2 prizes) | Track A (AgentKit) / 3rd :: Trust API for ERC-8004 agents before they delegate work, call agents, or pay with x402.
+- 2026-04-03 ETHGlobal Cannes 2026 | equitas (1 prizes) | Best use of World ID 4.0 / 3rd :: Equitas tokenizes SNAP eligibility with ZK proofs, Hedera NFTs, and programmable USDC.
+- 2026-04-03 ETHGlobal Cannes 2026 | VEIL VPN [FINALIST] (4 prizes) | Best use of World ID 4.0 / 1st :: Verifiable Encrypted Internet Layer, is the pay as you go VPN protocol that proves no logs are kept.
+- 2026-04-03 ETHGlobal Cannes 2026 | Joust World MiniApp (1 prizes) | Best use of Minikit 2.0 / 3rd :: Stake convictions with friends. Settled by World ID-verified humans or AI agents on World Chain.
+- 2026-04-03 ETHGlobal Cannes 2026 | HumanAttentionToken (1 prizes) | Best use of World ID 4.0 / 2nd :: HAT: Earn USDC micropayments for your attention. No bots, no middlemen — just humans getting paid.
+- 2026-04-03 ETHGlobal Cannes 2026 | Groundtruth (2 prizes) | Best use of Agent Kit / 2nd :: Intelligence map where humans and AI agents collaboratively report and validate world events
+- 2026-04-03 ETHGlobal Cannes 2026 | Genie (1 prizes) | Best use of Minikit 2.0 / 2nd :: Genie: AI DeFi agent for World App.  Private accounting & cross-chain USDC.   Finance simplified.
+- 2026-04-03 ETHGlobal Cannes 2026 | DIVE [FINALIST] (4 prizes) | Best use of Minikit 2.0 / 1st :: AI swarm engine verifying real-world truth for prediction markets and autonomous on-chain settlement
+- 2026-04-03 ETHGlobal Cannes 2026 | CaaS (2 prizes) | Best use of Agent Kit / 3rd :: Human-verified "WorldClaw" for every human, paid in WLD with x402 and private compute.
+- 2026-04-03 ETHGlobal Cannes 2026 | AgentGate (1 prizes) | Best use of Agent Kit / 1st :: Pay-per-call API gateway for AI agents on Hedera, using x402 protocol and World Agent Kit
+- 2025-11-21 ETHGlobal Buenos Aires | png.fun (1 prizes) | Best Mini App Honorable Mention / None :: social game where users take a photo of today's theme, vote on the best pics and win the prize
+- 2025-11-21 ETHGlobal Buenos Aires | parcelito (1 prizes) | World Pool Prize / pool :: Buy, Create, and Gift Token Portfolios easily with just a few click!
+- 2025-11-21 ETHGlobal Buenos Aires | marriageDAO (1 prizes) | World Pool Prize / pool :: MarriageDAO is a World MiniApp for verified humans to get married on-chain!
+- 2025-11-21 ETHGlobal Buenos Aires | hedgepod (1 prizes) | World Pool Prize / pool :: Create your own AI hedge fund! Made for 23M World users. Deposit once, earn optimally, gasless.
+- 2025-11-21 ETHGlobal Buenos Aires | ZkVip (1 prizes) | World Pool Prize / pool :: Private VIP verification using ZK proofs in World App Mini App
+- 2025-11-21 ETHGlobal Buenos Aires | Yield Circle (1 prizes) | World Pool Prize / pool :: Decentralized savings circles with World ID. Fair rotating payouts, yield, zero fraud risk.
+- 2025-11-21 ETHGlobal Buenos Aires | World of Coloring (1 prizes) | World Pool Prize / pool :: Turn your child's imagination into printable coloring pages.
+- 2025-11-21 ETHGlobal Buenos Aires | World Voice (1 prizes) | World Pool Prize / pool :: We built a podcast mini-app with tipping features inside the World App
+- 2025-11-21 ETHGlobal Buenos Aires | Token Strike (1 prizes) | World Pool Prize / pool :: Web3 shooter where your firepower grows with real token deposits.
+- 2025-11-21 ETHGlobal Buenos Aires | Token Hunt (1 prizes) | World Pool Prize / pool :: Spawn WLD rewards on a map. Hunters find tokens by getting close. Location-based treasure hunt! 🎯🪙
+- 2025-11-21 ETHGlobal Buenos Aires | The Wolf of Web3 (2 prizes) | World Pool Prize / pool :: AI‑guided, cross‑chain investing powered by Circle Smart Wallets and personalized strategies.
+- 2025-11-21 ETHGlobal Buenos Aires | Tanda (2 prizes) | Best Mini App Honorable Mention / None :: Enabling Rotating Savings and Credit Association on-chain with verified credit scoring
+- 2025-11-21 ETHGlobal Buenos Aires | SwagSwap (1 prizes) | World Pool Prize / pool :: A Web3 marketplace for trading hackathon swag with World ID verification and x402 micropayments
+- 2025-11-21 ETHGlobal Buenos Aires | Sk8Habit (1 prizes) | World Pool Prize / pool :: habit tracker on World, to visualize goals with Pyth integration.
+- 2025-11-21 ETHGlobal Buenos Aires | ReviewSync (1 prizes) | World Pool Prize / pool :: Import your reviews from one app to another (e.g. Uber to Cabify)! Never start from 0 again!
+- 2025-11-21 ETHGlobal Buenos Aires | Quali (1 prizes) | World Pool Prize / pool :: Bot-proof opinion poll market for A/B testing of design, branding, ads, copy etc.
+- 2025-11-21 ETHGlobal Buenos Aires | Pothole Patrol (1 prizes) | World Pool Prize / pool :: Turns smartphones into AI-powered dashcams to crowdsource a map of road infrastructure.
+- 2025-11-21 ETHGlobal Buenos Aires | Ours (1 prizes) | World Pool Prize / pool :: Our goal is to make real estate more inclusive, efficient, and connected.
+- 2025-11-21 ETHGlobal Buenos Aires | Orbuccino (1 prizes) | World Pool Prize / pool :: Orbuccino is the easiest way to support creators and anyone on the world
+- 2025-11-21 ETHGlobal Buenos Aires | Neighborhood Moms (1 prizes) | World Pool Prize / pool :: Connects mothers from the same neighborhood. Uses World ID for secure identification.
+- 2025-11-21 ETHGlobal Buenos Aires | NOMA (1 prizes) | Best Mini App Honorable Mention / None :: NOMA is not only tool for experiencing, NOMA are the best company for any nomad at world.
+- 2025-11-21 ETHGlobal Buenos Aires | Manhood (1 prizes) | World Pool Prize / pool :: Men Supporting Men, an app to learn to be a Man thanks to Steve Biddulph
+- 2025-11-21 ETHGlobal Buenos Aires | LEXI (1 prizes) | Best Mini App Honorable Mention / None :: Practice conversations with verified native language speakers!
+- 2025-11-21 ETHGlobal Buenos Aires | Juby Passport (1 prizes) | World Pool Prize / pool :: Juby is the first self-custody retirement Mini App for freelancers.
+- 2025-11-21 ETHGlobal Buenos Aires | Impossibl (2 prizes) | Best Mini App / 3rd :: A skill-based dash challenge where the fewest attempts win the pot, solo or with friends.
+- 2025-11-21 ETHGlobal Buenos Aires | HumanPay (1 prizes) | World Pool Prize / pool :: HumanPay is a marketplace for API, AI agents, and applications in pay-as-you-go format
+
+######## 1inch: 108 prize rows since 2025 ########
+TRACKS: {'Utilize 1inch APIs': 15, 'Build an Aqua App': 13, 'Build a full Application using 1inch APIs': 10, 'Extend Limit Order Protocol': 9, 'Non-EVM Extensions for 1inch Cross-chain Swap (Fusion+)': 6, 'Expand Limit Order Protocol': 6, 'Extensions for 1inch Cross-chain Swap (Fusion+)': 6, 'Build an Aqua App - Continuity Track': 4, 'Build an Aqua App 4th place': 4, 'Extend Fusion+ to Starknet': 3, 'Extend Fusion+ to Near': 3, 'Extend Fusion+ to Tron': 3, 'Use the Dev Portal APIs to streamline your dApp development': 3, 'Track Portfolios with 1inch': 3, 'Integrate Fusion+ into your project': 3, 'Extend Fusion+ to Stellar': 2, 'Extend Fusion+ to ICP': 2, 'Extend Fusion+ to Monad': 2, 'Judges Pick': 1, 'Extend Fusion+ to Tezos': 1, 'Extend Fusion+ to Sui 5th place': 1, 'Extend Fusion+ to Stellar 4th place': 1, 'Extend Fusion+ to Sui': 1, 'Extend Fusion+ to Bitcoin (Doge/LTC/etc.)': 1, 'Extend Fusion+ to Cosmos 5th place': 1}
+- 2026-09-04 ETHOnline 2026 | coldcascade (1 prizes) | Build an Aqua App / 2nd :: A maker on HyperEVM that prices off Hyperliquid's book, hedges on the perp, and buys the cascade.
+- 2026-09-04 ETHOnline 2026 | Superposition (1 prizes) | Build an Aqua App / 3rd :: Aqua strategies backed by yield tokens: underlying asset discoverability, atomic re-deposit on fill.
+- 2026-09-04 ETHOnline 2026 | Solvent (1 prizes) | Build an Aqua App / 1st :: Solvency-aware market making for 1inch Aqua: quotes widen as wallets thin and refuse past a floor
+- 2026-09-04 ETHOnline 2026 | Smile (1 prizes) | Build an Aqua App - Continuity Track / 2nd :: Standard options market potentially as popular as Robinhood, decentralized as Polymarket.
+- 2026-09-04 ETHOnline 2026 | Aqua0 (2 prizes) | Build an Aqua App - Continuity Track / 1st :: One USDC deposit backs many stablecoin FX strategies on Arc, run by AI agents.
+- 2026-07-24 ETHGlobal Lisbon 2026 | Votive (1 prizes) | Build an Aqua App / 2nd :: Votive: the well where wishes actually come true. Fund a wish and AI grants it as soon as it can.
+- 2026-07-24 ETHGlobal Lisbon 2026 | Pool Party (2 prizes) | Build an Aqua App - Continuity Track / 1st :: An institutional-grade crypto neobank abstracting DeFi complexity for non-crypto natives via USDC.
+- 2026-07-24 ETHGlobal Lisbon 2026 | KSwap-VM (1 prizes) | Build an Aqua App / 3rd :: A formal semantics for 1inch's swap-vm, and formal verification for it's modules.
+- 2026-07-24 ETHGlobal Lisbon 2026 | ArcBook [FINALIST] (3 prizes) | Build an Aqua App / 1st :: An onchain order book where makers publish executable curves instead of fixed-price orders.
+- 2026-07-24 ETHGlobal Lisbon 2026 | Agora Markets (1 prizes) | Build an Aqua App - Continuity Track / 2nd :: Prediction markets-based governance. Markets price the event, the best future wins.
+- 2026-06-12 ETHGlobal New York 2026 | TenorFi (1 prizes) | Build an Aqua App / 3rd :: On-Chain Fixed Funding Rate for Perpetual Markets on Hyperliquid
+- 2026-06-12 ETHGlobal New York 2026 | RiverSwap (1 prizes) | Build an Aqua App / 1st :: Auction-Managed AMMs: A market for DeFi liquidity provider optimization
+- 2026-06-12 ETHGlobal New York 2026 | Lotus (2 prizes) | Build an Aqua App / 2nd :: A directional liquidity for big holders, sell on the way up, never re-buy.
+- 2026-06-12 ETHGlobal New York 2026 | Ballast (1 prizes) | Build an Aqua App 4th place / None :: Ballast - leveraged, oracle-anchored liquidity on 1inch Aqua
+- 2025-11-21 ETHGlobal Buenos Aires | aqua-flash-loans (1 prizes) | Build an Aqua App / 2nd :: Gas-Optimized Flash Loans on Aqua Protocol. More tokens for lenders. More yeild for LPs!
+- 2025-11-21 ETHGlobal Buenos Aires | RageQuit Kit (1 prizes) | Utilize 1inch APIs / None :: 🧨 RageQuit: Exit risky tokens across many chains with one click and telegram bot alerts.
+- 2025-11-21 ETHGlobal Buenos Aires | ProaqctiveMM (1 prizes) | Build an Aqua App 4th place / None :: We have build a Proctive Auto Market Maker using 1inch Aqua, SwapVM and Pyth oracle
+- 2025-11-21 ETHGlobal Buenos Aires | Omni402 (2 prizes) | Utilize 1inch APIs / None :: Pay x402 from any chain, any token. Settle instantly in USDC on Base
+- 2025-11-21 ETHGlobal Buenos Aires | MEGA Quant (1 prizes) | Utilize 1inch APIs / None :: MEGA QUANT: Multi-chain Delta Neutral Trading Desktop Application with trustless EIL Integration
+- 2025-11-21 ETHGlobal Buenos Aires | Coco (2 prizes) | Build an Aqua App / 2nd :: High-yield, non-custodial savings via 1inch Aqua; earn and do nothing.
+- 2025-11-21 ETHGlobal Buenos Aires | Cleverly Using Money (1 prizes) | Build an Aqua App / 2nd :: Privacy-preserving shared liquidity provisioning powered by Aqua’s capital efficiency.
+- 2025-11-21 ETHGlobal Buenos Aires | Aqua0 [FINALIST] (4 prizes) | Build an Aqua App 4th place / None :: Mini App for Cross-Chain shared liquidity via Aqua AMMs and LayerZero
+- 2025-11-21 ETHGlobal Buenos Aires | Aqua Outcome Market (1 prizes) | Build an Aqua App / 1st :: Capital Efficient, AMM Enabling Credit Based Market Making For Prediction Markets & Long Tail Assets
+- 2025-11-21 ETHGlobal Buenos Aires | 1Wave (1 prizes) | Build an Aqua App 4th place / None :: Permissionless basket asset vaults Market Maker powered by 1"Aqua Protocol
+- 2025-09-26 ETHGlobal New Delhi | fusion (1 prizes) | Non-EVM Extensions for 1inch Cross-chain Swap (Fusion+) / 3rd :: Cross-chain swaps using Limit Order Protocol and Fusion+ on Sepolia, Monad and Starknet.
+- 2025-09-26 ETHGlobal New Delhi | d8n (1 prizes) | Utilize 1inch APIs / None :: d8n is the ultimate no-code DeFi workflow builder. Automate complex logic with drag-and-drop.
+- 2025-09-26 ETHGlobal New Delhi | Tzunami (1 prizes) | Extend Limit Order Protocol / 3rd :: Privacy-first DeFi with ZK-Compliance and encrypted ERC20s. Compliant, private, future-proof.
+- 2025-09-26 ETHGlobal New Delhi | Singularity (1 prizes) | Utilize 1inch APIs / None :: Trustless cross-chain autopay via atomic swaps, smart contracts, 1inch & PayPal.
+- 2025-09-26 ETHGlobal New Delhi | Nakal (1 prizes) | Utilize 1inch APIs / None :: ASI uagents for copy trading: analyze trades, suggest tokens & swap via Polygon x402 + 1inch.
+- 2025-09-26 ETHGlobal New Delhi | Melswap (1 prizes) | Non-EVM Extensions for 1inch Cross-chain Swap (Fusion+) / 1st :: Cross-chain swaps via 1inch Fusion+ with Aptos and Sui blockchains
+- 2025-09-26 ETHGlobal New Delhi | Hide&Seek (2 prizes) | Non-EVM Extensions for 1inch Cross-chain Swap (Fusion+) / 2nd :: Unlink wallet transactions & analyze wallet privacy via on-chain knowledge graphs.
+- 2025-09-26 ETHGlobal New Delhi | DeFiDuck (1 prizes) | Extend Limit Order Protocol / 1st :: DeFiDuck: Helping users duck volatility, MEV, and high fees since ETH Global New Delhi 2025!
+- 2025-09-26 ETHGlobal New Delhi | CrossYield (1 prizes) | Extend Limit Order Protocol / 2nd :: CrossYield is like modern Laxmi chit fund but no scams, just real USDC growth from top DeFi yields.
+- 2025-07-25 Unite Defi | 🔥Fusion+ Starknet🔥 (1 prizes) | Extend Fusion+ to Starknet / 2nd :: Extending 1inch Fusion+ to non-EVM chains for intent-based swaps!
+- 2025-07-25 Unite Defi | 🌈 BUNDS (1 prizes) | Build a full Application using 1inch APIs / 1st :: Transform illiquid NFTs into tradable ERC20 BondTokens via pumpfun-like curves.
+- 2025-07-25 Unite Defi | zkFusion [FINALIST] (2 prizes) | Expand Limit Order Protocol / 2nd :: ZK-powered Dutch auctions for fast, private, provable intent settlement - Extension for 1inch LOP
+- 2025-07-25 Unite Defi | uniter.sh (1 prizes) | Build a full Application using 1inch APIs / 2nd :: A terminal tool that sweeps dust tokens into one asset using the best 1inch swap routes
+- 2025-07-25 Unite Defi | starknet-contracts (1 prizes) | Extend Fusion+ to Starknet / 3rd :: A basic implementation of the cross chain contracts for 1inch cross swap
+- 2025-07-25 Unite Defi | intoStellar (1 prizes) | Extend Fusion+ to Stellar / 2nd :: Swap EVM assets to Stellar via 1inch and explore the Stellar Chainverse with a seamless gateway.
+- 2025-07-25 Unite Defi | Yeti (1 prizes) | Judges Pick / None :: Automating TradingView indicators and strategies for 1inch limit orders
+- 2025-07-25 Unite Defi | XRoute (2 prizes) | Extend Fusion+ to Tezos / 1st :: Intergation of Etherlink and Tezos with 1inch Fusion+ protocol, enabling token swaps via routing
+- 2025-07-25 Unite Defi | X3Fusion (1 prizes) | Extend Fusion+ to Near / 1st :: 1 inch fusion+ extension for the Near and Tezos blockchains.
+- 2025-07-25 Unite Defi | UniteDeFi ICP (1 prizes) | Extend Fusion+ to ICP / 2nd :: Unite Escrow – fully on-chain 1inch Fusion+ swaps between Ethereum/Bitcoin and ICP
+- 2025-07-25 Unite Defi | SwapYourSuiiii (1 prizes) | Extend Fusion+ to Sui 5th place / None :: Seamless cross-chain token atomic swaps between EVM and Sui using 1inch LOP and HTLCs
+- 2025-07-25 Unite Defi | Super Order (1 prizes) | Expand Limit Order Protocol / 1st :: Advanced DeFi trading: Stop-market execution, iceberg orders & OCO strategies for 1inch Protocol
+- 2025-07-25 Unite Defi | StellarFusion💫 (2 prizes) | Extend Fusion+ to Stellar 4th place / None :: StellarFusion - a Platform to Create and Fulfil Cross Chain Swap Orders Between ETH <> Stellar.
+- 2025-07-25 Unite Defi | StarknetFusion+ (1 prizes) | Extend Fusion+ to Starknet / 1st :: Cross-chain atomic swaps between Starknet and EVM via 1inch Fusion+
+- 2025-07-25 Unite Defi | Rosetta (1 prizes) | Expand Limit Order Protocol / 3rd :: Rosetta expands the 1inch Limit Order Protocol (LOP) by providing support for multi-asset orders.
+- 2025-07-25 Unite Defi | PortfoliOne (1 prizes) | Build a full Application using 1inch APIs / 2nd :: One-click DeFi portfolio rebalancing with optimal swap rates
+- 2025-07-25 Unite Defi | Nether Swap (1 prizes) | Extend Fusion+ to Sui / 1st :: Nether Swap: Unlocking a portal between worlds for secure Ethereum <> Sui swaps, powered by 1inch
+- 2025-07-25 Unite Defi | Near-FusionSwap (1 prizes) | Extend Fusion+ to Near / 3rd :: Cross-chain atomic swaps between Polygon & NEAR using HTLC contarcts and 1inch Fusion+ protocol
+- 2025-07-25 Unite Defi | GattaiSwap (4 prizes) | Extend Fusion+ to Monad / 1st :: GattaiSwap is a cross-chain swap app built on 1inch Fusion+, supports Bitcoin, Monad, Etherlink.
+- 2025-07-25 Unite Defi | GattaiSwap (4 prizes) | Extend Fusion+ to Bitcoin (Doge/LTC/etc.) / 1st :: GattaiSwap is a cross-chain swap app built on 1inch Fusion+, supports Bitcoin, Monad, Etherlink.
+- 2025-07-25 Unite Defi | FusionTrade (1 prizes) | Build a full Application using 1inch APIs / 3rd :: Multi-chain DEX for advanced trading via atomic swaps across EVM using 1inch Aggregator.
+- 2025-07-25 Unite Defi | Fusion Jar (1 prizes) | Build a full Application using 1inch APIs / 3rd :: FusionJar lets you automate $1-$10 swaps cross-chain with 1inch Fusion+—DeFi made easy.
+- 2025-07-25 Unite Defi | FullOnCrypto (1 prizes) | Build a full Application using 1inch APIs / 3rd :: Solution for pro-crypto believer to live practically without fiat currency. Live life without fiat.
+- 2025-07-25 Unite Defi | Enju [FINALIST] (2 prizes) | Extend Fusion+ to Tron / 3rd :: Swap cross-chain, earn rewards, unlock NFTs, and grow your 3D island with Enju + Fusion+.
+- 2025-07-25 Unite Defi | DynamicSpreadLO (1 prizes) | Expand Limit Order Protocol / 3rd :: Dynamic pricing for limit orders based on real-time market volatility.
+- 2025-07-25 Unite Defi | DungeonHeim [FINALIST] (2 prizes) | Build a full Application using 1inch APIs / 2nd :: Dungeon crawler: stake to play, collect keys, unlock rooms, defeat boss, win tokens.
+- 2025-07-25 Unite Defi | CosmicFusion (1 prizes) | Extend Fusion+ to Cosmos 5th place / None :: A cross chain swap between cosmos chain and EVM chain using minimal setup
+
+######## ENS: 243 prize rows since 2025 ########
+TRACKS: {'Integrate ENS': 183, 'Most creative use of ENS': 10, 'Most Creative Use of ENS': 9, 'Best ENS Integration for AI Agents': 8, 'Best use of ENS': 7, 'Best ENS Continuity Integration': 5, 'Most creative use of ENS for DeFi': 5, 'Most Creative Use Case': 4, 'Best Use of ENSv2': 3, 'Most Creative Use of ENS 4th place': 2, 'Best L2 Subname Experience with Durin': 2, 'Best Integration of ENSv2 into an Existing Project': 1, 'Best Use of ENSv2 Runner-Up': 1, 'Best use of L2 Primary Names': 1, 'Best Use of ENS': 1, 'Best ENS Infrastructure': 1}
+- 2026-09-04 ETHOnline 2026 | Verdict.eth (1 prizes) | Best Use of ENSv2 / 3rd :: ENSv2 trust & verification registry for RWAs, enforced by autonomous AI agents.
+- 2026-09-04 ETHOnline 2026 | SoulVault (2 prizes) | Best Integration of ENSv2 into an Existing Project / None :: Local PII redact + wallet-gated rehydrate. Authorized wallets see granted fields.
+- 2026-09-04 ETHOnline 2026 | Herit (1 prizes) | Best Use of ENSv2 / 1st :: On-chain inheritance with ENSv2 subnames & World ID. Owner aren't alive, heirs gain access.
+- 2026-09-04 ETHOnline 2026 | Capsule (1 prizes) | Best Use of ENSv2 Runner-Up / None :: Launch AI agents in a minutes as ENS names with onchain permissions, spending limits, and recall.
+- 2026-09-04 ETHOnline 2026 | Batas (1 prizes) | Best Use of ENSv2 / 2nd :: An agent runs your 1inch Aqua position under limits it cannot widen and a name you can revoke.
+- 2026-07-24 ETHGlobal Lisbon 2026 | atlas (2 prizes) | Best ENS Integration for AI Agents / None :: Agentic Mini apps on TheGraph -aka dune analytics on steroids
+- 2026-07-24 ETHGlobal Lisbon 2026 | VouchMe (1 prizes) | Most Creative Use of ENS / None :: People earn trust when other trusted people vouch for them, and that trust fades over time.
+- 2026-07-24 ETHGlobal Lisbon 2026 | ENSignv2 (1 prizes) | Best ENS Continuity Integration / None :: Your ENS name is the wallet. Lose your phone and your mom can hand it back, by name.
+- 2026-06-12 ETHGlobal New York 2026 | honeybee (1 prizes) | Integrate ENS / pool :: Honeybee is a platform where autonomous AI agents research the long-tail of prediction markets.
+- 2026-06-12 ETHGlobal New York 2026 | allowance.eth (1 prizes) | Integrate ENS / pool :: Portable AI spending policies, rules live on the agent's ENS identity, not the wallet.
+- 2026-06-12 ETHGlobal New York 2026 | WorldColony (2 prizes) | Integrate ENS / pool :: A colony of 200 AI "ant" agents that research, debate and bet on World Cup matches, fully on-chain.
+- 2026-06-12 ETHGlobal New York 2026 | World App Forge (1 prizes) | Integrate ENS / pool :: An AI agent that builds human-only sparks in World App — named on ENS, stored on Walrus
+- 2026-06-12 ETHGlobal New York 2026 | Veilfor (1 prizes) | Integrate ENS / pool :: Consent layer for AI: creators license their voice & face; every deepfake is provably authorized.
+- 2026-06-12 ETHGlobal New York 2026 | Urban Game Theory (2 prizes) | Integrate ENS / pool :: Urban Game Theory is tool for agents (AI and human) to make land purchases
+- 2026-06-12 ETHGlobal New York 2026 | UNSU (1 prizes) | Integrate ENS / pool :: unsu is a crypto wallet that works in any browser. No apps, no extensions, no accounts.
+- 2026-06-12 ETHGlobal New York 2026 | TouchTips (1 prizes) | Integrate ENS / pool :: Prove a negative STI test via ZKTLS with your local New York CityMD provider 🎉
+- 2026-06-12 ETHGlobal New York 2026 | Tortoise Registry (1 prizes) | Integrate ENS / pool :: The Tortoise Rights Registry allows indie musicians to license their music for AI training.
+- 2026-06-12 ETHGlobal New York 2026 | Tap Tap Revolution (1 prizes) | Integrate ENS / pool :: Predict crypto prices head-to-head. Stake USDC, battle friends or ENS AI agents.
+- 2026-06-12 ETHGlobal New York 2026 | StableSettle (1 prizes) | Integrate ENS / pool :: The on-chain firewall for AI agents: spawn a budget-capped USDC treasury in 15 seconds.
+- 2026-06-12 ETHGlobal New York 2026 | SlopStock (1 prizes) | Integrate ENS / pool :: Own the agent, not the token — a harness + protocol for productive, ownable, AI agents.
+- 2026-06-12 ETHGlobal New York 2026 | ShadowENS (1 prizes) | Integrate ENS / pool :: ENS-native AI agent search, reputation, risk gating, and private checkout
+- 2026-06-12 ETHGlobal New York 2026 | Seikine (1 prizes) | Integrate ENS / pool :: Lending protocol with portable yield-bearing collateral, ENS position identity + Chainlink breaker
+- 2026-06-12 ETHGlobal New York 2026 | Realm (1 prizes) | Integrate ENS / pool :: E2E Social Messaging App for Humans and Discoverable AI on the blockchain
+- 2026-06-12 ETHGlobal New York 2026 | QuickLedgerBooks (1 prizes) | Integrate ENS / pool :: AI bookkeeping agent with ENS payments, Ledger approval, receipts, and email automation.
+- 2026-06-12 ETHGlobal New York 2026 | Proof of Scan (2 prizes) | Integrate ENS / pool :: Crowdsourced website scanner for security researchers to bypass cloaked phishing sites
+- 2026-06-12 ETHGlobal New York 2026 | Polity Passport (1 prizes) | Integrate ENS / pool :: The World's first anonymous passport, building trust between humans and AI.
+- 2026-06-12 ETHGlobal New York 2026 | Nuro Finance (1 prizes) | Best ENS Continuity Integration / 1st :: Native On-chain Banking for AI Agents w/ Visa & Ethereum Integration
+- 2026-06-12 ETHGlobal New York 2026 | LinkHub (1 prizes) | Integrate ENS / pool :: A Chrome extension that creates ENS subdomains and rotates wallet bindings to keep you private.
+- 2026-06-12 ETHGlobal New York 2026 | Lineage (2 prizes) | Integrate ENS / pool :: AI drafts a cited pharma dossier chapter, independently checks each citation, anchors on-chain.
+- 2026-06-12 ETHGlobal New York 2026 | Ledgit (1 prizes) | Integrate ENS / pool :: Your AI agent fleet just moved $25k — can you prove a human approved it?" LEDGIT makes it verifiable
+- 2026-06-12 ETHGlobal New York 2026 | Kreditos (1 prizes) | Integrate ENS / pool :: One standard for business credit lines — issued once, readable by any onchain party.
+- 2026-06-12 ETHGlobal New York 2026 | Junto - AI scheduler (1 prizes) | Integrate ENS / pool :: Events & RSVPs as native ENS names — no database, ENS records are the data layer
+- 2026-06-12 ETHGlobal New York 2026 | Incarnated (1 prizes) | Integrate ENS / pool :: A character memory protocol for eternal beings on Ethereum.
+- 2026-06-12 ETHGlobal New York 2026 | Immunity (2 prizes) | Integrate ENS / pool :: On-chain immune system for AI agents : earn by minting antibody
+- 2026-06-12 ETHGlobal New York 2026 | GoldenMCP (1 prizes) | Integrate ENS / pool :: An autonomous marketplace to safely discover, verify, and pay AI agents for complex Web3 tasks.
+- 2026-06-12 ETHGlobal New York 2026 | GivingGenie (1 prizes) | Integrate ENS / pool :: Snap a receipt, earn points, gift them to a friend. No app, no wallet, no seed phrase.
+- 2026-06-12 ETHGlobal New York 2026 | FanGuard (2 prizes) | Integrate ENS / pool :: Ticket insurance for the game you attended but wish you hadn't
+- 2026-06-12 ETHGlobal New York 2026 | ENSFromWei (1 prizes) | Integrate ENS / pool :: Adds an ENSIP-10-compatible fallback resolver to resolve .wei names (see description) using ENS
+- 2026-06-12 ETHGlobal New York 2026 | ENS-bound agent auth (1 prizes) | Best ENS Continuity Integration / 3rd :: Verifier-gated AI agents — live, revocable on-chain authority published on ENS, fleet ∩ agent.
+- 2026-06-12 ETHGlobal New York 2026 | ENS Subname Manager (1 prizes) | Most Creative Use of ENS / 1st :: Onboard anyone to ENS by email; orgs issue, manage, and revoke member subnames at scale.
+- 2026-06-12 ETHGlobal New York 2026 | Daemonium (1 prizes) | Integrate ENS / pool :: An agent companion that can move and act with absolute freedom across the digital dimensions.
+- 2026-06-12 ETHGlobal New York 2026 | Daemon Hall (1 prizes) | Integrate ENS / pool :: Sealed agent prediction-market arena: deposit USDC, whisper strategy, reveal the full chain at end
+- 2026-06-12 ETHGlobal New York 2026 | Clawback (1 prizes) | Integrate ENS / pool :: Agent payment escrow on Arc with AI-adjudicated disputes — chargebacks for the machine economy
+- 2026-06-12 ETHGlobal New York 2026 | Chatter (2 prizes) | Integrate ENS / pool :: Pay $1, Research trends from keywords, Review, Swap and Own the data on ENS.
+- 2026-06-12 ETHGlobal New York 2026 | Calibre (1 prizes) | Best ENS Continuity Integration / 2nd :: Calibre is an esports focused prediction market, built for gamers with no knowledge of trading.
+- 2026-06-12 ETHGlobal New York 2026 | Bitopia World (1 prizes) | Integrate ENS / pool :: Walk a live isometric world with your ENS identity and USDC wallet built in.
+- 2026-06-12 ETHGlobal New York 2026 | BitLazarus (1 prizes) | Integrate ENS / pool :: A decentralized bounty marketplace for recovering dead torrents
+- 2026-06-12 ETHGlobal New York 2026 | Bank of Agent (1 prizes) | Integrate ENS / pool :: BOA: a programmable bank account for agents—identity, membership, payment rails, usage receipts
+- 2026-06-12 ETHGlobal New York 2026 | Azimuth (3 prizes) | Best ENS Continuity Integration / 3rd :: Decentralized satellite ground stations as a service (GSaaS)
+- 2026-06-12 ETHGlobal New York 2026 | ArtNamespace (1 prizes) | Integrate ENS / pool :: ENS-native generative art collections with Walrus provenance and per-package ERC-721s.
+- 2026-06-12 ETHGlobal New York 2026 | Argos (1 prizes) | Integrate ENS / pool :: anyone can fake reviews. argos finds erc8004 agents you can trust.
+- 2026-06-12 ETHGlobal New York 2026 | Aragorn (3 prizes) | Most Creative Use of ENS / 2nd :: Private compliant ledgers that give institutions full control. Canton/Tempo Zones but on Ethereum
+- 2026-06-12 ETHGlobal New York 2026 | AgentRankr (1 prizes) | Integrate ENS / pool :: Ranks ERC-8004 agents by on-chain reputation computed in BigQuery; flags x402 agents, resolves ENS.
+- 2026-06-12 ETHGlobal New York 2026 | AgentRank (2 prizes) | Integrate ENS / pool :: Trust API for ERC-8004 agents before they delegate work, call agents, or pay with x402.
+- 2026-06-12 ETHGlobal New York 2026 | AgentIndex (1 prizes) | Best ENS Integration for AI Agents / 2nd :: Insights for ERC-8004: BigQuery ingest, ENS-crosscheck, sybil detection, trust signals.
+- 2026-06-12 ETHGlobal New York 2026 | AgentBazar (3 prizes) | Integrate ENS / pool :: Agent Bazar: a DeFi talent marketplace where AI agents execute on your delegated wallet.
+- 2026-06-12 ETHGlobal New York 2026 | Aegis (2 prizes) | Best ENS Integration for AI Agents / 1st :: Verify agent skills before they run. Set on ENS, AI-reviewed in Chainlink CRE, Ledger-gated.
+- 2026-06-12 ETHGlobal New York 2026 | Access0x1 (1 prizes) | Integrate ENS / pool :: Non-custodial USD-priced crypto payments + commerce for any business — gas-free on Arc, agent-ready.
+- 2026-06-12 ETHGlobal New York 2026 | 0-wAIst (1 prizes) | Integrate ENS / pool :: AI subscription resale router with escrow, zkTLS, trust, and routing agent.
+- 2026-04-24 Open Agents | Skillname (1 prizes) | Best ENS Integration for AI Agents / 3rd :: ENS-native skill discovery for AI agents to resolve names and load tools.
+
+######## Hedera: 71 prize rows since 2025 ########
+TRACKS: {'AI & Agentic Payments on Hedera': 10, '"No Solidity Allowed" — Build with Hedera SDKs': 10, 'Hedera EVM: Smart Contracts & Cross‑Chain Integrations': 9, 'Tokenization on Hedera': 6, 'AI on Hedera': 5, 'Autonomous On-Chain Automation Platform': 4, 'Hedera Overall Winner': 4, 'Tokenization of Anything': 3, 'EVM Innovator Track': 3, 'Continuity': 2, 'Open Source — Improve the Hedera Harness': 2, 'ioBuilders Naryo Builder Challenge': 2, 'Best Use of Hedera Agent Kit & Google A2A': 2, 'Best Use of Hedera\xa0Agent Kit\xa0& Google A2A': 2, 'AI, Agents & Hedera Services': 2, 'Cross-Chain Automation Hub — Hedera Schedule Service + Axelar': 1, 'Best Plug-In for Hedera Agent Kit': 1, 'Best Hedera x Lit\xa0Protocol Vincent Ability': 1, 'Best Plug‑In for Hedera\xa0Agent Kit': 1, 'Hedera Overall Prize: AI & Agents or EVM Builder': 1}
+- 2026-09-04 ETHOnline 2026 | YourTurn 2.0 (1 prizes) | Continuity / None :: AI recovers value from unused bookings—within limits you set, without taking wallet control.
+- 2026-09-04 ETHOnline 2026 | Turnstile (2 prizes) | AI & Agentic Payments on Hedera / None :: Pay-per-call onchain analysis for AI agents. Sell the answer, keep the method.
+- 2026-09-04 ETHOnline 2026 | Scenario Engine (1 prizes) | Open Source — Improve the Hedera Harness / None :: SCENARIO: hedera-harness runs native multi-actor Hedera plans and checks the public mirror
+- 2026-09-04 ETHOnline 2026 | Rialto (1 prizes) | Tokenization of Anything / None :: Oracle-free lending for tokenized securities on Hedera.  HIP-1215 scheduled call closes the loan.
+- 2026-09-04 ETHOnline 2026 | NameGate (1 prizes) | Tokenization of Anything / None :: Tokenized bond on Hedera using ENSv2 subnames (roles, expiry, resolver records) as its KYC layer
+- 2026-09-04 ETHOnline 2026 | Hanvil (1 prizes) | Open Source — Improve the Hedera Harness / None :: A local Hedera network in one 10 MB binary, with a coding-agent harness and an x402 rail built in.
+- 2026-09-04 ETHOnline 2026 | Facture (1 prizes) | Tokenization of Anything / None :: An invoice is a zero-coupon bond nobody ever priced. Facture is the market that prices it.
+- 2026-09-04 ETHOnline 2026 | Carpool (1 prizes) | AI & Agentic Payments on Hedera / None :: AI agents buy research someone already did instead of redoing it. The author gets paid in USDC.
+- 2026-09-04 ETHOnline 2026 | AutoVoyage (1 prizes) | AI & Agentic Payments on Hedera / None :: AI agent plans and books full travel itineraries, paying per-query in HBAR via x402 on Hedera.
+- 2026-09-04 ETHOnline 2026 | Aivy Quorum (1 prizes) | Continuity / None :: Earthquake cover with precommitted Hedera payouts, paid oracle checks and access to Uniswap.
+- 2026-07-24 ETHGlobal Lisbon 2026 | Vouch (1 prizes) | AI & Agentic Payments on Hedera / None :: Proof before payout: Vouch verifies sensor data before DePIN rewards are released.
+- 2026-07-24 ETHGlobal Lisbon 2026 | Pastel (1 prizes) | "No Solidity Allowed" — Build with Hedera SDKs / None :: A private agentic marketplace that plans purchases, bids in auctions, and settles atomically.
+- 2026-07-24 ETHGlobal Lisbon 2026 | Ognef (1 prizes) | "No Solidity Allowed" — Build with Hedera SDKs / None :: Give AI agents human mandates, hard limits, and verifiable action trails.
+- 2026-07-24 ETHGlobal Lisbon 2026 | Nook (1 prizes) | Tokenization on Hedera / None :: A P2P sublet marketplace for digital nomads and their agents.
+- 2026-07-24 ETHGlobal Lisbon 2026 | Mint & Chill (1 prizes) | Tokenization on Hedera / None :: Agent-operated marketplace for RWA token minting, compliance and lifecycle management
+- 2026-07-24 ETHGlobal Lisbon 2026 | MilFi (1 prizes) | "No Solidity Allowed" — Build with Hedera SDKs / None :: Trustless reward system to stimulate drone military units to protect critical infrastructure
+- 2026-07-24 ETHGlobal Lisbon 2026 | Glassbox402 [FINALIST] (2 prizes) | AI & Agentic Payments on Hedera / None :: Google Analytics for x402 - Convert any API into an x402. Track every payment in one dashboard.
+- 2026-07-24 ETHGlobal Lisbon 2026 | F2F Cross-Border (1 prizes) | Autonomous On-Chain Automation Platform / None :: Fiat in, fiat out, no wallet ever — Hedera anchors every step so it's provable, not just claimed.
+- 2026-07-24 ETHGlobal Lisbon 2026 | Alba (1 prizes) | Cross-Chain Automation Hub — Hedera Schedule Service + Axelar / None :: On-chain revolving credit that settles itself. No keepers, no bots - just Alba.
+- 2026-07-24 ETHGlobal Lisbon 2026 | AgentRouter (1 prizes) | "No Solidity Allowed" — Build with Hedera SDKs / None :: An inference exchange where AI agents can buy open-source inference from independent providers.
+- 2026-06-12 ETHGlobal New York 2026 | cashmeifyoucan (1 prizes) | Tokenization on Hedera / None :: Get paid today, not in 60 days. AI agents fight over your invoice, and the nice ones charge less
+- 2026-06-12 ETHGlobal New York 2026 | ZoneProof (1 prizes) | "No Solidity Allowed" — Build with Hedera SDKs / None :: ZoneProof aggregates county zoning data on-chain, cutting land due diligence from $12K to cents.
+- 2026-06-12 ETHGlobal New York 2026 | YourTurn Concierge (1 prizes) | Autonomous On-Chain Automation Platform / None :: YourTurn Concierge helps people recover value from bookings using Hedera-powered passes.
+- 2026-06-12 ETHGlobal New York 2026 | Wafer (1 prizes) | Tokenization on Hedera / None :: Fund DePIN operators' on-chain rewards via a KYC-gated tokenized pool on Hedera. NAV rises live.
+- 2026-06-12 ETHGlobal New York 2026 | Proof of Plate (1 prizes) | "No Solidity Allowed" — Build with Hedera SDKs / None :: Proof of Plate turns food labels into verifiable on-chain product passports.
+- 2026-06-12 ETHGlobal New York 2026 | Mars (3 prizes) | AI & Agentic Payments on Hedera / None :: On-chain audited marketplace where AI agents safely buy verified skills.
+- 2026-06-12 ETHGlobal New York 2026 | Kickoff Aivy Studio (1 prizes) | AI & Agentic Payments on Hedera / None :: AI-powered P2P negotiation marketplace on Hedera where agents bargain for buyers & sellers live
+- 2026-06-12 ETHGlobal New York 2026 | Dead Men Tell Tales (2 prizes) | "No Solidity Allowed" — Build with Hedera SDKs / None :: A funded agent that publishes your encrypted secret if check-ins stop. A pirate dead-man switch.
+- 2026-06-12 ETHGlobal New York 2026 | Azimuth (3 prizes) | Autonomous On-Chain Automation Platform / None :: Decentralized satellite ground stations as a service (GSaaS)
+- 2026-06-12 ETHGlobal New York 2026 | AgentRanker (1 prizes) | Autonomous On-Chain Automation Platform / None :: AgentRanker: Trust-gated AI agent payments using reputation scoring, RAGAS evaluation, and Hedera.
+- 2026-06-12 ETHGlobal New York 2026 | Accrue (1 prizes) | AI & Agentic Payments on Hedera / None :: Get paid to wait. The most-watched line on Earth is now a bot-proof on-chain ad market.
+- 2026-04-03 ETHGlobal Cannes 2026 | Yourturn (1 prizes) | "No Solidity Allowed" — Build with Hedera SDKs / None :: YourTurn provides businesses with a booking platform that lets customers book & resell appointments.
+- 2026-04-03 ETHGlobal Cannes 2026 | Provenance Chain (1 prizes) | "No Solidity Allowed" — Build with Hedera SDKs / None :: ProvenanceChain — on-chain document notary powered by Hedera, WalletConnect, and World ID.
+- 2026-04-03 ETHGlobal Cannes 2026 | PolyAgents (1 prizes) | AI & Agentic Payments on Hedera / None :: AI autonomous vault trading Polymarket BTC 5-min markets via Arc, Hedera HCS, and ENS identity.
+- 2026-04-03 ETHGlobal Cannes 2026 | NAR _ NET (1 prizes) | ioBuilders Naryo Builder Challenge / 1st :: On-demand ephemeral multi-chain data pipelines built with Hedera primitives
+- 2026-04-03 ETHGlobal Cannes 2026 | Folio (1 prizes) | Tokenization on Hedera / None :: 0% interest credit line backed by your stocks. Borrow cash without selling, no minimums, no taxes
+- 2026-04-03 ETHGlobal Cannes 2026 | Finvoice (1 prizes) | Tokenization on Hedera / None :: Private invoice factoring with AI attestation inside Flare TEE and tokenized invoices on Hedera.
+- 2026-04-03 ETHGlobal Cannes 2026 | DIVE [FINALIST] (4 prizes) | AI & Agentic Payments on Hedera / None :: AI swarm engine verifying real-world truth for prediction markets and autonomous on-chain settlement
+- 2026-04-03 ETHGlobal Cannes 2026 | AudiThor (1 prizes) | "No Solidity Allowed" — Build with Hedera SDKs / None :: Security audits with real-time micropayments on Hedera. Pay for actual work done, no flat fees
+- 2026-04-03 ETHGlobal Cannes 2026 | Alpha Dawg (2 prizes) | ioBuilders Naryo Builder Challenge / 2nd :: Autonomous AI swarm buys intel, debates trades, and proves every step on-chain.
+- 2025-11-21 ETHGlobal Buenos Aires | Price Feed Plugin (1 prizes) | Best Plug-In for Hedera Agent Kit / None :: Chainlink Price Feed Plugin for Hedera enabling AI agents to automate on-chain transactions.
+- 2025-11-21 ETHGlobal Buenos Aires | Incendia Auction v2 (1 prizes) | EVM Innovator Track / 1st :: A fully on-chain, anonymous auction protocol using Proof-of-Burn and zk-SNARKs.
+- 2025-11-21 ETHGlobal Buenos Aires | HyperAgent (1 prizes) | Best Use of Hedera Agent Kit & Google A2A / 1st :: Onboarding the first 1 billion AI Agents: The ERC-8004 compliant smart contract protocol
+- 2025-11-21 ETHGlobal Buenos Aires | Fluxo (3 prizes) | EVM Innovator Track / 2nd :: Sistema de Pagos blockchain Offline utilizando Redes Mesh, implementado con EVVM, Hedera y Privy..
+- 2025-11-21 ETHGlobal Buenos Aires | Dark Matter Markets (1 prizes) | Best Use of Hedera Agent Kit & Google A2A / 2nd :: Agentic Voting Incentives Market for Hedera. Autonomously earn rewards for your votes.
+- 2025-10-10 ETHOnline 2025 | Vision Pay (1 prizes) | Best Use of Hedera Agent Kit & Google A2A / 1st :: Real Time Vision Payment Assistant using A2A, AP2 mandates, Hedera Agent Kit and PYUSD
+- 2025-10-10 ETHOnline 2025 | SmartMarket (1 prizes) | Best Use of Hedera Agent Kit & Google A2A / 2nd :: A decentralized carbon credit marketplace on Ethereum for transparent, efficient trading of offsets
+- 2025-10-10 ETHOnline 2025 | SaucerHedge (1 prizes) | Best Hedera x Lit Protocol Vincent Ability / 1st :: An AI Powered Hedging Protocol  against IL for SaucerSwap  Liquidity Providers on Hedera
+- 2025-10-10 ETHOnline 2025 | KINXP (1 prizes) | EVM Innovator Track / None :: Lock assets on any chain; get USD on Hedera—secure, low-fee cross-chain lending and redemption.
+- 2025-10-10 ETHOnline 2025 | Hedera Agent Trust (1 prizes) | Best Plug‑In for Hedera Agent Kit / None :: On-chain identity & authentication plugin for AI agents using Hedera Agent Kit
+- 2025-09-26 ETHGlobal New Delhi | ZKred Agent ID (2 prizes) | AI on Hedera / 2nd :: Zkred Agent ID Decentralized identity with on-chain trust registry for secure agent authentication.
+- 2025-09-26 ETHGlobal New Delhi | YieldCraft AI (1 prizes) | AI on Hedera / 1st :: An AI-powered cross-chain DeFi yield optimizer for all your assets
+- 2025-09-26 ETHGlobal New Delhi | NoNet [FINALIST] (2 prizes) | Hedera EVM: Smart Contracts & Cross‑Chain Integrations / 1st :: Enable onchain transactions completly without internet or cellular
+- 2025-09-26 ETHGlobal New Delhi | Dhal Way (2 prizes) | Hedera Overall Winner / None :: Pay with any token on any chain, merchants receive in their preferred token and chain.
+- 2025-09-26 ETHGlobal New Delhi | All Weather Finance (1 prizes) | Hedera EVM: Smart Contracts & Cross‑Chain Integrations / 2nd :: The first auto-rebalancing RWA that tokenises S&P stocks, gold and bonds. Customise RWAs investments
+- 2025-08-15 ETHGlobal New York 2025 | ParkPulse (3 prizes) | Hedera Overall Winner / None :: Smart voting for parks using Hedera and real-time satellite insights.
+- 2025-08-15 ETHGlobal New York 2025 | ParkPulse (3 prizes) | AI on Hedera / 1st :: Smart voting for parks using Hedera and real-time satellite insights.
+- 2025-08-15 ETHGlobal New York 2025 | Opto (3 prizes) | Hedera Overall Winner / None :: Meet Opto – Your next-gen cross-chain investment protocol, maximize yield across chains in ONE click
+- 2025-08-15 ETHGlobal New York 2025 | Opto (3 prizes) | Hedera EVM: Smart Contracts & Cross‑Chain Integrations / 1st :: Meet Opto – Your next-gen cross-chain investment protocol, maximize yield across chains in ONE click
+- 2025-08-15 ETHGlobal New York 2025 | HumanOS (2 prizes) | AI on Hedera / 2nd :: Tokenizing human actions to provide universal basic income while powering the future of robotics
+
+######## 0G: 39 prize rows since 2025 ########
+TRACKS: {'Best Autonomous Agents, Swarms & iNFT Innovations': 5, 'Best Infrastructure & Tooling on 0G': 3, 'Keep Building on 0G': 3, 'Best AI Product on 0G': 3, 'Best Agent Framework, Tooling & Core Extensions': 3, 'Best DeFi App on 0G': 3, 'Best OpenClaw Agent on 0G': 3, 'Building Onchain AI dapps with 0G intelligent L1': 3, 'Building Onchain AI dapps with 0G': 3, 'Most Innovative Use of 0G Ecosystem': 3, 'Wildcard on 0G': 2, 'Best Agent Framework, Tooling & Core Extensions 4th place': 1, 'Best Agent Framework, Tooling & Core Extensions 5th place': 1, 'Building Onchain AI dapps with 0G intelligent L1 4th place': 1, 'Building Onchain AI dapps with 0G 4th place': 1, 'Building Onchain AI dapps with 0G 5th place': 1}
+- 2026-07-24 ETHGlobal Lisbon 2026 | Superpose (1 prizes) | Best Infrastructure & Tooling on 0G / None :: One collateral in every position at once, guarded on-chain, with a self-improving AI on 0G.
+- 2026-07-24 ETHGlobal Lisbon 2026 | Orloj Finance Agents (1 prizes) | Keep Building on 0G / None :: Orloj makes it easy to integrate agents with Web3 by turning smart contract interfaces into MCPs.
+- 2026-07-24 ETHGlobal Lisbon 2026 | NpmGuard (2 prizes) | Keep Building on 0G / None :: NpmGuard: AI agents audit npm packages for malicious code and publish verifiable results on-chain
+- 2026-07-24 ETHGlobal Lisbon 2026 | Lortnoc Tahc [FINALIST] (2 prizes) | Best Infrastructure & Tooling on 0G / None :: Hide real messages inside ordinary Telegram chats. Everyone else sees small talk.
+- 2026-07-24 ETHGlobal Lisbon 2026 | KOLlateral [FINALIST] (3 prizes) | Best AI Product on 0G / 3rd :: The accountability layer for crypto influencers: build a verifiable record, back the real traders.
+- 2026-07-24 ETHGlobal Lisbon 2026 | Happy Hour [FINALIST] (2 prizes) | Keep Building on 0G / None :: Find local happy hours and earn punch-card rewards at your favorite venues.
+- 2026-07-24 ETHGlobal Lisbon 2026 | Hands Unchained [FINALIST] (3 prizes) | Best AI Product on 0G / 2nd :: Book a robot arm, execute tasks. Book on chain, drive from your browser, get paid if you did well.
+- 2026-07-24 ETHGlobal Lisbon 2026 | AEGIS (1 prizes) | Best Infrastructure & Tooling on 0G / None :: AEGIS — protected wallets for AI agents that move money, it prevents unauthorized payments.
+- 2026-07-24 ETHGlobal Lisbon 2026 | 0run (1 prizes) | Best AI Product on 0G / 1st :: The AI running coach you own. iNFT on 0G that learns from every run and consults via ENS and World
+- 2026-04-24 Open Agents | cortex (1 prizes) | Best Agent Framework, Tooling & Core Extensions 4th place / None :: Self-evolving AI agent twins — encrypted on 0G, TeeML-verified, ENS-discoverable, P2P via AXL.
+- 2026-04-24 Open Agents | Mnemo Agents (1 prizes) | Best Autonomous Agents, Swarms & iNFT Innovations / None :: AI agents as iNFTs on 0G. Breed two, get a child. Royalties flow up the lineage forever.
+- 2026-04-24 Open Agents | Mendel (1 prizes) | Best Agent Framework, Tooling & Core Extensions / 2nd :: No-code AI quant-bot builder—Strategies breed+evolve for DeFi-native nonstationary optimization
+- 2026-04-24 Open Agents | Immunity (1 prizes) | Best Agent Framework, Tooling & Core Extensions / 3rd :: Decentralized threat intelligence for AI agents. An attack on one is a vaccine for all.
+- 2026-04-24 Open Agents | Federated Reserve (1 prizes) | Best Autonomous Agents, Swarms & iNFT Innovations / None :: What if every US state had an AI treasurer? 50 sovereign agents, real capital on real public data.
+- 2026-04-24 Open Agents | FFE (1 prizes) | Best Agent Framework, Tooling & Core Extensions 5th place / None :: Multi-party fine-tuning on 0G. Encrypt data to a TEE, train one LoRA, co-own it as an INFT.
+- 2026-04-24 Open Agents | CodeGuardian iNFT (1 prizes) | Best Autonomous Agents, Swarms & iNFT Innovations / None :: Autonomous 0G iNFT code-review agent with replayable Proof-of-Intelligence
+- 2026-04-24 Open Agents | Brainpedia (2 prizes) | Best Autonomous Agents, Swarms & iNFT Innovations / None :: Brainpedia turns your Obsidian vault into an AI brain that other agents pay you to query
+- 2026-04-24 Open Agents | AgentMeshx (1 prizes) | Best Autonomous Agents, Swarms & iNFT Innovations / None :: 4 AI agents audit smart contracts together over a P2P mesh, then store proof on-chain.
+- 2026-04-24 Open Agents | ACL (2 prizes) | Best Agent Framework, Tooling & Core Extensions / 1st :: ACL is an ERC-8183 work-verification and private-negotiation layer for autonomous agents.
+- 2026-04-03 ETHGlobal Cannes 2026 | Shawarma Orchestrate (1 prizes) | Best DeFi App on 0G / 1st :: Multi-agent swarm prediction orchestrator: 0G Compute + 0G Storage, Uniswap actions
+- 2026-04-03 ETHGlobal Cannes 2026 | Orchestra (1 prizes) | Best OpenClaw Agent on 0G / 3rd :: Orchestra: Talk to your crypto. An AI agent for seamless swaps and sends with Ledger security.
+- 2026-04-03 ETHGlobal Cannes 2026 | Indelible (1 prizes) | Wildcard on 0G / None :: Indelible allows people to query political statements in a decentralized and time-proof way.
+- 2026-04-03 ETHGlobal Cannes 2026 | Don't Get Drained (1 prizes) | Best DeFi App on 0G / 3rd :: Agentic firewall marketplace where anyone can publish security agents that guard DeFi transactions
+- 2026-04-03 ETHGlobal Cannes 2026 | DIVE [FINALIST] (4 prizes) | Best OpenClaw Agent on 0G / 2nd :: AI swarm engine verifying real-world truth for prediction markets and autonomous on-chain settlement
+- 2026-04-03 ETHGlobal Cannes 2026 | Croisette.cc (1 prizes) | Best OpenClaw Agent on 0G / 1st :: Croisette Finance: Effortless, 24/7 investing managed by AI agents on the blockchain.
+- 2026-04-03 ETHGlobal Cannes 2026 | CaaS (2 prizes) | Wildcard on 0G / None :: Human-verified "WorldClaw" for every human, paid in WLD with x402 and private compute.
+- 2026-04-03 ETHGlobal Cannes 2026 | Alpha Dawg (2 prizes) | Best DeFi App on 0G / 2nd :: Autonomous AI swarm buys intel, debates trades, and proves every step on-chain.
+- 2025-11-21 ETHGlobal Buenos Aires | WPAgent (1 prizes) | Building Onchain AI dapps with 0G intelligent L1 4th place / None :: WordPress plugin agent where creators monetize content via AI discovery with crypto  payments
+- 2025-11-21 ETHGlobal Buenos Aires | Onchain Pal (2 prizes) | Building Onchain AI dapps with 0G intelligent L1 / 1st :: onchain ai pal in a voxel world; ownable, tradable, token-miners, game-players, fully autonomous
+- 2025-11-21 ETHGlobal Buenos Aires | Ensura (2 prizes) | Building Onchain AI dapps with 0G intelligent L1 / 3rd :: AI-powered insurance on Flare. 0G quotes and compute + WorldID Verification + P2P underwriting 🔥🛡️
+- 2025-11-21 ETHGlobal Buenos Aires | DeTrain (2 prizes) | Building Onchain AI dapps with 0G intelligent L1 / 2nd :: Turn your data into intelligence. Get paid for verifiable impact.
+- 2025-09-26 ETHGlobal New Delhi | nebula-sdk (1 prizes) | Building Onchain AI dapps with 0G / 2nd :: Nebula SDK the all in one sdk for using the LLM's provided at 0g Inference
+- 2025-09-26 ETHGlobal New Delhi | Whale.fun (1 prizes) | Building Onchain AI dapps with 0G / 1st :: Co-create trusted token launches with live votes, LP locks, and on-chain checks.
+- 2025-09-26 ETHGlobal New Delhi | WEAVE (1 prizes) | Building Onchain AI dapps with 0G 4th place / None :: Node based Visual Automation Tool for 0G Mainnet (Push Notifications)
+- 2025-09-26 ETHGlobal New Delhi | SecGit (2 prizes) | Building Onchain AI dapps with 0G 5th place / None :: SecGit - a highly Automated and Secure version of Gitcoin powered by ASI abd 0G
+- 2025-09-26 ETHGlobal New Delhi | Melon (1 prizes) | Building Onchain AI dapps with 0G / 3rd :: Melon verifies the origin and authenticity of images, proving if they’re real or AI-generated.
+- 2025-07-04 ETHGlobal Cannes | Warriors AI-rena (1 prizes) | Most Innovative Use of 0G Ecosystem / None :: WarriorsAI-rena is a groundbreaking blockchain-based battle arena
+- 2025-07-04 ETHGlobal Cannes | PrivyCycle [FINALIST] (4 prizes) | Most Innovative Use of 0G Ecosystem / None :: Decentralized period tracker with user-owned data, private sharing, and AI-driven insights.
+- 2025-07-04 ETHGlobal Cannes | AInfluencer (2 prizes) | Most Innovative Use of 0G Ecosystem / None :: Autonomous on-chain AI-Influencer that writes and uploads YouTube including subscribers' wishes
+
+######## Arc: 47 prize rows since 2025 ########
+TRACKS: {'Best Smart Contracts on Arc with Advanced Stablecoin Logic': 6, 'Best Chain Abstracted USDC Apps Using Arc as a Liquidity Hub': 6, 'Build a Multichain USDC Payment System': 6, 'Best Prediction Markets Built on Arc with Real-World Signal': 3, 'Enable end users to pay for gas using USDC': 3, 'Arc Continuity Track: Extend the Arc Ecosystem': 2, 'Best Agentic Economy with Circle Agent Stack': 2, 'Best Agentic Economy with Nanopayments': 2, 'Build a  P2P Loan Market based on Circles Network': 2, 'Create a Gasless Experience': 2, 'Build a Smart Wallet with Dynamic Security Controls': 2, 'Best DeFi/Onchain Finance Application': 1, 'Best Agentic Economy Application with Circle Agent Stack': 1, 'Best DeFi or Agentic Application': 1, 'Best Private Nanopayments': 1, 'Best Agentic Commerce App Powered by Real-World Assets on Arc': 1, 'Build Global Payouts and Treasury Systems with USDC on Arc': 1, 'Best AI Agent Wallet with Circle Wallets': 1, 'Best Automated Treasury Operations with Circle Gateway and Arc': 1, "Best Crosschain USDC Experience with Circle's Bridge Kit and Arc": 1, 'Enable instant, composable access to multichain USDC balances': 1, 'Implement Hooks for CCTP V2 Transfers': 1}
+- 2026-09-04 ETHOnline 2026 | T-REX Capital Market (1 prizes) | Best DeFi/Onchain Finance Application / None :: Regulated capital markets on Arc, powered by Privy wallets and USDC.
+- 2026-09-04 ETHOnline 2026 | OpenBook (2 prizes) | Best Agentic Economy Application with Circle Agent Stack / None :: The data marketplace for AI agents. Fresh data or your money back.
+- 2026-09-04 ETHOnline 2026 | ACR (1 prizes) | Best DeFi or Agentic Application / None :: Every desk runs TCA. No AI agent ever has. Now one does, on Arc: public on The Graph, human-backed.
+- 2026-06-12 ETHGlobal New York 2026 | bitrouter (2 prizes) | Arc Continuity Track: Extend the Arc Ecosystem / 2nd :: Autonomous agent spawn and pay for subagent for long-run tasks verifiably
+- 2026-06-12 ETHGlobal New York 2026 | WorldColony (2 prizes) | Best Smart Contracts on Arc with Advanced Stablecoin Logic / 2nd :: A colony of 200 AI "ant" agents that research, debate and bet on World Cup matches, fully on-chain.
+- 2026-06-12 ETHGlobal New York 2026 | Vouch DeFi (3 prizes) | Best Chain Abstracted USDC Apps Using Arc as a Liquidity Hub / 1st :: Zero-collateral credit backed by who you are, not what you own. Private AI, USDC on Arc.
+- 2026-06-12 ETHGlobal New York 2026 | Thurman Protocol (2 prizes) | Arc Continuity Track: Extend the Arc Ecosystem / 1st :: Automated secondary loan sales with onchain USDC settlement and trustless execution
+- 2026-06-12 ETHGlobal New York 2026 | Sidekick (1 prizes) | Best Agentic Economy with Circle Agent Stack / 2nd :: Perpetual futures built for AI agents, not humans. Per-block funding, no liquidations, on Arc.
+- 2026-06-12 ETHGlobal New York 2026 | OpenPop (2 prizes) | Best Smart Contracts on Arc with Advanced Stablecoin Logic / 1st :: OpenPop is the OpenClaw of verifiable agent workflows. Proof over Promises.
+- 2026-06-12 ETHGlobal New York 2026 | Mars (3 prizes) | Best Agentic Economy with Circle Agent Stack / 1st :: On-chain audited marketplace where AI agents safely buy verified skills.
+- 2026-06-12 ETHGlobal New York 2026 | Manila (4 prizes) | Best Private Nanopayments / None :: Private, onchain, programmable, and agentic USDC payroll and vesting on Arc
+- 2026-06-12 ETHGlobal New York 2026 | Cumulant (1 prizes) | Best Prediction Markets Built on Arc with Real-World Signal / None :: Structured products on prediction markets - baskets, tranches, PPNs, & continuous markets
+- 2026-06-12 ETHGlobal New York 2026 | AnyAsset Checkout (2 prizes) | Best Chain Abstracted USDC Apps Using Arc as a Liquidity Hub / 2nd :: Checkout links where any EVM asset becomes merchant-settled USDC.
+- 2026-04-03 ETHGlobal Cannes 2026 | VEIL VPN [FINALIST] (4 prizes) | Best Agentic Economy with Nanopayments / 1st :: Verifiable Encrypted Internet Layer, is the pay as you go VPN protocol that proves no logs are kept.
+- 2026-04-03 ETHGlobal Cannes 2026 | Predict It! (1 prizes) | Best Prediction Markets Built on Arc with Real-World Signal / 1st :: Predict It! is a prediction market game built around real, verifiable sports moments.
+- 2026-04-03 ETHGlobal Cannes 2026 | PolyPOP (1 prizes) | Best Prediction Markets Built on Arc with Real-World Signal / 2nd :: PolyPOP turns social disagreements into instant peer-to-peer prediction markets.
+- 2026-04-03 ETHGlobal Cannes 2026 | PayMate (1 prizes) | Best Smart Contracts on Arc with Advanced Stablecoin Logic / 2nd :: PSPs get instant USDC credit, investors earn fixed 5% APY, powered by Arc, Chainlink CRE & Uniswap
+- 2026-04-03 ETHGlobal Cannes 2026 | Onda (1 prizes) | Best Smart Contracts on Arc with Advanced Stablecoin Logic / 1st :: Your music streams pay platforms. Onda pays artists.  1 cent per play, direct to artists.
+- 2026-04-03 ETHGlobal Cannes 2026 | NanoCrawl (1 prizes) | Best Chain Abstracted USDC Apps Using Arc as a Liquidity Hub / 1st :: MCP server for AI agents to pay-per-page browse the web via Circle nanopayments + Unlink ZK privacy
+- 2026-04-03 ETHGlobal Cannes 2026 | ETHastic (1 prizes) | Best Chain Abstracted USDC Apps Using Arc as a Liquidity Hub / 2nd :: ETHastic: A resilient, local-first mesh protocol for off-grid financial coordination and payments.
+- 2026-04-03 ETHGlobal Cannes 2026 | C.E.S.T.A Agent (1 prizes) | Best Agentic Economy with Nanopayments / 2nd :: A voice AI agent that books, pays, and splits crypto without using crypto!
+- 2026-01-30 HackMoney 2026 | versus (1 prizes) | Best Agentic Commerce App Powered by Real-World Assets on Arc / None :: AI agents create videos, earn via micropayments, and trade tokens autonomously on bonding curves.
+- 2026-01-30 HackMoney 2026 | arctan(x) (1 prizes) | Best Chain Abstracted USDC Apps Using Arc as a Liquidity Hub / 1st :: chain-agnostic institutional-grade stablecoin forex-pair perpsDEX with margin rehypothecation
+- 2026-01-30 HackMoney 2026 | Text-to-Chain (2 prizes) | Best Chain Abstracted USDC Apps Using Arc as a Liquidity Hub / 2nd :: Bringing DeFi to 2.5B feature phone users via SMS. Cash to Crypto, no internet required
+- 2026-01-30 HackMoney 2026 | ArcFlow (2 prizes) | Build Global Payouts and Treasury Systems with USDC on Arc / None :: A "self-paying" corporate treasury that earns yield on idle payroll funds via Uniswap v4.
+- 2025-11-21 ETHGlobal Buenos Aires | starc (1 prizes) | Best AI Agent Wallet with Circle Wallets / None :: Unifying merchant payment layer. Accepts any stablecoin, settles in a single liquid asset vault.
+- 2025-11-21 ETHGlobal Buenos Aires | The Wolf of Web3 (2 prizes) | Best Automated Treasury Operations with Circle Gateway and Arc / None :: AI‑guided, cross‑chain investing powered by Circle Smart Wallets and personalized strategies.
+- 2025-11-21 ETHGlobal Buenos Aires | Raila Circles (1 prizes) | Build a  P2P Loan Market based on Circles Network / 1st :: Use Circles' trust graph to make peer-to-peer uncollateralized lending with relaying
+- 2025-11-21 ETHGlobal Buenos Aires | OneTx (2 prizes) | Best Smart Contracts on Arc with Advanced Stablecoin Logic / 1st :: Universal DeFi router: one-click access to any DeFi instrument across chains via Global IDs
+- 2025-11-21 ETHGlobal Buenos Aires | Inner Circles (1 prizes) | Build a  P2P Loan Market based on Circles Network / 2nd :: Trust lending protocol for communities. No collateral, just social proof.
+- 2025-11-21 ETHGlobal Buenos Aires | Coco (2 prizes) | Best Smart Contracts on Arc with Advanced Stablecoin Logic / 2nd :: High-yield, non-custodial savings via 1inch Aqua; earn and do nothing.
+- 2025-11-21 ETHGlobal Buenos Aires | ArcBeam (2 prizes) | Best Crosschain USDC Experience with Circle's Bridge Kit and Arc / None :: Send USDC to anyone, anywhere. No native token needed. USDC is all you need!
+- 2025-08-15 ETHGlobal New York 2025 | VoiceDoc (2 prizes) | Enable end users to pay for gas using USDC / None :: Health in your hands: AI consults, NFT records, and seamless USDC payments with VoiceDoc.
+- 2025-08-15 ETHGlobal New York 2025 | Qweb (1 prizes) | Build a Multichain USDC Payment System / 1st :: Search that gives back to the web. Websites shouldn’t just get crawled, they should get paid.
+- 2025-08-15 ETHGlobal New York 2025 | PayWiser (3 prizes) | Create a Gasless Experience / None :: PayWiser is a next-generation payment platform that removes the friction of traditional transactions
+- 2025-08-15 ETHGlobal New York 2025 | Fluvia (2 prizes) | Enable instant, composable access to multichain USDC balances / None :: Financial infrastructure for treasury management and more.
+- 2025-08-15 ETHGlobal New York 2025 | CrossMeter (2 prizes) | Build a Multichain USDC Payment System / 2nd :: CrossMeter - Zero code billing infrastructure for web3 - Seriously.
+- 2025-07-04 ETHGlobal Cannes | Taparoo (1 prizes) | Create a Gasless Experience / None :: NFC event wallet, smart spend rules, gasless USDC, instant kill-switch.
+- 2025-07-04 ETHGlobal Cannes | Savio (1 prizes) | Enable end users to pay for gas using USDC / None :: Group savings protocol with fixed deposits, random/auction payouts, cross-chain wallets, gasless UX
+- 2025-07-04 ETHGlobal Cannes | OpenRelief (1 prizes) | Build a Multichain USDC Payment System / 1st :: Omnichain disaster relief: verified victims receive stablecoins via cross-chain transfers.
+- 2025-07-04 ETHGlobal Cannes | Full Circle (2 prizes) | Build a Multichain USDC Payment System / 2nd :: Full Circle: Multichain gas killer—pay with USDC, not ETH. Stablecoins in, gas pain out.
+- 2025-07-04 ETHGlobal Cannes | Credura (1 prizes) | Build a Smart Wallet with Dynamic Security Controls / None :: Crypto-Backed Buy Now, Pay Later Protocol (Powered by Direct Debit Repayments)
+- 2025-04-04 ETHGlobal Taipei | OSY (2 prizes) | Build a Multichain USDC Payment System / None :: OSY auto-allocates your USDC to the highest APY across DeFi, cross-chain & effortless.
+- 2025-04-04 ETHGlobal Taipei | Just Pay (1 prizes) | Build a Multichain USDC Payment System / None :: Just Pay sends USDC chainlessly in seconds—no bridges, one balance, one tap, any chain.
+- 2025-04-04 ETHGlobal Taipei | Curvegrid Payroll (2 prizes) | Implement Hooks for CCTP V2 Transfers / None :: Spreadsheet-driven payroll tool with instant cross-chain USDC salaries & automated DeFi integration.
+- 2025-04-04 ETHGlobal Taipei | Clink Up (2 prizes) | Enable end users to pay for gas using USDC / None :: Web3 Social Media Platform for users to own and monetise off their own data usage
+- 2025-04-04 ETHGlobal Taipei | Absynth (1 prizes) | Build a Smart Wallet with Dynamic Security Controls / None :: Smart account powered by passkeys, extended cross-chain interoperability via cross-chain protocols.
+
+######## Arkiv: 0 prize rows since 2025 ########
+TRACKS: {}
+
+######## Whitechain: 0 prize rows since 2025 ########
+TRACKS: {}
+
+######## Definitive: 0 prize rows since 2025 ########
+TRACKS: {}
+
+######## Ethereum Foundation: 14 prize rows since 2025 ########
+TRACKS: {'Best Autonomous Deployment with OneSec': 5, 'Best Applications on General Privacy': 3, 'Best use of ZK on Mopro': 3, 'Best use of the EIL SDK': 2, 'Best Infrastructure on Client-Side Privacy': 1}
+- 2025-11-21 ETHGlobal Buenos Aires | REIL (1 prizes) | Best use of the EIL SDK / 2nd :: Cross-Chain AAVE Rebalancer Powered by Ethereum Interop Layer
+- 2025-11-21 ETHGlobal Buenos Aires | Open Paymaster (1 prizes) | Best use of the EIL SDK / 1st :: Decentralized ERC-4337 paymaster enabling cross-chain gasless transactions via liquidity pools.
+- 2025-09-26 ETHGlobal New Delhi | zkETHer (1 prizes) | Best Applications on General Privacy / 1st :: A ZKP-powered privacy pool for anonymous ERC20 deposits and withdrawals.
+- 2025-09-26 ETHGlobal New Delhi | ZeroSurf (1 prizes) | Best Applications on General Privacy / 3rd :: Privacy-first mobile browser with ZK age verification using Aadhaar + AI content filtering
+- 2025-09-26 ETHGlobal New Delhi | Wisk (1 prizes) | Best Applications on General Privacy / 2nd :: Trustless background verification with DigiLocker + SNARK proofs  secure, private & employer-ready
+- 2025-09-26 ETHGlobal New Delhi | AccessFi (1 prizes) | Best Infrastructure on Client-Side Privacy / None :: NFC-powered privacy-first event payments enabling tap-to-pay tickets and frictionless access
+- 2025-07-04 ETHGlobal Cannes | 👀Proov! (1 prizes) | Best use of ZK on Mopro / 3rd :: Fotos & Videos with Built-in Truth: Tamper-proof media with ZK verifiable origins and authenticity.
+- 2025-07-04 ETHGlobal Cannes | Zkipper (1 prizes) | Best use of ZK on Mopro / 2nd :: This projects demonstrates role based access control enforced by EIP-7702, PQC admin, and ZK users
+- 2025-07-04 ETHGlobal Cannes | MobiScale (1 prizes) | Best use of ZK on Mopro / 1st :: Cryptographic Photo-Identity Verification using Apple's Secure Enclave and RISC-0 ZK Proofs.
+- 2025-01-31 Agentic Ethereum | YieldSage (1 prizes) | Best Autonomous Deployment with OneSec / None :: We are building an AI-powered DeFi platform that analyzes various protocols (like Uniswap, Aave) and pools within them. It compares key parameters lik
+- 2025-01-31 Agentic Ethereum | Tunify (2 prizes) | Best Autonomous Deployment with OneSec / None :: Decentralised fair pay / Pay as you go music platform to promote local artists and Famous artists too
+- 2025-01-31 Agentic Ethereum | TABULA (2 prizes) | Best Autonomous Deployment with OneSec / None :: Tabula streamlines DAO participation on Base by providing an intelligent, unified dashboard that transforms how users engage with DAOs. Through our al
+- 2025-01-31 Agentic Ethereum | Gossip Girl (3 prizes) | Best Autonomous Deployment with OneSec / None :: Spotted: Gossip Girl 2.0! Our AI-powered, Eliza-inspired bot is back, slaying the rumor game. Scraping secrets, dropping scandal, & keeping your timel
+- 2025-01-31 Agentic Ethereum | AIxScan (1 prizes) | Best Autonomous Deployment with OneSec / None :: AIxScan: AI-Powered Multichain Blockchain Explorer and Agent Framework 🚀
+
+######## Shutter: 0 prize rows since 2025 ########
+TRACKS: {}

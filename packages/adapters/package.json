@@ -1,0 +1,60 @@
+{
+  "name": "@ethglobal/adapters",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Ports (Ledger, Personhood, PaymentRail, Reseller, ConsensusLog, BlobStore, Treasury, Inference, NameResolver), deterministic local mocks, live adapters (./live) and test helpers (./testing).",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./live": {
+      "types": "./dist/live/index.d.ts",
+      "import": "./dist/live/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@arkiv-network/sdk": "catalog:",
+    "@ethglobal/crypto": "workspace:*",
+    "@ethglobal/eip3009": "workspace:*",
+    "@ethglobal/protocol": "workspace:*",
+    "@hiero-ledger/sdk": "catalog:",
+    "@worldcoin/idkit-core": "catalog:",
+    "@x402/hedera": "catalog:",
+    "viem": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@hashgraphonline/standards-sdk": "catalog:",
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "@x402/core": "catalog:",
+    "fast-check": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "vitest": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "vitest": {
+      "optional": true
+    }
+  }
+}

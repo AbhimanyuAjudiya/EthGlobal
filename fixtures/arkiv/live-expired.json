@@ -1,0 +1,50 @@
+{
+  "name": "live-expired",
+  "recordedAt": "2026-11-05T10:38:41.578Z",
+  "source": "live",
+  "exchanges": [
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://rpc.rabdi.db-chain.testnet.arkiv.network/%3Credacted-0001%3E",
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": {
+          "jsonrpc": "2.0",
+          "id": 2,
+          "method": "arkiv_getEntity",
+          "params": [
+            "0x73d83f38374affec72322cf2f2630fe7f01ca1fe669238708e7d3eca79a7a9dd"
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "access-control-allow-origin": "*",
+          "access-control-expose-headers": "RateLimit, Retry-After, Link, Arkiv-Quota-Used-Percent, Arkiv-Cost, Arkiv-Block-Rewritten",
+          "arkiv-quota-used-percent": "0",
+          "cf-cache-status": "DYNAMIC",
+          "cf-ray": "a55b3af0bcdf3c88-BOM",
+          "connection": "keep-alive",
+          "content-encoding": "br",
+          "content-length": "42",
+          "content-type": "application/json; charset=utf-8",
+          "date": "Thu, 05 Nov 2026 10:38:41 GMT",
+          "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+          "ratelimit": "limit=5000, remaining=4997, reset=6",
+          "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=xMCIYNp3yoGIGZTiTqu0MBVQaLxF0B4GWBAZtre2vIRXl%2FACnqGeacdHJo79zW7ZxmgXCXLL79um4KddewRsFpYMpQKwAfyN68mxF0%2FABSlgmCoUIlHeTMxPj2A8DisokfwQMdfAw%2BnegTm69aC5qFv05bVvYPNoaZjvEaLGNt%2Fg%2FrwraG4%3D\"}]}",
+          "server": "cloudflare",
+          "vary": "accept-encoding",
+          "x-envoy-upstream-service-time": "27"
+        },
+        "body": {
+          "jsonrpc": "2.0",
+          "id": 2,
+          "result": null
+        }
+      }
+    }
+  ]
+}

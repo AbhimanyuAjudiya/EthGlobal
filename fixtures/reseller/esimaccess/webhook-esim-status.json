@@ -1,0 +1,7 @@
+{
+  "name": "eSIM Access ESIM_STATUS webhook",
+  "recordedAt": "2026-11-03T12:00:00Z",
+  "source": "docs",
+  "note": "[verify Wed] the docs show no webhook JSON schema and no signature (A-27): these bodies are guesses from the notifyType list; capture a real delivery of each type.",
+  "rawBody": "{\"notifyType\":\"ESIM_STATUS\",\"content\":{\"iccid\":\"89852240000000000001\",\"smdpStatus\":\"ENABLED\",\"esimStatus\":\"IN_USE\"}}"
+}

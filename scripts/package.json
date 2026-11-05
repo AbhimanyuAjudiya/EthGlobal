@@ -1,0 +1,28 @@
+{
+  "name": "@ethglobal/scripts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Ops glue for MODE=local: the demo seed, the agent step of the e2e loop, the scratch-card print run and the Arkiv schema generator. Test-only plumbing; no business logic.",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@ethglobal/adapters": "workspace:*",
+    "@ethglobal/agent": "workspace:*",
+    "@ethglobal/contracts": "workspace:*",
+    "@ethglobal/crypto": "workspace:*",
+    "@ethglobal/protocol": "workspace:*",
+    "@playwright/test": "catalog:",
+    "uqr": "catalog:",
+    "viem": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

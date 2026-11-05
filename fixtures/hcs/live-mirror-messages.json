@@ -1,6 +1,6 @@
 {
   "name": "live-mirror-messages",
-  "recordedAt": "2026-11-05T09:58:54.559Z",
+  "recordedAt": "2026-11-05T10:24:27.838Z",
   "source": "live",
   "exchanges": [
     {
@@ -16,17 +16,37 @@
           "access-control-expose-headers": "x-cluster-id",
           "alt-svc": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000",
           "cache-control": "public, max-age=1",
-          "content-length": "37",
+          "content-length": "635",
           "content-type": "application/json; charset=utf-8",
-          "date": "Thu, 05 Nov 2026 09:58:54 GMT",
-          "etag": "W/\"25-EGGVo4sdIOf4bTPAB9BBjAIZVNQ\"",
+          "date": "Thu, 05 Nov 2026 10:24:27 GMT",
+          "etag": "W/\"27b-HUBhMs1s1FnLzwxFfSPSW79Q9jM\"",
           "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
           "vary": "Accept-Encoding",
           "via": "1.1 google",
           "x-cluster-id": "4527bd0"
         },
         "body": {
-          "messages": [],
+          "messages": [
+            {
+              "chunk_info": {
+                "initial_transaction_id": {
+                  "account_id": "0.0.11320948",
+                  "nonce": 0,
+                  "scheduled": false,
+                  "transaction_valid_start": "1793874012.541682182"
+                },
+                "number": 1,
+                "total": 1
+              },
+              "consensus_timestamp": "1793874019.680442104",
+              "message": "eyJ2IjoxLCJraW5kIjoibGl2ZS1wcm9vZiIsImVudGl0eSI6IjB4NzNkODNmMzgzNzRhZmZlYzcyMzIyY2YyZjI2MzBmZTdmMDFjYTFmZTY2OTIzODcwOGU3ZDNlY2E3OWE3YTlkZCIsImF0IjoiMjAyNi0xMS0wNVQxMDoyMDoxNy4xMDJaIn0=",
+              "payer_account_id": "0.0.11320948",
+              "running_hash": "WSZxVECHU8zxqFlZz52jOh0AZunx/w4cE/lxdvgjr2BDz1SivieiBe8OGQYsvJJD",
+              "running_hash_version": 3,
+              "sequence_number": 1,
+              "topic_id": "0.0.11322448"
+            }
+          ],
           "links": {
             "next": null
           }

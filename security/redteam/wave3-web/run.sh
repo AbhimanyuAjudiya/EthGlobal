@@ -50,7 +50,16 @@ if [[ $SUITE -eq 1 ]]; then
   WEB_STARTED=0
   if ! up "$API_URL/healthz"; then
     bash "$ROOT/scripts/e2e-local.sh" --keep > "$RT_OUT/stack.log" 2>&1 & PIDS+=($!)
-    wait_up "$API_URL/healthz" 300 && ok "local stack up ($API_URL)" || { regress "local stack did not come up (see $RT_OUT/stack.log)"; exit 1; }
+    # ready = the harness finished its own seed and flow and is holding the stack (`e2e-local: --keep —`), not merely
+    # /healthz answering: until then its transactions and Playwright's global setup race for the same Anvil nonces
+    for _ in $(seq 1 600); do
+      grep -q '^e2e-local: --keep' "$RT_OUT/stack.log" 2>/dev/null && break
+      grep -q '^FAIL ' "$RT_OUT/stack.log" 2>/dev/null && break
+      kill -0 "${PIDS[-1]}" 2>/dev/null || break
+      sleep 1
+    done
+    grep -q '^e2e-local: --keep' "$RT_OUT/stack.log" && up "$API_URL/healthz" && ok "local stack up ($API_URL)" ||
+      { regress "local stack did not come up (see $RT_OUT/stack.log: $(grep -m1 '^FAIL ' "$RT_OUT/stack.log"))"; exit 1; }
   else ok "reusing the running API at $API_URL"; fi
   if ! up "$BASE_URL/offline"; then
     (cd "$WEB" && PORT="${BASE_URL##*:}" PRINT_TOKEN="$PRINT_TOKEN" PLAYWRIGHT_API_URL="$API_URL" \
@@ -63,6 +72,10 @@ if [[ $SUITE -eq 1 ]]; then
   (cd "$WEB" && PLAYWRIGHT_BASE_URL="$BASE_URL" PLAYWRIGHT_API_URL="$API_URL" PRINT_TOKEN="$PRINT_TOKEN" RT_OUT="$RT_OUT" \
     ./node_modules/.bin/playwright test -c test/redteam/playwright.redteam.config.ts --reporter=json > "$RT_OUT/pw.json" 2> "$RT_OUT/pw.stderr")
   if ! jq -e '.suites' "$RT_OUT/pw.json" > /dev/null 2>&1; then regress "Playwright produced no report (see $RT_OUT/pw.stderr)"
+  elif ! jq -e '(.errors // []) | length == 0' "$RT_OUT/pw.json" > /dev/null; then
+    regress "Playwright run errored before any test (global setup?): $(jq -r '.errors[0].message' "$RT_OUT/pw.json" | head -1 | cut -c1-160)"
+  elif ! jq -e '[.. | objects | select(has("specs")) | .specs[]] | length > 0' "$RT_OUT/pw.json" > /dev/null; then
+    regress "Playwright ran no test (see $RT_OUT/pw.json)"
   else
     while IFS=$'\t' read -r status title file; do
       if [[ "$status" == "expected" || "$status" == "skipped" ]]; then ok "$file › $title"
@@ -86,11 +99,12 @@ if [[ $LIVE -eq 1 ]]; then
   # Tailwind's automatic source scan follows the node_modules symlink out of the copy (turbopack then refuses a loader
   # "outside configured roots"); pin the scan to the app sources in the COPY only — apps/web is never edited.
   sed -i "s|^@import 'tailwindcss';|@import 'tailwindcss' source(none);\n@source '../app';\n@source '../components';\n@source '../i18n';\n@source '../lib';|" "$LW/app/globals.css"
-  if (cd "$LW" && NEXT_PUBLIC_MODE=live NEXT_PUBLIC_API_URL=https://api.recharge.example NEXT_PUBLIC_ANVIL_RPC_URL=https://rpc.invalid \
+  if (cd "$LW" && unset NEXT_DIST_DIR && NEXT_PUBLIC_MODE=live NEXT_PUBLIC_API_URL=https://api.recharge.example NEXT_PUBLIC_ANVIL_RPC_URL=https://rpc.invalid \
         NEXT_PUBLIC_PUBLIC_ORIGIN=https://recharge.example NEXT_TELEMETRY_DISABLED=1 ./node_modules/.bin/next build > "$RT_OUT/live-build.log" 2>&1); then
-    ok "NEXT_PUBLIC_MODE=live next build (in tmp/rt-web-live)"
+    [[ -d "$LW/.next/static" ]] && ok "NEXT_PUBLIC_MODE=live next build (in tmp/rt-web-live)" ||
+      regress "live build wrote no tmp/rt-web-live/.next/static: the bundle greps below would be vacuous"
     # worst case: the operator's shell still exports the local demo variables when booting live
-    (cd "$LW" && MODE=live NEXT_PUBLIC_MODE=live DEMO_WALLET_MNEMONIC='test test test test test test test test test test test junk' \
+    (cd "$LW" && unset NEXT_DIST_DIR && MODE=live NEXT_PUBLIC_MODE=live DEMO_WALLET_MNEMONIC='test test test test test test test test test test test junk' \
       PRINT_TOKEN="$PRINT_TOKEN" ./node_modules/.bin/next start -p "$LPORT" -H 127.0.0.1 > "$RT_OUT/live-start.log" 2>&1) & PIDS+=($!)
     if wait_up "http://127.0.0.1:$LPORT/offline" 60; then
       L="http://127.0.0.1:$LPORT"

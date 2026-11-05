@@ -293,3 +293,14 @@ Neither affects runtime behaviour. Both are "repetitive code" in the user's sens
 - **C6:** the residual risks in §7 stated to judges and sponsors as stated here. The main ones: no testnet reached, docs-authored fixtures, single writer, unverified device install.
 
 If C1 is not met by kickoff, the answer is **no**: a High finding without independent verification should not ship under this project's own rules.
+
+## Post-audit closure (4 Nov 2026, later the same day)
+
+- **C-blocking (RT-O-01 verification):** closed. A closing verifier attacked the fix with six variants (every key-accepting route with 12 index encodings; expired-vs-unknown timing and size over 200 samples per arm; cache-key confusion and process restart; ledger-down stale copies; fresh copy past expiry — which failed once, was fixed in `b3d0c35` by requiring `expiresAt > now` in `MeCache.fresh()`, and re-passed; a 1 ms-before-expiry boundary read at exactly `expiresAt`). Status: **verified**.
+- **C1 (formatting, lint heap):** done in `5a272c5`.
+- **C2 (semgrep, runner drift):** done. Semgrep 20 → 0 blocking (one real fix: a README still said World `/api/v2/verify`; two rules tightened; eight justified `nosemgrep` lines). `run-wave.sh all` passes except the two RT-P-04 lockfile checks and the three steps that only fail because of them. Threat-model §5.12 reconciled to real test paths; the three threats without a named test are the new Low finding RT-P-13.
+- **C3 (judge video World line, `DemoWalletPanel`):** done. The panel lives under `apps/web/lib/local/` behind the literal local-mode guard; the live bundle grep finds no trace of it.
+- **C4 (lockfile):** Thursday ~14:00 IST, `bash scripts/refresh-lockfile.sh`.
+- **C5 (disclosure of residual risks):** the team's, at submission; the list is §7 above and `docs/HANDOFF.md`.
+
+Verdict stands: **ship as `v0-prekickoff`**, conditions C4 and C5 remaining with the human team.

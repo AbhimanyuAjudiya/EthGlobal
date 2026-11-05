@@ -172,7 +172,10 @@ wave3() {
   # the ops attacks (OP2, OP5, OP6) are executable checks in wave3-ops/run.sh; their fixed findings' regressions and the
   # T-65/T-85/T-86 tests live in scripts/test/regression
   if [[ -d scripts/test/regression ]]; then
-    if [[ -f scripts/package.json ]]; then run pnpm --dir scripts exec vitest run test/regression
+    # run without the variables an enclosing `e2e-local.sh --redteam` exports (E2E_OUT, API_URL, RPC_URL): the RT-P-02
+    # sandbox tests spawn their own e2e-local.sh in an isolated root, and an inherited E2E_OUT points it at the
+    # parent's run directory instead (Anvil then never comes up in the sandbox)
+    if [[ -f scripts/package.json ]]; then run env -u E2E_OUT -u API_URL -u RPC_URL pnpm --dir scripts exec vitest run test/regression
     else ko "scripts/test/regression exists but scripts/ has no package.json with vitest to run it"; fi
   else ko "scripts/test/regression missing (wave3-web-ops.md OP2, OP5, OP6)"; fi
   step "wave 3: regression tests named in THREAT-MODEL §5.12 exist"

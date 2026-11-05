@@ -212,6 +212,17 @@ openid requires a client registered through the portal").
 10. **What worked well**: discovery is complete and accurate (endpoints, methods, algorithms, claims); the poll
     response table is exactly what a client needs; the secret prefix `worldidp_client_secret_` is a good idea; the
     "Check failure paths" table in the testing guide maps one-to-one onto our test names.
+11. **Time to first success.** Discovery fetched from `auth.world.org` on Thu 5 Nov 2026 at about 19:00 IST
+    (`fixtures/world/agent-pass-discovery.json`, `recordedAt` 13:30 UTC); the integration, with e2e I-21 (deny → 403,
+    expire → 403, approve → the agent buys once), committed at 19:49 IST (`8c71246`): **about 50 minutes from the discovery fetch, against the
+    local `LocalIdp` simulator**, not the real IdP. Against `auth.world.org` there is **no success yet**: the portal's
+    Google sign-in answered `{error: invalid_login}` for the founder that evening, and a later attempt returned
+    `account_not_eligible`, so no client id exists and live runs with the pass off (§1, §6).
+12. **The one improvement with the greatest impact: self-serve client registration for the sandbox** (item 7). Every
+    other item above cost us a config flag or a defensive check; this one is the only thing between a finished,
+    tested integration and a live run. A sandbox portal that registers a device-only client without an eligible
+    production account (or a published signed ID-token + JWKS vector set, so RPs can at least prove their validation
+    offline) would have turned the simulator run into a real one the same evening.
 
 ## 8. Known limits of this integration
 

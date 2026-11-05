@@ -19,6 +19,9 @@ import { config } from './env';
 
 export interface Eip1193 {
   request(args: { method: string; params?: unknown }): Promise<unknown>;
+  /** EIP-1193 events (`accountsChanged`, `chainChanged`); the demo transport has none. */
+  on?(event: string, listener: (arg: unknown) => void): void;
+  removeListener?(event: string, listener: (arg: unknown) => void): void;
 }
 
 export type DemoRole = 'human' | 'sponsor' | 'recipient';
@@ -110,6 +113,15 @@ export function rememberInjected(rdns: string): void {
   }
 }
 
+/** Switch wallet / Disconnect: the next screen offers every wallet again. */
+export function forgetInjected(): void {
+  try {
+    sessionStorage.removeItem(CHOSEN_KEY);
+  } catch {
+    // per-tab convenience only
+  }
+}
+
 function readerFor(provider: Eip1193): PublicClient {
   // Local: Anvil directly (1 s blocks); live: the wallet's own RPC.
   return process.env.NEXT_PUBLIC_MODE === 'local'
@@ -117,15 +129,37 @@ function readerFor(provider: Eip1193): PublicClient {
     : createPublicClient({ transport: custom(provider), pollingInterval: 1000 });
 }
 
+/**
+ * Connect `provider`. `reselect` (Switch wallet) asks the wallet to show its own account picker first
+ * (`wallet_requestPermissions`); a wallet without that method falls through to `eth_requestAccounts`.
+ */
 export async function connect(
   provider: Eip1193,
   kind: Wallet['kind'],
   name: string,
+  reselect = false,
 ): Promise<Wallet> {
+  if (reselect)
+    await provider
+      .request({ method: 'wallet_requestPermissions', params: [{ eth_accounts: {} }] })
+      .catch((e: unknown) => {
+        if (isUserRejection(e)) throw e;
+      });
   const accounts = (await provider.request({ method: 'eth_requestAccounts' })) as Address[];
   const address = accounts[0];
   if (!address) throw new Error('no account');
   const chainId = Number(await provider.request({ method: 'eth_chainId' }));
+  return walletFor(provider, kind, name, address, chainId);
+}
+
+/** The Wallet for an account the provider already granted (also rebuilt on `accountsChanged` / `chainChanged`). */
+export function walletFor(
+  provider: Eip1193,
+  kind: Wallet['kind'],
+  name: string,
+  address: Address,
+  chainId: number,
+): Wallet {
   const client = createWalletClient({ account: address, transport: custom(provider) });
   return {
     kind,

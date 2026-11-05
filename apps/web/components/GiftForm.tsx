@@ -53,7 +53,7 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
   const netName = useNetworkName();
   const walletLabel = useWalletLabel();
   const { plans } = usePlans();
-  const { wallet, busy, error: walletError, pickInjected } = useWallet('human');
+  const { wallet, busy, error: walletError, pickInjected, disconnect } = useWallet('human');
   const { row, dispatch, now } = useOnchainAction();
   const [name, setName] = useState('');
   const [mb, setMb] = useState(1000);
@@ -149,6 +149,7 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
         busy={busy}
         error={walletError}
         onInjected={(w) => void pickInjected(w)}
+        onDisconnect={disconnect}
       />
       <h1 id="gift-title" className="screen__title" lang={lang}>
         {t('gift.title')}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import type { PlansResponse } from '@ethglobal/protocol/schemas';
 
@@ -9,13 +9,18 @@ import {
   connect,
   connectDemo,
   discoverInjected,
+  forgetInjected,
   rememberedInjected,
   rememberInjected,
+  walletFor,
   watchInjected,
   type Announced,
   type DemoRole,
+  type Eip1193,
   type Wallet,
 } from './wallet';
+
+import type { Address } from 'viem';
 
 /** One GET /plans in flight at a time: screens mounting together share it, and it is dropped once it settles. */
 let inflight: Promise<PlansResponse> | undefined;
@@ -84,6 +89,10 @@ export function useWallet(role: DemoRole = 'human') {
   const [wallet, setWallet] = useState<Wallet | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
+  /** The injected provider behind `wallet`, for its EIP-1193 events. */
+  const provider = useRef<Eip1193 | undefined>(undefined);
+  /** Set by Switch wallet: the next connect opens the wallet's own account picker. */
+  const reselect = useRef(false);
 
   const pickDemo = useCallback(async () => {
     if (process.env.NEXT_PUBLIC_MODE !== 'local') return;
@@ -106,7 +115,9 @@ export function useWallet(role: DemoRole = 'human') {
       const chosen = rememberedInjected();
       const target = found.find((w) => w.info.rdns === chosen) ?? found[0];
       if (!target) throw new Error('No browser wallet found. Install Coinbase Wallet or MetaMask.');
-      setWallet(await connect(target.provider, 'injected', target.info.name));
+      setWallet(await connect(target.provider, 'injected', target.info.name, reselect.current));
+      provider.current = target.provider;
+      reselect.current = false;
       rememberInjected(target.info.rdns);
       setError(undefined);
     } catch (e) {
@@ -115,6 +126,34 @@ export function useWallet(role: DemoRole = 'human') {
       setBusy(false);
     }
   }, []);
+
+  /** Drop the client and the remembered choice; `switching` makes the next connect re-ask for the account. */
+  const disconnect = useCallback((switching = false) => {
+    forgetInjected();
+    provider.current = undefined;
+    reselect.current = switching;
+    setWallet(undefined);
+    setError(undefined);
+  }, []);
+
+  // The wallet's own changes: another account (none = disconnected) or another chain.
+  useEffect(() => {
+    const p = wallet?.kind === 'injected' ? provider.current : undefined;
+    if (!wallet || !p?.on) return;
+    const { name, address, chainId } = wallet;
+    const onAccounts = (accounts: unknown) => {
+      const next = (accounts as Address[] | undefined)?.[0];
+      if (next) setWallet(walletFor(p, 'injected', name, next, chainId));
+      else disconnect();
+    };
+    const onChain = (id: unknown) => setWallet(walletFor(p, 'injected', name, address, Number(id)));
+    p.on('accountsChanged', onAccounts);
+    p.on('chainChanged', onChain);
+    return () => {
+      p.removeListener?.('accountsChanged', onAccounts);
+      p.removeListener?.('chainChanged', onChain);
+    };
+  }, [wallet, disconnect]);
 
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_MODE !== 'local') return;
@@ -128,7 +167,7 @@ export function useWallet(role: DemoRole = 'human') {
     };
   }, [role]);
 
-  return { wallet, error, busy, pickDemo, pickInjected };
+  return { wallet, error, busy, pickDemo, pickInjected, disconnect };
 }
 
 /**
@@ -139,11 +178,10 @@ export function useWallet(role: DemoRole = 'human') {
 export function useInjectedWallets(): Announced[] {
   const [found, setFound] = useState<Announced[]>([]);
   useEffect(() => watchInjected(setFound), []);
-  return useMemo(() => {
-    const rdns = rememberedInjected();
-    const chosen = found.find((w) => w.info.rdns === rdns);
-    return chosen ? [chosen] : found;
-  }, [found]);
+  // Read on every render, not memoised: Switch wallet / Disconnect clear the choice without a new announcement.
+  const rdns = rememberedInjected();
+  const chosen = found.find((w) => w.info.rdns === rdns);
+  return chosen ? [chosen] : found;
 }
 
 const noopSubscribe = () => () => undefined;

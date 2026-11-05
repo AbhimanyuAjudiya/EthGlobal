@@ -314,5 +314,9 @@
   "error.network": "Recharge पर्यंत पोहोचता येत नाही. तुमचे कनेक्शन तपासा.",
   "verify.checkingLong": "चेनवर क्लेम आणि तुमची eSIM तयार होत आहे · {elapsed} · याला एक मिनिट लागू शकते",
   "verify.unconfirmed": "Recharge ने वेळेत उत्तर दिले नाही. तुमचा क्लेम कदाचित आमच्या बाजूने पूर्ण झाला असेल. पुन्हा प्रयत्न करण्यापूर्वी तुमचे प्लॅन पाहा — एकच World ID दोनदा क्लेम करू शकत नाही.",
-  "verify.checkPlans": "माझे प्लॅन पाहा"
+  "verify.checkPlans": "माझे प्लॅन पाहा",
+  "wallet.connected": "कनेक्ट झाले",
+  "wallet.switch": "वॉलेट बदला",
+  "wallet.disconnect": "डिस्कनेक्ट करा",
+  "wallet.address": "पत्ता"
 }

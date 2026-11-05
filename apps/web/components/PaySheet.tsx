@@ -173,7 +173,7 @@ function PaySheetBody({
   const walletLabel = useWalletLabel();
   const router = useRouter();
   const { plans } = usePlans();
-  const { wallet, busy, error: walletError, pickInjected } = useWallet('human');
+  const { wallet, busy, error: walletError, pickInjected, disconnect } = useWallet('human');
   const { row, dispatch, now } = useOnchainAction();
   const clock = useClock(1000);
   const [mb, setMb] = useState(
@@ -347,6 +347,7 @@ function PaySheetBody({
         busy={busy}
         error={walletError}
         onInjected={(w) => void pickInjected(w)}
+        onDisconnect={disconnect}
       />
       {!entitlementKey ? (
         <>

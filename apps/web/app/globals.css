@@ -972,6 +972,28 @@ a {
   width: 20px;
   height: 20px;
 }
+/* Connected: who and which address on one wrapping line, Switch wallet / Disconnect (48 px buttons) beside it. */
+.wallet-status,
+.wallet-status__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.wallet-status__who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: var(--text-14);
+}
+.wallet-status__network {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--text-secondary);
+}
 
 /* ── Agent, gift, receipts ───────────────────────────────────────────────── */
 .agent__sentence {

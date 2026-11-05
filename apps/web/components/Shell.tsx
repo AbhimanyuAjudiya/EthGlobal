@@ -12,10 +12,10 @@ import {
   type ReactNode,
 } from 'react';
 
-import { Icon } from '@ethglobal/ui/components';
+import { Button, Hash, Icon } from '@ethglobal/ui/components';
 
-import { LangSwitch, T, useLang } from '../i18n/lang';
-import { IS_TESTNET } from '../lib/env';
+import { LangSwitch, T, useLang, useNetworkName } from '../i18n/lang';
+import { config, IS_TESTNET } from '../lib/env';
 import { useInjectedWallets } from '../lib/hooks';
 import { plans } from '../lib/store';
 import { demoIndex, type Announced, type Wallet } from '../lib/wallet';
@@ -301,7 +301,8 @@ function WalletIcon({ src }: { src: string | undefined }) {
 }
 
 /**
- * The connect control while no wallet is connected: one injected wallet is named ("Continue with MetaMask"); several
+ * Connected: the wallet's icon and name, the shortened address (copyable), the network when it is not this app's
+ * chain, and Switch wallet / Disconnect. Not connected, the connect control: one injected wallet is named ("Continue with MetaMask"); several
  * (EIP-6963: MetaMask and Coinbase Wallet both installed) open a picker, each with its own icon and name; none keeps
  * the generic line and lets `onInjected()` fall back to window.ethereum.
  */
@@ -310,17 +311,52 @@ export function WalletButton({
   busy,
   error,
   onInjected,
+  onDisconnect,
 }: {
   wallet: Wallet | undefined;
   busy: boolean;
   error: string | undefined;
   /** Connect the chosen wallet; with none chosen, whatever discovery finds. */
   onInjected: (choice?: Announced) => void;
+  /** useWallet().disconnect: `true` = Switch wallet (re-ask for the account on the next connect). */
+  onDisconnect: (switching?: boolean) => void;
 }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
+  const netName = useNetworkName();
   const found = useInjectedWallets();
   const [open, setOpen] = useState(false);
-  if (wallet) return <WalletBanner wallet={wallet} />;
+  if (wallet?.kind === 'demo') return <WalletBanner wallet={wallet} />;
+  if (wallet)
+    return (
+      <div className="wallet-status" role="group" aria-label={t('wallet.connected')}>
+        <p className="wallet-status__who">
+          <WalletIcon src={found.find((w) => w.info.name === wallet.name)?.info.icon} />
+          <span>{t('wallet.connected')}</span>
+          <span lang="en">{wallet.name}</span>
+          <Hash value={wallet.address} kind={t('wallet.address')} lang={lang} />
+          {wallet.chainId !== config.chainId ? (
+            <span className="wallet-status__network">
+              <Icon name="warning" />
+              {netName(wallet.network)}
+            </span>
+          ) : null}
+        </p>
+        <div className="wallet-status__actions">
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setOpen(true);
+              onDisconnect(true);
+            }}
+          >
+            <T k="wallet.switch" />
+          </Button>
+          <Button variant="quiet" onClick={() => onDisconnect(false)}>
+            <T k="wallet.disconnect" />
+          </Button>
+        </div>
+      </div>
+    );
   const only = found.length === 1 ? found[0] : undefined;
   return (
     <div className="wallet-connect">
@@ -332,7 +368,10 @@ export function WalletButton({
               type="button"
               className="ui-button ui-button--block"
               data-variant="secondary"
-              onClick={() => onInjected(w)}
+              onClick={() => {
+                setOpen(false);
+                onInjected(w);
+              }}
               disabled={busy}
             >
               <WalletIcon src={w.info.icon} />

@@ -314,5 +314,9 @@
   "error.network": "Can't reach Recharge. Check your connection.",
   "verify.checkingLong": "Claiming on-chain and preparing your eSIM · {elapsed} · this can take a minute",
   "verify.unconfirmed": "Recharge didn't answer in time. Your claim may still have gone through on our side. Check your plans before trying again — the same World ID can't claim twice.",
-  "verify.checkPlans": "Check my plans"
+  "verify.checkPlans": "Check my plans",
+  "wallet.connected": "Connected",
+  "wallet.switch": "Switch wallet",
+  "wallet.disconnect": "Disconnect",
+  "wallet.address": "address"
 }

@@ -23,7 +23,7 @@ import { fulfilTopUp } from '../flows/fulfil.js';
 import { record } from '../flows/record.js';
 import { octroi } from '../middleware/octroi.js';
 import { validateJson, validateQuery } from '../middleware/validate.js';
-import { withPaymentResponse, x402 } from '../middleware/x402.js';
+import { paymentNonce, withPaymentResponse, x402 } from '../middleware/x402.js';
 import { seedValidityS } from '../seed.js';
 
 import type { Deps } from '../deps.js';
@@ -157,12 +157,7 @@ async function topUp(c: Ctx): Promise<Response> {
   withPaymentResponse(c, settlement);
   const existing = await deps.stores.entitlements.getByKey(key);
   if (!existing) throw fail('expired');
-  const payment = c.get('payment');
-  const nonce =
-    payment && isEvmExact(payment.payload)
-      ? (payment.payload.authorization.nonce as Hex)
-      : sha256Hex(settlement.transaction);
-  const updated = await fulfilTopUp(deps, existing.payload, mb, nonce);
+  const updated = await fulfilTopUp(deps, existing.payload, mb, paymentNonce(c, settlement));
   deps.metrics.inc('settlements_total', { network: settlement.network });
   const uaid = agentUaid(c, settlement.payer);
   const recorded = await record(

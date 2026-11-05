@@ -1,7 +1,13 @@
 import { createMiddleware } from 'hono/factory';
 
+import { sha256Hex } from '@ethglobal/crypto';
 import type { Hex } from '@ethglobal/protocol/ids';
-import { hex32Schema, type PaymentRequired, type SettleResult } from '@ethglobal/protocol/schemas';
+import {
+  hex32Schema,
+  isEvmExact,
+  type PaymentRequired,
+  type SettleResult,
+} from '@ethglobal/protocol/schemas';
 import {
   decodePaymentPayload,
   encodePaymentRequired,
@@ -87,4 +93,17 @@ export function paymentRequiredResponse(c: Ctx, body: PaymentRequired): Response
 /** Adds `PAYMENT-RESPONSE` (the settlement) to a paid success. */
 export function withPaymentResponse(c: Ctx, settlement: SettleResult): void {
   c.header(PAYMENT_RESPONSE_HEADER, encodePaymentResponse(settlement));
+}
+
+/**
+ * The 32-byte nonce a settled payment keys its fulfilment by (the top-up's reseller idempotency key, the gift's
+ * giftId): the EIP-3009 nonce of an EVM exact payment; for the Hedera exact scheme (`{ transaction }`, no nonce)
+ * sha256 of the settled transaction id, which is unique per on-chain payment. Replay is octroi's job either way:
+ * its settlement marker serves one transaction once (RT-O-05), so a repeated Hedera transaction never reaches here.
+ */
+export function paymentNonce(c: Ctx, settlement: { transaction: string }): Hex {
+  const payment = c.get('payment');
+  return payment !== undefined && isEvmExact(payment.payload)
+    ? (payment.payload.authorization.nonce as Hex)
+    : sha256Hex(settlement.transaction);
 }

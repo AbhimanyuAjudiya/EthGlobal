@@ -137,8 +137,9 @@ are the THREAT-MODEL §5.12 regression files.
    - **Finding (AP6.3):** a pending-profile LPA retried by `/me` or at boot is sealed to the original session key and
      stored as a blob reference, but no route delivers it yet.
    - **Recorded:** a payment is not bound to `?key=` on top-ups (AP7.8, Low; it is bound to the route, RT-A-08).
-     AP7.15 (Hedera payloads) is covered by the adapters' facilitator tests, because local mode advertises no Hedera
-     kind.
+     AP7.15 (Hedera payloads) is covered by the adapters' facilitator tests; local mode advertises a Hedera kind only
+     with `X402_NETWORKS=…,hedera:testnet`, `PAYOUT_HEDERA_ACCOUNT` and `X402_HEDERA_FEE_PAYER` (the pin stands in
+     for the mock facilitator's `/supported`; `test/gift.test.ts` buys a gift that way with the rail stubbed).
 9. **Payments are bound to their route (RT-A-08).** Each paid route's accepts carry `extra.resource` = its path
    (`/esim/provision`, `/esim/topup`, `/gift`); the payer echoes `accepted`, and `decide()` compares the echo, so a
    header signed against one route's 402 is refused on another. EIP-3009 signs only the authorization, so this
@@ -154,3 +155,11 @@ are the THREAT-MODEL §5.12 regression files.
     `limit − used − inFlight − commitsSince(read)`). The self-run relayer has viem's nonce manager and one
     `SerialQueue`; `/facilitator/*` refuses amounts below one step and limits each payer to 10/min. Idempotency-Key
     holds one in-flight request per (route, key, client IP). Rate limits bucket IPv6 by /64 (RT-A-10).
+12. **Gifts are paid on any advertised network (mainnet is Hedera-only).** `POST /gift` takes the Hedera exact
+    scheme like `/esim/topup` does: `paymentNonce()` (`middleware/x402.ts`, the one definition for both routes) is
+    the EIP-3009 nonce of an EVM payment and `sha256(settlement.transaction)` of a Hedera one; the nonce only names
+    the escrow (`giftId = keccak256(payer ‖ nonce)`, the payer as address bytes on EVM and as UTF-8 `0.0.x` on
+    Hedera; EVM giftIds are unchanged). Once-only per transaction is octroi's settlement marker (RT-O-05) on both
+    rails. The gift's escrow, receipt (`rcpt:hedera:testnet:<tx id>`), HCS message and `PAYMENT-RESPONSE` carry the
+    HTS settlement exactly as a top-up's do. A Hedera-paid gift is claimed like any other but is not reclaimable
+    (`GiftReclaim.payer` is an EVM address, T-71 f).

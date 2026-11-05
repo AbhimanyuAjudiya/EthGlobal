@@ -15,11 +15,18 @@ import {
   keccak256,
   randomBytes,
   sha256Hex,
+  utf8,
 } from '@ethglobal/crypto';
 import type { Entitlement } from '@ethglobal/octroi';
 import type { Found } from '@ethglobal/octroi/store';
 import { RechargeError } from '@ethglobal/protocol/errors';
-import { AUDIENCE, GIFT_CLAIM_WINDOW_S, keys, type Hex } from '@ethglobal/protocol/ids';
+import {
+  AUDIENCE,
+  GIFT_CLAIM_WINDOW_S,
+  isEvmNetwork,
+  keys,
+  type Hex,
+} from '@ethglobal/protocol/ids';
 import { generatePin, isValidPin, serialFromGiftId } from '@ethglobal/protocol/pin';
 import type {
   EntitledResponse,
@@ -57,7 +64,11 @@ export async function resolveName(
   return { name: normalised, to, namehash: namehash(normalised) };
 }
 
-/** After serve-paid on POST /gift: the escrow, its receipt and HCS; the PIN appears once, in this response. */
+/**
+ * After serve-paid on POST /gift: the escrow, its receipt and HCS; the PIN appears once, in this response.
+ * `paid.nonce` is `paymentNonce()` (the EIP-3009 nonce, or sha256 of the Hedera transaction id); it only names the
+ * escrow — giftId = keccak256(payer ‖ nonce), the payer as address bytes on EVM and as UTF-8 (`0.0.x`) on Hedera.
+ */
 export async function createGift(
   deps: Deps,
   input: {
@@ -71,8 +82,12 @@ export async function createGift(
   paid: { settlement: Extract<SettleResult, { success: true }>; usd6: string; nonce: Hex },
 ): Promise<GiftResponse> {
   const now = deps.now();
+  const { payer, network } = paid.settlement;
   const giftId = keccak256(
-    concat(hexToBytes(paid.settlement.payer.toLowerCase() as Hex), hexToBytes(paid.nonce)),
+    concat(
+      isEvmNetwork(network) ? hexToBytes(payer.toLowerCase() as Hex) : utf8(payer),
+      hexToBytes(paid.nonce),
+    ),
   );
   const pin = generatePin(randomBytes);
   const claimBy = now + input.claimWindowMs;

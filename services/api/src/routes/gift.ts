@@ -8,7 +8,6 @@ import {
   giftClaimRequestSchema,
   giftReclaimRequestSchema,
   giftRequestSchema,
-  isEvmExact,
   type CardPreview,
   type CardRedeemRequest,
   type GiftClaimRequest,
@@ -33,7 +32,7 @@ import {
 import { reclaim } from '../flows/reclaim.js';
 import { octroi } from '../middleware/octroi.js';
 import { validateJson } from '../middleware/validate.js';
-import { withPaymentResponse, x402 } from '../middleware/x402.js';
+import { paymentNonce, withPaymentResponse, x402 } from '../middleware/x402.js';
 import { seedCardCampaign, seedClaimWindowS } from '../seed.js';
 
 import type { Deps } from '../deps.js';
@@ -74,9 +73,6 @@ export function registerGift(app: Hono<AppEnv>, deps: Deps): void {
       if (decision instanceof Response) return decision;
       if (decision.kind !== 'serve-paid') throw fail('internal_error');
       const body = inputOf<Resolved>(c);
-      const payment = c.get('payment');
-      if (!payment || !isEvmExact(payment.payload))
-        throw fail('invalid_payment', { detail: 'gifts are paid on EVM' });
       const window = seedClaimWindowS(c);
       const gift = await createGift(
         deps,
@@ -89,7 +85,7 @@ export function registerGift(app: Hono<AppEnv>, deps: Deps): void {
         {
           settlement: decision.settlement,
           usd6: decision.requirements.amount,
-          nonce: payment.payload.authorization.nonce as Hex,
+          nonce: paymentNonce(c, decision.settlement),
         },
       );
       withPaymentResponse(c, gift.settlement);

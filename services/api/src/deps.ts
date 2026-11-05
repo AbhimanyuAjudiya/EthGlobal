@@ -278,7 +278,8 @@ async function localWiring(env: Env, now: () => number, overrides: DepsOverrides
     facilitator,
     dataDrop: () => dataDropFor(env, env.ANVIL_RPC_URL, LOCAL_CHAIN_ID, dataDropAddress),
     anvilUsdc: usdc,
-    hederaFeePayer: undefined,
+    // the mock rail has no /supported: when hedera:* is advertised locally, the pinned fee payer is the fee payer
+    hederaFeePayer: env.X402_HEDERA_FEE_PAYER,
   };
 }
 

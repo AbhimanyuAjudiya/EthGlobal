@@ -266,3 +266,7 @@ scripts/             dev-chain, e2e-local (+ e2e-agent), demo, demo-seed, print-
 security/redteam     threat-model tooling, attack scripts, findings, run-wave.sh
 docs/                ARCHITECTURE, INTERFACES, BUILD-PLAN, briefs, DISCLOSURE, DEMO-SCRIPT, ONSITE-RUNBOOK, CHANGELOG, Arkiv/Swarm
 ```
+
+## License
+
+MIT, copyright 2026 Abhimanyu Ajudiya. See [`LICENSE`](LICENSE).

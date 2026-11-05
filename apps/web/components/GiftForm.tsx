@@ -148,7 +148,7 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
         wallet={wallet}
         busy={busy}
         error={walletError}
-        onInjected={() => void pickInjected()}
+        onInjected={(w) => void pickInjected(w)}
       />
       <h1 id="gift-title" className="screen__title" lang={lang}>
         {t('gift.title')}

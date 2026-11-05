@@ -120,6 +120,8 @@
   "pay.result": "+{mb} · settled · {total} total",
   "pay.resultNew": "{mb} plan issued · settled",
   "pay.noWallet": "Continue with Coinbase Wallet / MetaMask",
+  "pay.chooseWallet": "Choose a wallet",
+  "pay.continueWith": "Continue with {name}",
   "pay.hederaTitle": "Pay on Hedera from your wallet",
   "pay.hederaBody": "Send exactly these x402 terms from a Hedera wallet. The facilitator pays the network fee.",
   "pay.hederaSoon": "Hedera wallet · coming in-window",

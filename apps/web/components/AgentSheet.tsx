@@ -153,7 +153,7 @@ export function AgentSheet() {
         wallet={wallet}
         busy={busy}
         error={walletError}
-        onInjected={() => void pickInjected()}
+        onInjected={(w) => void pickInjected(w)}
       />
       <section className="sheet agent" aria-labelledby="agent-title">
         <h1 id="agent-title" className="sheet__title" lang={lang}>

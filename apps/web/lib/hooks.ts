@@ -5,7 +5,17 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import type { PlansResponse } from '@ethglobal/protocol/schemas';
 
 import { api, ApiError } from './api';
-import { connect, connectDemo, discoverInjected, type DemoRole, type Wallet } from './wallet';
+import {
+  connect,
+  connectDemo,
+  discoverInjected,
+  rememberedInjected,
+  rememberInjected,
+  watchInjected,
+  type Announced,
+  type DemoRole,
+  type Wallet,
+} from './wallet';
 
 let plansCache: Promise<PlansResponse> | undefined;
 
@@ -52,12 +62,16 @@ export function useWallet(role: DemoRole = 'human') {
     }
   }, [role]);
 
-  const pickInjected = useCallback(async () => {
+  /** Connect `choice`; without one, whatever discovery finds — the wallet chosen earlier in this tab first. */
+  const pickInjected = useCallback(async (choice?: Announced) => {
     setBusy(true);
     try {
-      const [first] = await discoverInjected();
-      if (!first) throw new Error('No browser wallet found. Install Coinbase Wallet or MetaMask.');
-      setWallet(await connect(first.provider, 'injected', first.info.name));
+      const found = choice ? [choice] : await discoverInjected();
+      const chosen = rememberedInjected();
+      const target = found.find((w) => w.info.rdns === chosen) ?? found[0];
+      if (!target) throw new Error('No browser wallet found. Install Coinbase Wallet or MetaMask.');
+      setWallet(await connect(target.provider, 'injected', target.info.name));
+      rememberInjected(target.info.rdns);
       setError(undefined);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -79,6 +93,21 @@ export function useWallet(role: DemoRole = 'human') {
   }, [role]);
 
   return { wallet, error, busy, pickDemo, pickInjected };
+}
+
+/**
+ * The injected wallets announced so far (EIP-6963, late announcers included), for the connect button — narrowed to
+ * the one chosen earlier in this tab, so the next screen offers it by name. Empty on the server and until the
+ * first announcement; window.ethereum is not listed (it is `pickInjected()`'s fallback, not a named wallet).
+ */
+export function useInjectedWallets(): Announced[] {
+  const [found, setFound] = useState<Announced[]>([]);
+  useEffect(() => watchInjected(setFound), []);
+  return useMemo(() => {
+    const rdns = rememberedInjected();
+    const chosen = found.find((w) => w.info.rdns === rdns);
+    return chosen ? [chosen] : found;
+  }, [found]);
 }
 
 const noopSubscribe = () => () => undefined;

@@ -346,7 +346,7 @@ function PaySheetBody({
         wallet={wallet}
         busy={busy}
         error={walletError}
-        onInjected={() => void pickInjected()}
+        onInjected={(w) => void pickInjected(w)}
       />
       {!entitlementKey ? (
         <p className="note" lang={lang}>

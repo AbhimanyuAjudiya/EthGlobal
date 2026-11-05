@@ -655,6 +655,15 @@ a {
   flex-direction: column;
   gap: 0.25rem;
 }
+/* The EIP-6963 picker: one secondary row per wallet, its own icon at 20 px beside the name. */
+.wallet-picker {
+  gap: 0.5rem;
+}
+.wallet-picker__icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
 
 /* ── Agent, gift, receipts ───────────────────────────────────────────────── */
 .agent__sentence {

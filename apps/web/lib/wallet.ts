@@ -48,31 +48,66 @@ export interface Wallet {
 
 export const caip2 = (chainId: number): string => `eip155:${chainId}`;
 
-interface Announced {
-  info: { name: string; rdns: string };
+/** One EIP-6963 announcement: `rdns` identifies the wallet; `icon` is a data: URI (csp.ts allows `img-src data:`). */
+export interface Announced {
+  info: { uuid?: string; name: string; icon?: string; rdns: string };
   provider: Eip1193;
 }
 
-/** EIP-6963: ask every injected wallet to announce itself; fall back to window.ethereum. */
-export function discoverInjected(timeoutMs = 250): Promise<Announced[]> {
+/**
+ * EIP-6963: ask every injected wallet to announce itself and keep listening, so an extension that wakes up late still
+ * arrives. `onChange` gets the whole list (de-duplicated by rdns) after each new announcement. Returns the unsubscribe.
+ */
+export function watchInjected(onChange: (found: Announced[]) => void): () => void {
+  if (typeof window === 'undefined') return () => undefined;
+  const found: Announced[] = [];
+  const onAnnounce = (event: Event) => {
+    const detail = (event as CustomEvent<Partial<Announced> | undefined>).detail;
+    const { info, provider } = detail ?? {};
+    if (!provider || !info?.rdns || found.some((f) => f.info.rdns === info.rdns)) return;
+    found.push({ info, provider });
+    onChange([...found]);
+  };
+  window.addEventListener('eip6963:announceProvider', onAnnounce);
+  window.dispatchEvent(new Event('eip6963:requestProvider'));
+  return () => window.removeEventListener('eip6963:announceProvider', onAnnounce);
+}
+
+/** The wallets that announced within `timeoutMs`; when none did, window.ethereum (whichever extension owns it). */
+export function discoverInjected(timeoutMs = 300): Promise<Announced[]> {
   if (typeof window === 'undefined') return Promise.resolve([]);
   return new Promise((resolve) => {
-    const found: Announced[] = [];
-    const onAnnounce = (event: Event) => {
-      const detail = (event as CustomEvent<Announced>).detail;
-      if (detail?.provider && !found.some((f) => f.info.rdns === detail.info.rdns))
-        found.push(detail);
-    };
-    window.addEventListener('eip6963:announceProvider', onAnnounce);
-    window.dispatchEvent(new Event('eip6963:requestProvider'));
+    let found: Announced[] = [];
+    const stop = watchInjected((next) => {
+      found = next;
+    });
     setTimeout(() => {
-      window.removeEventListener('eip6963:announceProvider', onAnnounce);
+      stop();
       const legacy = (window as unknown as { ethereum?: Eip1193 }).ethereum;
       if (found.length === 0 && legacy)
-        found.push({ info: { name: 'Browser wallet', rdns: 'injected' }, provider: legacy });
+        found = [{ info: { name: 'Browser wallet', rdns: 'injected' }, provider: legacy }];
       resolve(found);
     }, timeoutMs);
   });
+}
+
+const CHOSEN_KEY = 'recharge.wallet';
+
+/** The rdns of the wallet chosen earlier in this tab, so the next screen offers it by name instead of the picker. */
+export function rememberedInjected(): string | undefined {
+  try {
+    return sessionStorage.getItem(CHOSEN_KEY) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function rememberInjected(rdns: string): void {
+  try {
+    sessionStorage.setItem(CHOSEN_KEY, rdns);
+  } catch {
+    // per-tab convenience only
+  }
 }
 
 function readerFor(provider: Eip1193): PublicClient {

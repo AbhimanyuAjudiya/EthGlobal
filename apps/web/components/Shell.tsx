@@ -5,8 +5,9 @@ import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 
 import { LangSwitch, T, useLang } from '../i18n/lang';
 import { IS_TESTNET } from '../lib/env';
+import { useInjectedWallets } from '../lib/hooks';
 import { plans } from '../lib/store';
-import { demoIndex, type Wallet } from '../lib/wallet';
+import { demoIndex, type Announced, type Wallet } from '../lib/wallet';
 
 /**
  * "TESTNET · test USDC · not a sale" — Stripe's test-mode rail, 12 px Chivo Mono, on every money screen and the
@@ -121,7 +122,18 @@ export function WalletBanner({ wallet }: { wallet: Wallet | undefined }) {
   );
 }
 
-/** "Continue with Coinbase Wallet / MetaMask" when no wallet is connected yet. */
+/** A wallet's EIP-6963 icon: only the data: URI the spec requires is shown (csp.ts img-src); a URL is never fetched. */
+function WalletIcon({ src }: { src: string | undefined }) {
+  if (!src?.startsWith('data:image/')) return null;
+  // eslint-disable-next-line @next/next/no-img-element -- a data: URI; nothing for next/image to optimise
+  return <img className="wallet-picker__icon" src={src} alt="" width={20} height={20} />;
+}
+
+/**
+ * The connect control while no wallet is connected: one injected wallet is named ("Continue with MetaMask"); several
+ * (EIP-6963: MetaMask and Coinbase Wallet both installed) open a picker, each with its own icon and name; none keeps
+ * the generic line and lets `onInjected()` fall back to window.ethereum.
+ */
 export function WalletButton({
   wallet,
   busy,
@@ -131,20 +143,49 @@ export function WalletButton({
   wallet: Wallet | undefined;
   busy: boolean;
   error: string | undefined;
-  onInjected: () => void;
+  /** Connect the chosen wallet; with none chosen, whatever discovery finds. */
+  onInjected: (choice?: Announced) => void;
 }) {
+  const { t } = useLang();
+  const found = useInjectedWallets();
+  const [open, setOpen] = useState(false);
   if (wallet) return <WalletBanner wallet={wallet} />;
+  const only = found.length === 1 ? found[0] : undefined;
   return (
     <div className="wallet-connect">
-      <button
-        type="button"
-        className="ui-button"
-        data-variant="secondary"
-        onClick={onInjected}
-        disabled={busy}
-      >
-        <T k="pay.noWallet" />
-      </button>
+      {open && found.length > 1 ? (
+        <div className="sheet wallet-picker" role="group" aria-label={t('pay.chooseWallet')}>
+          {found.map((w) => (
+            <button
+              key={w.info.rdns}
+              type="button"
+              className="ui-button ui-button--block"
+              data-variant="secondary"
+              onClick={() => onInjected(w)}
+              disabled={busy}
+            >
+              <WalletIcon src={w.info.icon} />
+              <span lang="en">{w.info.name}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="ui-button"
+          data-variant="secondary"
+          onClick={() => (found.length > 1 ? setOpen(true) : onInjected(only))}
+          disabled={busy}
+        >
+          {found.length > 1 ? (
+            <T k="pay.chooseWallet" />
+          ) : only ? (
+            <T k="pay.continueWith" params={{ name: only.info.name }} />
+          ) : (
+            <T k="pay.noWallet" />
+          )}
+        </button>
+      )}
       {error ? <p className="note">{error}</p> : null}
     </div>
   );

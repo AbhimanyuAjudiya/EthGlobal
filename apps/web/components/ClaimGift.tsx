@@ -55,7 +55,7 @@ export function ClaimGift({ giftId, name }: { giftId?: string; name?: string }) 
             wallet={wallet}
             busy={busy}
             error={walletError}
-            onInjected={() => void pickInjected()}
+            onInjected={(w) => void pickInjected(w)}
           />
           <p lang={lang}>{t('gift.claimSign')}</p>
           <Button

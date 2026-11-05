@@ -120,6 +120,8 @@
   "pay.result": "+{mb} · सेटल · एकूण {total}",
   "pay.resultNew": "{mb} प्लॅन जारी · सेटल",
   "pay.noWallet": "Coinbase Wallet / MetaMask ने पुढे जा",
+  "pay.chooseWallet": "वॉलेट निवडा",
+  "pay.continueWith": "{name} ने पुढे जा",
   "pay.hederaTitle": "तुमच्या वॉलेटमधून Hedera वर पैसे द्या",
   "pay.hederaBody": "Hedera वॉलेटमधून नेमक्या याच x402 अटी पाठवा. नेटवर्क शुल्क फॅसिलिटेटर देतो.",
   "pay.hederaSoon": "Hedera वॉलेट · कार्यक्रमादरम्यान",

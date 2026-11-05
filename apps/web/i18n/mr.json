@@ -318,5 +318,6 @@
   "wallet.connected": "कनेक्ट झाले",
   "wallet.switch": "वॉलेट बदला",
   "wallet.disconnect": "डिस्कनेक्ट करा",
-  "wallet.address": "पत्ता"
+  "wallet.address": "पत्ता",
+  "verify.showQr": "त्याऐवजी QR दाखवा"
 }

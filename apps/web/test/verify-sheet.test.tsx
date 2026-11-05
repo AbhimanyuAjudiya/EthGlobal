@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => {
     rpContext: vi.fn(),
     claim: vi.fn(),
     deliver: vi.fn(),
+    poll: vi.fn(),
   };
 });
 
@@ -51,6 +52,15 @@ vi.mock('../lib/api', async (importOriginal) => {
   };
 });
 vi.mock('../lib/local/world-sim', () => ({ simulatedProof: () => Promise.resolve({ sim: true }) }));
+const CONNECTOR = 'https://world.org/verify?t=wld&i=test-request';
+vi.mock('@worldcoin/idkit-core', () => ({
+  documentLegacy: () => ({}),
+  IDKit: {
+    request: () => ({
+      preset: () => Promise.resolve({ connectorURI: CONNECTOR, pollUntilCompletion: mocks.poll }),
+    }),
+  },
+}));
 vi.mock('../lib/deliver', async (importOriginal) => ({
   ...(await importOriginal<typeof DeliverModule>()),
   deliver: mocks.deliver,
@@ -137,5 +147,45 @@ describe('VerifySheet — a slow or lost claim answer (RT-W-13)', () => {
     expect(screen.getByRole('status').textContent).toMatch(
       /^Claiming on-chain and preparing your eSIM · \d+ s · this can take a minute$/,
     );
+  });
+});
+
+describe('VerifySheet — World App on the same phone is one tap', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  /** Live mode up to `waiting` with a connector URI; the poll never settles (World App still open). */
+  async function wait(coarse: boolean) {
+    vi.stubEnv('NEXT_PUBLIC_MODE', 'live');
+    vi.stubGlobal('matchMedia', (q: string) => ({ matches: coarse && q === '(pointer: coarse)' }));
+    mocks.challenge.mockResolvedValue(CHALLENGE);
+    mocks.rpContext.mockResolvedValue({});
+    mocks.poll.mockReturnValue(new Promise(() => undefined));
+    render(<VerifySheet />);
+    await click(await screen.findByRole('button', { name: 'Open World App' }));
+    await screen.findByText(/^Waiting for World App/);
+  }
+
+  it('on a phone: an "Open World App" link to the connector URI, no QR until "Show QR instead"', async () => {
+    await wait(true);
+    const open = await screen.findByRole('link', { name: 'Open World App' });
+    expect(open.getAttribute('href')).toBe(CONNECTOR);
+    expect(screen.queryByRole('img', { name: 'Scan with World App' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Show QR instead' }));
+    expect(screen.getByRole('img', { name: 'Scan with World App' })).toBeTruthy();
+    expect(mocks.poll).toHaveBeenCalledTimes(1);
+  });
+
+  it('on a desktop: the QR first, with a small "Open World App" link', async () => {
+    await wait(false);
+    expect(await screen.findByRole('img', { name: 'Scan with World App' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Open World App' }).getAttribute('href')).toBe(
+      CONNECTOR,
+    );
+    expect(screen.queryByRole('button', { name: 'Show QR instead' })).toBeNull();
   });
 });

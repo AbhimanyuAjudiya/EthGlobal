@@ -15,6 +15,7 @@ import { useLang } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
 import { deliver, planHref } from '../lib/deliver';
+import { isHandheld } from '../lib/device';
 import { config } from '../lib/env';
 import { formatMb, mmss, money, priceFor } from '../lib/format';
 import { useClock, usePlans } from '../lib/hooks';
@@ -103,6 +104,9 @@ export function VerifySheet() {
   const { plans } = usePlans();
   const now = useClock(1000);
   const [phase, setPhase] = useState<Phase>({ kind: 'preparing' });
+  // read once on the client; the server never renders the `waiting` phase, so no hydration mismatch
+  const [handheld] = useState(() => typeof window !== 'undefined' && isHandheld(window));
+  const [showQr, setShowQr] = useState(false);
   const session = useRef<{ spk: Hex; challenge: ChallengeWire } | undefined>(undefined);
 
   const [round, setRound] = useState(0);
@@ -200,8 +204,34 @@ export function VerifySheet() {
           <p role="status" lang={lang}>
             {t('verify.waiting', { elapsed: mmss(now - phase.since) })}
           </p>
-          {phase.connectorURI ? (
-            <QrCode url={phase.connectorURI} sizeMm={44} label={t('verify.scan')} />
+          {phase.connectorURI && handheld ? (
+            <>
+              {/* World App is on this phone: one tap opens it; the poll keeps running meanwhile */}
+              <a
+                href={phase.connectorURI}
+                className="ui-button ui-button--block"
+                data-variant="primary"
+                lang={lang}
+              >
+                {t('verify.open')}
+              </a>
+              {showQr ? (
+                <QrCode url={phase.connectorURI} sizeMm={44} label={t('verify.scan')} />
+              ) : (
+                <Button variant="quiet" onClick={() => setShowQr(true)}>
+                  {t('verify.showQr')}
+                </Button>
+              )}
+            </>
+          ) : phase.connectorURI ? (
+            <>
+              <QrCode url={phase.connectorURI} sizeMm={44} label={t('verify.scan')} />
+              <p className="quiet-rows">
+                <a href={phase.connectorURI} lang={lang}>
+                  {t('verify.open')}
+                </a>
+              </p>
+            </>
           ) : null}
         </>
       );

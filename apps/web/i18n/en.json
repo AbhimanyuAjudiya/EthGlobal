@@ -318,5 +318,6 @@
   "wallet.connected": "Connected",
   "wallet.switch": "Switch wallet",
   "wallet.disconnect": "Disconnect",
-  "wallet.address": "address"
+  "wallet.address": "address",
+  "verify.showQr": "Show QR instead"
 }

@@ -58,3 +58,14 @@ export function isStandalone(
   if (win.matchMedia?.('(display-mode: standalone)').matches) return true;
   return (win.navigator as { standalone?: boolean } | undefined)?.standalone === true;
 }
+
+/** Phone or tablet (coarse pointer or a mobile UA): World App is on this device, so open it, not a QR. */
+export function isHandheld(
+  win:
+    | { matchMedia?: (q: string) => { matches: boolean }; navigator?: { userAgent?: string } }
+    | undefined,
+): boolean {
+  if (!win) return false;
+  if (win.matchMedia?.('(pointer: coarse)').matches) return true;
+  return /Android|iPhone|iPad|iPod|Mobile/.test(win.navigator?.userAgent ?? '');
+}

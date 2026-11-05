@@ -198,7 +198,8 @@ rules:
     languages: [generic]
     paths:
       include: ["**/apps/**", "**/packages/**", "**/services/**", "**/scripts/**"]
-      exclude: ["**/test/attack/**", "**/fixtures/hostile/**"]
+      # deploy/addresses.<slug>.json records the deploy chain as eip155:<id> (INTERFACES §6.3), not an x402 network — user-approved exclusion 2026-11-05
+      exclude: ["**/test/attack/**", "**/fixtures/hostile/**", "**/deploy/addresses.*.json"]
     pattern-regex: (\bmaxAmountRequired\s*\??:|\.maxAmountRequired\b|['"]maxAmountRequired['"]|['"`][Xx]-[Pp][Aa][Yy][Mm][Ee][Nn][Tt](-[Rr]esponse|-RESPONSE)?['"`]|['"`]base-sepolia['"`]|['"`](hedera|eip155):29[5-7]['"`]|from\s+['"`]x402(-hono|-fetch|-express|-next|-axios)?['"`])
 
   - id: recharge-world-id-legacy-primitive

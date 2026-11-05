@@ -281,4 +281,4 @@ User-facing copy per code lives in `apps/web/i18n` (en/hi/mr); never "Something 
 | D-9 | Self-run facilitator is the local default and the live fallback; it also serves `/facilitator/*` publicly | mock rail in e2e (would not exercise EIP-3009 or MockUSDC3009) |
 | D-10 | The agent's policy is a ledger entity written through the API with an EIP-712 signature; the agent reads it each tick | a control API on the agent (second HTTP surface, auth) |
 | D-11 | Android install path is honest: copy the activation code, exact Settings steps, an `intent:` link labelled unverified | promising a one-tap Android install (EuiccManager forbids it from the web) |
-| D-12 | No wagmi/RainbowKit; viem + EIP-1193 + a local-only demo wallet panel | wallet kits (bundle, slop, T-63) |
+| D-12 | RainbowKit + wagmi for connecting (revised 2026-11-06: mobile WalletConnect); signing stays viem typed data through one `Wallet`; the demo wallet is a local-only wagmi connector | the custom EIP-6963 picker (no mobile path) |

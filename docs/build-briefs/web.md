@@ -11,7 +11,7 @@
 6. `docs/THREAT-MODEL.md` §5.8 (T-58…T-64), T-31, T-32, T-47, T-61.
 7. The scaffold: `apps/web/**`, `packages/ui/**` (tokens, fonts, tailwind bridge, `index.ts`), root `eslint.config.js` (web zone), `.jscpd.json`.
 
-**Toolchain:** Next 16.4.4 (`output: 'standalone'`, `transpilePackages: ['@ethglobal/ui']`, `cacheComponents`), React 19.3, Tailwind v4 via `@tailwindcss/turbopack`, viem 2 (EIP-1193 + typed data; **no wagmi/RainbowKit**, D-12), `@worldcoin/idkit@4.6.0` (React `IDKitRequestWidget`, controlled `open`/`onOpenChange`) over `@worldcoin/idkit-core@4.6.0` — exact pins; never `^2`/`^3` (they do not work with v4) and never `@worldcoin/idkit-standalone` (discontinued) (A-25), `@ethglobal/protocol`, `@ethglobal/crypto`, `@ethglobal/eip3009`, `@ethglobal/contracts/abi/*`, Playwright 1.63 (installed), vitest for units.
+**Toolchain:** Next 16.4.4 (`output: 'standalone'`, `transpilePackages: ['@ethglobal/ui']`, `cacheComponents`), React 19.3, Tailwind v4 via `@tailwindcss/turbopack`, viem 2 (typed data), wagmi 2.19.5 + RainbowKit 2.2.11 + react-query 5 for connecting (D-12 revised 2026-11-06), `@worldcoin/idkit@4.6.0` (React `IDKitRequestWidget`, controlled `open`/`onOpenChange`) over `@worldcoin/idkit-core@4.6.0` — exact pins; never `^2`/`^3` (they do not work with v4) and never `@worldcoin/idkit-standalone` (discontinued) (A-25), `@ethglobal/protocol`, `@ethglobal/crypto`, `@ethglobal/eip3009`, `@ethglobal/contracts/abi/*`, Playwright 1.63 (installed), vitest for units.
 
 ---
 
@@ -36,7 +36,8 @@ apps/web/public/sw.js  public/icons/*        // service worker: app shell only; 
 apps/web/lib/api.ts                          // typed client over httpJson + protocol schemas; X-Request-Id; error → RechargeError
 apps/web/lib/pay402.ts                       // fetchWithPayment + PaymentSigner implementations: EvmWalletSigner (EIP-1193), DemoWalletSigner (local only), HederaWalletSigner (interface + "coming in-window" state)
 apps/web/lib/session-key.ts                  // generateSessionKeypair in memory; openLpa; zeroize after use (T-60)
-apps/web/lib/wallet.ts                       // EIP-1193 discovery (EIP-6963), chain → CAIP-2 network, signTypedData
+apps/web/lib/wagmi.ts                        // wagmi config: chains, RainbowKit wallet list, wallet-routed transports, demo connectors (local)
+apps/web/lib/wallet.ts                       // Wallet over a wagmi wallet client, chain → CAIP-2 network, signTypedData
 apps/web/lib/onchain-action.ts               // reducer over the 8 states; stuck flag; persisted pending hashes (IndexedDB)
 apps/web/lib/lpa-links.ts                    // iOS universal link builder + Android instructions; regex-validated input only (T-62)
 apps/web/lib/store.ts                        // IndexedDB: entitlementKeys[], opened LPAs by key, pending tx hashes, agent policy draft; never the session secret

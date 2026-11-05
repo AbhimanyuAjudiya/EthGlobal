@@ -124,6 +124,7 @@ test.describe('W10 client bundle (local build on disk)', () => {
       'NEXT_PUBLIC_CHAIN_ID',
       'NEXT_PUBLIC_ATTACH_MEDIAN_S',
       'NEXT_PUBLIC_PUBLIC_ORIGIN',
+      'NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID',
       'NODE_ENV',
     ]);
     const bad: string[] = [];

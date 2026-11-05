@@ -963,16 +963,8 @@ a {
   flex-direction: column;
   gap: 0.25rem;
 }
-/* The EIP-6963 picker: one secondary row per wallet, its own icon at 20 px beside the name. */
-.wallet-picker {
-  gap: 0.5rem;
-}
-.wallet-picker__icon {
-  flex: none;
-  width: 20px;
-  height: 20px;
-}
-/* Connected: who and which address on one wrapping line, Switch wallet / Disconnect (48 px buttons) beside it. */
+/* Connected (RainbowKit ConnectButton.Custom, Shell.tsx WalletControl): who and which address on one wrapping line,
+   the network switch when the wallet is elsewhere, and Disconnect (48 px buttons) beside it. */
 .wallet-status,
 .wallet-status__actions {
   display: flex;

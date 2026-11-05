@@ -19,7 +19,11 @@ catalog:
   "@noble/curves": 2.4.0
   "@noble/hashes": 2.4.0
   "@playwright/test": 1.63.0
+  # EVM wallet layer (apps/web lib/wagmi.ts): RainbowKit 2.2.11 (2026-05-06) peers wagmi ^2.9, so wagmi stays on 2.x
+  # (2.19.5, 2025-11-19); react-query 5.105.3 published 2026-11-02
+  "@rainbow-me/rainbowkit": 2.2.11
   "@tailwindcss/turbopack": 4.3.4
+  "@tanstack/react-query": 5.105.3
   "@types/node": 22.20.5
   "@types/react": 19.3.0
   "@types/react-dom": 19.3.0
@@ -53,6 +57,7 @@ catalog:
   uqr: 0.1.3
   viem: 2.57.14
   vitest: 5.1.0
+  wagmi: 2.19.5
   zod: 4.6.7
 
 # Supply chain (THREAT-MODEL T-65): never resolve a version published less than 3 days ago (minutes).
@@ -64,6 +69,8 @@ minimumReleaseAge: 4320
 overrides:
   "ws@>=8.0.0 <8.21.0": 8.21.0
   "zod@>=4.0.0 <4.6.6": 4.6.7
+  # wallet-kit transitives ask for query-core ^5 and would take 5.106.x (< 3 days old); keep it on react-query's own pin
+  "@tanstack/query-core": 5.105.3
 
 # Install scripts: esbuild's postinstall only verifies its binary; sharp/unrs-resolver are skipped as
 # create-next-app does by default.

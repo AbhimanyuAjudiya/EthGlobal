@@ -18,12 +18,15 @@
     "@ethglobal/eip3009": "workspace:*",
     "@ethglobal/protocol": "workspace:*",
     "@ethglobal/ui": "workspace:*",
+    "@rainbow-me/rainbowkit": "catalog:",
+    "@tanstack/react-query": "catalog:",
     "@worldcoin/idkit-core": "catalog:",
     "next": "16.4.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "uqr": "catalog:",
     "viem": "catalog:",
+    "wagmi": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

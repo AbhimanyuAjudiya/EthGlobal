@@ -43,7 +43,7 @@ export function AgentSheet() {
   const { t, lang } = useLang();
   const netName = useNetworkName();
   const { plans } = usePlans();
-  const { wallet, busy, error: walletError, pickInjected, disconnect } = useWallet('human');
+  const { wallet } = useWallet('human');
   const [key, setKey] = useState<string | null | undefined>();
   const [policy, setPolicy] = useState<TopUpPolicyWire | undefined>();
   const [view, setView] = useState<AgentPolicyView | undefined>();
@@ -149,13 +149,7 @@ export function AgentSheet() {
   return (
     <Screen money>
       <AppHeader />
-      <WalletButton
-        wallet={wallet}
-        busy={busy}
-        error={walletError}
-        onInjected={(w) => void pickInjected(w)}
-        onDisconnect={disconnect}
-      />
+      <WalletButton wallet={wallet} />
       <section className="sheet agent" aria-labelledby="agent-title">
         <h1 id="agent-title" className="sheet__title" lang={lang}>
           {t('agent.title')}

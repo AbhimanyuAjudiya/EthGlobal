@@ -190,7 +190,6 @@
   "pay.resultNew": "{mb} प्लॅन जारी · सेटल",
   "pay.noWallet": "Coinbase Wallet / MetaMask ने पुढे जा",
   "pay.chooseWallet": "वॉलेट निवडा",
-  "pay.continueWith": "{name} ने पुढे जा",
   "pay.hederaTitle": "तुमच्या वॉलेटमधून Hedera वर पैसे द्या",
   "pay.hederaBody": "Hedera वॉलेटमधून नेमक्या याच x402 अटी पाठवा. नेटवर्क शुल्क फॅसिलिटेटर देतो.",
   "pay.hederaSoon": "Hedera वॉलेट · कार्यक्रमादरम्यान",
@@ -316,8 +315,8 @@
   "verify.unconfirmed": "Recharge ने वेळेत उत्तर दिले नाही. तुमचा क्लेम कदाचित आमच्या बाजूने पूर्ण झाला असेल. पुन्हा प्रयत्न करण्यापूर्वी तुमचे प्लॅन पाहा — एकच World ID दोनदा क्लेम करू शकत नाही.",
   "verify.checkPlans": "माझे प्लॅन पाहा",
   "wallet.connected": "कनेक्ट झाले",
-  "wallet.switch": "वॉलेट बदला",
   "wallet.disconnect": "डिस्कनेक्ट करा",
-  "wallet.address": "पत्ता",
-  "verify.showQr": "त्याऐवजी QR दाखवा"
+  "verify.showQr": "त्याऐवजी QR दाखवा",
+  "wallet.wrongNetwork": "वॉलेट {network} वर आहे",
+  "wallet.switchTo": "{network} वर जा"
 }

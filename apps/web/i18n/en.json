@@ -190,7 +190,6 @@
   "pay.resultNew": "{mb} plan issued · settled",
   "pay.noWallet": "Continue with Coinbase Wallet / MetaMask",
   "pay.chooseWallet": "Choose a wallet",
-  "pay.continueWith": "Continue with {name}",
   "pay.hederaTitle": "Pay on Hedera from your wallet",
   "pay.hederaBody": "Send exactly these x402 terms from a Hedera wallet. The facilitator pays the network fee.",
   "pay.hederaSoon": "Hedera wallet · coming in-window",
@@ -316,8 +315,8 @@
   "verify.unconfirmed": "Recharge didn't answer in time. Your claim may still have gone through on our side. Check your plans before trying again — the same World ID can't claim twice.",
   "verify.checkPlans": "Check my plans",
   "wallet.connected": "Connected",
-  "wallet.switch": "Switch wallet",
   "wallet.disconnect": "Disconnect",
-  "wallet.address": "address",
-  "verify.showQr": "Show QR instead"
+  "verify.showQr": "Show QR instead",
+  "wallet.wrongNetwork": "Wallet is on {network}",
+  "wallet.switchTo": "Switch to {network}"
 }

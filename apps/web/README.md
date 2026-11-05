@@ -47,13 +47,25 @@ next.config.ts fills it from `deploy/addresses.anvil.json` once `pnpm dev:chain`
 - **The plan pointer** (`currentKey`) only names a plan this device claimed, bought or explicitly kept (RT-W-03); the
   opened LPA is one-at-a-time and deleted once `/me` says `installed`/`active` (RT-W-01).
 
+## Wallets
+
+RainbowKit 2 over wagmi 2 (`lib/wagmi.ts`, provider in `components/Wallets.tsx`): Base Sepolia (84532) and Hedera
+testnet EVM (296), plus Anvil (31337) in MODE=local. `Shell.tsx` `WalletButton` renders `ConnectButton.Custom` in our
+`ui-button` styles (name or shortened address, wrong-network switch, Disconnect); `lib/hooks.ts` `useWallet` turns
+wagmi's wallet client into the `Wallet` that `pay402.ts`, `sponsor.ts` and `redeem.ts` sign through. Reads go through
+the connected wallet, never a public RPC. `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` adds WalletConnect and Rainbow (and
+the relay to the CSP); unset, only injected / EIP-6963 wallets are listed. The theme is our tokens (`light-dark()`
+variables), so the modal follows the theme switch.
+
 ## The demo wallet (MODE=local only)
 
-`lib/wallet.ts` `demoProvider(role)` is an EIP-1193 transport to `app/api/demo-wallet` (404 unless
+`lib/local/demo-wallet.ts` `demoProvider(role)` is an EIP-1193 transport to `app/api/demo-wallet`, wrapped as one
+wagmi connector per role in `lib/wagmi.ts` (built only behind the literal MODE check) (404 unless
 `NEXT_PUBLIC_MODE=local` and `DEMO_WALLET_MNEMONIC` is set). The route derives Anvil #5 (human), #3 (sponsor) and #9
 (rahul.eth) from the mnemonic on the server, so no key is in the bundle (`test/no-anvil-key-in-bundle.test.ts`). The
 route answers same-origin JSON only and allow-lists read methods (no `anvil_*`/`evm_*`, RT-W-05).
-Every screen shows "demo wallet · Anvil #n". Injected wallets (EIP-6963) use the same code path.
+Every screen shows "demo wallet · Anvil #n" and connects its role on mount unless a real wallet is connected; any
+wallet RainbowKit lists uses the same code path.
 
 ## Tests
 

@@ -67,6 +67,8 @@ const nextConfig: NextConfig = {
     resolveAlias: {
       // nosemgrep: recharge-rp-signing-key-in-client — this alias is the guard: it keeps the signer out of the browser
       '@worldcoin/idkit-server': { browser: './lib/idkit-server.browser.ts' },
+      // lib/base-account.stub.ts: the unused Base Account SDK (and its CDP SDK) stays out of every bundle
+      '@base-org/account': './lib/base-account.stub.ts',
     },
     rules: {
       '*.css': {

@@ -1221,6 +1221,7 @@ AGENT_EVM_PRIVATE_KEY= AGENT_HEDERA_ACCOUNT_ID= AGENT_HEDERA_PRIVATE_KEY= AGENT_
 # Web (public)
 NEXT_PUBLIC_API_URL=http://127.0.0.1:8787 NEXT_PUBLIC_MODE=local NEXT_PUBLIC_ANVIL_RPC_URL=http://127.0.0.1:8545
 NEXT_PUBLIC_WORLD_APP_ID= NEXT_PUBLIC_WORLD_ACTION=recharge-welcome NEXT_PUBLIC_WORLD_ENVIRONMENT=production NEXT_PUBLIC_EXPLORER_EVM= NEXT_PUBLIC_EXPLORER_HEDERA=https://hashscan.io/testnet NEXT_PUBLIC_ARKIV_EXPLORER=https://rabdi.explorer.arkiv.network
+NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=
 ```
 `services/api/src/env.ts` rejects: `MODE=live` with any Anvil key in `ATTESTOR_PRIVATE_KEY`/`RELAYER_PRIVATE_KEY`/`ARKIV_PRIVATE_KEY`; `LOG_LEVEL=debug|trace` in live; `OCTROI_SECRET` shorter than 32 bytes; `X402_NETWORKS` outside the testnet set without both sales flags; in live: `RESELLER=megaesim` (A-28), a missing `WORLD_RP_ID`/`WORLD_RP_SIGNING_KEY` (A-25), `ARKIV_CHAIN_ID=60138453025` (Kaolin, retired, A-23).
 

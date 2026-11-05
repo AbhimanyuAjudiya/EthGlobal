@@ -1,4 +1,5 @@
 import { ServiceWorker } from '../components/ServiceWorker';
+import { Wallets } from '../components/Wallets';
 import { LangProvider } from '../i18n/lang';
 
 import type { Metadata, Viewport } from 'next';
@@ -39,7 +40,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" data-type="bazaar" suppressHydrationWarning>
       <body className="min-h-dvh antialiased">
-        <LangProvider>{children}</LangProvider>
+        <LangProvider>
+          <Wallets>{children}</Wallets>
+        </LangProvider>
         <ServiceWorker />
       </body>
     </html>

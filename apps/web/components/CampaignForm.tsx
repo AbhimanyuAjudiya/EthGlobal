@@ -94,7 +94,7 @@ async function send(
  * → POST /sponsor signed with SponsorLogin → the audit key shown once with a copy affordance.
  */
 export function CampaignForm() {
-  const { wallet, busy, error: walletError, pickInjected, disconnect } = useWallet('sponsor');
+  const { wallet } = useWallet('sponsor');
   const approve = useOnchainAction();
   const create = useOnchainAction();
   const [draft, setDraft] = useState<Draft>(initial);
@@ -192,13 +192,7 @@ export function CampaignForm() {
 
   return (
     <div className="sponsor-create">
-      <WalletButton
-        wallet={wallet}
-        busy={busy}
-        error={walletError}
-        onInjected={(w) => void pickInjected(w)}
-        onDisconnect={disconnect}
-      />
+      <WalletButton wallet={wallet} />
       <section aria-label="Your campaigns">
         <table className="data-table">
           <thead>

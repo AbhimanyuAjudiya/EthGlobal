@@ -173,7 +173,7 @@ function PaySheetBody({
   const walletLabel = useWalletLabel();
   const router = useRouter();
   const { plans } = usePlans();
-  const { wallet, busy, error: walletError, pickInjected, disconnect } = useWallet('human');
+  const { wallet } = useWallet('human');
   const { row, dispatch, now } = useOnchainAction();
   const clock = useClock(1000);
   const [mb, setMb] = useState(
@@ -342,13 +342,7 @@ function PaySheetBody({
   return (
     <Screen money>
       <AppHeader />
-      <WalletButton
-        wallet={wallet}
-        busy={busy}
-        error={walletError}
-        onInjected={(w) => void pickInjected(w)}
-        onDisconnect={disconnect}
-      />
+      <WalletButton wallet={wallet} />
       {!entitlementKey ? (
         <>
           <p className="note" lang={lang}>

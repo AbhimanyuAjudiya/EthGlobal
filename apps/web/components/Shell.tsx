@@ -1,5 +1,6 @@
 'use client';
 
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
 import {
   lazy,
@@ -11,14 +12,14 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useDisconnect, useSwitchChain } from 'wagmi';
 
-import { Button, Hash, Icon } from '@ethglobal/ui/components';
+import { Button, Icon } from '@ethglobal/ui/components';
 
 import { LangSwitch, T, useLang, useNetworkName } from '../i18n/lang';
 import { config, IS_TESTNET } from '../lib/env';
-import { useInjectedWallets } from '../lib/hooks';
 import { plans } from '../lib/store';
-import { demoIndex, type Announced, type Wallet } from '../lib/wallet';
+import { caip2, demoIndex, type Wallet } from '../lib/wallet';
 
 import type { StringKey } from '../i18n/strings';
 
@@ -293,110 +294,90 @@ export function WalletBanner({ wallet }: { wallet: Wallet | undefined }) {
   );
 }
 
-/** A wallet's EIP-6963 icon: only the data: URI the spec requires is shown (csp.ts img-src); a URL is never fetched. */
-function WalletIcon({ src }: { src: string | undefined }) {
-  if (!src?.startsWith('data:image/')) return null;
-  // eslint-disable-next-line @next/next/no-img-element -- a data: URI; nothing for next/image to optimise
-  return <img className="wallet-picker__icon" src={src} alt="" width={20} height={20} />;
+/** What the connect control shows: everything it needs from RainbowKit's ConnectButton.Custom and wagmi, as plain props. */
+export interface WalletControlProps {
+  /** false on the server and during hydration: the control renders but does nothing yet. */
+  mounted: boolean;
+  /** Connected: ENS name or the shortened address (RainbowKit `displayName`); the full address in `address`. */
+  account?: { address: string; displayName: string } | undefined;
+  /** The wallet's chain, when it is not this app's (config.chainId). */
+  wrongNetwork?: { have: string; want: string } | undefined;
+  onConnect: () => void;
+  onSwitchNetwork: () => void;
+  onDisconnect: () => void;
 }
 
 /**
- * Connected: the wallet's icon and name, the shortened address (copyable), the network when it is not this app's
- * chain, and Switch wallet / Disconnect. Not connected, the connect control: one injected wallet is named ("Continue with MetaMask"); several
- * (EIP-6963: MetaMask and Coinbase Wallet both installed) open a picker, each with its own icon and name; none keeps
- * the generic line and lets `onInjected()` fall back to window.ethereum.
+ * The connect control, in our own ui-button styles (48 px targets, RT-W-07): Connect opens RainbowKit's modal;
+ * connected shows the name or shortened address, the wrong-network warning with a switch, and Disconnect.
  */
-export function WalletButton({
-  wallet,
-  busy,
-  error,
-  onInjected,
+export function WalletControl({
+  mounted,
+  account,
+  wrongNetwork,
+  onConnect,
+  onSwitchNetwork,
   onDisconnect,
-}: {
-  wallet: Wallet | undefined;
-  busy: boolean;
-  error: string | undefined;
-  /** Connect the chosen wallet; with none chosen, whatever discovery finds. */
-  onInjected: (choice?: Announced) => void;
-  /** useWallet().disconnect: `true` = Switch wallet (re-ask for the account on the next connect). */
-  onDisconnect: (switching?: boolean) => void;
-}) {
+}: WalletControlProps) {
   const { t, lang } = useLang();
-  const netName = useNetworkName();
-  const found = useInjectedWallets();
-  const [open, setOpen] = useState(false);
-  if (wallet?.kind === 'demo') return <WalletBanner wallet={wallet} />;
-  if (wallet)
+  if (!mounted || !account)
     return (
-      <div className="wallet-status" role="group" aria-label={t('wallet.connected')}>
-        <p className="wallet-status__who">
-          <WalletIcon src={found.find((w) => w.info.name === wallet.name)?.info.icon} />
-          <span>{t('wallet.connected')}</span>
-          <span lang="en">{wallet.name}</span>
-          <Hash value={wallet.address} kind={t('wallet.address')} lang={lang} />
-          {wallet.chainId !== config.chainId ? (
-            <span className="wallet-status__network">
-              <Icon name="warning" />
-              {netName(wallet.network)}
-            </span>
-          ) : null}
-        </p>
-        <div className="wallet-status__actions">
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setOpen(true);
-              onDisconnect(true);
-            }}
-          >
-            <T k="wallet.switch" />
-          </Button>
-          <Button variant="quiet" onClick={() => onDisconnect(false)}>
-            <T k="wallet.disconnect" />
-          </Button>
-        </div>
+      <div className="wallet-connect" aria-hidden={mounted ? undefined : true}>
+        <Button variant="secondary" onClick={onConnect} disabled={!mounted}>
+          <T k="pay.chooseWallet" />
+        </Button>
       </div>
     );
-  const only = found.length === 1 ? found[0] : undefined;
   return (
-    <div className="wallet-connect">
-      {open && found.length > 1 ? (
-        <div className="sheet wallet-picker" role="group" aria-label={t('pay.chooseWallet')}>
-          {found.map((w) => (
-            <button
-              key={w.info.rdns}
-              type="button"
-              className="ui-button ui-button--block"
-              data-variant="secondary"
-              onClick={() => {
-                setOpen(false);
-                onInjected(w);
-              }}
-              disabled={busy}
-            >
-              <WalletIcon src={w.info.icon} />
-              <span lang="en">{w.info.name}</span>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <button
-          type="button"
-          className="ui-button"
-          data-variant="secondary"
-          onClick={() => (found.length > 1 ? setOpen(true) : onInjected(only))}
-          disabled={busy}
-        >
-          {found.length > 1 ? (
-            <T k="pay.chooseWallet" />
-          ) : only ? (
-            <T k="pay.continueWith" params={{ name: only.info.name }} />
-          ) : (
-            <T k="pay.noWallet" />
-          )}
-        </button>
-      )}
-      {error ? <p className="note">{error}</p> : null}
+    <div className="wallet-status" role="group" aria-label={t('wallet.connected')}>
+      <p className="wallet-status__who">
+        <span>{t('wallet.connected')}</span>
+        <span lang="en" data-hash title={account.address}>
+          {account.displayName}
+        </span>
+        {wrongNetwork ? (
+          <span className="wallet-status__network" role="status" lang={lang}>
+            <Icon name="warning" />
+            {t('wallet.wrongNetwork', { network: wrongNetwork.have })}
+          </span>
+        ) : null}
+      </p>
+      <div className="wallet-status__actions">
+        {wrongNetwork ? (
+          <Button variant="secondary" onClick={onSwitchNetwork}>
+            <T k="wallet.switchTo" params={{ network: wrongNetwork.want }} />
+          </Button>
+        ) : null}
+        <Button variant="quiet" onClick={onDisconnect}>
+          <T k="wallet.disconnect" />
+        </Button>
+      </div>
     </div>
+  );
+}
+
+/** RainbowKit's ConnectButton, rendered as WalletControl; the demo wallet (MODE=local) shows its banner instead. */
+export function WalletButton({ wallet }: { wallet: Wallet | undefined }) {
+  const netName = useNetworkName();
+  const { switchChain } = useSwitchChain();
+  const { disconnect } = useDisconnect();
+  if (wallet?.kind === 'demo') return <WalletBanner wallet={wallet} />;
+  return (
+    <ConnectButton.Custom>
+      {({ account, chain, mounted, openConnectModal }) => (
+        <WalletControl
+          mounted={mounted}
+          account={account}
+          wrongNetwork={
+            chain && chain.id !== config.chainId
+              ? { have: netName(caip2(chain.id)), want: netName(caip2(config.chainId)) }
+              : undefined
+          }
+          onConnect={openConnectModal}
+          onSwitchNetwork={() => switchChain({ chainId: config.chainId })}
+          onDisconnect={() => disconnect()}
+        />
+      )}
+    </ConnectButton.Custom>
   );
 }

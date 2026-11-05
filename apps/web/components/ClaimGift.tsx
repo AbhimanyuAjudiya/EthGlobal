@@ -27,7 +27,7 @@ const errText = (t: ReturnType<typeof useLang>['t'], e: unknown) =>
 export function ClaimGift({ giftId, name }: { giftId?: string; name?: string }) {
   const { t, lang } = useLang();
   const router = useRouter();
-  const { wallet, busy, error: walletError, pickInjected, disconnect } = useWallet('recipient');
+  const { wallet } = useWallet('recipient');
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState<string>();
   const [status, setStatus] = useState<string>();
@@ -52,13 +52,7 @@ export function ClaimGift({ giftId, name }: { giftId?: string; name?: string }) 
       <Caution k="warn.thisBrowser" />
       {giftId && name ? (
         <>
-          <WalletButton
-            wallet={wallet}
-            busy={busy}
-            error={walletError}
-            onInjected={(w) => void pickInjected(w)}
-            onDisconnect={disconnect}
-          />
+          <WalletButton wallet={wallet} />
           <p lang={lang}>{t('gift.claimSign')}</p>
           <Button
             block

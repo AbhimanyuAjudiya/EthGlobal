@@ -1,27 +1,24 @@
 /**
- * Wallets over EIP-1193 only (viem, no wagmi/RainbowKit — D-12): EIP-6963 discovery of injected wallets
- * (MetaMask, Coinbase Wallet) and, in MODE=local only, the labelled demo wallet — an EIP-1193 provider whose
- * signing runs in this app's local-only route handler (/api/demo-wallet) with a key from the server's
- * environment, so no private key ever reaches the browser bundle (T-63) and web never imports adapters.
+ * The paying wallet as the screens see it. Connecting is RainbowKit + wagmi (lib/wagmi.ts); in MODE=local the
+ * labelled demo wallet is a wagmi connector whose EIP-1193 provider signs in this app's local-only route handler
+ * (/api/demo-wallet) with a key from the server's environment, so no private key ever reaches the browser bundle
+ * (T-63) and web never imports adapters.
  */
 import {
   createPublicClient,
-  createWalletClient,
   custom,
   http,
   type Address,
   type Hex,
   type PublicClient,
   type TypedDataDefinition,
+  type WalletClient,
 } from 'viem';
 
 import { config } from './env';
 
 export interface Eip1193 {
   request(args: { method: string; params?: unknown }): Promise<unknown>;
-  /** EIP-1193 events (`accountsChanged`, `chainChanged`); the demo transport has none. */
-  on?(event: string, listener: (arg: unknown) => void): void;
-  removeListener?(event: string, listener: (arg: unknown) => void): void;
 }
 
 export type DemoRole = 'human' | 'sponsor' | 'recipient';
@@ -51,116 +48,18 @@ export interface Wallet {
 
 export const caip2 = (chainId: number): string => `eip155:${chainId}`;
 
-/** One EIP-6963 announcement: `rdns` identifies the wallet; `icon` is a data: URI (csp.ts allows `img-src data:`). */
-export interface Announced {
-  info: { uuid?: string; name: string; icon?: string; rdns: string };
-  provider: Eip1193;
-}
-
 /**
- * EIP-6963: ask every injected wallet to announce itself and keep listening, so an extension that wakes up late still
- * arrives. `onChange` gets the whole list (de-duplicated by rdns) after each new announcement. Returns the unsubscribe.
+ * The app's Wallet over a wagmi wallet client (lib/wagmi.ts): RainbowKit connects, wagmi hands over the client, and
+ * pay402 / sponsor / redeem keep signing through this one interface. `chainId` is the wallet's chain, which may differ
+ * from the app's (the connect button then shows the switch).
  */
-export function watchInjected(onChange: (found: Announced[]) => void): () => void {
-  if (typeof window === 'undefined') return () => undefined;
-  const found: Announced[] = [];
-  const onAnnounce = (event: Event) => {
-    const detail = (event as CustomEvent<Partial<Announced> | undefined>).detail;
-    const { info, provider } = detail ?? {};
-    if (!provider || !info?.rdns || found.some((f) => f.info.rdns === info.rdns)) return;
-    found.push({ info, provider });
-    onChange([...found]);
-  };
-  window.addEventListener('eip6963:announceProvider', onAnnounce);
-  window.dispatchEvent(new Event('eip6963:requestProvider'));
-  return () => window.removeEventListener('eip6963:announceProvider', onAnnounce);
-}
-
-/** The wallets that announced within `timeoutMs`; when none did, window.ethereum (whichever extension owns it). */
-export function discoverInjected(timeoutMs = 300): Promise<Announced[]> {
-  if (typeof window === 'undefined') return Promise.resolve([]);
-  return new Promise((resolve) => {
-    let found: Announced[] = [];
-    const stop = watchInjected((next) => {
-      found = next;
-    });
-    setTimeout(() => {
-      stop();
-      const legacy = (window as unknown as { ethereum?: Eip1193 }).ethereum;
-      if (found.length === 0 && legacy)
-        found = [{ info: { name: 'Browser wallet', rdns: 'injected' }, provider: legacy }];
-      resolve(found);
-    }, timeoutMs);
-  });
-}
-
-const CHOSEN_KEY = 'recharge.wallet';
-
-/** The rdns of the wallet chosen earlier in this tab, so the next screen offers it by name instead of the picker. */
-export function rememberedInjected(): string | undefined {
-  try {
-    return sessionStorage.getItem(CHOSEN_KEY) ?? undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-export function rememberInjected(rdns: string): void {
-  try {
-    sessionStorage.setItem(CHOSEN_KEY, rdns);
-  } catch {
-    // per-tab convenience only
-  }
-}
-
-/** Switch wallet / Disconnect: the next screen offers every wallet again. */
-export function forgetInjected(): void {
-  try {
-    sessionStorage.removeItem(CHOSEN_KEY);
-  } catch {
-    // per-tab convenience only
-  }
-}
-
-function readerFor(provider: Eip1193): PublicClient {
-  // Local: Anvil directly (1 s blocks); live: the wallet's own RPC.
-  return process.env.NEXT_PUBLIC_MODE === 'local'
-    ? createPublicClient({ transport: http(config.anvilRpcUrl), pollingInterval: 250 })
-    : createPublicClient({ transport: custom(provider), pollingInterval: 1000 });
-}
-
-/**
- * Connect `provider`. `reselect` (Switch wallet) asks the wallet to show its own account picker first
- * (`wallet_requestPermissions`); a wallet without that method falls through to `eth_requestAccounts`.
- */
-export async function connect(
-  provider: Eip1193,
-  kind: Wallet['kind'],
-  name: string,
-  reselect = false,
-): Promise<Wallet> {
-  if (reselect)
-    await provider
-      .request({ method: 'wallet_requestPermissions', params: [{ eth_accounts: {} }] })
-      .catch((e: unknown) => {
-        if (isUserRejection(e)) throw e;
-      });
-  const accounts = (await provider.request({ method: 'eth_requestAccounts' })) as Address[];
-  const address = accounts[0];
-  if (!address) throw new Error('no account');
-  const chainId = Number(await provider.request({ method: 'eth_chainId' }));
-  return walletFor(provider, kind, name, address, chainId);
-}
-
-/** The Wallet for an account the provider already granted (also rebuilt on `accountsChanged` / `chainChanged`). */
 export function walletFor(
-  provider: Eip1193,
+  client: WalletClient,
   kind: Wallet['kind'],
   name: string,
   address: Address,
   chainId: number,
 ): Wallet {
-  const client = createWalletClient({ account: address, transport: custom(provider) });
   return {
     kind,
     name,
@@ -170,20 +69,12 @@ export function walletFor(
     signTypedData: (td) => client.signTypedData({ ...td, account: address }),
     sendTransaction: ({ to, data }) =>
       client.sendTransaction({ account: address, to, data, chain: null } as never),
-    reader: readerFor(provider),
+    // Local: Anvil directly (1 s blocks); live: the wallet's own RPC.
+    reader:
+      process.env.NEXT_PUBLIC_MODE === 'local'
+        ? createPublicClient({ transport: http(config.anvilRpcUrl), pollingInterval: 250 })
+        : createPublicClient({ transport: custom(client), pollingInterval: 1000 }),
   };
-}
-
-/**
- * MODE=local only: the labelled demo wallet. The transport lives in lib/local/demo-wallet.ts and is imported only
- * behind a literal `process.env.NEXT_PUBLIC_MODE === 'local'`, so a live build compiles it out (RT-W-12, T-63).
- */
-export async function connectDemo(role: DemoRole): Promise<Wallet> {
-  if (process.env.NEXT_PUBLIC_MODE === 'local') {
-    const { demoProvider } = await import('./local/demo-wallet');
-    return connect(demoProvider(role), 'demo', `demo wallet · Anvil #${DEMO_ROLE_INDEX[role]}`);
-  }
-  throw new Error('the demo wallet exists only in MODE=local');
 }
 
 /** True when the wallet declined (EIP-1193 4001) rather than failed. */

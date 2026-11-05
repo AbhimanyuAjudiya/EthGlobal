@@ -1,26 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useAccount, useConnect, useWalletClient } from 'wagmi';
 
 import type { PlansResponse } from '@ethglobal/protocol/schemas';
 
 import { api, ApiError } from './api';
-import {
-  connect,
-  connectDemo,
-  discoverInjected,
-  forgetInjected,
-  rememberedInjected,
-  rememberInjected,
-  walletFor,
-  watchInjected,
-  type Announced,
-  type DemoRole,
-  type Eip1193,
-  type Wallet,
-} from './wallet';
-
-import type { Address } from 'viem';
+import { demoConnectorId } from './wagmi';
+import { walletFor, type DemoRole, type Wallet } from './wallet';
 
 /** One GET /plans in flight at a time: screens mounting together share it, and it is dropped once it settles. */
 let inflight: Promise<PlansResponse> | undefined;
@@ -82,106 +69,34 @@ export function usePlans() {
 }
 
 /**
- * The paying wallet. MODE=local connects the labelled demo wallet for `role` by default (the e2e path);
- * an injected EIP-1193 wallet can always be chosen instead.
+ * The paying wallet: the account RainbowKit connected, as a Wallet over wagmi's wallet client. MODE=local connects
+ * the labelled demo wallet for `role` once per mount unless a real wallet is connected (the e2e path); any wallet can
+ * still be chosen from the connect button.
  */
-export function useWallet(role: DemoRole = 'human') {
-  const [wallet, setWallet] = useState<Wallet | undefined>();
-  const [error, setError] = useState<string | undefined>();
-  const [busy, setBusy] = useState(false);
-  /** The injected provider behind `wallet`, for its EIP-1193 events. */
-  const provider = useRef<Eip1193 | undefined>(undefined);
-  /** Set by Switch wallet: the next connect opens the wallet's own account picker. */
-  const reselect = useRef(false);
-
-  const pickDemo = useCallback(async () => {
-    if (process.env.NEXT_PUBLIC_MODE !== 'local') return;
-    setBusy(true);
-    try {
-      setWallet(await connectDemo(role));
-      setError(undefined);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }, [role]);
-
-  /** Connect `choice`; without one, whatever discovery finds — the wallet chosen earlier in this tab first. */
-  const pickInjected = useCallback(async (choice?: Announced) => {
-    setBusy(true);
-    try {
-      const found = choice ? [choice] : await discoverInjected();
-      const chosen = rememberedInjected();
-      const target = found.find((w) => w.info.rdns === chosen) ?? found[0];
-      if (!target) throw new Error('No browser wallet found. Install Coinbase Wallet or MetaMask.');
-      setWallet(await connect(target.provider, 'injected', target.info.name, reselect.current));
-      provider.current = target.provider;
-      reselect.current = false;
-      rememberInjected(target.info.rdns);
-      setError(undefined);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }, []);
-
-  /** Drop the client and the remembered choice; `switching` makes the next connect re-ask for the account. */
-  const disconnect = useCallback((switching = false) => {
-    forgetInjected();
-    provider.current = undefined;
-    reselect.current = switching;
-    setWallet(undefined);
-    setError(undefined);
-  }, []);
-
-  // The wallet's own changes: another account (none = disconnected) or another chain.
-  useEffect(() => {
-    const p = wallet?.kind === 'injected' ? provider.current : undefined;
-    if (!wallet || !p?.on) return;
-    const { name, address, chainId } = wallet;
-    const onAccounts = (accounts: unknown) => {
-      const next = (accounts as Address[] | undefined)?.[0];
-      if (next) setWallet(walletFor(p, 'injected', name, next, chainId));
-      else disconnect();
-    };
-    const onChain = (id: unknown) => setWallet(walletFor(p, 'injected', name, address, Number(id)));
-    p.on('accountsChanged', onAccounts);
-    p.on('chainChanged', onChain);
-    return () => {
-      p.removeListener?.('accountsChanged', onAccounts);
-      p.removeListener?.('chainChanged', onChain);
-    };
-  }, [wallet, disconnect]);
+export function useWallet(role: DemoRole = 'human'): { wallet: Wallet | undefined } {
+  const { address, chainId, connector, status } = useAccount();
+  const { data: client } = useWalletClient();
+  const { connectors, connectAsync } = useConnect();
+  const tried = useRef(false);
 
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_MODE !== 'local') return;
-    let alive = true;
-    connectDemo(role).then(
-      (w) => alive && setWallet(w),
-      (e: unknown) => alive && setError(e instanceof Error ? e.message : String(e)),
-    );
-    return () => {
-      alive = false;
-    };
-  }, [role]);
+    if (tried.current || status === 'connecting' || status === 'reconnecting') return;
+    const id = demoConnectorId(role);
+    if (connector && (connector.id === id || !connector.id.startsWith('demo-'))) return;
+    const demo = connectors.find((c) => c.id === id);
+    if (!demo) return;
+    tried.current = true;
+    // two screens of one role may race to connect it; the loser's error is moot
+    connectAsync({ connector: demo }).catch(() => undefined);
+  }, [role, status, connector, connectors, connectAsync]);
 
-  return { wallet, error, busy, pickDemo, pickInjected, disconnect };
-}
-
-/**
- * The injected wallets announced so far (EIP-6963, late announcers included), for the connect button — narrowed to
- * the one chosen earlier in this tab, so the next screen offers it by name. Empty on the server and until the
- * first announcement; window.ethereum is not listed (it is `pickInjected()`'s fallback, not a named wallet).
- */
-export function useInjectedWallets(): Announced[] {
-  const [found, setFound] = useState<Announced[]>([]);
-  useEffect(() => watchInjected(setFound), []);
-  // Read on every render, not memoised: Switch wallet / Disconnect clear the choice without a new announcement.
-  const rdns = rememberedInjected();
-  const chosen = found.find((w) => w.info.rdns === rdns);
-  return chosen ? [chosen] : found;
+  const wallet = useMemo(() => {
+    if (!client || !address || !chainId || !connector) return undefined;
+    const demo = connector.id.startsWith('demo-');
+    return walletFor(client, demo ? 'demo' : 'injected', connector.name, address, chainId);
+  }, [client, address, chainId, connector]);
+  return { wallet };
 }
 
 const noopSubscribe = () => () => undefined;

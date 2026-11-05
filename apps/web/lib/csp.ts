@@ -23,7 +23,24 @@ export function newNonce(): string {
   return btoa(String.fromCharCode(...bytes));
 }
 
+/**
+ * WalletConnect, only with a project id (lib/wagmi.ts lists no WalletConnect wallet without one): the relay sockets and
+ * the WalletConnect modal's wallet registry; its wallet logos are images from the explorer API. Nothing else.
+ */
+const walletConnect = (): { connect: string[]; img: string[] } =>
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
+    ? {
+        connect: [
+          'wss://relay.walletconnect.com',
+          'wss://relay.walletconnect.org',
+          'https://api.web3modal.org',
+        ],
+        img: ['https://explorer-api.walletconnect.com'],
+      }
+    : { connect: [], img: [] };
+
 export function contentSecurityPolicy(nonce: string, dev = false): string {
+  const wc = walletConnect();
   const connect = [
     "'self'",
     origin(process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8787'),
@@ -32,6 +49,7 @@ export function contentSecurityPolicy(nonce: string, dev = false): string {
     'https://*.world.org',
     origin(process.env.NEXT_PUBLIC_EXPLORER_EVM),
     origin(process.env.NEXT_PUBLIC_EXPLORER_HEDERA ?? 'https://hashscan.io'),
+    ...wc.connect,
   ].filter(Boolean);
   return [
     "default-src 'self'",
@@ -39,7 +57,7 @@ export function contentSecurityPolicy(nonce: string, dev = false): string {
     // React style={} attributes cannot carry a nonce; styles cannot run script
     "style-src 'self' 'unsafe-inline'",
     `connect-src ${connect.join(' ')}`,
-    "img-src 'self' data: blob:",
+    ["img-src 'self' data: blob:", ...wc.img].join(' '),
     // the bazaar faces are self-hosted under /_next/static/media (packages/ui/fonts.css)
     "font-src 'self'",
     "worker-src 'self'",

@@ -1251,6 +1251,11 @@ a {
   overflow-x: auto;
   max-width: 100%;
 }
+/* at phone width a scrolling table scrolls rather than wrapping a time or key over four lines */
+.table-scroll .data-table th,
+.table-scroll .data-table td {
+  white-space: nowrap;
+}
 .budget-bar {
   height: 8px;
   background: var(--bg-sunken);

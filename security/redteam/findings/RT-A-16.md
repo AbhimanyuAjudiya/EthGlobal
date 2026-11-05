@@ -12,7 +12,7 @@ found_at: 2026-11-05T15:45+05:30
 due: 2026-11-05T20:59+05:30
 attack_test: 'packages/protocol/test/schemas.test.ts::the x402.org recording parses: v1 kinds under legacy names and non-string extra values survive [RT-A-15] and services/api/test/deps.live.test.ts::MODE=live with hedera:testnet boots against the x402.org /supported recording and pins the fee payer [RT-A-15] (both red at 1e483d4 against fixtures/facilitator/x402org/live-supported.json; the live boot itself is the original repro)'
 regression_test: 'packages/protocol/test/schemas.test.ts::facilitator /supported (RT-A-15, T-42) (2 cases) + ::a Hedera accept whose feePayer is not a string in 0.0.x form is refused whatever else extra carries [RT-A-15]; packages/adapters/test/live/remote-facilitator.test.ts::x402.org live /supported (v1 kinds, nested extra) parses and feePayer reads the v2 exact Hedera kind [RT-A-15] + ::a Hedera feePayer that is not a string, or a v1 / upto kind listed first, never supplies the fee payer [RT-A-15]; services/api/test/deps.live.test.ts::MODE=live with hedera:testnet boots against the x402.org /supported recording and pins the fee payer [RT-A-15]; services/api/test/accepts.test.ts::a fee payer outside the Hedera id form never reaches accepts[] [RT-A-15]; services/agent/test/payers-hedera.test.ts::refuses: wrong network/asset, missing or non-string fee payer, validity above 180 s [RT-A-15]'
-fix_commit: (uncommitted at filing; the worktree commit hash is recorded in a follow-up, as for RT-C-08)
+fix_commit: bc645d6 (cherry-picked from the worktree commit a1ebe0c; finding renumbered RT-A-16, RT-A-15 is the Arkiv u64 finding)
 verified_at:
 duplicate_of:
 sign_off:

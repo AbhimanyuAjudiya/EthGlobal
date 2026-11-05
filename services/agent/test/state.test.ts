@@ -9,7 +9,21 @@ import { hcs14Uaid } from '@ethglobal/adapters/live';
 import { T0 } from '@ethglobal/adapters/testing';
 
 import { createFakeApi } from './fake-api.js';
-import { ALLOW, DAY_MS, EVM_ACCEPT, harness, KEY, OWNER, seed, tempDir } from './helpers.js';
+import {
+  ALLOW,
+  DAY_MS,
+  EVM_ACCEPT,
+  harness,
+  HEDERA_ACCEPT,
+  HEDERA_MAINNET_ACCEPT,
+  KEY,
+  MAINNET_ALLOW,
+  MAINNET_USDC,
+  OWNER,
+  seed,
+  tempDir,
+  urlOf,
+} from './helpers.js';
 import { loadConfig } from '../src/config.js';
 import { buildAgent } from '../src/deps.js';
 import { AgentState, Journal, STALE_CLAIM_MS } from '../src/journal.js';
@@ -179,6 +193,57 @@ describe('buildAgent wiring', () => {
           (l) => l.obj.what === 'hedera-association' && l.obj.association === 'already',
         ),
       ).toBe(true);
+    } finally {
+      agent.close();
+    }
+  });
+
+  it('live with a hedera:mainnet allow-list: mainnet payer, mainnet mirror and USDC, mainnet UAID nativeId', async () => {
+    const config = loadConfig({
+      MODE: 'live',
+      AGENT_API_URL: 'https://api.example',
+      AGENT_PAYTO_ALLOWLIST: MAINNET_ALLOW,
+      AGENT_STATE_DIR: await tempDir(),
+      AGENT_LEDGER_WRITER: '0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38',
+      HCS_TOPIC_ID: '0.0.7001',
+      ARKIV_RPC_URL: 'https://rpc.rabdi.db-chain.testnet.arkiv.network',
+      ARKIV_CHAIN_ID: '7794095',
+      AGENT_HEDERA_ACCOUNT_ID: '0.0.5005',
+      AGENT_HEDERA_PRIVATE_KEY: PrivateKey.generateECDSA().toStringRaw(),
+      AGENT_WATCH_KEYS: KEY,
+      AGENT_OWNER: '0x5eF1b7a6c3D2E9f0A1b2C3d4E5f60718293a4B5c',
+    });
+    expect(config).toMatchObject({
+      hederaNetwork: 'hedera:mainnet',
+      hederaAsset: MAINNET_USDC,
+      mirrorUrl: 'https://mainnet.mirrornode.hedera.com',
+    });
+    const urls: string[] = [];
+    const mirror: typeof fetch = async (input) => {
+      urls.push(urlOf(input));
+      return Response.json({ tokens: [{ token_id: MAINNET_USDC, balance: '3000000' }] });
+    };
+    const log = memoryLog();
+    const agent = await buildAgent(config, { fetch: mirror, log, hcs14: hcs14Uaid });
+    try {
+      expect(agent.payers.map((p) => p.network)).toEqual(['hedera:mainnet']);
+      expect(agent.uaid).toContain('nativeId=hedera:mainnet:0.0.5005');
+      expect(urls).toEqual([
+        `https://mainnet.mirrornode.hedera.com/api/v1/accounts/0.0.5005/tokens?token.id=${MAINNET_USDC}`,
+      ]);
+      expect(await agent.payers[0]!.balanceUsd6()).toBe(3_000_000n);
+      expect(log.lines.find((l) => l.obj.what === 'hedera-association')?.obj).toMatchObject({
+        association: 'already',
+        network: 'hedera:mainnet',
+        asset: MAINNET_USDC,
+      });
+      // a 402 on testnet, or on mainnet naming testnet USDC 0.0.429274, is refused by the payer itself
+      const payer = agent.payers[0]!;
+      expect(payer.refusal({ ...HEDERA_ACCEPT, amount: '400000' })).toBe('network');
+      expect(
+        payer.refusal({ ...HEDERA_MAINNET_ACCEPT, asset: '0.0.429274', amount: '400000' }),
+      ).toBe('asset');
+      expect(payer.refusal({ ...HEDERA_MAINNET_ACCEPT, amount: '400000' })).toBeUndefined();
     } finally {
       agent.close();
     }

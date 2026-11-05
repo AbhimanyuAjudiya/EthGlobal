@@ -60,6 +60,14 @@ export const HEDERA_ACCEPT: AcceptTemplate = {
   extra: { feePayer: FEE_PAYER },
 };
 export const ALLOW = `eip155:31337|${TEST_USDC}|${PAYOUT},hedera:testnet|0.0.429274|${HEDERA_PAYOUT}|${FEE_PAYER}`;
+/** Mainnet USDC (HTS) and the same payout/fee payer on hedera:mainnet. */
+export const MAINNET_USDC = '0.0.456858';
+export const MAINNET_ALLOW = `hedera:mainnet|${MAINNET_USDC}|${HEDERA_PAYOUT}|${FEE_PAYER}`;
+export const HEDERA_MAINNET_ACCEPT: AcceptTemplate = {
+  ...HEDERA_ACCEPT,
+  network: 'hedera:mainnet',
+  asset: MAINNET_USDC,
+};
 
 export const POLICY: TopUpPolicyWire = {
   maxUsd6PerDay: '10000000',
@@ -168,12 +176,16 @@ export async function evmPayer(
   return { payer, usdc, account };
 }
 
-/** A real @x402/hedera client scheme over a throwaway ECDSA key (no network), with a counter and a fake balance. */
-export function hederaPayer(opts: { balance?: bigint } = {}): HederaPayer & { signatures: number } {
+/**
+ * A real @x402/hedera client scheme over a throwaway ECDSA key (no network), with a counter and a fake balance.
+ * Defaults to the testnet terms of HEDERA_ACCEPT; pass `network`/`asset` for hedera:mainnet.
+ */
+export function hederaPayer(
+  opts: { balance?: bigint; network?: string; asset?: string } = {},
+): HederaPayer & { signatures: number } {
+  const network = opts.network ?? HEDERA_ACCEPT.network;
   const key = PrivateKey.generateECDSA();
-  const scheme = new ExactHederaScheme(
-    createClientHederaSigner(HEDERA_AGENT, key, { network: 'hedera:testnet' }),
-  );
+  const scheme = new ExactHederaScheme(createClientHederaSigner(HEDERA_AGENT, key, { network }));
   const counted = {
     signatures: 0,
     createPaymentPayload: async (
@@ -185,6 +197,8 @@ export function hederaPayer(opts: { balance?: bigint } = {}): HederaPayer & { si
   };
   const payer = new HederaPayer({
     accountId: HEDERA_AGENT,
+    network,
+    asset: opts.asset ?? HEDERA_ACCEPT.asset,
     scheme: counted,
     balance: async () => opts.balance ?? 50_000_000n,
   });

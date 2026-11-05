@@ -123,17 +123,32 @@ export async function buildAgent(config: AgentConfig, opts: BuildOptions = {}): 
     const { createHederaAgentKit } = await import('./payers/hedera.js');
     const kit = createHederaAgentKit({
       ...config.hedera,
+      network: config.hederaNetwork,
+      ...(config.hederaAsset ? { asset: config.hederaAsset } : {}),
       mirrorUrl: config.mirrorUrl,
       now,
       fetch: fetchFn,
     });
     closers.push(() => kit.close());
-    const association = await kit.wallet.ensureAssociated();
-    log.info(
-      { event: 'decision', what: 'hedera-association', association },
-      'agent: Hedera USDC association',
-    );
-    hederaPayer = kit.payer;
+    if (kit.payer) {
+      const association = await kit.wallet.ensureAssociated(kit.payer.asset);
+      log.info(
+        {
+          event: 'decision',
+          what: 'hedera-association',
+          association,
+          network: kit.payer.network,
+          asset: kit.payer.asset,
+        },
+        'agent: Hedera USDC association',
+      );
+      hederaPayer = kit.payer;
+    } else {
+      log.warn(
+        { event: 'degraded', what: 'hedera-payer', network: config.hederaNetwork },
+        'agent: AGENT_PAYTO_ALLOWLIST names no hedera:* terms — HCS receipts only, no Hedera payer',
+      );
+    }
     consensus ??= kit.consensus;
   }
   if (consensus === undefined) {
@@ -165,6 +180,7 @@ export async function buildAgent(config: AgentConfig, opts: BuildOptions = {}): 
     stateDir: config.stateDir,
     ...(config.uaid ? { override: config.uaid } : {}),
     ...(config.hedera ? { hederaAccountId: config.hedera.accountId } : {}),
+    network: config.hederaNetwork,
     compute: hcs14,
     log,
   });

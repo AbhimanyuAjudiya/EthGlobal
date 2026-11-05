@@ -8,6 +8,7 @@ import { z } from 'zod';
 // the public-account list is defined in the adapters' test-helper module; this root re-export keeps that module (it
 // holds test keys) out of the agent's static imports (RT-G-05: it is imported only lazily, after the live guard)
 import { anvilAccounts, isPublicDevAccount } from '@ethglobal/adapters';
+import { NETWORKS } from '@ethglobal/protocol/ids';
 import {
   caipNetworkSchema,
   digitsSchema,
@@ -148,6 +149,10 @@ export interface AgentConfig {
   evmPrivateKey?: `0x${string}`;
   evmRpcUrl: string;
   hedera?: { accountId: string; privateKey: string };
+  /** The Hedera network the allow-list names (Client, mirror, UAID nativeId); hedera:testnet when it names none. */
+  hederaNetwork: string;
+  /** The allow-listed HTS token on that network; undefined ⇒ no Hedera payer (the wallet still submits HCS). */
+  hederaAsset?: string;
   uaid?: string;
   hcsTopic: string;
   mirrorUrl: string;
@@ -159,8 +164,40 @@ export interface AgentConfig {
 
 /** The local topic id MockConsensusLog accepts; live requires HCS_TOPIC_ID. */
 export const LOCAL_HCS_TOPIC = '0.0.1001';
-export const DEFAULT_MIRROR_URL = 'https://testnet.mirrornode.hedera.com';
+/** Public mirror node per Hedera network (HEDERA_MIRROR_URL overrides). `hedera:mainnet` is spelled here until
+ *  `@ethglobal/protocol` NETWORKS carries it. */
+export const HEDERA_MIRROR_URLS: Readonly<Record<string, string>> = {
+  [NETWORKS.hederaTestnet]: 'https://testnet.mirrornode.hedera.com',
+  'hedera:mainnet': 'https://mainnet.mirrornode.hedera.com',
+};
+export const DEFAULT_MIRROR_URL = HEDERA_MIRROR_URLS[NETWORKS.hederaTestnet]!;
 export const DEFAULT_ANVIL_RPC_URL = 'http://127.0.0.1:8545';
+
+/**
+ * The one Hedera `(network, token)` the allow-list names, or undefined when it names none. Two Hedera networks (or two
+ * tokens) in one allow-list is a boot error: the agent runs one Hedera Client, one UAID nativeId and one mirror.
+ */
+export function hederaTerms(
+  allowList: AllowedTerms[],
+): { network: string; asset: string } | undefined {
+  const pairs = new Map(
+    allowList
+      .filter((a) => a.network.startsWith('hedera:'))
+      .map((a) => [`${a.network}|${a.asset}`, { network: a.network, asset: a.asset }] as const),
+  );
+  if (pairs.size > 1) {
+    throw new ConfigError(
+      `AGENT_PAYTO_ALLOWLIST names several Hedera networks/tokens (${[...pairs.keys()].join(', ')}); one Hedera network per agent`,
+    );
+  }
+  const [one] = pairs.values();
+  if (one !== undefined && !(one.network in HEDERA_MIRROR_URLS)) {
+    throw new ConfigError(
+      `AGENT_PAYTO_ALLOWLIST: unsupported Hedera network ${one.network} (${Object.keys(HEDERA_MIRROR_URLS).join(' | ')})`,
+    );
+  }
+  return one;
+}
 
 const isAnvilKey = (key: string): boolean => {
   const address = privateKeyToAccount(key as `0x${string}`).address.toLowerCase();
@@ -172,6 +209,8 @@ export function loadConfig(env: Record<string, string | undefined>): AgentConfig
   const e = agentConfigSchema.parse(env);
   const live = e.MODE === 'live';
   const allowList = parseAllowList(e.AGENT_PAYTO_ALLOWLIST);
+  const hederaTermsEntry = hederaTerms(allowList);
+  const hederaNetwork = hederaTermsEntry?.network ?? NETWORKS.hederaTestnet;
   const problems: string[] = [];
   if (e.AGENT_HEDERA_ACCOUNT_ID !== undefined && e.AGENT_HEDERA_PRIVATE_KEY === undefined) {
     problems.push('AGENT_HEDERA_ACCOUNT_ID needs AGENT_HEDERA_PRIVATE_KEY');
@@ -199,7 +238,7 @@ export function loadConfig(env: Record<string, string | undefined>): AgentConfig
     }
     if (!e.AGENT_HEDERA_ACCOUNT_ID) {
       problems.push(
-        'live needs the Hedera Agent Kit wallet (AGENT_HEDERA_ACCOUNT_ID/KEY): it pays hedera:testnet and submits the HCS receipts',
+        'live needs the Hedera Agent Kit wallet (AGENT_HEDERA_ACCOUNT_ID/KEY): it pays the allow-listed hedera:* terms and submits the HCS receipts',
       );
     }
     if (e.AGENT_EVM_PRIVATE_KEY && isAnvilKey(e.AGENT_EVM_PRIVATE_KEY)) {
@@ -226,9 +265,11 @@ export function loadConfig(env: Record<string, string | undefined>): AgentConfig
     ...(e.AGENT_HEDERA_ACCOUNT_ID && e.AGENT_HEDERA_PRIVATE_KEY
       ? { hedera: { accountId: e.AGENT_HEDERA_ACCOUNT_ID, privateKey: e.AGENT_HEDERA_PRIVATE_KEY } }
       : {}),
+    hederaNetwork,
+    ...(hederaTermsEntry ? { hederaAsset: hederaTermsEntry.asset } : {}),
     ...(e.AGENT_UAID ? { uaid: e.AGENT_UAID } : {}),
     hcsTopic: e.HCS_TOPIC_ID ?? LOCAL_HCS_TOPIC,
-    mirrorUrl: e.HEDERA_MIRROR_URL ?? DEFAULT_MIRROR_URL,
+    mirrorUrl: e.HEDERA_MIRROR_URL ?? HEDERA_MIRROR_URLS[hederaNetwork] ?? DEFAULT_MIRROR_URL,
     llm:
       e.LLM_PROVIDER === 'anthropic'
         ? { provider: 'anthropic', model: e.AGENT_LLM_MODEL!, apiKey: e.ANTHROPIC_API_KEY! }

@@ -63,6 +63,30 @@ describe('identity (HCS-14 UAID)', () => {
     expect(hcs14Uaid(uaidInput(undefined))).toMatch(/nativeId=hedera:testnet:0\.0\.0$/);
   });
 
+  it('nativeId follows the configured Hedera network: hedera:mainnet:<account>', async () => {
+    expect(uaidInput('0.0.5005', 'hedera:mainnet').nativeId).toBe('hedera:mainnet:0.0.5005');
+    expect(uaidInput('0.0.5005', 'hedera:testnet').nativeId).toBe('hedera:testnet:0.0.5005');
+    const dir = await tempDir();
+    const log = memoryLog();
+    const testnet = await resolveUaid({
+      stateDir: dir,
+      hederaAccountId: '0.0.5005',
+      network: 'hedera:testnet',
+      compute: hcs14Uaid,
+      log,
+    });
+    const mainnet = await resolveUaid({
+      stateDir: dir,
+      hederaAccountId: '0.0.5005',
+      network: 'hedera:mainnet',
+      compute: hcs14Uaid,
+      log,
+    });
+    expect(mainnet).toMatch(/;nativeId=hedera:mainnet:0\.0\.5005$/);
+    expect(mainnet).not.toBe(testnet); // the network is part of the identity, not only the account
+    expect(log.lines.some((l) => l.level === 'warn')).toBe(true); // the stored testnet UAID was replaced
+  });
+
   it('matches the HCS-14 vector computed with @hashgraphonline/standards-sdk (runs now)', async () => {
     // createUaid exists at runtime but not in the 0.1.192 typings
     const sdk = (await import('@hashgraphonline/standards-sdk')) as unknown as {

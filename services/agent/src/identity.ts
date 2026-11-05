@@ -8,6 +8,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { Hcs14Input } from '@ethglobal/adapters/live';
+import { NETWORKS } from '@ethglobal/protocol/ids';
 
 import type { Log } from './log.js';
 
@@ -20,13 +21,17 @@ export const LOCAL_NATIVE_ACCOUNT = '0.0.0';
 export type { Hcs14Input };
 export type Hcs14Fn = (input: Hcs14Input) => string;
 
-export function uaidInput(hederaAccountId: string | undefined): Hcs14Input {
+/** `nativeId` = CAIP-10 `<network>:<account>`: the configured Hedera network (config.hederaNetwork) and account. */
+export function uaidInput(
+  hederaAccountId: string | undefined,
+  network: string = NETWORKS.hederaTestnet,
+): Hcs14Input {
   return {
     registry: 'hedera',
     name: AGENT_NAME,
     version: AGENT_VERSION,
     protocol: 'x402',
-    nativeId: `hedera:testnet:${hederaAccountId ?? LOCAL_NATIVE_ACCOUNT}`,
+    nativeId: `${network}:${hederaAccountId ?? LOCAL_NATIVE_ACCOUNT}`,
     // HCS-14 skills are sorted integers (A-29); the human-readable capabilities are in the README.
     skills: [],
   };
@@ -36,11 +41,13 @@ export async function resolveUaid(opts: {
   stateDir: string;
   override?: string;
   hederaAccountId?: string;
+  /** config.hederaNetwork; hedera:testnet when omitted. */
+  network?: string;
   compute: Hcs14Fn;
   log: Log;
 }): Promise<string> {
   if (opts.override !== undefined) return opts.override;
-  const computed = opts.compute(uaidInput(opts.hederaAccountId));
+  const computed = opts.compute(uaidInput(opts.hederaAccountId, opts.network));
   const file = join(opts.stateDir, 'uaid');
   const stored = await readFile(file, 'utf8').then(
     (s) => s.trim(),

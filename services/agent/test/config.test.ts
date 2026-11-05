@@ -2,8 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import { anvilKeys, publicDevAccounts, TEST_USDC } from '@ethglobal/adapters/testing';
 
-import { ALLOW, FEE_PAYER, HEDERA_PAYOUT, PAYOUT } from './helpers.js';
-import { ConfigError, loadConfig, parseAllowList, parseWatchKeys } from '../src/config.js';
+import { ALLOW, FEE_PAYER, HEDERA_PAYOUT, MAINNET_ALLOW, MAINNET_USDC, PAYOUT } from './helpers.js';
+import {
+  ConfigError,
+  hederaTerms,
+  loadConfig,
+  parseAllowList,
+  parseWatchKeys,
+} from '../src/config.js';
 
 const base = { AGENT_API_URL: 'http://127.0.0.1:8787/', AGENT_PAYTO_ALLOWLIST: ALLOW };
 const live = {
@@ -137,6 +143,64 @@ describe('config', () => {
         ANTHROPIC_API_KEY: 'k',
       }).llm,
     ).toEqual({ provider: 'anthropic', model: 'm', apiKey: 'k' });
+  });
+
+  it('Hedera network, token and mirror come from the allow-list; two Hedera networks refuse at boot', () => {
+    // testnet entry (unchanged): testnet mirror, USDC 0.0.429274
+    expect(loadConfig(base)).toMatchObject({
+      hederaNetwork: 'hedera:testnet',
+      hederaAsset: '0.0.429274',
+      mirrorUrl: 'https://testnet.mirrornode.hedera.com',
+    });
+    // mainnet entry: mainnet mirror, USDC 0.0.456858
+    expect(loadConfig({ ...base, AGENT_PAYTO_ALLOWLIST: MAINNET_ALLOW })).toMatchObject({
+      hederaNetwork: 'hedera:mainnet',
+      hederaAsset: MAINNET_USDC,
+      mirrorUrl: 'https://mainnet.mirrornode.hedera.com',
+    });
+    expect(loadConfig({ ...live, AGENT_PAYTO_ALLOWLIST: MAINNET_ALLOW }).hederaNetwork).toBe(
+      'hedera:mainnet',
+    );
+    // HEDERA_MIRROR_URL still overrides the per-network default
+    expect(
+      loadConfig({
+        ...base,
+        AGENT_PAYTO_ALLOWLIST: MAINNET_ALLOW,
+        HEDERA_MIRROR_URL: 'https://mirror.test',
+      }).mirrorUrl,
+    ).toBe('https://mirror.test');
+    // no hedera:* entry: no Hedera asset (no Hedera payer); the Client/UAID network stays testnet
+    const evmOnly = loadConfig({ ...base, AGENT_PAYTO_ALLOWLIST: ALLOW.split(',')[0]! });
+    expect(evmOnly.hederaNetwork).toBe('hedera:testnet');
+    expect(evmOnly.hederaAsset).toBeUndefined();
+    expect(hederaTerms([])).toBeUndefined();
+    // both networks, or two tokens on one network, is a boot error
+    expect(() =>
+      loadConfig({ ...base, AGENT_PAYTO_ALLOWLIST: `${ALLOW},${MAINNET_ALLOW}` }),
+    ).toThrow(/several Hedera networks.*one Hedera network per agent/);
+    expect(() =>
+      loadConfig({ ...live, AGENT_PAYTO_ALLOWLIST: `${ALLOW},${MAINNET_ALLOW}` }),
+    ).toThrow(ConfigError);
+    expect(() =>
+      loadConfig({
+        ...base,
+        AGENT_PAYTO_ALLOWLIST: `${ALLOW},hedera:testnet|${MAINNET_USDC}|${HEDERA_PAYOUT}|${FEE_PAYER}`,
+      }),
+    ).toThrow(/several Hedera networks/);
+    // the same (network, token) under two payTo accounts is one Hedera network
+    expect(
+      loadConfig({
+        ...base,
+        AGENT_PAYTO_ALLOWLIST: `${MAINNET_ALLOW},hedera:mainnet|${MAINNET_USDC}|0.0.7007|${FEE_PAYER}`,
+      }).hederaAsset,
+    ).toBe(MAINNET_USDC);
+    // a Hedera network the agent has no Client/mirror for
+    expect(() =>
+      loadConfig({
+        ...base,
+        AGENT_PAYTO_ALLOWLIST: `hedera:previewnet|0.0.1|${HEDERA_PAYOUT}|${FEE_PAYER}`,
+      }),
+    ).toThrow(/unsupported Hedera network hedera:previewnet/);
   });
 
   it('watch keys are de-duplicated', () => {

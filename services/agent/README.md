@@ -86,7 +86,9 @@ tools, and its output is cut to 140 plain characters and only shown (`regression
 
 ## Where Hedera lives in the code
 
-- `src/payers/hedera.ts` — `HederaPayer` (alias `HederaAgentKitSigner`): the x402 `hedera:testnet` exact payload
+- `src/payers/hedera.ts` — `HederaPayer` (alias `HederaAgentKitSigner`): the x402 `hedera:testnet` / `hedera:mainnet`
+  exact payload — network, HTS token and `Client` (`createHederaClient`) come from the allow-list's `hedera:*` entry;
+  one Hedera network per agent (two is a boot error; none ⇒ no Hedera payer, HCS only) —
   `{ transaction }` from `@x402/hedera/exact/client` (`createClientHederaSigner` + `ExactHederaScheme`), checked with
   `inspectHederaTransaction` before it leaves (fee payer = `extra.feePayer`, one token, two legs, no HBAR, no other ops).
   `AgentKitWallet` / `AgentKitConsensusLog`: the **Hedera Agent Kit 4.2.0** (`HederaAgentAPI` + core account/token/
@@ -97,17 +99,18 @@ tools, and its output is cut to 140 plain characters and only shown (`regression
 - `src/receipts.ts` — the HCS `agent-topup` message (`encodeHcsMessage`, ≤ 1024 bytes, `sha256(key)`, UAID).
 - `src/identity.ts` — the HCS-14 UAID: `hcs14Uaid` from `@ethglobal/adapters/live` (conformance-tested against
   `@hashgraphonline/standards-sdk@0.1.192` `createUaid` in `test/identity.test.ts`), persisted to `.agent/uaid`, sent as
-  `X-Agent-Uaid`. `nativeId = hedera:testnet:<AGENT_HEDERA_ACCOUNT_ID>`; in local mode `hedera:testnet:0.0.0`.
+  `X-Agent-Uaid`. `nativeId = <allow-listed hedera network>:<AGENT_HEDERA_ACCOUNT_ID>` (`hedera:testnet` when the
+  allow-list names no Hedera entry); in local mode `hedera:testnet:0.0.0`.
 
 HCS-14 skills are integers (A-29) and empty in v0. Human-readable capabilities: _x402 buyer of 100 MB eSIM top-ups;
-policy-capped; Hedera testnet USDC; HCS receipts._
+policy-capped; Hedera USDC (testnet `0.0.429274` or mainnet `0.0.456858`, per the allow-list); HCS receipts._
 
 ## Honest mocks
 
 - **Simulated usage** in local mode and in tests (the mock reseller's usage clock); label it on screen.
 - **HCS-14 registration minimal**: the UAID is self-issued and computed, not registered in an HCS-14 registry.
 - **EVM fallback labelled**: live, the EVM payer pays Base Sepolia only when `AGENT_EVM_PRIVATE_KEY` is set; Hedera is
-  preferred whenever the 402 offers an acceptable `hedera:testnet` entry.
+  preferred whenever the 402 offers an acceptable `hedera:*` entry (the allow-listed network and token).
 - Local HCS receipts go to an in-process `MockConsensusLog` (topic `0.0.1001`).
 
 ## Tests
@@ -162,13 +165,18 @@ must show one), `pino`, and dev-only `hono`, `@hono/node-server`, `@hashgraphonl
 ## On-site checklist to run it live
 
 1. **Hedera account for the agent** (Portal, ECDSA): set `AGENT_HEDERA_ACCOUNT_ID` / `AGENT_HEDERA_PRIVATE_KEY`
-   (`PrivateKey.fromStringECDSA`). Fund it with testnet HBAR (fees) and ≈ one day's cap of USDC `0.0.429274` from the
-   Circle faucet (the boot-time association runs automatically; the faucet needs it associated first — start the agent
-   once with `--once --dry-run`, then fund).
+   (`PrivateKey.fromStringECDSA`). Fund it with HBAR (fees) and ≈ one day's cap of USDC on the allow-listed network —
+   testnet `0.0.429274` from the Circle faucet, or mainnet `0.0.456858` (the boot-time association runs
+   automatically for the allow-listed token; the faucet needs it associated first — start the agent once with
+   `--once --dry-run`, then fund).
 2. **HCS topic**: create one per deployment (`TopicCreateTransaction`, ideally with the agent's key as submit key) and
    set `HCS_TOPIC_ID` (shared with the API). Verify on HashScan that `agent-topup` messages appear.
 3. **Allow-list** from the live `/plans` (`paid.accepts`), pinned at install: `hedera:testnet|0.0.429274|<PAYOUT_HEDERA_ACCOUNT>|<facilitator fee payer from /supported, x402.org 0.0.9185802>`
-   and optionally `eip155:84532|0x036CbD53842c5426634e7929541eC2318f3dCF7e|<PAYOUT_ADDRESS>` with a funded Base Sepolia
+   — or, on mainnet, `hedera:mainnet|0.0.456858|<PAYOUT_HEDERA_ACCOUNT>|<facilitator fee payer>` (the entry's
+   network picks the Hedera `Client`, the mirror default `https://mainnet.mirrornode.hedera.com` and the UAID
+   `nativeId`; HashScan: `https://hashscan.io/mainnet`). One Hedera network per agent: listing both `hedera:testnet`
+   and `hedera:mainnet` is refused at boot. Optionally add
+   `eip155:84532|0x036CbD53842c5426634e7929541eC2318f3dCF7e|<PAYOUT_ADDRESS>` with a funded Base Sepolia
    `AGENT_EVM_PRIVATE_KEY` + `AGENT_EVM_RPC_URL`.
 4. **Arkiv**: `ARKIV_CHAIN_ID=7794095`, `ARKIV_RPC_URL`, `ARKIV_ACCESS_KEY`, and `AGENT_LEDGER_WRITER` = the API's
    `ARKIV_PRIVATE_KEY` address (the agent needs no Arkiv key; it only reads).

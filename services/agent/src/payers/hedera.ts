@@ -21,8 +21,8 @@ import {
 } from '@hashgraph/hedera-agent-kit/plugins';
 import {
   AccountId,
-  Client,
   createClientHederaSigner,
+  createHederaClient,
   inspectHederaTransaction,
   PrivateKey,
   type InspectedHederaTransaction,
@@ -32,7 +32,7 @@ import { z } from 'zod';
 
 import type { ConsensusLog } from '@ethglobal/adapters';
 import { httpJson } from '@ethglobal/protocol/http';
-import { HEDERA_MAX_TIMEOUT_S, NETWORKS, USDC_ASSET } from '@ethglobal/protocol/ids';
+import { HEDERA_MAX_TIMEOUT_S } from '@ethglobal/protocol/ids';
 import type {
   PaymentPayload,
   PaymentRequirements,
@@ -41,7 +41,6 @@ import type {
 
 import { chooseFirstAcceptable, PayerRefusal, type Payer } from './types.js';
 
-const HEDERA_USDC = USDC_ASSET[NETWORKS.hederaTestnet];
 const HEDERA_ID = /^0\.0\.\d{1,12}$/;
 
 /** The slice of `ExactHederaScheme` the payer uses. */
@@ -62,6 +61,10 @@ export interface AgentKitApi {
 
 export interface HederaPayerOptions {
   accountId: string;
+  /** CAIP-2 from the allow-list entry: hedera:testnet or hedera:mainnet. */
+  network: string;
+  /** The allow-listed HTS token (USDC: 0.0.429274 testnet, 0.0.456858 mainnet). */
+  asset: string;
   scheme: HederaPaymentScheme;
   balance: () => Promise<bigint>;
   inspect?: (transactionBase64: string) => InspectedHederaTransaction;
@@ -72,13 +75,16 @@ const feePayerOf = (req: PaymentRequirements): string | undefined => {
   return typeof v === 'string' && HEDERA_ID.test(v) ? v : undefined;
 };
 
-/** HederaPayer — pays the `hedera:testnet` exact scheme with the agent's account (the Agent Kit wallet's account). */
+/** HederaPayer — pays the `hedera:*` exact scheme of its allow-list entry with the agent's (Agent Kit wallet's) account. */
 export class HederaPayer implements Payer {
-  readonly network = NETWORKS.hederaTestnet;
+  readonly network: string;
+  readonly asset: string;
   readonly #opts: HederaPayerOptions;
 
   constructor(opts: HederaPayerOptions) {
     this.#opts = opts;
+    this.network = opts.network;
+    this.asset = opts.asset;
   }
 
   get accountId(): string {
@@ -87,7 +93,7 @@ export class HederaPayer implements Payer {
 
   refusal(req: PaymentRequirements): string | undefined {
     if (req.network !== this.network) return 'network';
-    if (req.asset !== HEDERA_USDC) return 'asset';
+    if (req.asset !== this.asset) return 'asset';
     if (feePayerOf(req) === undefined) return 'fee-payer';
     if (req.maxTimeoutSeconds > HEDERA_MAX_TIMEOUT_S) return 'timeout';
     return undefined;
@@ -108,7 +114,7 @@ export class HederaPayer implements Payer {
     if (tx.hasNonTransferOperations || tx.hbarTransfers.length > 0)
       return 'not a plain token transfer';
     const tokens = Object.keys(tx.tokenTransfers);
-    const legs = tx.tokenTransfers[HEDERA_USDC] ?? [];
+    const legs = tx.tokenTransfers[this.asset] ?? [];
     if (tokens.length !== 1 || legs.length !== 2) return 'expected one token with two legs';
     const amount = BigInt(req.amount);
     const debit = legs.find((l) => l.accountId === this.#opts.accountId);
@@ -171,7 +177,7 @@ export class AgentKitWallet {
   ) {}
 
   /** null when the account is not associated with the token. */
-  async tokenBalance(tokenId: string = HEDERA_USDC): Promise<bigint | null> {
+  async tokenBalance(tokenId: string): Promise<bigint | null> {
     const base = this.opts.mirrorUrl.replace(/\/+$/, '');
     const { data } = await httpJson(
       `${base}/api/v1/accounts/${this.opts.accountId}/tokens?token.id=${tokenId}`,
@@ -181,8 +187,8 @@ export class AgentKitWallet {
     return row === undefined ? null : BigInt(row.balance);
   }
 
-  /** Associates the account with USDC once if the mirror shows no association (both parties must be, A-20). */
-  async ensureAssociated(tokenId: string = HEDERA_USDC): Promise<'already' | 'associated'> {
+  /** Associates the account with the token once if the mirror shows no association (both parties must be, A-20). */
+  async ensureAssociated(tokenId: string): Promise<'already' | 'associated'> {
     if ((await this.tokenBalance(tokenId)) !== null) return 'already';
     await this.opts.api.run(ASSOCIATE_TOKEN_TOOL, { tokenIds: [tokenId] });
     return 'associated';
@@ -232,22 +238,33 @@ export class AgentKitConsensusLog implements ConsensusLog {
   }
 }
 
-/** Builds the live Hedera stack from env values: one Client, the x402 payer, the Agent Kit wallet and HCS log. */
+/**
+ * Builds the live Hedera stack from config: one Client on `network` (`createHederaClient`: hedera:testnet |
+ * hedera:mainnet), the Agent Kit wallet and HCS log, and — when the allow-list names a token on that network — the
+ * x402 payer pinned to `(network, asset)`. No `asset` ⇒ no Hedera payer (an EVM-only allow-list still writes HCS).
+ */
 export function createHederaAgentKit(cfg: {
   accountId: string;
   privateKey: string;
+  network: string;
+  asset?: string;
   mirrorUrl: string;
   now: () => number;
   fetch?: typeof fetch;
 }): {
-  payer: HederaPayer;
+  payer: HederaPayer | undefined;
   wallet: AgentKitWallet;
   consensus: AgentKitConsensusLog;
   api: AgentKitApi;
+  /** The Client's ledger (`mainnet` | `testnet`): proof of which network it was built for. */
+  ledgerId: string | undefined;
   close(): void;
 } {
   const key = PrivateKey.fromStringECDSA(cfg.privateKey);
-  const client = Client.forTestnet().setOperator(AccountId.fromString(cfg.accountId), key);
+  const client = createHederaClient(cfg.network).setOperator(
+    AccountId.fromString(cfg.accountId),
+    key,
+  );
   const configuration = {
     plugins: [coreAccountPlugin, coreTokenPlugin, coreConsensusPlugin],
     context: { mode: AgentMode.AUTONOMOUS, accountId: cfg.accountId },
@@ -263,19 +280,25 @@ export function createHederaAgentKit(cfg: {
     mirrorUrl: cfg.mirrorUrl,
     ...(cfg.fetch ? { fetch: cfg.fetch } : {}),
   });
-  const scheme = new ExactHederaScheme(
-    createClientHederaSigner(cfg.accountId, key, { network: NETWORKS.hederaTestnet }),
-  );
-  const payer = new HederaPayer({
-    accountId: cfg.accountId,
-    scheme,
-    balance: async () => (await wallet.tokenBalance()) ?? 0n,
-  });
+  const asset = cfg.asset;
+  const payer =
+    asset === undefined
+      ? undefined
+      : new HederaPayer({
+          accountId: cfg.accountId,
+          network: cfg.network,
+          asset,
+          scheme: new ExactHederaScheme(
+            createClientHederaSigner(cfg.accountId, key, { network: cfg.network }),
+          ),
+          balance: async () => (await wallet.tokenBalance(asset)) ?? 0n,
+        });
   return {
     payer,
     wallet,
     consensus: new AgentKitConsensusLog(api, cfg.now),
     api,
+    ledgerId: client.ledgerId?.toString(),
     close: () => client.close(),
   };
 }

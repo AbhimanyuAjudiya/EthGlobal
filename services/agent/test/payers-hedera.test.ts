@@ -3,7 +3,17 @@ import { describe, expect, it } from 'vitest';
 
 import type { PaymentRequirements } from '@ethglobal/protocol/schemas';
 
-import { urlOf, ALLOW, FEE_PAYER, HEDERA_ACCEPT, HEDERA_AGENT, hederaPayer } from './helpers.js';
+import {
+  urlOf,
+  ALLOW,
+  FEE_PAYER,
+  HEDERA_ACCEPT,
+  HEDERA_AGENT,
+  HEDERA_MAINNET_ACCEPT,
+  hederaPayer,
+  MAINNET_ALLOW,
+  MAINNET_USDC,
+} from './helpers.js';
 import { TermsGuard } from '../src/buyer.js';
 import { parseAllowList } from '../src/config.js';
 import {
@@ -113,6 +123,8 @@ describe('HederaPayer (HederaAgentKitSigner)', () => {
     for (const [over, message] of cases) {
       const payer = new HederaPayer({
         accountId: HEDERA_AGENT,
+        network: HEDERA_ACCEPT.network,
+        asset: HEDERA_ACCEPT.asset,
         scheme,
         balance: async () => 10_000_000n,
         inspect: inspect(over),
@@ -121,6 +133,8 @@ describe('HederaPayer (HederaAgentKitSigner)', () => {
     }
     const empty = new HederaPayer({
       accountId: HEDERA_AGENT,
+      network: HEDERA_ACCEPT.network,
+      asset: HEDERA_ACCEPT.asset,
       scheme: { createPaymentPayload: async () => ({ x402Version: 2, payload: {} }) },
       balance: async () => 10_000_000n,
     });
@@ -155,11 +169,11 @@ describe('HederaPayer (HederaAgentKitSigner)', () => {
       mirrorUrl: 'https://mirror.test/',
       fetch: mirror,
     });
-    expect(await wallet.tokenBalance()).toBeNull();
-    expect(await wallet.ensureAssociated()).toBe('associated');
+    expect(await wallet.tokenBalance('0.0.429274')).toBeNull();
+    expect(await wallet.ensureAssociated('0.0.429274')).toBe('associated');
     expect(calls).toEqual([{ method: 'associate_token_tool', args: { tokenIds: ['0.0.429274'] } }]);
-    expect(await wallet.ensureAssociated()).toBe('already');
-    expect(await wallet.tokenBalance()).toBe(2_500_000n);
+    expect(await wallet.ensureAssociated('0.0.429274')).toBe('already');
+    expect(await wallet.tokenBalance('0.0.429274')).toBe(2_500_000n);
   });
 
   it('AgentKitConsensusLog: parses JSON output, falls back to the text form; read is not offered', async () => {
@@ -195,20 +209,97 @@ describe('HederaPayer (HederaAgentKitSigner)', () => {
     const kit = createHederaAgentKit({
       accountId: HEDERA_AGENT,
       privateKey: key,
+      network: 'hedera:testnet',
+      asset: '0.0.429274',
       mirrorUrl: 'https://mirror.test',
       now: Date.now,
       fetch: async () => Response.json({ tokens: [] }),
     });
     try {
-      expect(kit.payer.network).toBe('hedera:testnet');
-      expect(await kit.payer.balanceUsd6()).toBe(0n);
-      const paid = await kit.payer
-        .sign(req(), { resource, now: Date.now() })
+      expect(kit.ledgerId).toBe('testnet');
+      expect(kit.payer?.network).toBe('hedera:testnet');
+      expect(kit.payer?.asset).toBe('0.0.429274');
+      expect(await kit.payer!.balanceUsd6()).toBe(0n);
+      const paid = await kit
+        .payer!.sign(req(), { resource, now: Date.now() })
         .catch((e: unknown) => e);
       expect(paid).toMatchObject({ reason: 'insufficient-balance' });
       expect(typeof kit.api.run).toBe('function');
     } finally {
       kit.close();
     }
+  });
+
+  it('hedera:mainnet allow-list ⇒ mainnet Client, mainnet USDC on the mirror, payer pinned to (mainnet, 0.0.456858)', async () => {
+    const urls: string[] = [];
+    const kit = createHederaAgentKit({
+      accountId: HEDERA_AGENT,
+      privateKey: PrivateKey.generateECDSA().toStringRaw(),
+      network: 'hedera:mainnet',
+      asset: MAINNET_USDC,
+      mirrorUrl: 'https://mainnet.mirror.test',
+      now: Date.now,
+      fetch: async (input) => {
+        urls.push(urlOf(input));
+        return Response.json({ tokens: [{ token_id: MAINNET_USDC, balance: '7000000' }] });
+      },
+    });
+    try {
+      expect(kit.ledgerId).toBe('mainnet');
+      expect(kit.payer).toMatchObject({ network: 'hedera:mainnet', asset: MAINNET_USDC });
+      expect(await kit.wallet.ensureAssociated(kit.payer!.asset)).toBe('already');
+      expect(await kit.payer!.balanceUsd6()).toBe(7_000_000n);
+      expect(urls).toEqual([
+        `https://mainnet.mirror.test/api/v1/accounts/${HEDERA_AGENT}/tokens?token.id=${MAINNET_USDC}`,
+        `https://mainnet.mirror.test/api/v1/accounts/${HEDERA_AGENT}/tokens?token.id=${MAINNET_USDC}`,
+      ]);
+      // a testnet 402 is the wrong network; a mainnet 402 naming testnet USDC is the wrong asset
+      expect(kit.payer!.refusal(req())).toBe('network');
+      expect(kit.payer!.refusal(req({ network: 'hedera:mainnet' }))).toBe('asset');
+      expect(kit.payer!.refusal(req({ ...HEDERA_MAINNET_ACCEPT }))).toBeUndefined();
+    } finally {
+      kit.close();
+    }
+  });
+
+  it('no hedera:* allow-list entry ⇒ no Hedera payer (the wallet and HCS log still exist)', () => {
+    const kit = createHederaAgentKit({
+      accountId: HEDERA_AGENT,
+      privateKey: PrivateKey.generateECDSA().toStringRaw(),
+      network: 'hedera:testnet',
+      mirrorUrl: 'https://mirror.test',
+      now: Date.now,
+    });
+    try {
+      expect(kit.payer).toBeUndefined();
+      expect(typeof kit.wallet.ensureAssociated).toBe('function');
+      expect(typeof kit.consensus.submit).toBe('function');
+    } finally {
+      kit.close();
+    }
+  });
+
+  it('mainnet payer signs a mainnet USDC transfer; a 402 naming 0.0.429274 is refused before anything is built', async () => {
+    const payer = hederaPayer({ network: 'hedera:mainnet', asset: MAINNET_USDC });
+    const mainnetReq = req({ ...HEDERA_MAINNET_ACCEPT });
+    const paid = await payer.sign(mainnetReq, { resource, now: Date.now() });
+    expect(paid.accepted).toEqual(mainnetReq);
+    const { inspectHederaTransaction } = await import('@x402/hedera');
+    const tx = inspectHederaTransaction((paid.payload as { transaction: string }).transaction);
+    expect(Object.keys(tx.tokenTransfers)).toEqual([MAINNET_USDC]);
+    expect(tx.transactionIdAccountId).toBe(FEE_PAYER);
+    expect(payer.signatures).toBe(1);
+
+    const guard = new TermsGuard({
+      payers: [payer],
+      allowList: parseAllowList(MAINNET_ALLOW),
+      expectedUsd6: 400_000n,
+      maxUsd6PerStep: 1_000_000n,
+    });
+    expect(guard.choose([req({ network: 'hedera:mainnet' })])).toBeUndefined();
+    expect(guard.rejections).toEqual([{ index: 0, network: 'hedera:mainnet', field: 'asset' }]);
+    expect(guard.choose([req()])).toBeUndefined();
+    expect(guard.rejections.at(-1)).toMatchObject({ field: 'network' });
+    expect(payer.signatures).toBe(1);
   });
 });

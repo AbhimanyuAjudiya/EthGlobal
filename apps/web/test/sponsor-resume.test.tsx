@@ -93,7 +93,11 @@ beforeEach(() => {
     number: 42n,
     timestamp: BigInt(Math.floor(Date.now() / 1000)),
   });
-  mocks.wallet.reader.readContract.mockResolvedValue(`0x${'56'.repeat(20)}`);
+  // every read answers the USDC address, except the allowance, which starts at zero
+  mocks.wallet.reader.readContract.mockImplementation(
+    async ({ functionName }: { functionName: string }) =>
+      functionName === 'allowance' ? 0n : `0x${'56'.repeat(20)}`,
+  );
   mocks.wallet.reader.getTransactionReceipt.mockResolvedValue({
     status: 'success',
     blockNumber: 42n,

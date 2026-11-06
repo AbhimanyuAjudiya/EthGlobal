@@ -21,7 +21,10 @@ import { config } from './env';
 import { chainNow, type Wallet } from './wallet';
 
 const DATADROP = DataDropAbi as Abi;
-const ERC20 = parseAbi(['function approve(address spender, uint256 amount) returns (bool)']);
+const ERC20 = parseAbi([
+  'function approve(address spender, uint256 amount) returns (bool)',
+  'function allowance(address owner, address spender) view returns (uint256)',
+]);
 const FUNDING = parseAbi([
   'function balanceOf(address owner) view returns (uint256)',
   'function isAssociated() view returns (bool)',
@@ -87,6 +90,16 @@ export async function usdcAddress(wallet: Wallet): Promise<Address> {
     abi: DATADROP,
     functionName: 'usdc',
   })) as Address;
+}
+
+/** What the DataDrop may already draw from this wallet (a retried approval, a draft resumed after a failed hash). */
+export async function usdcAllowance(wallet: Wallet, usdc: Address): Promise<bigint> {
+  return wallet.reader.readContract({
+    address: usdc,
+    abi: ERC20,
+    functionName: 'allowance',
+    args: [wallet.address, dataDropAddress()],
+  });
 }
 
 export const approveCall = (budget: bigint) => ({

@@ -32,6 +32,32 @@ export function useOnchainAction() {
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
+ * Hedera's JSON-RPC relay answers a receipt poll for a transaction the network refused (WRONG_NONCE,
+ * INSUFFICIENT_TX_FEE, …) with an error naming that status instead of a null receipt; that is final.
+ */
+export function hederaRejection(error: unknown): string | undefined {
+  const seen = new Set<unknown>();
+  let e: unknown = error;
+  while (e && typeof e === 'object' && !seen.has(e)) {
+    seen.add(e);
+    const o = e as {
+      data?: { hederaStatus?: unknown };
+      details?: unknown;
+      message?: unknown;
+      cause?: unknown;
+    };
+    if (typeof o.data?.hederaStatus === 'string') return o.data.hederaStatus;
+    for (const text of [o.details, o.message])
+      if (typeof text === 'string') {
+        const m = /Transaction rejected: ([A-Z_]+)/.exec(text);
+        if (m?.[1]) return m[1];
+      }
+    e = o.cause;
+  }
+  return undefined;
+}
+
+/**
  * Follows a broadcast (or settled) transaction to finality: seen → confirmed → finalized, or revert.
  * Anvil: next block; other EVM networks: the `safe` block. Hedera consensus receipts are final,
  * including EVM chains 295/296: wallet providers can cache their `safe` tag behind a confirmed receipt.
@@ -66,7 +92,16 @@ export async function followTransaction(opts: {
     const h = hash as `0x${string}`;
     let seen = false;
     for (let i = 0; i < 240 && !opts.signal?.cancelled; i += 1) {
-      const receipt = await reader.getTransactionReceipt({ hash: h }).catch(() => undefined);
+      let rejected: string | undefined;
+      const receipt = await reader.getTransactionReceipt({ hash: h }).catch((error: unknown) => {
+        rejected = hederaRejection(error);
+        return undefined;
+      });
+      if (rejected !== undefined) {
+        dispatch({ type: 'revert', reason: `the network refused it: ${rejected}` });
+        terminal = true;
+        return 'failed';
+      }
       if (!seen && (receipt || (await reader.getTransaction({ hash: h }).catch(() => undefined)))) {
         seen = true;
         dispatch({ type: 'seen' });

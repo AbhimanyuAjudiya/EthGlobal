@@ -30,6 +30,25 @@ describe('broadcast recovery', () => {
     expect(await pending.list()).toHaveLength(1);
     expect(dispatch).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'uncertain' }));
   });
+  it('a hash the Hedera relay reports as refused is a failure, not a receipt still on its way', async () => {
+    const dispatch = vi.fn();
+    const refused = new Error(
+      '[Request ID: 1] Transaction rejected: INSUFFICIENT_TX_FEE',
+    ) as Error & { cause?: unknown };
+    refused.cause = { code: -32003, data: { hederaStatus: 'INSUFFICIENT_TX_FEE' } };
+    const reader = {
+      getTransactionReceipt: vi.fn().mockRejectedValue(refused),
+      getTransaction: vi.fn().mockResolvedValue(null),
+    } as unknown as PublicClient;
+    expect(
+      await followTransaction({ hash, network: 'eip155:296', label: 'approve', reader, dispatch }),
+    ).toBe('failed');
+    expect(dispatch).toHaveBeenLastCalledWith({
+      type: 'revert',
+      reason: 'the network refused it: INSUFFICIENT_TX_FEE',
+    });
+    expect(await pending.list()).toHaveLength(0);
+  });
   it('can recover the saved hash and regards the receipt block itself as safe', async () => {
     await pending.add({ hash, network: 'eip155:84532', label: 'top-up', at: 1 });
     const reader = {

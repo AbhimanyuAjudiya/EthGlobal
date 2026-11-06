@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => {
     associated: false,
     confirmAssociation: true,
     balance: 0n,
+    allowance: 0n,
     login: vi.fn(),
     register: vi.fn(),
     validate: vi.fn(),
@@ -98,12 +99,14 @@ beforeEach(() => {
   mocks.associated = false;
   mocks.confirmAssociation = true;
   mocks.balance = 0n;
+  mocks.allowance = 0n;
   mocks.ensure.mockResolvedValue(mocks.wallet);
   mocks.wallet.reader.readContract.mockImplementation(
     async ({ functionName }: { functionName: string }) => {
       if (functionName === 'usdc') return TOKEN;
       if (functionName === 'isAssociated') return mocks.associated;
       if (functionName === 'balanceOf') return mocks.balance;
+      if (functionName === 'allowance') return mocks.allowance;
       throw new Error('unexpected contract read');
     },
   );
@@ -211,6 +214,22 @@ describe('Hedera campaign funding readiness', () => {
     fireEvent.click(screen.getByTestId('campaign-submit'));
     await screen.findByTestId('audit-key');
     expect(mocks.wallet.sendTransaction).toHaveBeenCalledTimes(3);
+    expect(mocks.register).toHaveBeenCalledOnce();
+  });
+  it('an allowance already on chain skips the approval: one transaction, the create', async () => {
+    mocks.associated = true;
+    mocks.balance = 12_000_000n;
+    mocks.allowance = 12_000_000n;
+    render(<CampaignForm />);
+    await planEvent();
+    await waitFor(() =>
+      expect(screen.getByTestId('campaign-submit').hasAttribute('disabled')).toBe(false),
+    );
+    fireEvent.click(screen.getByTestId('campaign-submit'));
+    await screen.findByTestId('audit-key');
+    expect(mocks.wallet.sendTransaction).toHaveBeenCalledTimes(1);
+    const [[only]] = mocks.wallet.sendTransaction.mock.calls as [[{ data: string }]];
+    expect(only.data.startsWith('0x095ea7b3')).toBe(false); // not approve(address,uint256)
     expect(mocks.register).toHaveBeenCalledOnce();
   });
   it('a successful transaction without confirmed association stays blocked and rechecks the same hash', async () => {

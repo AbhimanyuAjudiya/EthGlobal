@@ -53,6 +53,7 @@ import {
   scopedCampaignId,
   sponsorLogin,
   usdcAddress,
+  usdcAllowance,
   type SponsorFunding,
 } from '../lib/sponsor';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
@@ -245,6 +246,8 @@ export function CampaignForm() {
   const pause = useOnchainAction();
   const refund = useOnchainAction();
   const [permanent, setPermanent] = useState(false);
+  // step 1 found done on chain (a retried approval, a draft resumed after a refused hash): its row stays idle, labelled
+  const [allowanceReused, setAllowanceReused] = useState(false);
   const selectedPlan =
     catalog?.country === draft.country
       ? catalog.plans.find((plan) => plan.id === draft.planId)
@@ -624,16 +627,23 @@ export function CampaignForm() {
         saveProgress(active);
         setResume({ ...active });
       };
-      const approved = await send(
-        sponsor,
-        { to: usdc, ...approveCall(budget) },
-        'approve USDC',
-        approve.dispatch,
-        active.approveHash,
-        remember('approveHash'),
-      );
-      if (!approved) return;
-      txs.push({ label: 'proof.approveTx', hash: approved, network: sponsor.network });
+      // an allowance already on chain (a retried approval, a draft resumed after a refused hash) needs no second one
+      if ((await usdcAllowance(sponsor, usdc).catch(() => 0n)) >= budget) {
+        setAllowanceReused(true);
+        remember('approveHash')(undefined);
+      } else {
+        setAllowanceReused(false);
+        const approved = await send(
+          sponsor,
+          { to: usdc, ...approveCall(budget) },
+          'approve USDC',
+          approve.dispatch,
+          active.approveHash,
+          remember('approveHash'),
+        );
+        if (!approved) return;
+        txs.push({ label: 'proof.approveTx', hash: approved, network: sponsor.network });
+      }
       const created = await send(
         sponsor,
         createCampaignCall(
@@ -1280,7 +1290,11 @@ export function CampaignForm() {
               network={network}
               networkLabel={networkName(network)}
               actionLabel="Step 1 of 2"
-              blocked="Starts when you create the campaign"
+              blocked={
+                allowanceReused
+                  ? 'Already allowed from this wallet on chain'
+                  : 'Starts when you create the campaign'
+              }
               walletName={wallet?.name ?? 'your wallet'}
               result="Allowance set"
               expectedMs={expectedMsFor(network)}

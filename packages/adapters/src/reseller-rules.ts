@@ -8,6 +8,12 @@ import type { EsimProfile } from './types.js';
 export const PLAN_NAME_MAX = 64;
 export const ICCID_PATTERN = /^\d{18,22}$/;
 
+export function assertCountryCode(country: string): string {
+  if (!/^[A-Z]{2}$/.test(country))
+    throw new AdapterError('reseller', 'invalid_request', 'country must be an uppercase ISO2 code');
+  return country;
+}
+
 /** Plain text, no markup or control characters, ≤ 64 chars (names are rendered, T-39). */
 export const safePlanName = (name: string): string =>
   name

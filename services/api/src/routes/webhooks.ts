@@ -6,10 +6,13 @@
  */
 import { isAdapterError, type EsimUsage } from '@ethglobal/adapters';
 import { sha256Hex } from '@ethglobal/crypto';
+import { entitlementIndex } from '@ethglobal/octroi';
 import type { UsageEvent } from '@ethglobal/protocol/schemas';
 
 import { type AppEnv, type Ctx } from '../context.js';
 import { fail } from '../errors.js';
+import { campaignReclaimBlocks } from '../flows/campaign-reclaim.js';
+import { providerExpiry } from '../flows/lifecycle.js';
 import { errName } from '../flows/record.js';
 
 import type { Deps } from '../deps.js';
@@ -19,7 +22,9 @@ import type { Hono } from 'hono';
 export const URL_TOKEN_HEADER = 'x-recharge-url-token';
 export const REMOTE_IP_HEADER = 'x-recharge-remote-ip';
 
-type Usage = Pick<EsimUsage, 'usedMb' | 'asOf'> & { status?: EsimUsage['status'] | undefined };
+type Usage = Pick<EsimUsage, 'usedMb' | 'asOf' | 'lifecycle'> & {
+  status?: EsimUsage['status'] | undefined;
+};
 
 export function registerWebhooks(app: Hono<AppEnv>, deps: Deps): void {
   app.post('/webhooks/reseller/:provider', async (c) => {
@@ -101,25 +106,44 @@ export async function patchUsage(
   usage: Usage,
   source: 'webhook' | 'poll',
 ): Promise<void> {
-  await deps.stores.entitlements.patch(key, (current) => {
-    // Re-evaluate on every CAS attempt: a poll can overlap a top-up or a newer usage report.
-    if (
-      usage.usedMb < current.mbUsed ||
-      (current.usageSource !== 'none' && usage.asOf < current.usageAsOf)
-    )
-      return {};
-    const status =
-      current.status === 'active' || usage.status === 'active'
-        ? 'active'
-        : current.status === 'installed' || usage.status === 'installed'
-          ? 'installed'
-          : undefined;
-    return {
-      mbUsed: Math.min(usage.usedMb, current.mbTotal),
-      usageAsOf: usage.asOf,
-      usageSource: source,
-      ...(status === undefined ? {} : { status }),
-    };
-  });
+  await deps.stores.entitlements.patch(
+    key,
+    (current) => {
+      // Re-evaluate on every CAS attempt: a poll can overlap a top-up or a newer usage report.
+      if (
+        usage.usedMb < current.mbUsed ||
+        (current.usageSource !== 'none' && usage.asOf < current.usageAsOf)
+      )
+        return {};
+      const status =
+        current.status === 'active' || usage.status === 'active'
+          ? 'active'
+          : current.status === 'installed' || usage.status === 'installed'
+            ? 'installed'
+            : undefined;
+      return {
+        mbUsed: Math.min(usage.usedMb, current.mbTotal),
+        usageAsOf: usage.asOf,
+        usageSource: source,
+        ...(status === undefined ? {} : { status }),
+        ...(usage.lifecycle === undefined ? {} : { lifecycle: usage.lifecycle }),
+      };
+    },
+    {
+      expiresAt: (current) =>
+        !campaignReclaimBlocks(deps, current.key) &&
+        usage.usedMb >= current.mbUsed &&
+        !deps.refundJobs
+          .entries()
+          .some(
+            ([, job]) =>
+              job.kind === 'plan-cancel' &&
+              entitlementIndex(job.entitlementKey) === entitlementIndex(current.key),
+          ) &&
+        (current.usageSource === 'none' || usage.asOf >= current.usageAsOf)
+          ? providerExpiry(usage.lifecycle, deps.now())
+          : undefined,
+    },
+  );
   deps.cache.invalidate(key);
 }

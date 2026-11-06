@@ -31,6 +31,12 @@ export async function deliver(
   await plans.saveHolder(key, publicKey);
   await persistSession(publicKey, res.expiresAt);
   await set(`delivery:${key}`, { publicKey, nonce });
+  // Persist the disclosed installation/cancellation deadline before saving or displaying any activation code.
+  await set(`activation-policy:${key}`, {
+    expiresAt: res.expiresAt,
+    ...(res.lifecycle ? { lifecycle: res.lifecycle } : {}),
+    ...(res.campaignReclaim ? { campaignReclaim: res.campaignReclaim } : {}),
+  });
   // the person just claimed or bought this plan on this device: it becomes the one /install acts on
   await plans.adopt(key);
   await plans.saveIssued(key, {

@@ -10,14 +10,15 @@ import { Button, Icon } from '@ethglobal/ui/components';
 import { QrCode } from './QrCode';
 import { AppHeader, Caution, Screen, TabBar } from './Shell';
 import { useLang } from '../i18n/lang';
-import { api } from '../lib/api';
+import { activationBlocked, type ActivationPolicy } from '../lib/activation-policy';
+import { api, ApiError } from '../lib/api';
 import { planHref } from '../lib/deliver';
 import { parseDevice, type DeviceInfo } from '../lib/device';
 import { config } from '../lib/env';
 import { formatMb } from '../lib/format';
-import { useHydrated } from '../lib/hooks';
+import { useClock, useHydrated } from '../lib/hooks';
 import { ANDROID_EUICC_INTENT, iosUniversalLink, isLpa, splitLpa } from '../lib/lpa-links';
-import { plans } from '../lib/store';
+import { get, plans } from '../lib/store';
 
 /** How long a revealed QR code or set of activation details stays on screen (T-61). */
 const REVEAL_MS = 60_000;
@@ -265,22 +266,104 @@ function AndroidSteps({ lpa }: { lpa: string }) {
 export function InstallSteps() {
   const { t, lang } = useLang();
   const hydrated = useHydrated();
+  const now = useClock();
   const device: DeviceInfo | undefined = hydrated ? parseDevice(navigator.userAgent) : undefined;
   const [lpa, setLpa] = useState<string | null | undefined>();
   const [me, setMe] = useState<MeResponse | undefined>();
+  const [policy, setPolicy] = useState<ActivationPolicy | undefined>();
+  const [unavailable, setUnavailable] = useState(false);
   const [late, setLate] = useState(false);
 
   const [removed, setRemoved] = useState(false);
 
   useEffect(() => {
+    let alive = true;
+    let key: string | undefined;
+    let knownPolicy: ActivationPolicy | undefined;
+    let pending: Promise<void> | undefined;
+    const retainPolicy = (current: ActivationPolicy): ActivationPolicy => {
+      // An older /me response or snapshot may omit newly disclosed terms; omission does not revoke them.
+      knownPolicy = {
+        ...current,
+        ...(current.campaignReclaim === undefined && knownPolicy?.campaignReclaim !== undefined
+          ? { campaignReclaim: knownPolicy.campaignReclaim }
+          : {}),
+        ...(current.lifecycle === undefined && knownPolicy?.lifecycle !== undefined
+          ? { lifecycle: knownPolicy.lifecycle }
+          : {}),
+      };
+      return knownPolicy;
+    };
+    const refresh = (fresh = false): Promise<void> => {
+      if (!key || !alive) return Promise.resolve();
+      if (pending) return pending;
+      const requestedKey = key;
+      pending = api
+        .me(requestedKey, fresh)
+        .then(
+          (current) => {
+            if (!alive) return;
+            setMe(current);
+            setPolicy(retainPolicy(current));
+            setUnavailable(false);
+            void plans.saveSnapshot(requestedKey, current);
+          },
+          (error: unknown) => {
+            if (
+              alive &&
+              error instanceof ApiError &&
+              ['expired', 'not_found', 'unauthorized'].includes(error.code)
+            )
+              setUnavailable(true);
+            // A network failure retains known local policy; its deadline continues to apply offline.
+          },
+        )
+        .finally(() => {
+          pending = undefined;
+        });
+      return pending;
+    };
     void (async () => {
-      const key = await plans.latest();
-      const stored = key ? await plans.lpa(key) : undefined;
+      key = await plans.latest();
+      if (!key) {
+        if (alive) setLpa(null);
+        return;
+      }
+      const [stored, snapshot, savedPolicy] = await Promise.all([
+        plans.lpa(key),
+        plans.snapshot(key),
+        get<ActivationPolicy>(`activation-policy:${key}`),
+      ]);
+      if (!alive) return;
+      knownPolicy = savedPolicy;
+      setMe(snapshot?.me);
+      setPolicy(snapshot ? retainPolicy(snapshot.me) : savedPolicy);
+      // Online visitors first reconcile live state. Offline visitors retain pre-departure instructions
+      // and their local code only while the saved policy still permits activation.
+      if (navigator.onLine !== false) await refresh(true);
+      else void refresh();
+      if (!alive) return;
       setLpa(isLpa(stored) ? stored : null);
-      if (key) setMe(await api.me(key).catch(() => undefined));
     })();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    const onResume = () => {
+      void refresh();
+    };
+    const poll = setInterval(onVisible, 10_000);
+    window.addEventListener('online', onResume);
+    window.addEventListener('pageshow', onResume);
+    document.addEventListener('visibilitychange', onVisible);
     const timer = setTimeout(() => setLate(true), TROUBLE_AFTER_MS);
-    return () => clearTimeout(timer);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+      clearInterval(poll);
+      window.removeEventListener('online', onResume);
+      window.removeEventListener('pageshow', onResume);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []);
 
   // installed (webhook `installed` / `active`): the activation code leaves this device for good (T-76, RT-W-01)
@@ -292,14 +375,9 @@ export function InstallSteps() {
     });
   }, [me]);
 
-  useEffect(() => {
-    if (!me || me.status === 'active') return;
-    const timer = setInterval(() => {
-      void api.me(me.entitlementKey).then(setMe, () => undefined);
-    }, 10_000);
-    return () => clearInterval(timer);
-  }, [me]);
-
+  const installed = me?.status === 'installed' || me?.status === 'active';
+  const blocked = unavailable || (policy !== undefined && activationBlocked(policy, now));
+  const reclaim = policy?.campaignReclaim;
   const mb = me?.mbTotal ?? PLAN_MB;
   return (
     <Screen wide className="install-screen">
@@ -315,9 +393,25 @@ export function InstallSteps() {
       </header>
       {lpa === undefined || !device ? (
         <div className="skeleton skeleton--line" aria-hidden="true" />
-      ) : removed ? (
+      ) : removed || installed ? (
         <p className="note" role="status" lang={lang} data-testid="lpa-removed">
           {t('install.done')}
+        </p>
+      ) : blocked ? (
+        <p className="note" role="status" lang={lang} data-testid="install-blocked">
+          {reclaim &&
+          reclaim.state !== 'ineligible' &&
+          (reclaim.state !== 'scheduled' || reclaim.reclaimAfter <= now)
+            ? t(
+                reclaim.state === 'refunded'
+                  ? 'plan.eventRefunded'
+                  : reclaim.state === 'manual'
+                    ? 'plan.eventManual'
+                    : 'plan.eventPending',
+              )
+            : policy?.cancelledAt !== undefined
+              ? t('plan.cancelledState')
+              : t('install.noLpa')}
         </p>
       ) : lpa === null ? (
         <p className="note" role="status" lang={lang}>

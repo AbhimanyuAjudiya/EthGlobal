@@ -38,6 +38,42 @@ export const SPONSOR_LOGIN_TYPES = {
   ],
 } as const;
 
+/** Write authorization for one exact set of private ticket passes. */
+export const SPONSOR_TICKETS_TYPES = {
+  SponsorTickets: [
+    { name: 'campaignId', type: 'bytes32' },
+    { name: 'sponsor', type: 'address' },
+    { name: 'ticketsHash', type: 'bytes32' },
+    { name: 'nonce', type: 'bytes32' },
+    { name: 'issuedAt', type: 'uint256' },
+  ],
+} as const;
+export const SPONSOR_TICKETS_TTL_MS = 600_000;
+
+/** Ticket references are opaque, case-sensitive IDs from the organizer's confirmed attendee list. */
+export function canonicalTicketRefs(refs: readonly string[]): string[] {
+  if (refs.length < 1 || refs.length > 200)
+    throw new TypeError('Provide 1 to 200 ticket references');
+  const values = refs.map((ref) => ref.normalize('NFKC').trim());
+  if (
+    values.some(
+      (ref) =>
+        ref.length < 1 ||
+        ref.length > 128 ||
+        Array.from(ref).some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127),
+    )
+  )
+    throw new TypeError('Invalid ticket reference');
+  return [...new Set(values)].sort();
+}
+
+/** Browser/server-identical SHA-256; the raw ticket list is not put into an on-chain transaction. */
+export async function sponsorTicketsHash(refs: readonly string[]): Promise<Hex> {
+  const bytes = new TextEncoder().encode(JSON.stringify(canonicalTicketRefs(refs)));
+  const hash = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+  return `0x${Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+}
+
 /**
  * The sponsor's WRITE credential for minting campaign-funded scratch cards (A-43, RT-P-08): a fresh signature over
  * exactly this batch. A captured SponsorLogin (the dashboard's read bearer) cannot mint; `nonce` is one-shot.

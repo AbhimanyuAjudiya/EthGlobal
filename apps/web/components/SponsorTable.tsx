@@ -13,6 +13,8 @@ import { CampaignAnalytics } from './CampaignAnalytics';
 import { EnsCampaign } from './EnsCampaign';
 import { ProofPanel } from './ProofPanel';
 import { SlideToConfirm } from './SlideToConfirm';
+import { SponsorTickets } from './SponsorTickets';
+import { useLang } from '../i18n/lang';
 import { api, ApiError } from '../lib/api';
 import {
   arkivEntityUrl,
@@ -96,6 +98,7 @@ function csv(view: SponsorView): string {
 
 /** `/sponsor/[id]` — a table that is the product: "1,214 claims" beside spend, cap and rate; Pause by slide. */
 export function SponsorTable({ id }: { id: string }) {
+  const { t, lang } = useLang();
   const { wallet } = useWallet('sponsor');
   const ensureChain = useEnsureChain();
   const { openConnectModal } = useConnectModal();
@@ -278,7 +281,7 @@ export function SponsorTable({ id }: { id: string }) {
         <h1 className="sponsor-hero__name">
           {campaign.name}{' '}
           <span className="pill" data-state={chain.paused ? 'paused' : 'live'}>
-            {chain.paused ? 'Paused' : 'Live'}
+            {expired ? t('event.closed') : chain.paused ? 'Paused' : 'Live'}
           </span>
         </h1>
         <p className="sponsor-hero__figure" data-testid="sponsor-claims">
@@ -301,6 +304,33 @@ export function SponsorTable({ id }: { id: string }) {
           />
         </p>
       </header>
+      {campaign.event ? (
+        <section className="pane" lang={lang} aria-label={t('event.details')}>
+          <h2 className="pane__title">{t('event.details')}</h2>
+          <p>
+            {campaign.event.destinationCountry} · {dayLabel(campaign.event.startsAt)} —{' '}
+            {dayLabel(campaign.event.endsAt)}
+          </p>
+          <p className="note">
+            {t('event.dashboardPackage', {
+              id: campaign.planId,
+              mb: formatMb(campaign.bundleMb.orb),
+              days: campaign.validityDays,
+            })}
+          </p>
+          <p className="note">{t('event.ticketNotice')}</p>
+          <p className="note">
+            {t(campaign.event.reclaimUnused ? 'event.reclaimTerms' : 'event.reclaimOff')}
+          </p>
+          {campaign.event.reclaimUnused ? (
+            <p className="note">
+              {t('event.reclaimScheduled', {
+                date: `${dayLabel(campaign.event.reclaimAfter)} ${clockIst(campaign.event.reclaimAfter)}`,
+              })}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
       {auditKey ? (
         <section className="audit-key" data-testid="audit-key">
           <h2 className="pane__title">Audit key · shown once</h2>
@@ -308,6 +338,15 @@ export function SponsorTable({ id }: { id: string }) {
         </section>
       ) : null}
       <EnsCampaign campaign={campaign} />
+      {campaign.event?.ticketRequired ? (
+        <SponsorTickets
+          key={identity}
+          id={id as Hex}
+          sponsor={campaign.sponsor}
+          login={login}
+          closed={expired || chain.paused}
+        />
+      ) : null}
       <section className="pane" aria-label="Budget">
         <div className="budget-bar" role="img" aria-label={`Spent ${spentPct} % of the budget`}>
           <span className="budget-bar__spent" style={{ transform: `scaleX(${spentPct / 100})` }} />
@@ -321,6 +360,41 @@ export function SponsorTable({ id }: { id: string }) {
       {!login ? <Button onClick={() => void signIn()}>Sign in again</Button> : null}
       {error ? <p role="status">{error}</p> : null}
       <CampaignAnalytics id={id} login={login} />
+      {view.reclaim ? (
+        <section className="pane" lang={lang} aria-labelledby="reclaim-summary-title">
+          <h2 id="reclaim-summary-title" className="pane__title">
+            {t('event.returnsTitle')}
+          </h2>
+          <p className="note">{t('event.reclaimTerms')}</p>
+          <dl className="offer-facts">
+            <div>
+              <dt>{t('event.scheduled')}</dt>
+              <dd>{view.reclaim.scheduled}</dd>
+            </div>
+            <div>
+              <dt>{t('event.pending')}</dt>
+              <dd>{view.reclaim.pending}</dd>
+            </div>
+            <div>
+              <dt>{t('event.completed')}</dt>
+              <dd>{view.reclaim.completed}</dd>
+            </div>
+            <div>
+              <dt>{t('event.ineligible')}</dt>
+              <dd>{view.reclaim.ineligible}</dd>
+            </div>
+          </dl>
+          <p>
+            {t('event.refundAmounts', {
+              pending: money(view.reclaim.refundPendingUsd6),
+              refunded: money(view.reclaim.refundedUsd6),
+            })}
+          </p>
+          <Button variant="quiet" disabled={!login} onClick={() => void load()}>
+            {t('event.refresh')}
+          </Button>
+        </section>
+      ) : null}
       <section className="pane" aria-labelledby="tiers-title">
         <h2 id="tiers-title" className="pane__title">
           Claims by credential level
@@ -479,6 +553,9 @@ export function SponsorTable({ id }: { id: string }) {
         <h2 id="controls-title" className="pane__title">
           Controls
         </h2>
+        <p className="note" lang={lang}>
+          {t('event.unspentTerms')}
+        </p>
         {chain.paused ? (
           <button
             type="button"

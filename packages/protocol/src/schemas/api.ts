@@ -16,9 +16,13 @@ import {
   type VerificationLevel,
 } from './common.js';
 import {
+  campaignEventSchema,
+  campaignReclaimSummarySchema,
+  campaignReclaimViewSchema,
   campaignSchema,
   entitlementKindSchema,
   entitlementStatusSchema,
+  esimLifecycleSchema,
   hcsRefSchema,
   receiptSchema,
   topUpPolicySchema,
@@ -164,6 +168,10 @@ export const claimRequestSchema = z.object({
   campaignId: hex32Schema,
   challenge: challengeSchema,
   sessionPubKey: hex32Schema,
+  /** Private organizer-issued ticket capability; never included in public ledger payloads. */
+  ticketPass: hex32Schema.optional(),
+  /** Recipient accepted the disclosed post-event cancellation terms. */
+  eventNoticeVersion: z.literal(1).optional(),
 });
 export const receiptRefSchema = z.object({
   /** Ledger entity key of the entitlement (shown as "Plan written to Arkiv · …"). */
@@ -179,6 +187,8 @@ export const entitledResponseSchema = z.object({
   mbTotal: mbSchema,
   expiresAt: msSchema,
   validityDays: z.int(),
+  lifecycle: esimLifecycleSchema.optional(),
+  campaignReclaim: campaignReclaimViewSchema.optional(),
   /** Absent when status = 'pending-profile'. */
   sealedLpa: sealedBoxSchema.optional(),
   /** DataDrop.claim tx (free lane / card). */
@@ -324,11 +334,14 @@ export const meResponseSchema = z.object({
   usageAsOf: msSchema,
   usageSource: usageSourceSchema,
   expiresAt: msSchema,
+  lifecycle: esimLifecycleSchema.optional(),
   arkivKey: z.string(),
   ledgerReadAt: msSchema,
   cached: z.boolean(),
   degraded: z.boolean(),
   network: caipNetworkSchema.optional(),
+  topUpAvailable: z.boolean().optional(),
+  autoTopUpAvailable: z.boolean().optional(),
   // POST /plan/cancel: what it would refund now, and to whom (paid, unused, never topped up or cancelled) …
   refundable: z
     .object({
@@ -340,6 +353,7 @@ export const meResponseSchema = z.object({
   // … or, once cancelled, when (= expiresAt) and the refund
   cancelledAt: msSchema.optional(),
   refund: planRefundSchema.optional(),
+  campaignReclaim: campaignReclaimViewSchema.optional(),
 });
 export const receiptPublicSchema = receiptSchema.omit({ entitlementKeyHash: true, key: true });
 export const receiptsResponseSchema = z.object({ receipts: z.array(receiptPublicSchema) });
@@ -363,6 +377,7 @@ export const plansResponseSchema = z.object({
       paused: z.boolean(),
       expiresAt: msSchema,
       network: caipNetworkSchema,
+      event: campaignEventSchema.optional(),
     })
     .nullable(),
   paid: z.object({
@@ -381,7 +396,37 @@ export const plansResponseSchema = z.object({
 
 // ── Sponsors and the agent
 
+export const catalogResponseSchema = z.object({
+  country: z.string().regex(/^[A-Z]{2}$/),
+  plans: z.array(
+    z.object({
+      id: z.string().max(64),
+      name: z.string(),
+      mb: mbSchema,
+      validityDays: z.int().min(1).max(30),
+      wholesaleUsd6: digitsSchema,
+      activation: z.object({
+        startsOn: z.enum(['first-network', 'installation', 'unknown']),
+        installWithinDays: z.int().positive().optional(),
+      }),
+      cancellation: z.enum(['never-installed', 'unsupported', 'unknown']),
+    }),
+  ),
+});
+export type CatalogResponse = z.infer<typeof catalogResponseSchema>;
+
 const signedAuth = { issuedAt: msSchema, signature: hexSchema };
+export const sponsorTicketsRequestSchema = z.object({
+  ticketRefs: z.array(z.string().min(1).max(128)).min(1).max(200),
+  auth: z.object({ sponsor: evmAddressSchema, nonce: hex32Schema, ...signedAuth }),
+});
+export const sponsorTicketsResponseSchema = z.object({
+  campaignId: hex32Schema,
+  tickets: z.array(z.object({ reference: z.string(), pass: hex32Schema })),
+  issuedAt: msSchema,
+});
+export type SponsorTicketsRequest = z.infer<typeof sponsorTicketsRequestSchema>;
+export type SponsorTicketsResponse = z.infer<typeof sponsorTicketsResponseSchema>;
 export const sponsorRegisterSchema = z.object({
   campaign: campaignSchema.omit({ v: true, createdAt: true, ens: true }),
   auth: z.object(signedAuth),
@@ -430,6 +475,7 @@ export const sponsorViewSchema = z.object({
   ),
   /** Shown once, on the first authenticated read after registration. */
   auditKey: hex32Schema.optional(),
+  reclaim: campaignReclaimSummarySchema.optional(),
 });
 export const agentPolicyPutSchema = z.object({
   entitlementKey: z.string(),

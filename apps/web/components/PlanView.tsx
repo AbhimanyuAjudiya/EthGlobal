@@ -23,6 +23,7 @@ import { ProofPanel } from './ProofPanel';
 import { QrCode } from './QrCode';
 import { AppHeader, Caution, Screen, TabBar } from './Shell';
 import { useLang } from '../i18n/lang';
+import { activationBlocked } from '../lib/activation-policy';
 import { api, ApiError } from '../lib/api';
 import { recoverActivation } from '../lib/deliver';
 import { arkivEntityUrl } from '../lib/env';
@@ -266,8 +267,10 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
     );
 
   const m = load.me;
-  const expired = m.expiresAt <= now;
+  const mobileExpiry = m.lifecycle?.serviceExpiresAt;
+  const expired = m.expiresAt <= now || (mobileExpiry !== undefined && mobileExpiry <= now);
   const terminal = expired || cancelled || Boolean(m.cancelledAt);
+  const activationUnavailable = activationBlocked(m, now);
   const lines = receiptLines(receipts.find((r) => r.kind === 'claim') ?? receipts[0], facts);
   const latest = receipts[0];
   const sponsor = m.sponsorName;
@@ -312,7 +315,7 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
             {...(from.reason ? { reason: from.reason } : {})}
             lang={uiLang}
             {...(expired
-              ? { status: t('plan.expired', { when: dayLabel(m.expiresAt, lang) }) }
+              ? { status: t('plan.expired', { when: dayLabel(mobileExpiry ?? m.expiresAt, lang) }) }
               : {})}
             {...(m.status === 'pending-profile' ? { status: t('plan.pendingProfile') } : {})}
             {...(cancelled || m.cancelledAt ? { status: t('plan.cancelledState') } : {})}
@@ -341,25 +344,74 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
             fillOnce={firstView}
             className="plan__meter"
           />
-          <p className="plan__expiry" data-testid="plan-expiry">
-            <Countdown
-              until={m.expiresAt}
-              lead=""
-              ended={t('plan.ended')}
-              template={(left, at) => t('plan.expiresIn', { left, at })}
-              units={uiStrings[lang].units}
-              locale={dateLocale(lang)}
-            />
-          </p>
+          <div className="plan__expiry" data-testid="plan-expiry">
+            {m.lifecycle ? (
+              <>
+                <p>
+                  {mobileExpiry !== undefined
+                    ? t('plan.serviceExpiry', {
+                        date: `${dayLabel(mobileExpiry, lang)} ${clockIst(mobileExpiry)}`,
+                      })
+                    : t(
+                        m.lifecycle.startsOn === 'first-network'
+                          ? 'plan.lifecycleNetwork'
+                          : m.lifecycle.startsOn === 'installation'
+                            ? 'plan.lifecycleInstall'
+                            : 'plan.lifecycleUnknown',
+                      )}
+                </p>
+                {m.lifecycle.validityDays && mobileExpiry === undefined ? (
+                  <p>{t('plan.serviceValidity', { days: m.lifecycle.validityDays })}</p>
+                ) : null}
+                {m.lifecycle.installBy !== undefined &&
+                m.lifecycle.activatedAt === undefined &&
+                !INSTALLED.has(m.status) ? (
+                  <p>
+                    {t('plan.installDeadline', {
+                      date: `${dayLabel(m.lifecycle.installBy, lang)} ${clockIst(m.lifecycle.installBy)}`,
+                    })}
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <Countdown
+                until={m.expiresAt}
+                lead=""
+                ended={t('plan.ended')}
+                template={(left, at) => t('plan.expiresIn', { left, at })}
+                units={uiStrings[lang].units}
+                locale={dateLocale(lang)}
+              />
+            )}
+          </div>
           {cancelled || m.cancelledAt ? (
             <p className="banner" role="status">
               {t('plan.cancelledState')}
             </p>
-          ) : (
+          ) : !m.lifecycle ? (
             <Caution k="esim.expiry" />
-          )}
+          ) : null}
+          {m.campaignReclaim ? (
+            <p className="note" role="status">
+              {t(
+                m.campaignReclaim.state === 'scheduled'
+                  ? 'plan.eventScheduled'
+                  : m.campaignReclaim.state === 'refunded'
+                    ? 'plan.eventRefunded'
+                    : m.campaignReclaim.state === 'manual'
+                      ? 'plan.eventManual'
+                      : m.campaignReclaim.state === 'ineligible'
+                        ? 'plan.eventIneligible'
+                        : 'plan.eventPending',
+                {
+                  date: `${dayLabel(m.campaignReclaim.reclaimAfter, lang)} ${clockIst(m.campaignReclaim.reclaimAfter)}`,
+                },
+              )}
+            </p>
+          ) : null}
           {foreign ||
           terminal ||
+          activationUnavailable ||
           INSTALLED.has(m.status) ||
           m.status === 'pending-profile' ? null : hasLpa === false && m.status === 'ready' ? (
             // the activation code was opened in another browser (it never travels): install from there
@@ -379,7 +431,7 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
               <p className="note">{t('plan.later')}</p>
             </div>
           )}
-          {!terminal ? (
+          {!terminal && m.topUpAvailable !== false ? (
             <Link
               href={`/pay?key=${k}`}
               className="ui-button ui-button--block"
@@ -388,6 +440,8 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
             >
               {t('plan.add', { price })}
             </Link>
+          ) : m.topUpAvailable === false ? (
+            <p className="note">{t('plan.eventBundleOnly')}</p>
           ) : null}
         </section>
       </div>
@@ -427,7 +481,9 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
                 )}
               </p>
             </details>
-            {foreign ? null : <OtherDevice entitlementKey={entitlementKey} />}
+            {foreign || terminal || activationUnavailable ? null : (
+              <OtherDevice entitlementKey={entitlementKey} />
+            )}
             <Receipt
               heading={
                 latest
@@ -449,17 +505,19 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
             <AddToHomeScreen ready={ready} />
             <NotificationAsk ready={ready} />
           </div>
-          <PlanActions
-            entitlementKey={entitlementKey}
-            me={m}
-            onCancelled={() => {
-              setCancelled(true);
-              void readPlan(entitlementKey, true).then(setLoad);
-            }}
-          />
+          {!activationUnavailable ? (
+            <PlanActions
+              entitlementKey={entitlementKey}
+              me={m}
+              onCancelled={() => {
+                setCancelled(true);
+                void readPlan(entitlementKey, true).then(setLoad);
+              }}
+            />
+          ) : null}
         </section>
       </div>
-      <TabBar active="plan" canTopUp={!terminal} />
+      <TabBar active="plan" canTopUp={!terminal && m.topUpAvailable !== false} />
     </Screen>
   );
 }

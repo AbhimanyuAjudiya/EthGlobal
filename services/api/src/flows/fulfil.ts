@@ -25,6 +25,13 @@ import {
 } from '@ethglobal/protocol/schemas';
 
 import { fail } from '../errors.js';
+import {
+  assertCampaignDelivery,
+  campaignOrderStarting,
+  campaignReclaimView,
+  captureCampaignProfile,
+} from './campaign-reclaim.js';
+import { providerExpiry } from './lifecycle.js';
 import { errName, record, submitHcs, type ReceiptDraft, type Recorded } from './record.js';
 
 import type { Deps } from '../deps.js';
@@ -59,6 +66,8 @@ export interface Fulfilled {
 
 /** Seals the profile's LPA and the ICCID; the clear LPA never leaves this function (T-31). */
 async function seal(deps: Deps, key: string, profile: EsimProfile, sessionPubKey: Hex, nonce: Hex) {
+  captureCampaignProfile(deps, key, profile);
+  assertCampaignDelivery(deps, key);
   if (!LPA_PATTERN.test(profile.lpa))
     throw fail('reseller_unavailable', { detail: 'activation code malformed' });
   const sealed: SealedBox = sealLpa(profile.lpa, hexToBytes(sessionPubKey), lpaAad(nonce, key));
@@ -70,7 +79,9 @@ async function seal(deps: Deps, key: string, profile: EsimProfile, sessionPubKey
       iccidHash: sha256Hex(profile.iccid),
       iccidEnc: sealToServer(deps.sealKey, profile.iccid, utf8(key)),
       sealedRef: ref,
+      ...(profile.lifecycle === undefined ? {} : { lifecycle: profile.lifecycle }),
     },
+    expiresAt: providerExpiry(profile.lifecycle, deps.now()),
   };
 }
 
@@ -112,19 +123,32 @@ export async function fulfil(
         claimTx: ctx.claimTx,
         settlement: ctx.settlement,
         hcs: recorded.hcs,
+        campaignReclaim: campaignReclaimView(deps, key),
       }),
     };
   }
   deps.cache.seen(key, entitlement.expiresAt);
   let sealed: SealedBox | undefined;
+  let delivered = entitlement;
   try {
+    campaignOrderStarting(deps, key);
     const profile = await deps.metrics.timed(
       'reseller_ms',
       () => deps.adapters.reseller.order(entitlement.planId, { idempotencyKey: key }),
       { op: 'order' },
     );
     const done = await seal(deps, key, profile, ctx.sessionPubKey, ctx.nonce);
-    await deps.stores.entitlements.patch(key, done.patch);
+    const updated = await deps.stores.entitlements.patch(
+      key,
+      done.patch,
+      done.expiresAt === undefined ? {} : { expiresAt: done.expiresAt },
+    );
+    delivered = updated.payload;
+    deps.pendingDelivery.set(
+      key,
+      { ...deps.pendingDelivery.get(key)!, entitlement: delivered },
+      delivered.expiresAt,
+    );
     sealed = done.sealed;
   } catch (error) {
     // The human never proves (or pays) twice: the entitlement stays pending and /me (or the next boot) retries the
@@ -142,17 +166,19 @@ export async function fulfil(
     { event: 'provision', kind: entitlement.kind, status: sealed ? 'ready' : 'pending-profile' },
     'provisioned',
   );
-  const body = entitledBody(entitlement, created.key, {
+  const body = entitledBody(delivered, created.key, {
     sealed,
     claimTx: ctx.claimTx,
     settlement: ctx.settlement,
     hcs: recorded.hcs,
+    campaignReclaim: campaignReclaimView(deps, key),
   });
   return { status: sealed ? 201 : 202, body };
 }
 
 /** A retained recovery intent cannot revive a terminal plan after its ledger entity disappears. */
 export async function assertDeliveryUsable(deps: Deps, entitlement: Entitlement): Promise<void> {
+  assertCampaignDelivery(deps, entitlement.key);
   if (entitlement.expiresAt <= deps.now()) throw fail('expired');
   if (entitlement.kind !== 'paid') return;
   const key = `rcpt:ledger:plan-cancel:${sha256Hex(entitlement.key)}`;
@@ -180,6 +206,7 @@ function entitledBody(
     settlement: SettleResult | undefined;
     hcs: Recorded['hcs'];
     status?: 'ready' | 'pending-profile';
+    campaignReclaim?: EntitledResponse['campaignReclaim'];
   },
 ): EntitledResponse {
   return {
@@ -189,7 +216,9 @@ function entitledBody(
     tier: e.tier,
     mbTotal: e.mbTotal,
     expiresAt: e.expiresAt,
-    validityDays: Math.round((e.expiresAt - e.createdAt) / DAY_MS),
+    validityDays: e.lifecycle?.validityDays ?? Math.round((e.expiresAt - e.createdAt) / DAY_MS),
+    ...(e.lifecycle === undefined ? {} : { lifecycle: e.lifecycle }),
+    ...(x.campaignReclaim === undefined ? {} : { campaignReclaim: x.campaignReclaim }),
     ...(x.sealed ? { sealedLpa: x.sealed } : {}),
     ...(x.claimTx === undefined ? {} : { claimTx: x.claimTx }),
     ...(x.settlement === undefined ? {} : { settlement: x.settlement }),
@@ -198,7 +227,11 @@ function entitledBody(
 }
 
 /** Lost redemption responses recover only plan metadata; the delivery endpoint returns the original AAD nonce. */
-export function deliveryMetadata(found: Found<Entitlement>, context?: FulfilContext): Fulfilled {
+export function deliveryMetadata(
+  found: Found<Entitlement>,
+  context?: FulfilContext,
+  deps?: Deps,
+): Fulfilled {
   const pending = found.payload.status === 'pending-profile';
   return {
     status: pending ? 202 : 201,
@@ -208,6 +241,7 @@ export function deliveryMetadata(found: Found<Entitlement>, context?: FulfilCont
       settlement: context?.settlement,
       hcs: undefined,
       status: pending ? 'pending-profile' : 'ready',
+      ...(deps ? { campaignReclaim: campaignReclaimView(deps, found.payload.key) } : {}),
     }),
   };
 }
@@ -227,6 +261,7 @@ export async function pendingResponse(deps: Deps, found: Found<Entitlement>): Pr
       claimTx: claim?.tx,
       settlement: undefined,
       hcs: claim?.hcs,
+      campaignReclaim: campaignReclaimView(deps, e.key),
     }),
   };
 }
@@ -238,21 +273,34 @@ export async function pendingResponse(deps: Deps, found: Found<Entitlement>): Pr
  */
 export function retryPending(deps: Deps, entitlement: Entitlement): Promise<Entitlement> {
   // under the entitlement's mutex: a re-bind (RT-A-17) cannot move the target while this order is in flight
-  return deps.mutex.run(entitlement.key, () => retryLocked(deps, entitlement));
+  return deps.mutex.run(entitlement.key, () => retryPendingLocked(deps, entitlement));
 }
 
-async function retryLocked(deps: Deps, entitlement: Entitlement): Promise<Entitlement> {
+export async function retryPendingLocked(
+  deps: Deps,
+  entitlement: Entitlement,
+): Promise<Entitlement> {
   const delivery = deps.pendingDelivery.get(entitlement.key);
   if (!delivery || !deps.orderRetries.hit(entitlement.key).ok) return entitlement;
   try {
     const current = await deps.stores.entitlements.getByKey(entitlement.key);
     if (current?.payload.status !== 'pending-profile') return current?.payload ?? entitlement;
     await assertDeliveryUsable(deps, current.payload);
+    campaignOrderStarting(deps, entitlement.key);
     const profile = await deps.adapters.reseller.order(entitlement.planId, {
       idempotencyKey: entitlement.key,
     });
     const done = await seal(deps, entitlement.key, profile, delivery.sessionPubKey, delivery.nonce);
-    const found = await deps.stores.entitlements.patch(entitlement.key, done.patch);
+    const found = await deps.stores.entitlements.patch(
+      entitlement.key,
+      done.patch,
+      done.expiresAt === undefined ? {} : { expiresAt: done.expiresAt },
+    );
+    deps.pendingDelivery.set(
+      entitlement.key,
+      { ...delivery, entitlement: found.payload },
+      found.payload.expiresAt,
+    );
     deps.logger.info(
       { event: 'provision', status: 'ready', retried: true },
       'pending profile provisioned',
@@ -312,6 +360,7 @@ export async function fulfilTopUp(
   nonce: Hex,
   operationId: Hex = nonce,
 ): Promise<Entitlement> {
+  assertCampaignDelivery(deps, existing.key);
   if (existing.iccidEnc === undefined)
     throw fail('invalid_request', { detail: 'profile not provisioned yet' });
   const iccid = openFromServer(deps.sealKey, existing.iccidEnc as CryptoBox, utf8(existing.key));

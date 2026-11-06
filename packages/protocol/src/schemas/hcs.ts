@@ -79,6 +79,17 @@ export const hcsMessageSchema = z.discriminatedUnion('t', [
   /** The agent's World ID Agent Pass checkpoint (docs/WORLD_AGENT_PASS.md): one line per state change, no URL. */
   z.object({
     ...hcsBase,
+    t: z.literal('campaign-reclaim'),
+    reason: z.enum(['cancelled', 'unallocated']).optional(),
+    campaignId: hex32Schema,
+    claimKey: hex32Schema,
+    network: caipNetworkSchema,
+    tx: z.string(),
+    usd6: digitsSchema,
+    to: z.string().max(64),
+  }),
+  z.object({
+    ...hcsBase,
     t: z.literal('agent-pass'),
     uaid: z.string().max(200),
     state: z.enum(['pending', 'approved', 'denied', 'expired']),

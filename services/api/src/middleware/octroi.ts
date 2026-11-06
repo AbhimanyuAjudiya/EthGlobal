@@ -4,10 +4,11 @@ import { isAdapterError, nullifierHex, signalHash } from '@ethglobal/adapters';
 import { hmacKey } from '@ethglobal/crypto';
 import {
   decide,
+  campaignFromPayload,
+  campaignToPayload,
   freeEntitlementKey,
   holderHash,
   remainingCampaignClaims,
-  sizeBundle,
   signalFor,
   type Campaign,
   type CampaignCounters,
@@ -22,7 +23,8 @@ import { fail } from '../errors.js';
 import { consume } from '../flows/challenge.js';
 import { deliveryMetadata, fulfil, pendingResponse, type Fulfilled } from '../flows/fulfil.js';
 import { paymentFingerprint, rememberPaid } from '../flows/payments.js';
-import { assertConfiguredCapacity } from '../flows/plan.js';
+import { assertCampaignPlan } from '../flows/plan.js';
+import { ticketAdmission } from '../flows/tickets.js';
 
 import type { Release } from '../admission.js';
 import type { AppEnv, Ctx } from '../context.js';
@@ -37,6 +39,8 @@ export type LaneInput =
       challenge: Challenge;
       sessionPubKey: Hex;
       recoveryKeyHash?: Hex;
+      ticketPass?: string;
+      eventNoticeVersion?: 1;
     }
   | {
       lane: 'paid';
@@ -74,27 +78,30 @@ export const octroi = (input: (c: Ctx) => LaneInput | Promise<LaneInput>) =>
     let request: DecideRequest;
     let release: Release | undefined;
     let engine: OctroiDeps = deps.octroi;
+    let actionError: unknown;
     const fingerprint = lane.lane === 'paid' ? await paymentFingerprint(c) : undefined;
     if (lane.lane === 'free') {
-      let { campaign, counters } = await campaignState(deps, lane.campaignId);
-      c.set('campaign', campaign);
-      // a served-but-undelivered claim is re-bound before any slot is taken: nothing is claimed (RT-A-17)
-      const rebound = await rebindPending(c, deps, lane);
-      if (rebound) return c.json(rebound.body, rebound.status);
       const tag = proofTag(deps, lane.proof);
       const prior = tag
         ? deps.intents.get(claimIntentKey(deps, lane.sessionPubKey, lane.campaignId, tag))
         : undefined;
+      let { campaign, counters } = await campaignState(deps, lane.campaignId);
+      if (
+        !campaign &&
+        prior?.campaign &&
+        prior.campaignId.toLowerCase() === lane.campaignId.toLowerCase()
+      )
+        campaign = campaignFromPayload(prior.campaign);
+      c.set('campaign', campaign);
+      // a served-but-undelivered claim is re-bound before any slot is taken: nothing is claimed (RT-A-17)
+      const rebound = await rebindPending(c, deps, lane);
+      if (rebound) return c.json(rebound.body, rebound.status);
+      const actionCheck =
+        campaign && !prior && (deps.env.MODE === 'live' || campaign.event?.ticketRequired)
+          ? ticketAdmission(deps, campaign, lane)
+          : undefined;
       if (campaign && !prior) {
-        const configuredCampaign = campaign;
-        await assertConfiguredCapacity(
-          deps,
-          Math.max(
-            ...(['orb', 'document', 'device'] as const).map((tier) =>
-              sizeBundle(configuredCampaign, tier),
-            ),
-          ),
-        );
+        await assertCampaignPlan(deps, campaign);
       }
       const claimed =
         prior && (await deps.dataDrop.claimed(lane.campaignId, prior.decision.claimKey));
@@ -116,8 +123,25 @@ export const octroi = (input: (c: Ctx) => LaneInput | Promise<LaneInput>) =>
           // Printed cards already promise campaign slots. Minting/redemption uses this same lock and counter.
           return admit(deps, campaign, counters, mark, openCards.length + pending);
         });
+      // Already verified durable intents recover their exact operation. Every new live claim requires an
+      // organizer-issued pass, with consumption bound to the verifier's claim key inside actionCheck.
+      if (campaign && actionCheck) {
+        campaign = {
+          ...campaign,
+          actionCheck: async (key) => {
+            try {
+              return await actionCheck(key);
+            } catch (error) {
+              actionError = error;
+              throw error;
+            }
+          },
+        };
+        c.set('campaign', campaign);
+      }
       engine = {
         ...deps.octroi,
+        ...(campaign?.event ? { planId: campaign.planId } : {}),
         onFreeReservation: async (decision, reservation) => {
           const tag = proofTag(deps, lane.proof);
           if (!tag) throw fail('invalid_proof');
@@ -129,6 +153,7 @@ export const octroi = (input: (c: Ctx) => LaneInput | Promise<LaneInput>) =>
               reservation,
               reserved: false,
               campaignId: lane.campaignId,
+              ...(campaign ? { campaign: campaignToPayload(campaign) } : {}),
               nullifierTag: tag,
               signal: signalFor(lane.challenge.nonce, lane.challenge.audience),
               ...(lane.recoveryKeyHash === undefined
@@ -206,6 +231,8 @@ export const octroi = (input: (c: Ctx) => LaneInput | Promise<LaneInput>) =>
             : deps.paidOperations.get(fingerprint)?.decision;
       const decision =
         resumed ?? (await deps.metrics.timed('decide_ms', () => decide(request, engine)));
+      if (actionError !== undefined)
+        throw actionError instanceof Error ? actionError : fail('internal_error');
       deps.metrics.inc('decision_total', {
         kind: decision.kind,
         ...(decision.kind === 'deny' ? { reason: decision.reason } : {}),
@@ -247,7 +274,11 @@ export async function campaignState(
     ...found.payload,
     pricePerClaimUsd6: chain.pricePerClaim,
     claimsPerHour: chain.claimsPerHour,
-    expiresAt: Math.min(found.payload.expiresAt, chain.expiresAt),
+    expiresAt: Math.min(
+      found.payload.expiresAt,
+      chain.expiresAt,
+      found.payload.event?.endsAt ?? Infinity,
+    ),
   };
   const counters: CampaignCounters = {
     paused: chain.paused,
@@ -416,12 +447,12 @@ async function rebindPending(c: Ctx, deps: Deps, lane: FreeLane): Promise<Fulfil
         target.sessionPubKey !== lane.sessionPubKey
       )
         throw fail('replay');
-      if (found) return deliveryMetadata(found, target.context);
+      if (found) return deliveryMetadata(found, target.context, deps);
       if (!target.entitlement || !target.context) throw fail('not_found');
       await fulfil(deps, target.entitlement, target.context);
       const recovered = await deps.stores.entitlements.getByKey(key);
       if (!recovered) throw fail('ledger_unavailable');
-      return deliveryMetadata(recovered, target.context);
+      return deliveryMetadata(recovered, target.context, deps);
     }
     if (!target || (found && found.payload.status !== 'pending-profile')) throw fail('replay');
     const limit = deps.rebinds.hit(key);

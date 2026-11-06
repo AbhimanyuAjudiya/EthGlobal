@@ -20,6 +20,7 @@ import {
   auditKey,
   campaignFromPayload,
   remainingCampaignClaims,
+  MAX_CAMPAIGN_MS,
   sizeBundle,
   type Campaign,
 } from '@ethglobal/octroi';
@@ -43,8 +44,10 @@ import { formatUsd6, usd6ToWire } from '@ethglobal/protocol/units';
 import { WindowLimiter } from '../admission.js';
 import { inputOf, type AppEnv } from '../context.js';
 import { fail } from '../errors.js';
+import { archiveCampaign, campaignHistory } from '../flows/campaign-history.js';
+import { campaignReclaimSummary } from '../flows/campaign-reclaim.js';
 import { claimWindowMs, mintCard, type MintedCard } from '../flows/gift.js';
-import { assertConfiguredCapacity } from '../flows/plan.js';
+import { assertCampaignPlan, assertConfiguredCapacity } from '../flows/plan.js';
 import { pendingCampaignClaims } from '../middleware/octroi.js';
 import {
   SPONSOR_FUTURE_SKEW_MS,
@@ -108,6 +111,14 @@ export function registerSponsor(app: Hono<AppEnv>, deps: Deps): void {
     if (chain.sponsor.toLowerCase() !== campaign.sponsor.toLowerCase())
       throw fail('unauthorized', { detail: 'not the on-chain sponsor' });
     if (
+      campaign.event &&
+      (BigInt(campaign.pricePerClaimUsd6) !== chain.pricePerClaim ||
+        Math.floor(campaign.expiresAt / 1000) !== Math.floor(chain.expiresAt / 1000))
+    )
+      throw fail('invalid_request', {
+        detail: 'event price and funding deadline must match the funded contract',
+      });
+    if (
       campaign.contract.toLowerCase() !== deps.dataDrop.address.toLowerCase() ||
       campaign.network !== `eip155:${deps.chainId}`
     ) {
@@ -130,6 +141,9 @@ export function registerSponsor(app: Hono<AppEnv>, deps: Deps): void {
         ]);
       }
       const value = campaignFromPayload({ ...campaign, id, v: 1, createdAt: deps.now() });
+      // Retain the verified metadata before an expiring ledger write; even a lost registration response must
+      // leave the sponsor able to inspect its funded contract and recover unclaimed funds after the event.
+      archiveCampaign(deps, value);
       await deps.stores.campaigns.put(value);
       // another process registered it first: ours is not the first registration, so no audit key
       if (!(await firstTime(deps, 'registered', id, campaign.expiresAt)))
@@ -146,10 +160,10 @@ export function registerSponsor(app: Hono<AppEnv>, deps: Deps): void {
     if (!ID.test(id)) throw fail('unauthorized');
     const campaignId = id.toLowerCase() as Hex;
     const sponsor = await sponsorFromHeader(deps, c.req.header('authorization'), campaignId);
-    const found = await deps.stores.campaigns.get(campaignId);
+    const found = await campaignHistory(deps, campaignId);
     const chain = await deps.dataDrop.campaign(campaignId);
     if (
-      found?.payload.sponsor.toLowerCase() !== sponsor.toLowerCase() ||
+      found?.sponsor.toLowerCase() !== sponsor.toLowerCase() ||
       chain.sponsor.toLowerCase() !== sponsor.toLowerCase()
     ) {
       throw fail('unauthorized', { detail: 'not this campaign’s sponsor' });
@@ -160,11 +174,14 @@ export function registerSponsor(app: Hono<AppEnv>, deps: Deps): void {
       deps.stores.receipts.forCampaign(campaignId),
       deps.stores.entitlements.expiringWithin(DAY_MS),
     ]);
-    const c0 = found.payload;
+    const c0 = found;
+    archiveCampaign(deps, c0);
     const claims = receipts.filter((r) => r.kind === 'claim' && r.payer !== undefined);
-    const firstRead = await firstTime(deps, 'audit-shown', campaignId, c0.expiresAt);
+    const firstRead =
+      c0.expiresAt > deps.now() && (await firstTime(deps, 'audit-shown', campaignId, c0.expiresAt));
     const view: SponsorView = {
       campaign: campaignPayload(c0),
+      reclaim: campaignReclaimSummary(deps, campaignId),
       chain: {
         budgetUsd6: usd6ToWire(chain.budget),
         spentUsd6: usd6ToWire(chain.spent),
@@ -231,6 +248,8 @@ export function registerSponsor(app: Hono<AppEnv>, deps: Deps): void {
       ) {
         throw fail('unauthorized', { detail: 'not this campaign’s sponsor' });
       }
+      if (deps.env.MODE === 'live' || found.payload.event?.ticketRequired)
+        throw fail('ticket_required', { detail: 'issue private ticket passes for this campaign' });
       const now = deps.now();
       if (chain.paused) throw fail('campaign_paused');
       if (chain.expiresAt <= now || found.payload.expiresAt <= now) throw fail('campaign_expired');
@@ -304,6 +323,22 @@ async function validateDraft(
   checkPrice = true,
 ): Promise<void> {
   assertCampaignLifetime(campaign.expiresAt, deps.now());
+  if (deps.env.MODE === 'live' && !campaign.event)
+    throw fail('invalid_request', [
+      { path: 'campaign.event', message: 'event terms are required for new campaigns' },
+    ]);
+  if (
+    campaign.event &&
+    (campaign.event.endsAt <= deps.now() ||
+      campaign.expiresAt > campaign.event.endsAt ||
+      campaign.event.reclaimAfter + DAY_MS > deps.now() + MAX_CAMPAIGN_MS)
+  )
+    throw fail('invalid_request', [
+      {
+        path: 'campaign.event',
+        message: 'event dates exceed the funded campaign or supported retention window',
+      },
+    ]);
   if (
     campaign.contract.toLowerCase() !== deps.dataDrop.address.toLowerCase() ||
     campaign.network !== `eip155:${deps.chainId}`
@@ -316,12 +351,14 @@ async function validateDraft(
         message: `per-claim price is below the eSIM cost (${formatUsd6(deps.env.COST_USD6_PER_CLAIM)})`,
       },
     ]);
-  const value = campaignFromPayload({ ...campaign, v: 1, createdAt: deps.now() });
-  // Free fulfilment orders the operator's configured package, not the sponsor form's descriptive plan alias.
-  await assertConfiguredCapacity(
-    deps,
-    Math.max(...(['orb', 'document', 'device'] as const).map((tier) => sizeBundle(value, tier))),
-  );
+  const plan = await assertCampaignPlan(deps, campaign);
+  if (campaign.event) {
+    // Anti-resale sizing uses the actual selected package, never a caller's wholesale estimate.
+    campaign.wholesaleUsd6PerGb = (
+      (plan.wholesaleUsd6 * 1000n + BigInt(plan.dataMb) - 1n) /
+      BigInt(plan.dataMb)
+    ).toString();
+  }
 }
 
 function campaignPayload(c: Campaign): SponsorView['campaign'] {

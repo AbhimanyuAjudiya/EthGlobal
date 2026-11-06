@@ -11,6 +11,7 @@ import {
   agentPolicyViewSchema,
   deliveryResponseSchema,
   cardPreviewSchema,
+  catalogResponseSchema,
   challengeSchema,
   entitledResponseSchema,
   errorBodySchema,
@@ -21,9 +22,11 @@ import {
   receiptsResponseSchema,
   rpContextSchema,
   sponsorViewSchema,
+  sponsorTicketsResponseSchema,
   type AgentPolicyPut,
   type ChallengeWire,
   type PlanCancelRequest,
+  type SponsorTicketsRequest,
 } from '@ethglobal/protocol/schemas';
 
 import { config } from './env';
@@ -44,7 +47,7 @@ export class ApiError extends Error {
   }
 }
 
-const ERROR_STATUSES = [400, 401, 402, 404, 409, 410, 423, 429, 500, 502, 503];
+const ERROR_STATUSES = [400, 401, 402, 403, 404, 409, 410, 423, 429, 500, 502, 503];
 
 /**
  * The entitling routes (/claim, /card/redeem, /gift/claim and the paid settlements) answer only after the API's own
@@ -123,6 +126,8 @@ const enc = encodeURIComponent;
 
 export const api = {
   health: () => call('/healthz'),
+  catalog: async (country: string) =>
+    (await call(`/catalog?country=${enc(country)}`, { schema: catalogResponseSchema })).data,
   /** `campaignId`: that registered campaign instead of the default one (claim by ENS name, /c/<slug>). */
   plans: async (campaignId?: string) =>
     (
@@ -144,12 +149,24 @@ export const api = {
         schema: rpContextSchema,
       })
     ).data,
+  previewTicket: async (
+    body: { campaignId: Hex; ticketPass: Hex; sessionPubKey: Hex; eventNoticeVersion?: 1 },
+    recoveryToken: string,
+  ) =>
+    (
+      await call<{ valid: true; campaignId: Hex }>('/ticket/preview', {
+        body,
+        headers: { 'Idempotency-Key': recoveryToken },
+      })
+    ).data,
   claim: (
     body: {
       proof: unknown;
       campaignId: Hex;
       challenge: ChallengeWire;
       sessionPubKey: Hex;
+      ticketPass?: Hex;
+      eventNoticeVersion?: 1;
     },
     recoveryToken?: string,
   ) =>
@@ -211,6 +228,21 @@ export const api = {
   },
   registerSponsor: async (body: unknown) =>
     (await call<{ id: string; auditKey: string }>('/sponsor', { body })).data,
+  issueSponsorTickets: async (id: string, body: SponsorTicketsRequest) =>
+    (await call(`/sponsor/${enc(id)}/tickets`, { body, schema: sponsorTicketsResponseSchema }))
+      .data,
+  sponsorTickets: async (
+    id: string,
+    login: { sponsor: string; issuedAt: number; signature: Hex },
+  ) =>
+    (
+      await call<{
+        campaignId: string;
+        tickets: { reference: string; issuedAt: number; status: 'issued' | 'reserved' }[];
+      }>(`/sponsor/${enc(id)}/tickets`, {
+        headers: { authorization: `${SPONSOR_AUTH_SCHEME} ${btoa(JSON.stringify(login))}` },
+      })
+    ).data,
   sponsor: async (id: string, login: { sponsor: string; issuedAt: number; signature: Hex }) =>
     (
       await call(`/sponsor/${enc(id)}`, {

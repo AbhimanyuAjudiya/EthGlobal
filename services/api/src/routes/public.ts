@@ -1,4 +1,4 @@
-/** GET /healthz, GET /plans, POST /challenge, POST /world/rp-context, GET /metrics.json. */
+/** Public health, destination catalog, campaign plans, challenges and metrics. */
 import {
   challenge as issueChallenge,
   MAX_CAMPAIGN_MS,
@@ -13,15 +13,18 @@ import {
 } from '@ethglobal/protocol/ids';
 import {
   challengeRequestSchema,
+  catalogResponseSchema,
   plansQuerySchema,
   rpContextRequestSchema,
   type ChallengeRequest,
+  type CatalogResponse,
   type PlansResponse,
 } from '@ethglobal/protocol/schemas';
 import { usd6ToWire } from '@ethglobal/protocol/units';
 
 import { inputOf, type AppEnv } from '../context.js';
 import { fail } from '../errors.js';
+import { catalogPlans } from '../flows/plan.js';
 import { campaignState } from '../middleware/octroi.js';
 import { validateJson } from '../middleware/validate.js';
 
@@ -49,6 +52,44 @@ export function registerPublic(app: Hono<AppEnv>, deps: Deps): void {
       );
       return c.json({ ok: false, mode: deps.env.MODE, error: 'chain_unreachable' }, 503);
     }
+  });
+
+  // Cache only public catalog facts. Campaign admission always rechecks the selected SKU before commitment.
+  const catalog = new Map<string, { at: number; body: CatalogResponse }>();
+  const catalogPending = new Map<string, Promise<CatalogResponse>>();
+  app.get('/catalog', async (c) => {
+    const countries = c.req.queries('country');
+    const country = countries?.[0];
+    if (countries?.length !== 1 || !country || !/^[A-Z]{2}$/.test(country))
+      throw fail('invalid_request', [
+        { path: 'country', message: 'one uppercase ISO2 country required' },
+      ]);
+    const hit = catalog.get(country);
+    if (hit && deps.now() - hit.at < ENTITLEMENT_CACHE_S * 1000) return c.json(hit.body);
+    let pending = catalogPending.get(country);
+    if (!pending) {
+      pending = catalogPlans(deps, country)
+        .then((available) => {
+          const body = catalogResponseSchema.parse({
+            country,
+            plans: available.map((plan) => ({
+              id: plan.id,
+              name: plan.name,
+              mb: plan.dataMb,
+              validityDays: plan.validityDays,
+              wholesaleUsd6: usd6ToWire(plan.wholesaleUsd6),
+              activation: plan.activation ?? { startsOn: 'unknown' },
+              cancellation: plan.cancellation ?? 'unknown',
+            })),
+          });
+          if (catalog.size >= PLANS_CACHE_MAX) catalog.clear();
+          catalog.set(country, { at: deps.now(), body });
+          return body;
+        })
+        .finally(() => catalogPending.delete(country));
+      catalogPending.set(country, pending);
+    }
+    return c.json(await pending);
   });
 
   // one cache entry per campaign asked for (`?campaign=`: claim by ENS name, /c/<slug>), '' = the default campaign
@@ -103,6 +144,7 @@ async function buildPlans(deps: Deps, asked?: Hex): Promise<PlansResponse> {
         paused: counters.paused,
         expiresAt: c.expiresAt,
         network: c.network,
+        ...(c.event ? { event: c.event } : {}),
       };
     }
   }

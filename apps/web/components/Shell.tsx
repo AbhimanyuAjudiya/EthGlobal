@@ -47,6 +47,10 @@ export const DESTINATIONS: readonly {
   items: readonly { href: string; title: StringKey; line: StringKey }[];
 }[] = [
   {
+    group: 'hub.sponsors',
+    items: [{ href: '/sponsor', title: 'hub.sponsor', line: 'hub.sponsorLine' }],
+  },
+  {
     group: 'hub.get',
     items: [
       { href: '/verify', title: 'hub.free', line: 'hub.freeLine' },
@@ -68,10 +72,6 @@ export const DESTINATIONS: readonly {
       { href: '/agent', title: 'hub.agent', line: 'hub.agentLine' },
       { href: '/receipts', title: 'receipts.title', line: 'hub.receiptsLine' },
     ],
-  },
-  {
-    group: 'hub.sponsors',
-    items: [{ href: '/sponsor', title: 'hub.sponsor', line: 'hub.sponsorLine' }],
   },
 ];
 

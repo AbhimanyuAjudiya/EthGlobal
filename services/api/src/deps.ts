@@ -34,7 +34,12 @@ import {
   ReceiptStore,
 } from '@ethglobal/octroi/store';
 import { MAX_MB_PER_PURCHASE, STEP_MB, isHederaNetwork, type Hex } from '@ethglobal/protocol/ids';
-import { isEvmExact, type AcceptTemplate, type RpContext } from '@ethglobal/protocol/schemas';
+import {
+  isEvmExact,
+  type AcceptTemplate,
+  type RpContext,
+  type CampaignPayload,
+} from '@ethglobal/protocol/schemas';
 
 import { addressesSlug, buildAcceptTemplates, loadAddresses } from './accepts.js';
 import { Admission, KeyedMutex, WindowLimiter } from './admission.js';
@@ -56,10 +61,12 @@ import { Metrics } from './metrics.js';
 import { DurableState, type DurableMap } from './state.js';
 import { createAgentPass, type AgentPass } from './world-agent-pass.js';
 
+import type { CampaignReclaimJob } from './flows/campaign-reclaim.js';
 import type { FulfilContext } from './flows/fulfil.js';
 import type { PaidOperation, TopUpIntent } from './flows/payments.js';
 import type { ReceiptOutboxEntry } from './flows/record.js';
 import type { RefundJob } from './flows/refund-recovery.js';
+import type { TicketBook } from './flows/tickets.js';
 
 export type ServeFreeDecision = Extract<Decision, { kind: 'serve-free' }>;
 
@@ -88,6 +95,8 @@ export interface PendingDelivery {
 /** A verified-but-unserved free claim (T-24), bound to the human's nullifier (RT-A-05). */
 export interface ClaimIntent {
   decision: ServeFreeDecision;
+  /** Verified immutable terms, used only for authenticated recovery after public campaign TTL. */
+  campaign?: CampaignPayload;
   recoveryKeyHash?: Hex;
   campaignId: string;
   /** HMAC(secret, 'intent' ‖ nullifier): a resume needs a proof of the same human. */
@@ -152,6 +161,9 @@ export interface Deps {
   topUpIntents: DurableMap<TopUpIntent>;
   receiptOutbox: DurableMap<ReceiptOutboxEntry>;
   refundJobs: DurableMap<RefundJob>;
+  campaignTickets: DurableMap<TicketBook>;
+  campaignReclaims: DurableMap<CampaignReclaimJob>;
+  campaignHistory: DurableMap<CampaignPayload>;
   /** Polls of reseller.usage per ICCID hash (≤ 1/min, shared by ?refresh=1 and webhooks). */
   usagePolls: WindowLimiter;
   /** Order retries for pending-profile entitlements (≤ 1/min per key). */
@@ -289,6 +301,9 @@ export async function buildDeps(
     topUpIntents: state.map<TopUpIntent>('topup-intents'),
     receiptOutbox: state.map<ReceiptOutboxEntry>('receipt-outbox'),
     refundJobs: state.map<RefundJob>('refund-jobs'),
+    campaignTickets: state.map<TicketBook>('campaign-tickets'),
+    campaignReclaims: state.map<CampaignReclaimJob>('campaign-reclaims'),
+    campaignHistory: state.map<CampaignPayload>('campaign-history'),
     usagePolls: new WindowLimiter(1, 60_000, now),
     orderRetries: new WindowLimiter(1, 60_000, now),
     rebinds: new WindowLimiter(3, 3_600_000, now),

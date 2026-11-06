@@ -205,14 +205,41 @@ export interface CampaignNames {
 // ───────────────────────────── Reseller (eSIM Access; MegaeSIM fixture-only) ─────────────────────────────
 
 export type ResellerName = 'mock' | 'esimaccess' | 'megaesim' | 'inventory';
+export interface EsimActivationPolicy {
+  startsOn: 'first-network' | 'installation' | 'unknown';
+  /** Provider's pre-activation validity, not the number of days of mobile service. */
+  installWithinDays?: number;
+}
+export interface EsimLifecycle {
+  startsOn: EsimActivationPolicy['startsOn'];
+  /** Provider timestamps in milliseconds. Never infer service expiry from the purchase date. */
+  activatedAt?: number;
+  serviceExpiresAt?: number;
+  installBy?: number;
+  validityDays?: number;
+}
+export interface EsimCancellationEvidence {
+  status: 'cancelled' | 'eligible' | 'ineligible' | 'unknown';
+  provider: ResellerName;
+  /** Stable provider allocation identity (eSIMAccess esimTranNo); contains no activation credential. */
+  providerRef?: string;
+  rawStatus?: string;
+  smdpStatus?: string;
+  observedAt: number;
+  /** Only present with independently confirmed provider credit; a cancel ACK is not credit evidence. */
+  credit?: { status: 'confirmed'; amountUsd6?: string; reference?: string };
+}
 export interface EsimPlan {
   id: string;
   provider: ResellerName;
   name: string;
-  country: 'IN';
+  /** Uppercase ISO 3166-1 alpha-2 destination. */
+  country: string;
   dataMb: number;
   validityDays: number;
   wholesaleUsd6: bigint;
+  activation?: EsimActivationPolicy;
+  cancellation?: 'never-installed' | 'unsupported' | 'unknown';
 }
 export interface EsimProfile {
   iccid: string;
@@ -221,6 +248,8 @@ export interface EsimProfile {
   provider: ResellerName;
   orderId: string;
   status: 'ready' | 'installed' | 'active' | 'expired';
+  providerRef?: string;
+  lifecycle?: EsimLifecycle;
 }
 export interface EsimUsage {
   iccid: string;
@@ -228,13 +257,15 @@ export interface EsimUsage {
   totalMb: number;
   asOf: number;
   status?: EsimProfile['status'];
+  providerRef?: string;
+  lifecycle?: EsimLifecycle;
 }
 export type WebhookVerdict =
   | { ok: true; eventId: string }
   | { ok: false; reason: 'missing_headers' | 'bad_signature' | 'skew' | 'replay' };
 export interface Reseller {
   readonly name: ResellerName;
-  plans(country: 'IN'): Promise<EsimPlan[]>;
+  plans(country: string): Promise<EsimPlan[]>;
   /** One profile per order. A second call with the same idempotencyKey returns the same profile, never a second one (T-40). */
   order(planId: string, opts: { idempotencyKey: string }): Promise<EsimProfile>;
   /** Read an existing durable allocation without creating an order (inventory fallback recovery). */
@@ -251,12 +282,17 @@ export interface Reseller {
     opts: { idempotencyKey: string; totalMb?: number },
   ): Promise<{ orderId: string; totalMb: number }>;
   usage(iccid: string): Promise<EsimUsage>;
+  /** Read-only, positive provider cancellation evidence; expiry/revocation never proves a refund. */
+  cancellationEvidence?(
+    iccid: string,
+    opts?: { providerRef?: string },
+  ): Promise<EsimCancellationEvidence>;
   /**
    * Cancels an UNUSED profile so the vendor refunds it (never installed); an already-cancelled one resolves again.
    * A profile in use, or a reseller that cannot refund (inventory), rejects with a non-`unavailable` code; only
    * `unavailable`/`rate_limited` leave the outcome unknown.
    */
-  cancel(iccid: string, opts: { idempotencyKey: string }): Promise<void>;
+  cancel(iccid: string, opts: { idempotencyKey: string; providerRef?: string }): Promise<void>;
   /** Pure: checks headers + HMAC + skew + its own replay cache. Never throws. */
   verifyWebhook(
     rawBody: string,

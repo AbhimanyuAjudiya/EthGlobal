@@ -14,9 +14,11 @@ import {
 } from '@ethglobal/protocol/schemas';
 
 import { AdapterError } from '../errors.js';
+import { assertCountryCode } from '../reseller-rules.js';
 
 import type {
   EsimPlan,
+  EsimCancellationEvidence,
   EsimProfile,
   EsimUsage,
   Reseller,
@@ -44,6 +46,8 @@ export const MOCK_PLANS: readonly EsimPlan[] = [
     dataMb: 1000,
     validityDays: 7,
     wholesaleUsd6: 1_140_000n,
+    activation: { startsOn: 'unknown' },
+    cancellation: 'unsupported',
   },
   {
     id: 'in-300mb-7d',
@@ -53,6 +57,8 @@ export const MOCK_PLANS: readonly EsimPlan[] = [
     dataMb: 300,
     validityDays: 7,
     wholesaleUsd6: 342_000n,
+    activation: { startsOn: 'unknown' },
+    cancellation: 'unsupported',
   },
 ];
 
@@ -100,7 +106,8 @@ export class MockReseller implements Reseller {
     this.#failNext = options.failNextOrder ?? false;
   }
 
-  async plans(country: 'IN'): Promise<EsimPlan[]> {
+  async plans(country: string): Promise<EsimPlan[]> {
+    assertCountryCode(country);
     return this.#plans.filter((p) => p.country === country).map((p) => ({ ...p }));
   }
 
@@ -175,7 +182,13 @@ export class MockReseller implements Reseller {
     return { iccid, usedMb, totalMb: line.totalMb, asOf: now, status };
   }
 
-  /** eSIM Access semantics: only an unused line cancels (then reads 'expired'); a cancelled one resolves again. */
+  async cancellationEvidence(iccid: string): Promise<EsimCancellationEvidence> {
+    this.#line(iccid);
+    // Simulated state is never evidence of a real provider credit or cancellation.
+    return { provider: this.name, status: 'ineligible', observedAt: this.#now() };
+  }
+
+  /** Local simulation only: an unused line cancels (then reads 'expired'); a cancelled one resolves again. */
   async cancel(iccid: string, _opts: { idempotencyKey: string }): Promise<void> {
     const line = this.#line(iccid);
     if (line.cancelled === true) return;

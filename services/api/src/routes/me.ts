@@ -18,10 +18,18 @@ import { usd6ToWire } from '@ethglobal/protocol/units';
 import { inputOf, type AppEnv } from '../context.js';
 import { fail } from '../errors.js';
 import { patchUsage } from './webhooks.js';
+import { campaignReclaimBlocks, campaignReclaimView } from '../flows/campaign-reclaim.js';
 import { aborted, cancelPlan, cancelReceiptKey, decidePlanCancel } from '../flows/cancel.js';
-import { activationBox, assertDeliveryUsable, fulfil, retryPending } from '../flows/fulfil.js';
+import {
+  activationBox,
+  assertDeliveryUsable,
+  fulfil,
+  retryPending,
+  retryPendingLocked,
+} from '../flows/fulfil.js';
 import { flushReceiptOutbox } from '../flows/record.js';
 import { recoverRefunds, refundRecovery } from '../flows/refund-recovery.js';
+import { isEventPlan } from '../flows/tickets.js';
 import { validateJson } from '../middleware/validate.js';
 
 import type { Deps } from '../deps.js';
@@ -37,32 +45,36 @@ export function registerMe(app: Hono<AppEnv>, deps: Deps): void {
   app.post('/me/:key/delivery', validateJson(deliveryRequestSchema), async (c) => {
     const key = c.req.param('key');
     if (!isCapability(key)) throw fail('not_found');
-    const { sessionPubKey } = inputOf<DeliveryRequest>(c);
-    const delivery = deps.pendingDelivery.get(key);
-    if (delivery?.sessionPubKey.toLowerCase() !== sessionPubKey.toLowerCase())
-      throw fail('unauthorized');
-    let found = await deps.stores.entitlements.getByKey(key);
-    const original = found?.payload ?? delivery.entitlement;
-    if (original) await assertDeliveryUsable(deps, original);
-    if (!found && delivery.entitlement && delivery.context) {
-      if (deps.health.degraded) throw fail('ledger_unavailable');
-      await deps.mutex.run(key, () => fulfil(deps, delivery.entitlement!, delivery.context!));
-      found = await deps.stores.entitlements.getByKey(key);
-    }
-    if (!found) throw fail('not_found');
-    let entitlement = found.payload;
-    if (entitlement.status === 'pending-profile') {
-      if (deps.health.degraded) throw fail('ledger_unavailable');
-      entitlement = await retryPending(deps, entitlement);
-    }
-    const target = deps.pendingDelivery.get(key);
-    if (target?.sessionPubKey.toLowerCase() !== sessionPubKey.toLowerCase())
-      throw fail('unauthorized');
-    if (entitlement.status === 'pending-profile') return c.json({ status: 'pending-profile' }, 202);
-    return c.json({
-      status: 'ready',
-      nonce: target.nonce,
-      sealedLpa: await activationBox(deps, entitlement),
+    return deps.mutex.run(key, async () => {
+      const { sessionPubKey } = inputOf<DeliveryRequest>(c);
+      const delivery = deps.pendingDelivery.get(key);
+      if (delivery?.sessionPubKey.toLowerCase() !== sessionPubKey.toLowerCase())
+        throw fail('unauthorized');
+      let found = await deps.stores.entitlements.getByKey(key);
+      const original = found?.payload ?? delivery.entitlement;
+      if (original) await assertDeliveryUsable(deps, original);
+      if (!found && delivery.entitlement && delivery.context) {
+        if (deps.health.degraded) throw fail('ledger_unavailable');
+        await fulfil(deps, delivery.entitlement, delivery.context);
+        found = await deps.stores.entitlements.getByKey(key);
+      }
+      if (!found) throw fail('not_found');
+      let entitlement = found.payload;
+      if (entitlement.status === 'pending-profile') {
+        if (deps.health.degraded) throw fail('ledger_unavailable');
+        entitlement = await retryPendingLocked(deps, entitlement);
+      }
+      const target = deps.pendingDelivery.get(key);
+      if (target?.sessionPubKey.toLowerCase() !== sessionPubKey.toLowerCase())
+        throw fail('unauthorized');
+      await assertDeliveryUsable(deps, entitlement);
+      if (entitlement.status === 'pending-profile')
+        return c.json({ status: 'pending-profile' }, 202);
+      return c.json({
+        status: 'ready',
+        nonce: target.nonce,
+        sealedLpa: await activationBox(deps, entitlement),
+      });
     });
   });
 
@@ -70,6 +82,16 @@ export function registerMe(app: Hono<AppEnv>, deps: Deps): void {
     const key = c.req.param('key');
     if (!isCapability(key)) throw fail('not_found');
     await recoverRefunds(deps, key);
+    const eventJob = deps.campaignReclaims.get(key);
+    if (eventJob && campaignReclaimBlocks(deps, key)) {
+      const view = toMe(deps, eventJob.entitlement, 'event-reconciliation', undefined, undefined);
+      return c.json({
+        ...view,
+        remainingMb: 0,
+        campaignReclaim: campaignReclaimView(deps, key),
+        ...(eventJob.resolvedAt === undefined ? {} : { cancelledAt: eventJob.resolvedAt }),
+      });
+    }
     // The vendor is already cancelled when a refund job exists, even if the entitlement expiry patch failed.
     if (deps.refundJobs.has(cancelReceiptKey(key))) return c.json(await cancelledMe(deps, key));
     const refresh = c.req.query('refresh') === '1';
@@ -216,5 +238,10 @@ function toMe(
     degraded: deps.health.degraded,
     ...(e.network === undefined ? {} : { network: e.network }),
     ...(refund === undefined ? {} : { refundable: refund }),
+    ...(e.lifecycle === undefined ? {} : { lifecycle: e.lifecycle }),
+    ...(isEventPlan(deps, e) ? { topUpAvailable: false, autoTopUpAvailable: false } : {}),
+    ...(campaignReclaimView(deps, e.key) === undefined
+      ? {}
+      : { campaignReclaim: campaignReclaimView(deps, e.key) }),
   };
 }

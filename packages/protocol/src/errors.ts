@@ -3,6 +3,9 @@ export const ERROR_CODES = {
   invalid_request: 400,
   invalid_proof: 401,
   unauthorized: 401,
+  ticket_required: 403,
+  ticket_invalid: 401,
+  ticket_used: 409,
   /** The agent policy has no armed World ID Agent Pass (docs/WORLD_AGENT_PASS.md); refused before any 402. */
   pass_required: 403,
   payment_required: 402,

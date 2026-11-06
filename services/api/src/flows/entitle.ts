@@ -11,6 +11,7 @@ import { usd6ToWire } from '@ethglobal/protocol/units';
 import { ChainRevert, ChainUnavailable } from '../chain.js';
 import { inputOf, type Ctx } from '../context.js';
 import { denyError, fail } from '../errors.js';
+import { enrollCampaignReclaim } from './campaign-reclaim.js';
 import { fulfil, type Fulfilled } from './fulfil.js';
 import { claimIntentKey, proofTag } from '../middleware/octroi.js';
 import { paymentRequiredResponse, withPaymentResponse } from '../middleware/x402.js';
@@ -84,6 +85,7 @@ async function serveFree(
     const intentKey = claimIntentKey(deps, sessionPubKey, campaign.id as Hex, tag);
     const saved = deps.intents.get(intentKey);
     if (saved && saved.nullifierTag !== tag) throw fail('invalid_proof');
+    enrollCampaignReclaim(deps, campaign, decision.entitlement, decision.claimKey);
     deps.intents.set(
       intentKey,
       {
@@ -159,6 +161,7 @@ async function serveFree(
     }
     deps.metrics.inc('claims_total', { tier: decision.tier });
     void deps.anomaly.record(campaign.id as Hex, campaign.claimsPerHour);
+    enrollCampaignReclaim(deps, campaign, decision.entitlement, decision.claimKey, tx);
     const fulfilled = await fulfil(deps, decision.entitlement, {
       nonce,
       sessionPubKey,

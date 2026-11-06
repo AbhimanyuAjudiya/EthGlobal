@@ -23,9 +23,10 @@ import { useLang, useNetworkName } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
 import { planHash, readTopUps, topUpsRequest, type AgentTopUp } from '../lib/arkiv-read';
+import { planHref } from '../lib/deliver';
 import { config, explorerName, explorerTemplate } from '../lib/env';
 import { clockIst, dayLabel, formatMb, money, moneyUsdc, soldPlan } from '../lib/format';
-import { useEnsureChain, usePlans, useWallet, WrongChainError } from '../lib/hooks';
+import { useClock, useEnsureChain, usePlans, useWallet, WrongChainError } from '../lib/hooks';
 import { buildProof, type Proof } from '../lib/proof';
 import { plans as store } from '../lib/store';
 import { isUserRejection } from '../lib/wallet';
@@ -33,6 +34,10 @@ import { isUserRejection } from '../lib/wallet';
 /** Daily caps that buy at least one 1 GB step ($4.00): one, two or five top-ups a day. */
 const CAPS_USD = [4, 8, 20];
 const USD6 = 1_000_000;
+
+function planEnded(me: MeResponse, now: number): boolean {
+  return me.cancelledAt !== undefined || me.expiresAt <= now;
+}
 
 export function defaultPolicy(me: MeResponse | undefined): TopUpPolicyWire {
   return {
@@ -54,30 +59,60 @@ export function AgentSheet() {
   const { wallet } = useWallet('human');
   const ensureChain = useEnsureChain();
   const { openConnectModal } = useConnectModal();
+  const now = useClock();
   const [key, setKey] = useState<string | null | undefined>();
+  const [me, setMe] = useState<MeResponse>();
+  const [unavailable, setUnavailable] = useState<'ended' | 'missing'>();
   const [policy, setPolicy] = useState<TopUpPolicyWire | undefined>();
   const [view, setView] = useState<AgentPolicyView | undefined>();
   const [rows, setRows] = useState<ReceiptPublic[]>([]);
-  const [status, setStatus] = useState<'idle' | 'signing' | 'saving' | 'saved' | 'error'>('idle');
+  const [status, setStatus] = useState<
+    'idle' | 'checking' | 'signing' | 'saving' | 'saved' | 'error'
+  >('idle');
   const [message, setMessage] = useState<string | undefined>();
   const [proof, setProof] = useState<Proof>();
   const [loadError, setLoadError] = useState<ReturnType<typeof errorKey>>();
   const [loadRound, setLoadRound] = useState(0);
-  const [nativePaid, setNativePaid] = useState(false);
+  const nativePaid = me?.kind === 'paid' && me.network?.startsWith('hedera:') === true;
+  const eventUnavailable = me?.autoTopUpAvailable === false;
+  const unavailableReason = unavailable ?? (me && planEnded(me, now) ? 'ended' : undefined);
+  const busy = status === 'checking' || status === 'signing' || status === 'saving';
+
+  const markUnavailable = useCallback((reason: 'ended' | 'missing') => {
+    setUnavailable(reason);
+    setPolicy(undefined);
+    setView(undefined);
+    setRows([]);
+    setProof(undefined);
+    setMessage(undefined);
+    setStatus('idle');
+  }, []);
 
   useEffect(() => {
     let alive = true;
     void (async () => {
       const k = await store.latest();
       if (!alive) return;
+      setMe(undefined);
+      setUnavailable(undefined);
+      setPolicy(undefined);
+      setView(undefined);
+      setRows([]);
+      setProof(undefined);
+      setMessage(undefined);
+      setStatus('idle');
       setLoadError(undefined);
       setKey(k ?? null);
       if (!k) return;
       const m = await api.me(k);
       if (!alive) return;
+      setMe(m);
+      if (planEnded(m, Date.now())) {
+        markUnavailable('ended');
+        return;
+      }
       const unsupported = m.kind === 'paid' && m.network?.startsWith('hedera:') === true;
-      setNativePaid(unsupported);
-      if (unsupported) return;
+      if (unsupported || m.autoTopUpAvailable === false) return;
       const existing = await api.agentPolicy(k).catch((error: unknown) => {
         if (error instanceof ApiError && error.code === 'not_found') return undefined;
         throw error;
@@ -91,38 +126,93 @@ export function AgentSheet() {
         if (alive) setRows(receipts.filter((r) => r.kind === 'agent-topup'));
       }
     })().catch((error: unknown) => {
-      if (alive) setLoadError(errorKey(error instanceof ApiError ? error.code : 'network'));
+      if (!alive) return;
+      setMe(undefined);
+      setPolicy(undefined);
+      setView(undefined);
+      setRows([]);
+      if (error instanceof ApiError && error.status === 404) markUnavailable('missing');
+      else if (error instanceof ApiError && error.code === 'expired') markUnavailable('ended');
+      else setLoadError(errorKey(error instanceof ApiError ? error.code : 'network'));
     });
     return () => {
       alive = false;
     };
-  }, [loadRound]);
+  }, [loadRound, markUnavailable]);
 
   // World ID Agent Pass (docs/WORLD_AGENT_PASS.md): while the agent waits for the human, re-read the policy
   const passState = view?.pass?.state;
   useEffect(() => {
-    if (!key || passState !== 'pending') return;
+    if (
+      !key ||
+      passState !== 'pending' ||
+      unavailableReason ||
+      nativePaid ||
+      eventUnavailable ||
+      loadError
+    )
+      return;
+    let alive = true;
     const id = setInterval(
       () =>
         void api
           .agentPolicy(key)
-          .then(setView)
+          .then((next) => {
+            if (alive) setView(next);
+          })
           .catch(() => undefined),
       5000,
     );
-    return () => clearInterval(id);
-  }, [key, passState]);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [key, passState, unavailableReason, nativePaid, eventUnavailable, loadError]);
 
   const save = useCallback(
     async (next: TopUpPolicyWire) => {
-      if (!wallet || !key || nativePaid) return;
-      setStatus('signing');
+      if (
+        !wallet ||
+        !key ||
+        nativePaid ||
+        eventUnavailable ||
+        unavailableReason ||
+        loadError ||
+        busy
+      )
+        return;
+      setStatus('checking');
       setMessage(undefined);
       setProof(undefined);
+      let checked = false;
       try {
+        // /me may return a cancellation receipt even after the live entitlement has gone.
+        // Recheck before opening the wallet; a stale policy must not revive an ended plan.
+        const current = await api.me(key);
+        setMe(current);
+        if (planEnded(current, Date.now())) {
+          markUnavailable('ended');
+          return;
+        }
+        if (
+          current.autoTopUpAvailable === false ||
+          (current.kind === 'paid' && current.network?.startsWith('hedera:') === true)
+        ) {
+          setPolicy(undefined);
+          setView(undefined);
+          setRows([]);
+          setStatus('idle');
+          return;
+        }
+        checked = true;
+        setStatus('signing');
         // the AgentPolicy is signed over the Recharge EIP-712 domain, on its chain
         const owner = await ensureChain(wallet, config.chainId);
         const issuedAt = Date.now();
+        if (planEnded(current, issuedAt)) {
+          markUnavailable('ended');
+          return;
+        }
         const policyHash = keccak256(toBytes(canonicalJson(next)));
         const signature = await owner.signTypedData({
           domain: rechargeDomain(config.chainId),
@@ -156,6 +246,18 @@ export function AgentSheet() {
           }),
         );
       } catch (e) {
+        if (e instanceof ApiError && (e.status === 404 || e.code === 'expired')) {
+          markUnavailable(e.code === 'expired' ? 'ended' : 'missing');
+          return;
+        }
+        if (!checked) {
+          setPolicy(undefined);
+          setView(undefined);
+          setRows([]);
+          setLoadError(errorKey(e instanceof ApiError ? e.code : 'network'));
+          setStatus('idle');
+          return;
+        }
         if (!isUserRejection(e)) setProof(buildProof({ error: e, signedOn: config.chainId }));
         setStatus(isUserRejection(e) ? 'idle' : 'error');
         if (e instanceof WrongChainError)
@@ -164,16 +266,67 @@ export function AgentSheet() {
           setMessage(t(errorKey(e instanceof ApiError ? e.code : 'network')));
       }
     },
-    [wallet, ensureChain, key, t, nativePaid],
+    [
+      wallet,
+      ensureChain,
+      key,
+      t,
+      nativePaid,
+      eventUnavailable,
+      unavailableReason,
+      loadError,
+      busy,
+      markUnavailable,
+    ],
   );
 
-  if (key === null)
+  if (key === null || unavailableReason)
     return (
       <Screen>
         <AppHeader />
-        <p className="note" role="status" lang={lang}>
-          {t('agent.noPlan')}
-        </p>
+        <section className="sheet" lang={lang}>
+          <h1 className="sheet__title">{t('agent.title')}</h1>
+          <p className="note" role="status" data-testid="agent-unavailable">
+            {t(
+              key === null
+                ? 'agent.noPlan'
+                : unavailableReason === 'ended'
+                  ? 'agent.planEnded'
+                  : 'agent.planMissing',
+            )}
+          </p>
+          <div className="row-actions">
+            <a className="ui-button" data-variant="primary" href="/pay">
+              {t('agent.buyNewPlan')}
+            </a>
+            {key && unavailableReason === 'ended' ? (
+              <a className="ui-button" data-variant="secondary" href={planHref(key)}>
+                {t('agent.viewPlan')}
+              </a>
+            ) : null}
+          </div>
+        </section>
+        <TabBar />
+      </Screen>
+    );
+
+  if (eventUnavailable && key)
+    return (
+      <Screen>
+        <AppHeader />
+        <section className="sheet" lang={lang}>
+          <h1 className="sheet__title">{t('agent.title')}</h1>
+          <p className="note" role="status">
+            {t('plan.eventBundleOnly')}
+          </p>
+          <a className="ui-button" data-variant="secondary" href={planHref(key)}>
+            {t('agent.viewPlan')}
+          </a>
+          <a className="ui-button" data-variant="quiet" href="/pay">
+            {t('agent.buyNewPlan')}
+          </a>
+        </section>
+        <TabBar />
       </Screen>
     );
 
@@ -254,7 +407,7 @@ export function AgentSheet() {
                     role="radio"
                     aria-label={t('agent.capAria', { cap: `$${usd}` })}
                     aria-checked={capUsd6 === BigInt(usd * USD6)}
-                    disabled={status === 'signing' || status === 'saving' || !wallet}
+                    disabled={busy || !wallet}
                     onClick={() => {
                       const next = {
                         ...policy,
@@ -273,7 +426,7 @@ export function AgentSheet() {
               {wallet ? (
                 <Button
                   variant="secondary"
-                  disabled={status === 'signing' || status === 'saving'}
+                  disabled={busy}
                   onClick={() =>
                     void save({ ...policy, stepMb: sold.mb, paused: view ? !policy.paused : false })
                   }
@@ -287,15 +440,19 @@ export function AgentSheet() {
                 </Button>
               )}
             </>
-          ) : (
+          ) : !loadError ? (
             <div className="skeleton skeleton--line" aria-hidden="true" />
-          )}
+          ) : null}
           <p className="note" role="status" data-testid="agent-status" lang={lang}>
-            {status === 'signing'
-              ? t('agent.save')
-              : status === 'saved' && view
-                ? t('agent.saved', { address: `${view.owner.slice(0, 6)}…${view.owner.slice(-4)}` })
-                : (message ?? ' ')}
+            {status === 'checking'
+              ? t('agent.checkingPlan')
+              : status === 'signing'
+                ? t('agent.save')
+                : status === 'saved' && view
+                  ? t('agent.saved', {
+                      address: `${view.owner.slice(0, 6)}…${view.owner.slice(-4)}`,
+                    })
+                  : (message ?? ' ')}
           </p>
           <ProofPanel proof={proof} />
           {view && capUsd6 > 0n ? (

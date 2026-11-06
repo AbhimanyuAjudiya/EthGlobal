@@ -334,7 +334,10 @@ async function alreadyServed(
     const held = await Promise.all([
       new EntitlementStore(deps.ledger, deps.now).getByKey(k.key).then((found) => found !== null),
       claims.held(k.locks.campaign),
-      ...liveDays(dayBucket(now)).map((day) => claims.held(k.locks.live(day))),
+      // Ticket campaigns buy a separate benefit per event. Legacy public giveaways retain global limits.
+      ...(req.campaign?.event?.ticketRequired
+        ? []
+        : liveDays(dayBucket(now)).map((day) => claims.held(k.locks.live(day)))),
     ]);
     return held.some(Boolean) ? deny('replay') : null;
   } catch {
@@ -364,16 +367,21 @@ async function reserve(
   let committed = false;
   try {
     const today = dayBucket(now);
+    const liveBuckets = campaign.event?.ticketRequired ? [] : [today, today + 1];
+    const locks: { key: string; scope: 'free-live' | 'free-campaign'; expiresAt: number }[] = [
+      ...liveBuckets.map((day) => ({
+        key: k.locks.live(day),
+        scope: 'free-live' as const,
+        expiresAt: entitlementExpiresAt,
+      })),
+      { key: k.locks.campaign, scope: 'free-campaign', expiresAt: recordUntil },
+    ];
     await deps.onFreeReservation?.(decision, {
       token: reservation,
-      keys: [k.locks.live(today), k.locks.live(today + 1), k.locks.campaign],
-      locks: [
-        { key: k.locks.live(today), scope: 'free-live', expiresAt: entitlementExpiresAt },
-        { key: k.locks.live(today + 1), scope: 'free-live', expiresAt: entitlementExpiresAt },
-        { key: k.locks.campaign, scope: 'free-campaign', expiresAt: recordUntil },
-      ],
+      keys: locks.map((lock) => lock.key),
+      locks,
     });
-    for (const day of [today, today + 1]) {
+    for (const day of liveBuckets) {
       const key = k.locks.live(day);
       if (!(await claims.reserve(key, 'free-live', entitlementExpiresAt, reservation)))
         return deny('replay', 'claim_lock');
@@ -461,7 +469,10 @@ async function freeLane(
   const replay = await alreadyServed(deps, req, k, now);
   if (replay) return replay;
   if (!(await actionAllows(campaign, k.claimKey))) return deny('invalid-proof', 'action');
-  const expiresAt = now + campaign.validityDays * DAY_MS;
+  // Keep a pre-travel allocation recoverable through the event. Provider lifecycle determines mobile validity.
+  const expiresAt = campaign.event
+    ? Math.max(now + campaign.validityDays * DAY_MS, campaign.event.reclaimAfter + DAY_MS)
+    : now + campaign.validityDays * DAY_MS;
   const entitlement: Entitlement = {
     v: 1,
     key: k.key,
@@ -471,11 +482,15 @@ async function freeLane(
     campaignId: campaign.id,
     // the operator's vendor package wins: a campaign's planId comes from the sponsor's form and the vendor rejects
     // unknown package codes (live: RESELLER_PLAN_ID=JC060 vs the form's `in-1gb-7d`)
-    planId: deps.planId !== undefined && deps.planId !== '' ? deps.planId : campaign.planId,
+    planId:
+      campaign.event || deps.planId === '' ? campaign.planId : (deps.planId ?? campaign.planId),
     mbTotal: mb,
     mbUsed: 0,
     usageAsOf: now,
     usageSource: 'none',
+    ...(campaign.event
+      ? { lifecycle: { startsOn: 'unknown' as const, validityDays: campaign.validityDays } }
+      : {}),
     holderHash: holderHash(k.key, sessionPubKey),
     createdAt: now,
     expiresAt,

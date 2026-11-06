@@ -8,6 +8,7 @@ import { AdapterError } from '../errors.js';
 
 import type {
   EsimPlan,
+  EsimCancellationEvidence,
   EsimProfile,
   EsimUsage,
   Reseller,
@@ -30,12 +31,19 @@ export class FallbackReseller implements Reseller {
     return this.primary.name;
   }
 
-  async plans(country: 'IN'): Promise<EsimPlan[]> {
+  async plans(country: string): Promise<EsimPlan[]> {
     try {
-      return await this.primary.plans(country);
+      // A future fallback allocation cannot promise a primary-provider refund at catalog time.
+      return (await this.primary.plans(country)).map((plan) => ({
+        ...plan,
+        cancellation: 'unsupported' as const,
+      }));
     } catch (error) {
       if (!fallsBack(error)) throw error;
-      return this.fallback.plans(country);
+      return (await this.fallback.plans(country)).map((plan) => ({
+        ...plan,
+        cancellation: 'unsupported' as const,
+      }));
     }
   }
 
@@ -92,9 +100,52 @@ export class FallbackReseller implements Reseller {
     return this.primary.usage(iccid);
   }
 
-  /** The primary only, never the fallback: no refund from inventory (a profile the primary never issued is refused). */
-  cancel(iccid: string, opts: { idempotencyKey: string }): Promise<void> {
-    return this.primary.cancel(iccid, opts);
+  async cancellationEvidence(
+    iccid: string,
+    opts: { providerRef?: string } = {},
+  ): Promise<EsimCancellationEvidence> {
+    // Durable inventory provenance wins, including after restart. Never infer ownership from a generic status.
+    if (!this.fallback.cancellationEvidence)
+      return { provider: this.fallback.name, status: 'unknown', observedAt: Date.now() };
+    try {
+      return await this.fallback.cancellationEvidence(iccid, opts);
+    } catch (error) {
+      if (!(error instanceof AdapterError) || error.code !== 'not_found') throw error;
+    }
+    return (
+      this.primary.cancellationEvidence?.(iccid, opts) ?? {
+        provider: this.primary.name,
+        status: 'unknown',
+        observedAt: Date.now(),
+      }
+    );
+  }
+
+  /** Only a proven primary allocation can be cancelled; pre-bought fallback stock is never refunded. */
+  async cancel(
+    iccid: string,
+    opts: { idempotencyKey: string; providerRef?: string },
+  ): Promise<void> {
+    const evidence = await this.cancellationEvidence(iccid, opts);
+    if (evidence.status === 'unknown')
+      throw new AdapterError(
+        'reseller',
+        'unavailable',
+        'provider cancellation eligibility is unknown',
+      );
+    if (
+      evidence.provider !== this.primary.name ||
+      !['eligible', 'cancelled'].includes(evidence.status)
+    )
+      throw new AdapterError(
+        'reseller',
+        'invalid_request',
+        'profile has no supported cancellation',
+      );
+    return this.primary.cancel(iccid, {
+      ...opts,
+      ...(evidence.providerRef ? { providerRef: evidence.providerRef } : {}),
+    });
   }
 
   verifyWebhook(

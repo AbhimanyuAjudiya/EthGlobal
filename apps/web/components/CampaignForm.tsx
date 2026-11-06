@@ -4,15 +4,20 @@ import { useConnectModal } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { Hex } from '@ethglobal/protocol/ids';
-import { sponsorRegisterSchema, type SponsorRegister } from '@ethglobal/protocol/schemas';
+import { MAX_BUNDLE_MB, type Hex } from '@ethglobal/protocol/ids';
+import {
+  sponsorRegisterSchema,
+  type CatalogResponse,
+  type SponsorRegister,
+} from '@ethglobal/protocol/schemas';
 import { Button, Field, Hash } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
 import { ProofPanel } from './ProofPanel';
+import { useLang } from '../i18n/lang';
 import { api, ApiError } from '../lib/api';
 import { config, contractUrl, explorerName, networkName } from '../lib/env';
-import { moneyUsdc } from '../lib/format';
+import { formatMb, moneyUsdc } from '../lib/format';
 import { useEnsureChain, useHydrated, useWallet } from '../lib/hooks';
 import { buildProof, type Proof, type ProofInput } from '../lib/proof';
 import {
@@ -36,7 +41,10 @@ import type { StringKey } from '../i18n/strings';
 import type { ActionEvent } from '../lib/onchain-action';
 
 const USD6 = 1_000_000n;
-const DAY_S = 86_400n;
+const logicalMb = (mb: number) => Math.min(MAX_BUNDLE_MB, Math.floor(mb / 100) * 100);
+const supportedPackage = (mb: number) => logicalMb(mb) > 0 && mb <= 1074;
+const usdInput = (amount: string) =>
+  `${BigInt(amount) / USD6}.${(BigInt(amount) % USD6).toString().padStart(6, '0')}`;
 const PROGRESS = 'recharge.sponsor.pending';
 const associationKey = (wallet: Wallet, token: string) =>
   `recharge.sponsor.association:${wallet.chainId}:${wallet.address.toLowerCase()}:${token.toLowerCase()}`;
@@ -79,11 +87,18 @@ interface Draft {
   perHour: string;
   validityDays: string;
   expiresDays: string;
+  country: string;
+  planId: string;
+  startsAt: string;
+  endsAt: string;
+  claimUntil: string;
+  reclaimAfter: string;
+  reclaimUnused: boolean;
 }
 
-/** Testnet defaults: ten 1 GB claims at the eSIM's cost, a week long. */
+/** Destination, provider package and event dates must be chosen explicitly. */
 const initial: Draft = {
-  name: 'Mumbai Welcome',
+  name: '',
   budgetUsd: '12',
   priceUsd: '1.20',
   orbMb: '1000',
@@ -92,6 +107,13 @@ const initial: Draft = {
   perHour: '10',
   validityDays: '7',
   expiresDays: '7',
+  country: '',
+  planId: '',
+  startsAt: '',
+  endsAt: '',
+  claimUntil: '',
+  reclaimAfter: '',
+  reclaimUnused: false,
 };
 
 /** "0.50" → 500000n; refuses anything but plain decimals with ≤ 6 places. */
@@ -149,6 +171,7 @@ async function send(
  * → POST /sponsor signed with SponsorLogin → the audit key shown once with a copy affordance.
  */
 export function CampaignForm() {
+  const { t, lang } = useLang();
   const { wallet } = useWallet('sponsor');
   const ensureChain = useEnsureChain();
   const { openConnectModal } = useConnectModal();
@@ -167,11 +190,40 @@ export function CampaignForm() {
   const [proof, setProof] = useState<Proof>();
   const [resume, setResume] = useState<Progress>();
   const [funding, setFunding] = useState<FundingState>();
+  const [catalog, setCatalog] = useState<CatalogResponse>();
+  const [catalogBusy, setCatalogBusy] = useState(false);
+  const [catalogError, setCatalogError] = useState<string>();
+  const catalogRound = useRef(0);
   const fundingRound = useRef(0);
   const hedera = isHederaSponsorChain(config.chainId);
   const identity = `${wallet?.address.toLowerCase() ?? ''}:${wallet?.chainId ?? ''}`;
   const currentFunding = funding?.identity === identity ? funding : undefined;
   const association = useOnchainAction();
+  const selectedPlan =
+    catalog?.country === draft.country
+      ? catalog.plans.find((plan) => plan.id === draft.planId)
+      : undefined;
+  const loadCatalog = async () => {
+    const round = ++catalogRound.current;
+    const country = draft.country.trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(country)) {
+      setCatalogError(t('event.countryHint'));
+      return;
+    }
+    setCatalogBusy(true);
+    setCatalogError(undefined);
+    setCatalog(undefined);
+    setDraft((previous) => ({ ...previous, planId: '', reclaimUnused: false }));
+    try {
+      const response = await api.catalog(country);
+      if (round === catalogRound.current) setCatalog(response);
+    } catch (error) {
+      if (round === catalogRound.current)
+        setCatalogError(error instanceof Error ? error.message : t('event.catalogError'));
+    } finally {
+      if (round === catalogRound.current) setCatalogBusy(false);
+    }
+  };
 
   const checkFunding = useCallback(
     async (switchChain = false) => {
@@ -281,7 +333,7 @@ export function CampaignForm() {
       const pending = readProgress();
       if (alive && pending) {
         setResume(pending);
-        setDraft(pending.draft);
+        setDraft({ ...initial, ...pending.draft });
       }
     });
     return () => {
@@ -292,14 +344,23 @@ export function CampaignForm() {
   const hydrated = useHydrated();
   const list = hydrated ? myCampaigns.list() : [];
 
-  const field = (key: keyof Draft, label: string, hint?: string) => (
+  const field = (
+    key: Exclude<keyof Draft, 'reclaimUnused'>,
+    label: string,
+    hint?: string,
+    type = 'text',
+  ) => (
     <Field
       label={label}
       {...(hint ? { hint } : {})}
       value={draft[key]}
       disabled={running || Boolean(resume)}
-      onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))}
-      inputMode={key === 'name' ? 'text' : 'decimal'}
+      onChange={(e) => {
+        const value = e.target.value;
+        setDraft((d) => ({ ...d, [key]: value }));
+      }}
+      type={type}
+      inputMode={key === 'name' || type === 'datetime-local' ? 'text' : 'decimal'}
       mono={key !== 'name'}
       data-testid={`campaign-${key}`}
     />
@@ -324,7 +385,35 @@ export function CampaignForm() {
       if (!progress) {
         const budget = usd6(draft.budgetUsd);
         const price = usd6(draft.priceUsd);
-        const days = Number(draft.expiresDays);
+        if (!selectedPlan || !supportedPackage(selectedPlan.mb))
+          throw new Error(t('event.choosePlan'));
+        const startsAt = new Date(draft.startsAt).getTime();
+        const endsAt = new Date(draft.endsAt).getTime();
+        const expiresAt = new Date(draft.claimUntil).getTime();
+        const reclaimAfter = new Date(draft.reclaimAfter || draft.endsAt).getTime();
+        if (
+          ![startsAt, endsAt, expiresAt, reclaimAfter].every(Number.isFinite) ||
+          endsAt <= startsAt ||
+          endsAt <= Date.now() ||
+          expiresAt <= Date.now() ||
+          expiresAt > endsAt ||
+          reclaimAfter < endsAt
+        )
+          throw new Error(t('event.datesInvalid'));
+        if (draft.reclaimUnused && selectedPlan.cancellation !== 'never-installed')
+          throw new Error(t('event.reclaimUnavailable'));
+        if (
+          selectedPlan.activation.startsOn === 'unknown' ||
+          selectedPlan.activation.installWithinDays === undefined ||
+          Date.now() + selectedPlan.activation.installWithinDays * 86_400_000 < endsAt ||
+          (draft.reclaimUnused &&
+            Date.now() + selectedPlan.activation.installWithinDays * 86_400_000 <
+              reclaimAfter + 86_400_000) ||
+          selectedPlan.validityDays < Math.ceil((endsAt - startsAt) / 86_400_000) ||
+          (selectedPlan.activation.startsOn === 'installation' &&
+            Date.now() + selectedPlan.validityDays * 86_400_000 < endsAt)
+        )
+          throw new Error(t('event.packageDates'));
         if (budget <= 0n || price <= 0n || budget < price)
           throw new Error('Budget must cover at least one claim.');
         const advertised = await api.plans();
@@ -334,28 +423,49 @@ export function CampaignForm() {
           throw new Error(
             'The sponsor funding terms could not be loaded. Try again before funding.',
           );
-        if (price < BigInt(minimum))
-          throw new Error(`Each claim must cover at least ${moneyUsdc(minimum)}.`);
-        if (!Number.isSafeInteger(days) || days < 1 || days * 86_400_000 > maxDuration)
-          throw new Error(
-            `Campaign duration must be between 1 and ${Math.floor(maxDuration / 86_400_000)} whole days.`,
-          );
+        const floor =
+          BigInt(minimum) > BigInt(selectedPlan.wholesaleUsd6)
+            ? BigInt(minimum)
+            : BigInt(selectedPlan.wholesaleUsd6);
+        if (price < floor) throw new Error(t('event.minimumPrice', { price: moneyUsdc(floor) }));
         const block = await sponsor.reader.getBlock();
+        if (
+          expiresAt <= Number(block.timestamp) * 1000 ||
+          expiresAt - Number(block.timestamp) * 1000 > maxDuration
+        )
+          throw new Error(t('event.maxDuration', { days: Math.floor(maxDuration / 86_400_000) }));
         const campaign = sponsorRegisterSchema.shape.campaign.parse({
           id: scopedCampaignId(sponsor.address, BigInt(Date.now())),
           sponsor: sponsor.address,
           name: draft.name.trim(),
-          bundleMb: { orb: Number(draft.orbMb), document: Number(draft.documentMb), device: 0 },
+          bundleMb: {
+            orb: logicalMb(selectedPlan.mb),
+            document: logicalMb(selectedPlan.mb),
+            device: 0,
+          },
           pricePerClaimUsd6: price.toString(),
           maxClaims: Number(draft.maxClaims),
           claimsPerHour: Number(draft.perHour),
-          validityDays: Number(draft.validityDays),
-          wholesaleUsd6PerGb: '1200000',
+          validityDays: selectedPlan.validityDays,
+          wholesaleUsd6PerGb: (
+            (BigInt(selectedPlan.wholesaleUsd6) * 1000n + BigInt(logicalMb(selectedPlan.mb)) - 1n) /
+            BigInt(logicalMb(selectedPlan.mb))
+          ).toString(),
           idResaleUsd6: '1500000',
-          planId: 'in-1gb-7d',
+          planId: selectedPlan.id,
           network: sponsor.network,
           contract: dataDropAddress(),
-          expiresAt: Number(block.timestamp + BigInt(days) * DAY_S) * 1000,
+          expiresAt,
+          event: {
+            destinationCountry: draft.country,
+            startsAt,
+            endsAt,
+            reclaimAfter,
+            ticketRequired: true,
+            reclaimUnused: draft.reclaimUnused,
+            refundBasis: 'claim-price',
+            noticeVersion: 1,
+          },
         });
         await api.validateSponsor(campaign);
         progress = { campaign, draft, budget: budget.toString() };
@@ -453,7 +563,7 @@ export function CampaignForm() {
       if (txs.length || evidence.response || evidence.error !== undefined)
         setProof(buildProof({ ...evidence, txs }));
     }
-  }, [wallet, ensureChain, draft, running, approve, create, hedera]);
+  }, [wallet, ensureChain, draft, running, approve, create, hedera, selectedPlan, t]);
 
   // both steps run on DataDrop's chain, whatever chain the wallet is on before it
   const network = caip2(config.chainId);
@@ -477,7 +587,7 @@ export function CampaignForm() {
       currentFunding.busy === true);
 
   return (
-    <div className="sponsor-create">
+    <div className="sponsor-create" lang={lang}>
       <section aria-label="Your campaigns">
         <table className="data-table">
           <thead>
@@ -489,9 +599,7 @@ export function CampaignForm() {
           <tbody>
             {list.length === 0 ? (
               <tr className="ghost">
-                <td colSpan={2}>
-                  Create a campaign — name, budget, bundle size by tier, hourly cap.
-                </td>
+                <td colSpan={2}>{t('event.intro')}</td>
               </tr>
             ) : (
               list.map((c) => (
@@ -520,7 +628,7 @@ export function CampaignForm() {
           }}
         >
           <h2 id="create-title" className="pane__title">
-            Create a campaign
+            {t('event.create')}
           </h2>
           {resume ? (
             <p role="status">
@@ -530,6 +638,107 @@ export function CampaignForm() {
             </p>
           ) : null}
           {field('name', 'Name')}
+          <p className="note">{t('event.intro')}</p>
+          {!resume ? (
+            <section className="sheet-row" aria-label={t('event.destination')}>
+              <Field
+                label={t('event.destination')}
+                hint={t('event.countryHint')}
+                value={draft.country}
+                maxLength={2}
+                autoCapitalize="characters"
+                disabled={running || catalogBusy}
+                onChange={(e) => {
+                  const country = e.target.value.toUpperCase().replace(/[^A-Z]/g, '');
+                  catalogRound.current += 1;
+                  setCatalog(undefined);
+                  setCatalogError(undefined);
+                  setDraft((previous) => ({
+                    ...previous,
+                    country,
+                    planId: '',
+                    reclaimUnused: false,
+                  }));
+                }}
+              />
+              <Button
+                variant="secondary"
+                disabled={running || catalogBusy || draft.country.length !== 2}
+                onClick={() => void loadCatalog()}
+              >
+                {t(catalogBusy ? 'event.loadingCatalog' : 'event.loadCatalog')}
+              </Button>
+              {catalogError ? <p role="alert">{catalogError}</p> : null}
+              {catalog ? (
+                <div className="ui-field">
+                  <label className="ui-field__label" htmlFor="event-package">
+                    {t('event.package')}
+                  </label>
+                  <select
+                    id="event-package"
+                    className="ui-field__input"
+                    value={draft.planId}
+                    disabled={running}
+                    onChange={(e) => {
+                      const planId = e.target.value;
+                      const plan = catalog.plans.find((item) => item.id === planId);
+                      setDraft((previous) => ({
+                        ...previous,
+                        planId,
+                        reclaimUnused: false,
+                        ...(plan ? { priceUsd: usdInput(plan.wholesaleUsd6) } : {}),
+                      }));
+                    }}
+                  >
+                    <option value="">{t('event.choosePlan')}</option>
+                    {catalog.plans
+                      .filter((plan) => supportedPackage(plan.mb))
+                      .map((plan) => (
+                        <option key={plan.id} value={plan.id}>
+                          {plan.name} · {formatMb(logicalMb(plan.mb))} ·{' '}
+                          {t('offer.days', { days: plan.validityDays })} ·{' '}
+                          {moneyUsdc(plan.wholesaleUsd6)}
+                        </option>
+                      ))}
+                  </select>
+                  {catalog.plans.every((plan) => !supportedPackage(plan.mb)) ? (
+                    <p className="note">{t('event.noPlans')}</p>
+                  ) : null}
+                </div>
+              ) : null}
+              {selectedPlan ? (
+                <div className="note">
+                  <p>
+                    {t('event.packageTerms', {
+                      mb: formatMb(logicalMb(selectedPlan.mb)),
+                      days: selectedPlan.validityDays,
+                      price: moneyUsdc(selectedPlan.wholesaleUsd6),
+                    })}
+                  </p>
+                  <p>
+                    {t(
+                      selectedPlan.activation.startsOn === 'first-network'
+                        ? 'event.activationNetwork'
+                        : selectedPlan.activation.startsOn === 'installation'
+                          ? 'event.activationInstall'
+                          : 'event.activationUnknown',
+                    )}
+                  </p>
+                  {selectedPlan.activation.installWithinDays ? (
+                    <p>
+                      {t('event.installWithin', {
+                        days: selectedPlan.activation.installWithinDays,
+                      })}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </section>
+          ) : resume.campaign.event ? (
+            <p className="note">
+              {resume.campaign.event.destinationCountry} · {resume.campaign.planId}
+            </p>
+          ) : null}
           <div className="form-grid">
             {field('budgetUsd', 'Budget (USDC)')}
             {field(
@@ -537,13 +746,41 @@ export function CampaignForm() {
               'Paid per claim (USDC)',
               'Must cover the current minimum cost returned by the data provider',
             )}
-            {field('orbMb', 'Orb bundle (MB)', 'max 1 GB')}
-            {field('documentMb', 'Document bundle (MB)', 'max 1 GB')}
             {field('maxClaims', 'Claims cap')}
             {field('perHour', 'Claims per hour')}
-            {field('validityDays', 'Plan validity (days)')}
-            {field('expiresDays', 'Campaign ends in (days)')}
+            {field('startsAt', t('event.startsAt'), t('event.localTime'), 'datetime-local')}
+            {field('endsAt', t('event.endsAt'), undefined, 'datetime-local')}
+            {field('claimUntil', t('event.claimUntil'), t('event.claimHint'), 'datetime-local')}
+            {field(
+              'reclaimAfter',
+              t('event.reclaimAfter'),
+              t('event.reclaimDateHint'),
+              'datetime-local',
+            )}
           </div>
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={draft.reclaimUnused}
+              disabled={
+                running || Boolean(resume) || selectedPlan?.cancellation !== 'never-installed'
+              }
+              onChange={(e) => {
+                const reclaimUnused = e.target.checked;
+                setDraft((previous) => ({ ...previous, reclaimUnused }));
+              }}
+            />
+            {t('event.reclaimOptIn')}
+          </label>
+          <p className="note">
+            {t(
+              selectedPlan?.cancellation === 'never-installed' ||
+                resume?.campaign.event?.reclaimUnused
+                ? 'event.reclaimTerms'
+                : 'event.reclaimUnavailable',
+            )}
+          </p>
+          <p className="note">{t('event.ticketNotice')}</p>
           {wallet && hedera ? (
             <section
               className="sheet-row"
@@ -635,7 +872,7 @@ export function CampaignForm() {
           {wallet ? (
             <Button
               type="submit"
-              disabled={running || fundingBlocked}
+              disabled={running || fundingBlocked || (!resume && !selectedPlan)}
               data-testid="campaign-submit"
             >
               {resume ? 'Resume this campaign' : `Fund ${budgetText} and create`}

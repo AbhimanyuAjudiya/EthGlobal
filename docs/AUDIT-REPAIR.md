@@ -1,5 +1,15 @@
 # Recharge repair and verification — 6 November 2026
 
+## Event workflow update — awaiting deployment
+
+The next release adds destination-specific, ticket-linked event campaigns. Organizers issue private passes from confirmed ticket references; World ID enforces one human per campaign without replacing ticket eligibility. Passes are signed by the sponsor, bound after verification, and recoverable only with the original browser's private operation identity. New event allocations use the actual selected provider package and preserve pre-travel installation/service lifecycle information.
+
+New campaigns can explicitly enroll eligible unused allocations in post-event reconciliation. Durable checkpoints precede chain submission and provider orders. Only a positively confirmed provider cancellation, or a confirmed claim with explicit proof that no provider order started, can lead to a treasury reimbursement of the original claim price. Signed refund bytes and completed refund identities persist, including after receipt expiry. Unknown outcomes remain pending/manual. Original campaigns and profiles are not enrolled retroactively.
+
+Authenticated campaign history survives the public record's expiry, so organizers can still view returns after the event. Unclaimed contract budget and refunds for issued allocations remain separate. New event packages explicitly disable top-ups/autopay until exact provider validity/pricing is supported. Dead/missing paid plans no longer offer agent policy activation. Installer and plan screens honor cached cancellation deadlines while offline.
+
+The user requested ownership of testing. This update receives source review, compilation, static lint and production build only; no new test suites, browser claims, purchases, cancellations or wallet actions are run by the assistant. Historical test results below do not validate this new release. Product boundaries are documented in [EVENT-CONNECTIVITY.md](EVENT-CONNECTIVITY.md).
+
 This records the code audit, fixes, and validation performed in this checkout. Passing tests reduce risk; they do not establish that every external service or physical device will always work.
 
 ## Correctness and recovery
@@ -66,4 +76,10 @@ The user prioritized the campaign journey for live testing. Circle's test faucet
 
 The sponsor's allowance transaction `0x05366b05bddfa17202430ae11f48ad1123b2589eb89222ce1864322d0bf13f4c` succeeded in Hedera block 42728655. Its calldata, Approval event, and current allowance independently confirm exactly 1.20 USDC to the configured DataDrop contract. Live testing exposed a finality polling problem: MetaMask's `safe` block response stayed at `0x28bfbf5`, behind the successful receipt at `0x28bfccf`, while the public relay's safe block had advanced. The app retained the transaction hash and did not send a duplicate approval. A Hedera-specific receipt finality correction is being validated; successful consensus receipts are final on Hedera ([official transaction confirmation explanation](https://hedera.com/blog/transaction-confirmation-methods-in-hedera/)).
 
-Live campaign creation, production World ID verification, and provider delivery remain pending at this checkpoint. Campaign refunds return unspent budget only after expiry or 24 continuous paused hours; cancellation and automatic reclaim of already-issued free eSIMs are not implemented.
+The finality correction deployed as `4882b33aa95fe2b9dacec6720e7fae66889bb4d1` at 06:54:14 UTC. Fifteen affected transaction/sponsor tests, type checking, lint and formatting passed; the staged production build and four live-bundle checks passed. Public health remained live, chain 296, without degradation. Reloading and resuming the saved campaign in Chrome finalized the original approval and advanced to the creation wallet prompt without another approval transaction.
+
+Campaign creation and API registration succeeded. Transaction `0xfdba0d9463b9d3349491e7a4f1ba883942ac1fa63b2ca43de2456169f8504e7f` succeeded in block 42729032, with matching creation/funding events and exactly one 1.20-USDC transfer from the sponsor to DataDrop. The campaign is active with budget 1200000, spent zero, claim price 1200000, hourly limit ten, and expiry 1794033745. Remaining token allowance is zero and the sponsor balance is 18.80 USDC. Public `/plans` independently reports the registered campaign with one remaining 1-GB claim and live personhood verification. Chrome reached the real World App QR; phone verification and provider delivery remain pending at this checkpoint.
+
+The real World App verification completed, and the API rejected the recipient with `409 replay`, request `0a5eb10b-7729-4f83-a5b9-7379db2f16ba`. The user confirmed having received an earlier free bundle. Independent chain inspection through block 42729169 found zero campaign claim events, budget still 1200000 and spent zero; the request log showed denial before any claim transaction. This verifies the real duplicate-human denial path, not a successful new provider delivery. No personhood state or claim locks were reset. An eligible recipient or the separately authorized campaign voucher flow is needed to test new delivery.
+
+Campaign refunds return unspent budget only after expiry or 24 continuous paused hours; cancellation and automatic reclaim of already-issued free eSIMs are not implemented.

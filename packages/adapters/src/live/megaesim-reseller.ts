@@ -34,7 +34,7 @@ export class MegaEsimReseller implements Reseller {
 
   constructor(readonly options: MegaEsimResellerOptions) {}
 
-  async plans(_country: 'IN'): Promise<EsimPlan[]> {
+  async plans(_country: string): Promise<EsimPlan[]> {
     return nope();
   }
 

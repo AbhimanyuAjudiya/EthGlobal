@@ -3,6 +3,7 @@ import { serve } from '@hono/node-server';
 import { createApp } from './app.js';
 import { buildDeps } from './deps.js';
 import { parseEnv } from './env.js';
+import { recoverCampaignReclaims } from './flows/campaign-reclaim.js';
 import { retryPendingOnBoot } from './flows/fulfil.js';
 import { flushReceiptOutbox } from './flows/record.js';
 import { recoverRefunds } from './flows/refund-recovery.js';
@@ -20,6 +21,9 @@ const deps = await buildDeps(process.env, {
 });
 const app = createApp(deps, localClock ? { localClock } : {});
 await recoverFreeReservations(deps);
+void recoverCampaignReclaims(deps).catch(() =>
+  logger.warn({ event: 'campaign-reclaim' }, 'event reconciliation waits for recovery'),
+);
 // RT-A-11: pending-profile deliveries that survived a restart are retried once now (then on /me, ≤ 1/min)
 void retryPendingOnBoot(deps);
 void flushReceiptOutbox(deps).catch(() =>
@@ -29,6 +33,9 @@ void recoverRefunds(deps).catch(() =>
   logger.warn({ event: 'refund-recovery' }, 'refund replay waits for recovery'),
 );
 const refundTimer = setInterval(() => {
+  void recoverCampaignReclaims(deps).catch(() =>
+    logger.warn({ event: 'campaign-reclaim' }, 'event reconciliation waits for recovery'),
+  );
   void flushReceiptOutbox(deps).catch(() =>
     logger.warn({ event: 'receipt-outbox' }, 'receipt replay waits for ledger recovery'),
   );

@@ -22,7 +22,9 @@ import { registerGift } from './routes/gift.js';
 import { registerMe } from './routes/me.js';
 import { registerPublic } from './routes/public.js';
 import { registerSponsorAnalytics } from './routes/sponsor-analytics.js';
+import { registerSponsorTickets } from './routes/sponsor-tickets.js';
 import { registerSponsor } from './routes/sponsor.js';
+import { registerTicketPreview } from './routes/ticket-preview.js';
 import { registerWebhooks } from './routes/webhooks.js';
 import { SIMULATED_LEVELS, simulatedWorldProof, type LocalClock } from './seed.js';
 
@@ -47,6 +49,7 @@ const LEDGER_WRITES = [
   '/card/redeem',
   '/sponsor',
   '/sponsor/:id/cards',
+  '/sponsor/:id/tickets',
   '/agent/policy',
   '/plan/cancel',
 ];
@@ -82,6 +85,8 @@ export function createApp(deps: Deps, options: AppOptions = {}) {
   registerWebhooks(app, deps);
   registerMe(app, deps);
   registerSponsor(app, deps);
+  registerSponsorTickets(app, deps);
+  registerTicketPreview(app, deps);
   registerSponsorAnalytics(app, deps);
   registerAgentPolicy(app, deps);
   registerAgentPass(app, deps);

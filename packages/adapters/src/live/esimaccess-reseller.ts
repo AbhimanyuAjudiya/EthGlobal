@@ -23,6 +23,7 @@ import { mbFromBytes } from '@ethglobal/protocol/units';
 import { AdapterError, type AdapterErrorCode } from '../errors.js';
 import {
   assertIccid,
+  assertCountryCode,
   assertLpa,
   assertUsage,
   headerValue,
@@ -36,6 +37,8 @@ import { Pacer } from './rate-limit.js';
 
 import type {
   EsimPlan,
+  EsimCancellationEvidence,
+  EsimLifecycle,
   EsimProfile,
   EsimUsage,
   Reseller,
@@ -75,8 +78,12 @@ const packageSchema = z
     volume: int,
     duration: int,
     durationUnit: z.string(),
+    dataType: z.number().int().optional(),
+    currencyCode: z.string().max(8).optional(),
     location: z.string().max(2000).optional(),
     supportTopUpType: z.number().int().optional(),
+    activeType: z.union([z.number().int(), z.string().max(8)]).nullish(),
+    unusedValidTime: int.optional(),
   })
   .loose();
 const packageList = z.object({ packageList: z.array(packageSchema).max(2000) }).loose();
@@ -85,7 +92,7 @@ const orderObj = z
   .loose();
 const esimSchema = z
   .object({
-    esimTranNo: z.string().max(64),
+    esimTranNo: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
     orderNo: z.string().max(64).optional(),
     transactionId: z.string().max(64).optional(),
     iccid: z.string().max(32),
@@ -94,6 +101,10 @@ const esimSchema = z
     esimStatus: z.string().max(32).optional(),
     eid: z.string().max(64).nullish(),
     expiredTime: z.string().max(80).nullish(),
+    activateTime: z.string().max(80).nullish(),
+    activeType: z.union([z.number().int(), z.string().max(8)]).nullish(),
+    totalDuration: int.optional(),
+    durationUnit: z.string().max(16).optional(),
     totalVolume: int.optional(),
     orderUsage: int.optional(),
   })
@@ -114,6 +125,37 @@ const webhookSchema = z
   .loose();
 
 type Esim = z.infer<typeof esimSchema>;
+
+/** Official API: 1 = first installation; 2 = first network connection. */
+const activationStart = (value: unknown): EsimLifecycle['startsOn'] =>
+  value === 1 || value === '1'
+    ? 'installation'
+    : value === 2 || value === '2'
+      ? 'first-network'
+      : 'unknown';
+
+function providerTime(value: string | null | undefined): number | undefined {
+  if (!value) return undefined;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function lifecycle(e: Esim): EsimLifecycle {
+  const activatedAt = providerTime(e.activateTime);
+  const expiry = providerTime(e.expiredTime);
+  const activated =
+    activatedAt !== undefined || ['IN_USE', 'USED_UP', 'USED_EXPIRED'].includes(e.esimStatus ?? '');
+  const unused = e.esimStatus === 'GOT_RESOURCE' && e.smdpStatus === 'RELEASED' && e.eid === '';
+  return {
+    startsOn: activationStart(e.activeType),
+    ...(activatedAt === undefined ? {} : { activatedAt }),
+    ...(activated && expiry !== undefined ? { serviceExpiresAt: expiry } : {}),
+    ...(!activated && unused && expiry !== undefined ? { installBy: expiry } : {}),
+    ...(e.durationUnit === 'DAY' && e.totalDuration !== undefined && e.totalDuration > 0
+      ? { validityDays: e.totalDuration }
+      : {}),
+  };
+}
 
 /** smdpStatus / esimStatus → our profile status (API-FACTS §5.1 status model). */
 export function esimStatus(e: {
@@ -263,16 +305,27 @@ export class EsimAccessReseller implements Reseller {
     return parsed.data;
   }
 
-  async plans(country: 'IN'): Promise<EsimPlan[]> {
+  async plans(country: string): Promise<EsimPlan[]> {
+    assertCountryCode(country);
     const { packageList: list } = await this.#call(
       '/package/list',
-      { locationCode: country, type: '', slug: '', packageCode: '', iccid: '' },
+      { locationCode: country, type: 'BASE', dataType: '1', slug: '', packageCode: '', iccid: '' },
       packageList,
     );
     return list
       .filter(
         (p) =>
-          p.durationUnit === 'DAY' && p.duration > 0 && p.price > 0 && mbFromBytes(p.volume) > 0,
+          p.durationUnit === 'DAY' &&
+          p.duration > 0 &&
+          p.price > 0 &&
+          mbFromBytes(p.volume) > 0 &&
+          (p.dataType === undefined || p.dataType === 1) &&
+          (p.currencyCode === undefined || p.currencyCode === 'USD') &&
+          (p.location === undefined ||
+            p.location
+              .split(',')
+              .map((code) => code.trim())
+              .includes(country)),
       )
       .map((p) => ({
         id: p.packageCode,
@@ -282,6 +335,13 @@ export class EsimAccessReseller implements Reseller {
         dataMb: mbFromBytes(p.volume), // bytes → MB (1 GB = 1000 MB, A-1)
         validityDays: p.duration,
         wholesaleUsd6: BigInt(p.price) * 100n, // USD × 10 000 → micro-USD
+        activation: {
+          startsOn: activationStart(p.activeType),
+          ...(p.unusedValidTime !== undefined && p.unusedValidTime > 0
+            ? { installWithinDays: p.unusedValidTime }
+            : {}),
+        },
+        cancellation: 'never-installed' as const,
       }));
   }
 
@@ -365,19 +425,28 @@ export class EsimAccessReseller implements Reseller {
       provider: 'esimaccess',
       orderId: e.orderNo ?? e.esimTranNo,
       status: esimStatus(e),
+      ...(e.esimTranNo ? { providerRef: e.esimTranNo } : {}),
+      lifecycle: lifecycle(e),
     };
   }
 
-  async #esim(iccid: string): Promise<Esim> {
+  async #esim(iccid: string, providerRef?: string): Promise<Esim> {
     if (!ICCID_PATTERN.test(iccid))
       throw new AdapterError('reseller', 'invalid_request', 'malformed ICCID');
     const { esimList: list } = await this.#call(
       '/esim/query',
-      { orderNo: '', iccid, pager: PAGER },
+      {
+        orderNo: '',
+        iccid,
+        ...(providerRef === undefined ? {} : { esimTranNo: providerRef }),
+        pager: PAGER,
+      },
       esimList,
     );
     if (list.length === 0) throw new AdapterError('reseller', 'not_found', 'unknown ICCID');
-    const esim = list.find((e) => e.iccid === iccid);
+    const esim = list.find(
+      (e) => e.iccid === iccid && (providerRef === undefined || e.esimTranNo === providerRef),
+    );
     if (!esim)
       throw new AdapterError('reseller', 'invalid_response', 'query answered for another ICCID');
     return esim;
@@ -483,16 +552,90 @@ export class EsimAccessReseller implements Reseller {
    * use is refused here without a call. The profile's own state is the idempotency: one already reading CANCEL
    * resolves without a second call.
    */
-  async cancel(iccid: string, _opts: { idempotencyKey: string }): Promise<void> {
-    const e = await this.#esim(iccid);
-    if (e.esimStatus === 'CANCEL') return;
-    if (esimStatus(e) !== 'ready' || e.orderUsage !== 0 || Boolean(e.eid))
+  async cancellationEvidence(
+    iccid: string,
+    opts: { providerRef?: string } = {},
+  ): Promise<EsimCancellationEvidence> {
+    const e = await this.#esim(iccid, opts.providerRef);
+    if (opts.providerRef !== undefined && e.esimTranNo !== opts.providerRef)
+      throw new AdapterError(
+        'reseller',
+        'invalid_response',
+        'provider allocation identity changed',
+      );
+    const providerRef = /^[A-Za-z0-9_-]{1,64}$/.test(e.esimTranNo) ? e.esimTranNo : undefined;
+    const rawStatus = /^[A-Z_]{1,32}$/.test(e.esimStatus ?? '') ? e.esimStatus : undefined;
+    const smdpStatus = /^[A-Z_]{1,32}$/.test(e.smdpStatus ?? '') ? e.smdpStatus : undefined;
+    const installed =
+      Boolean(e.eid) ||
+      providerTime(e.activateTime) !== undefined ||
+      [
+        'DOWNLOAD',
+        'DOWNLOADED',
+        'INSTALLATION',
+        'INSTALLED',
+        'ENABLED',
+        'DISABLED',
+        'DELETED',
+      ].includes(e.smdpStatus ?? '');
+    const expiry = providerTime(e.expiredTime);
+    let status: EsimCancellationEvidence['status'] = 'unknown';
+    if (providerRef && rawStatus === 'CANCEL') status = 'cancelled';
+    else if (
+      installed ||
+      (e.orderUsage !== undefined && e.orderUsage > 0) ||
+      [
+        'IN_USE',
+        'USED_UP',
+        'UNUSED_EXPIRED',
+        'USED_EXPIRED',
+        'SUSPENDED',
+        'REVOKE',
+        'REVOKED',
+      ].includes(e.esimStatus ?? '') ||
+      (expiry !== undefined && expiry <= this.#opts.now())
+    )
+      status = 'ineligible';
+    else if (
+      providerRef &&
+      rawStatus === 'GOT_RESOURCE' &&
+      smdpStatus === 'RELEASED' &&
+      e.orderUsage === 0 &&
+      e.eid === '' &&
+      (!e.activateTime || providerTime(e.activateTime) !== undefined) &&
+      (!e.expiredTime || expiry !== undefined)
+    )
+      status = 'eligible';
+    return {
+      status,
+      provider: this.name,
+      ...(providerRef === undefined ? {} : { providerRef }),
+      ...(rawStatus === undefined ? {} : { rawStatus }),
+      ...(smdpStatus === undefined ? {} : { smdpStatus }),
+      observedAt: this.#opts.now(),
+    };
+  }
+
+  async cancel(
+    iccid: string,
+    opts: { idempotencyKey: string; providerRef?: string },
+  ): Promise<void> {
+    const evidence = await this.cancellationEvidence(iccid, opts);
+    if (evidence.status === 'cancelled') return;
+    if (evidence.status === 'unknown')
+      throw unavailable('provider cancellation eligibility is unknown', {
+        reason: 'pending_cancel',
+      });
+    if (evidence.status !== 'eligible' || evidence.providerRef === undefined)
       throw new AdapterError(
         'reseller',
         'invalid_request',
         'only an unused profile can be cancelled',
       );
-    await this.#call('/esim/cancel', { esimTranNo: e.esimTranNo }, z.unknown());
+    await this.#call('/esim/cancel', { esimTranNo: evidence.providerRef }, z.unknown());
+    const confirmed = await this.cancellationEvidence(iccid, { providerRef: evidence.providerRef });
+    if (confirmed.status !== 'cancelled')
+      throw unavailable('provider cancellation is not yet confirmed', { reason: 'pending_cancel' });
   }
 
   async usage(iccid: string): Promise<EsimUsage> {
@@ -500,7 +643,15 @@ export class EsimAccessReseller implements Reseller {
     const usedMb = mbFromBytes(e.orderUsage ?? 0);
     const totalMb = mbFromBytes(e.totalVolume ?? 0);
     assertUsage(usedMb, totalMb);
-    return { iccid, usedMb, totalMb, asOf: this.#opts.now(), status: esimStatus(e) };
+    return {
+      iccid,
+      usedMb,
+      totalMb,
+      asOf: this.#opts.now(),
+      status: esimStatus(e),
+      ...(e.esimTranNo ? { providerRef: e.esimTranNo } : {}),
+      lifecycle: lifecycle(e),
+    };
   }
 
   verifyWebhook(

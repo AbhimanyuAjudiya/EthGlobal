@@ -11,9 +11,12 @@ import type { Deps } from '../deps.js';
 export interface RefundJob {
   entitlementKey: string;
   receiptKey: string;
-  kind: 'gift-reclaim' | 'plan-cancel';
+  kind: 'gift-reclaim' | 'plan-cancel' | 'campaign-reclaim';
   input: { network: string; to: string; usd6: string; memo: string };
-  hcsBody: Extract<Parameters<typeof submitHcs>[2], { t: 'gift-reclaim' | 'plan-cancel' }>;
+  hcsBody: Extract<
+    Parameters<typeof submitHcs>[2],
+    { t: 'gift-reclaim' | 'plan-cancel' | 'campaign-reclaim' }
+  >;
   phase: 'queued' | 'prepared' | 'confirmed' | 'complete' | 'manual';
   prepared?: PreparedRefund;
   tx?: string;
@@ -193,7 +196,7 @@ async function recoverOne(deps: Deps, initial: RefundJob): Promise<boolean> {
   deps.refundJobs.set(
     job.receiptKey,
     { ...job, phase: 'complete' },
-    deps.now() + RECEIPT_TTL_S * 1000,
+    job.kind === 'campaign-reclaim' ? undefined : deps.now() + RECEIPT_TTL_S * 1000,
   );
   deps.cache.invalidate(job.entitlementKey);
   return true;
@@ -207,7 +210,8 @@ async function reserveBroadcastDay(deps: Deps, job: RefundJob): Promise<void> {
     if (receipt && dayBucket(receipt.at) === day) return;
     const spent =
       (await deps.stores.receipts.spentUsd6ForDay('gift-reclaim', day)) +
-      (await deps.stores.receipts.spentUsd6ForDay('plan-cancel', day));
+      (await deps.stores.receipts.spentUsd6ForDay('plan-cancel', day)) +
+      (await deps.stores.receipts.spentUsd6ForDay('campaign-reclaim', day));
     if (spent + BigInt(job.input.usd6) > deps.env.TREASURY_MAX_USD6_PER_DAY)
       throw fail('chain_unavailable', { reason: 'treasury_cap' });
     if (receipt) await deps.stores.receipts.patch(job.receiptKey, { at: deps.now() });

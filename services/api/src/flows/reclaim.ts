@@ -130,7 +130,7 @@ export async function reclaim(deps: Deps, req: GiftReclaimRequest): Promise<Gift
 }
 
 /** Every receipt kind the treasury pays out: one TREASURY_MAX_USD6_PER_DAY across them all (A-31). */
-const REFUND_KINDS = ['gift-reclaim', 'plan-cancel'] as const;
+const REFUND_KINDS = ['gift-reclaim', 'plan-cancel', 'campaign-reclaim'] as const;
 interface Pending {
   key: string;
   kind: (typeof REFUND_KINDS)[number];

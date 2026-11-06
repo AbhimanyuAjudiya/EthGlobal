@@ -12,10 +12,11 @@ import { openFromServer, sealToServer, utf8 } from '@ethglobal/crypto';
 import { lpaSchema, sealedBoxSchema } from '@ethglobal/protocol/schemas';
 
 import { AdapterError } from '../errors.js';
-import { assertIccid, assertLpa, safePlanName } from '../reseller-rules.js';
+import { assertCountryCode, assertIccid, assertLpa, safePlanName } from '../reseller-rules.js';
 
 import type {
   EsimPlan,
+  EsimCancellationEvidence,
   EsimProfile,
   EsimUsage,
   Reseller,
@@ -29,6 +30,11 @@ export const inventoryEntrySchema = z.object({
   iccid: z.string().regex(/^\d{18,22}$/),
   lpa: lpaSchema,
   planId: z.string().min(1).max(64),
+  /** Existing sealed stock predates destination metadata and is India-only. */
+  country: z
+    .string()
+    .regex(/^[A-Z]{2}$/)
+    .optional(),
   dataMb: z.int().positive().max(1_000_000),
   validityDays: z.int().positive().max(365),
   /** What the profile cost (digits, micro-USD); defaults to 1 (sunk cost, but never "free"). */
@@ -97,8 +103,9 @@ export class InventoryReseller implements Reseller {
     return next;
   }
 
-  async plans(country: 'IN'): Promise<EsimPlan[]> {
-    const free = this.#read().filter((e) => !e.consumedBy);
+  async plans(country: string): Promise<EsimPlan[]> {
+    assertCountryCode(country);
+    const free = this.#read().filter((e) => !e.consumedBy && (e.country ?? 'IN') === country);
     const byPlan = new Map<string, InventoryEntry>();
     for (const e of free) if (!byPlan.has(e.planId)) byPlan.set(e.planId, e);
     return [...byPlan.values()].map((e) => ({
@@ -109,6 +116,8 @@ export class InventoryReseller implements Reseller {
       dataMb: e.dataMb,
       validityDays: e.validityDays,
       wholesaleUsd6: BigInt(e.wholesaleUsd6 ?? '1'),
+      activation: { startsOn: 'unknown' },
+      cancellation: 'unsupported',
     }));
   }
 
@@ -167,6 +176,12 @@ export class InventoryReseller implements Reseller {
   }
 
   /** Pre-bought stock is never refunded: a cancel is refused, the profile stays issued. */
+  async cancellationEvidence(iccid: string): Promise<EsimCancellationEvidence> {
+    if (!this.#read().some((entry) => entry.iccid === iccid))
+      throw new AdapterError('reseller', 'not_found', 'unknown ICCID');
+    return { provider: this.name, status: 'ineligible', observedAt: this.#opts.now() };
+  }
+
   async cancel(_iccid: string, _opts: { idempotencyKey: string }): Promise<void> {
     throw new AdapterError('reseller', 'not_implemented', 'inventory profiles cannot be refunded');
   }

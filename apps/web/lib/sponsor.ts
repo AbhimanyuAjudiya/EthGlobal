@@ -5,11 +5,17 @@
  * next.config.ts fills from deploy/addresses.anvil.json in MODE=local (never imported here: the file is git-ignored
  * and must stay out of a live bundle, RT-W-12).
  */
-import { encodeFunctionData, parseAbi, type Abi, type Address } from 'viem';
+import { bytesToHex, encodeFunctionData, parseAbi, type Abi, type Address } from 'viem';
 
 import DataDropAbi from '@ethglobal/contracts/abi/DataDrop.json';
 import type { Hex } from '@ethglobal/protocol/ids';
-import { rechargeDomain, SPONSOR_LOGIN_TYPES } from '@ethglobal/protocol/typed-data';
+import {
+  canonicalTicketRefs,
+  rechargeDomain,
+  sponsorTicketsHash,
+  SPONSOR_LOGIN_TYPES,
+  SPONSOR_TICKETS_TYPES,
+} from '@ethglobal/protocol/typed-data';
 
 import { config } from './env';
 import { chainNow, type Wallet } from './wallet';
@@ -126,6 +132,27 @@ export async function sponsorLogin(wallet: Wallet, campaignId: Hex) {
     message: { campaignId, sponsor: wallet.address, issuedAt: BigInt(issuedAt) },
   });
   return { sponsor: wallet.address, issuedAt, signature };
+}
+
+/** Private ticket passes require a specific write signature; dashboard read credentials are insufficient. */
+export async function sponsorTicketsRequest(wallet: Wallet, campaignId: Hex, refs: string[]) {
+  const ticketRefs = canonicalTicketRefs(refs);
+  const ticketsHash = await sponsorTicketsHash(ticketRefs);
+  const nonce = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
+  const issuedAt = await chainNow(wallet);
+  const signature = await wallet.signTypedData({
+    domain: rechargeDomain(config.chainId),
+    types: SPONSOR_TICKETS_TYPES,
+    primaryType: 'SponsorTickets',
+    message: {
+      campaignId,
+      sponsor: wallet.address,
+      ticketsHash,
+      nonce,
+      issuedAt: BigInt(issuedAt),
+    },
+  });
+  return { ticketRefs, auth: { sponsor: wallet.address, nonce, issuedAt, signature } };
 }
 
 const LIST = 'recharge.sponsor.campaigns';

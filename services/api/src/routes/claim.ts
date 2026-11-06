@@ -18,12 +18,14 @@ import { SESSION_PUBKEY_HEADER } from '@ethglobal/protocol/x402';
 
 import { inputOf, type AppEnv, type Ctx } from '../context.js';
 import { fail } from '../errors.js';
+import { assertCampaignDelivery } from '../flows/campaign-reclaim.js';
 import { aborted } from '../flows/cancel.js';
 import { decideAndFulfil, settledDecision } from '../flows/entitle.js';
 import { deliveryRecoveryHash, fulfilTopUp } from '../flows/fulfil.js';
 import { paidRecovery, paymentFingerprint } from '../flows/payments.js';
 import { assertConfiguredCapacity } from '../flows/plan.js';
 import { flushReceiptOutbox, record } from '../flows/record.js';
+import { isEventPlan } from '../flows/tickets.js';
 import { octroi } from '../middleware/octroi.js';
 import { assertPlanMb, validateJson, validateQuery } from '../middleware/validate.js';
 import { paymentNonce, withPaymentResponse, x402 } from '../middleware/x402.js';
@@ -47,6 +49,10 @@ export function registerClaim(app: Hono<AppEnv>, deps: Deps): void {
         proof: body.proof,
         challenge: body.challenge as Challenge,
         sessionPubKey: body.sessionPubKey.toLowerCase() as Hex,
+        ...(body.ticketPass === undefined ? {} : { ticketPass: body.ticketPass }),
+        ...(body.eventNoticeVersion === undefined
+          ? {}
+          : { eventNoticeVersion: body.eventNoticeVersion }),
         ...(recoveryKeyHash === undefined ? {} : { recoveryKeyHash }),
       };
     }),
@@ -136,11 +142,14 @@ const topUpGuard = createMiddleware<AppEnv>(async (c, next) => {
   await flushReceiptOutbox(deps);
   const { key, mb } = inputOf<TopUpQuery>(c);
   assertPlanMb(mb);
+  assertCampaignDelivery(deps, key);
   // Settlement already succeeded under the original guards. Finish that operation even if its pass,
   // policy, daily window or plan lifetime changed while the reseller was unavailable.
   if (c.get('paidOperation')) return next();
   const found = await deps.stores.entitlements.getByKey(key);
   if (!found) throw fail(deps.cache.expired(key) ? 'expired' : 'not_found');
+  if (isEventPlan(deps, found.payload))
+    throw fail('invalid_request', { detail: 'top-ups are not available for event packages' });
   c.set('paidTarget', found.payload);
   const today = dayBucket(deps.now());
   const keyHash = sha256Hex(key);

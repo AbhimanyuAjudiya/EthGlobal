@@ -21,7 +21,13 @@ import { config } from '../lib/env';
 import { formatMb, mmss, money, soldPlan } from '../lib/format';
 import { useClock, usePlans } from '../lib/hooks';
 import { buildProof, type Proof } from '../lib/proof';
-import { finishRedemption, prepareFreeClaim } from '../lib/redeem';
+import {
+  finishRedemption,
+  prepareFreeClaim,
+  rememberTicketPass,
+  submitTicketPass,
+  rejectTicketPass,
+} from '../lib/redeem';
 
 type Phase =
   | { kind: 'preparing' }
@@ -33,6 +39,7 @@ type Phase =
   | { kind: 'failed' }
   | { kind: 'seen' }
   | { kind: 'noCredential' }
+  | { kind: 'ticketError' }
   | { kind: 'sponsorFailed'; why: string }
   | { kind: 'closed'; retryS: number; message: string };
 
@@ -88,6 +95,8 @@ const SPONSOR = new Set(['hourly_cap', 'budget_exhausted', 'campaign_paused', 'c
 function phaseFor(e: unknown, t: (k: ReturnType<typeof errorKey>) => string): Phase {
   const err = e instanceof ApiError ? e : new ApiError(0, 'network', String(e));
   if (SEEN.has(err.code)) return { kind: 'seen' };
+  if (err.code === 'ticket_required' || err.code === 'ticket_invalid' || err.code === 'ticket_used')
+    return { kind: 'ticketError' };
   if (err.code === 'payment_required') return { kind: 'noCredential' };
   if (err.code === 'invalid_proof' || err.code === 'unauthorized') return { kind: 'failed' };
   if (SPONSOR.has(err.code)) return { kind: 'sponsorFailed', why: t(errorKey(err.code)) };
@@ -104,6 +113,8 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
   // read once on the client; the server never renders the `waiting` phase, so no hydration mismatch
   const [handheld] = useState(() => typeof window !== 'undefined' && isHandheld(window));
   const [showQr, setShowQr] = useState(false);
+  const [hasTicket, setHasTicket] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   // a failed claim's proof (the API's error answer); a served claim's travels to /plan with the issued facts
   const [proof, setProof] = useState<Proof>();
   const session = useRef<Awaited<ReturnType<typeof prepareFreeClaim>> | undefined>(undefined);
@@ -116,10 +127,32 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
   const [round, setRound] = useState(0);
   useEffect(() => {
     let alive = true;
-    prepareFreeClaim(campaignId).then(
+    session.current = undefined;
+    queueMicrotask(() => {
+      if (alive) setHasTicket(false);
+    });
+    const prepareSession = async () => {
+      const fragment = new URLSearchParams(window.location.hash.slice(1));
+      const pass = fragment.get('ticket');
+      if (pass) {
+        const id = campaignId ?? plans?.campaign?.id;
+        if (!id) return undefined;
+        await rememberTicketPass(id, pass);
+        fragment.delete('ticket');
+        const rest = fragment.toString();
+        window.history.replaceState(
+          window.history.state,
+          '',
+          `${window.location.pathname}${window.location.search}${rest ? `#${rest}` : ''}`,
+        );
+      }
+      return prepareFreeClaim(campaignId ?? plans?.campaign?.id);
+    };
+    prepareSession().then(
       (next) => {
-        if (!alive) return;
+        if (!alive || !next) return;
         session.current = next;
+        setHasTicket(!!next.ticketPass);
         setPhase({ kind: 'ready' });
       },
       (e: unknown) => alive && setPhase(phaseFor(e, translate.current)),
@@ -127,7 +160,7 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
     return () => {
       alive = false;
     };
-  }, [round, campaignId]);
+  }, [round, campaignId, plans?.campaign?.id]);
   const prepare = () => {
     setPhase({ kind: 'preparing' });
     setRound((n) => n + 1);
@@ -142,6 +175,7 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
       setPhase({ kind: 'checking', since: Date.now() });
       setProof(undefined);
       try {
+        if (s.ticketPass) await submitTicketPass(s.operation, s.ticketPass);
         // the IDKit result is forwarded UNCHANGED as `proof` (A-25)
         const res = await api.claim(
           {
@@ -149,6 +183,10 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
             campaignId: campaign.id as Hex,
             challenge: s.challenge,
             sessionPubKey: s.spk,
+            ...(s.ticketPass ? { ticketPass: s.ticketPass } : {}),
+            ...(campaign.event?.reclaimUnused && acceptedTerms
+              ? { eventNoticeVersion: 1 as const }
+              : {}),
           },
           s.recoveryToken,
         );
@@ -172,25 +210,52 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
         // 201 and 202 deliver the same way: a pending profile has no LPA yet and /plan says so (T-25)
         router.push(planHref(key));
       } catch (e) {
+        if (
+          s.ticketPass &&
+          e instanceof ApiError &&
+          ['ticket_invalid', 'ticket_used', 'ticket_required'].includes(e.code)
+        )
+          await rejectTicketPass(s.operation, s.ticketPass);
         setProof(buildProof({ error: e, network: campaign.network, world: true }));
         // no answer is not "nothing happened": the API keeps claiming after the socket drops (RT-W-13)
         if (e instanceof ApiError && e.code === 'network') setPhase({ kind: 'unconfirmed' });
         else fail(e);
       }
     },
-    [plans, router, fail],
+    [plans, router, fail, acceptedTerms],
   );
 
   const start = useCallback(async () => {
+    const campaign = plans?.campaign;
+    if (!campaign) return;
+    if ((plans.mode === 'live' || campaign.event?.ticketRequired) && !hasTicket) {
+      setPhase({ kind: 'ticketError' });
+      return;
+    }
+    if (campaign.event?.reclaimUnused && !acceptedTerms) return;
     const ticket = ++attempt.current;
     setPhase({ kind: 'waiting', since: Date.now() });
     try {
       let s = session.current;
       if (!s || s.challenge.exp <= Date.now()) {
-        s = await prepareFreeClaim(campaignId);
+        s = await prepareFreeClaim(campaignId ?? campaign.id);
         session.current = s;
       }
       if (ticket !== attempt.current) return;
+      if (s.ticketPass) {
+        await api.previewTicket(
+          {
+            campaignId: campaign.id as Hex,
+            ticketPass: s.ticketPass,
+            sessionPubKey: s.spk,
+            ...(campaign.event?.reclaimUnused && acceptedTerms
+              ? { eventNoticeVersion: 1 as const }
+              : {}),
+          },
+          s.recoveryToken,
+        );
+        if (ticket !== attempt.current) return;
+      }
       // an expired rp_context (rp_signature_expired | timestamp_too_old) is re-fetched once
       for (let retry = 0; retry < 2; retry += 1) {
         // the backend-signed rp_context, after the challenge and before IDKit opens (A-25)
@@ -220,7 +285,7 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
     } catch (e) {
       if (ticket === attempt.current) fail(e);
     }
-  }, [claim, fail, campaignId]);
+  }, [claim, fail, campaignId, plans, hasTicket, acceptedTerms]);
   useEffect(
     () => () => {
       attempt.current += 1;
@@ -327,6 +392,13 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
         </p>
       );
       break;
+    case 'ticketError':
+      status = (
+        <p role="alert" lang={lang}>
+          {t('verify.ticketError')}
+        </p>
+      );
+      break;
     case 'sponsorFailed':
       status = (
         <p role="status" lang={lang}>
@@ -346,6 +418,10 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
   }
 
   const canStart = phase.kind === 'ready' || phase.kind === 'failed';
+  const ticketRequired = plans?.mode === 'live' || plans?.campaign?.event?.ticketRequired;
+  const event = plans?.campaign?.event;
+  const admissionReady =
+    !!plans?.campaign && (!ticketRequired || hasTicket) && (!event?.reclaimUnused || acceptedTerms);
   return (
     <Screen wide className="verify-screen">
       <AppHeader />
@@ -362,11 +438,37 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
           <p className="sheet__lede sheet__lede--dominant" lang={lang}>
             {t('verify.lede')}
           </p>
+          {ticketRequired ? (
+            <p lang={lang}>{t(hasTicket ? 'verify.ticketExplained' : 'verify.ticketNeeded')}</p>
+          ) : null}
+          {event ? (
+            <p className="note" lang={lang}>
+              {t('verify.travelPreparation')}
+            </p>
+          ) : null}
+          {event?.reclaimUnused ? (
+            <div className="quiet-rows">
+              <p lang={lang}>
+                {t('verify.reclaimTerms', {
+                  date: new Date(event.reclaimAfter).toLocaleDateString(lang),
+                })}
+              </p>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={(e) => setAcceptedTerms(e.target.checked)}
+                  disabled={phase.kind === 'waiting' || phase.kind === 'checking'}
+                />{' '}
+                {t('verify.acceptTerms')}
+              </label>
+            </div>
+          ) : null}
           <div className="verify__status">{status}</div>
           <Caution k="warn.thisBrowser" />
           <div className="sheet__actions">
             {canStart ? (
-              <Button block onClick={() => void start()} disabled={!plans?.campaign}>
+              <Button block onClick={() => void start()} disabled={!admissionReady}>
                 {process.env.NEXT_PUBLIC_MODE === 'local'
                   ? t('verify.simulated')
                   : t('verify.open')}
@@ -390,7 +492,7 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
               </Button>
             ) : null}
             {phase.kind === 'unconfirmed' ? (
-              <Button variant="secondary" onClick={() => void start()} disabled={!plans?.campaign}>
+              <Button variant="secondary" onClick={() => void start()} disabled={!admissionReady}>
                 {t('verify.recover')}
               </Button>
             ) : null}

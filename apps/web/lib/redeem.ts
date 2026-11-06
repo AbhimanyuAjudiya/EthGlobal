@@ -70,14 +70,96 @@ export async function finishRedemption(
   // A same-holder retry returns metadata only; the delivery endpoint supplies the original AAD nonce.
   if (needsRecovery) await recoverActivation(key).catch(() => false);
   await del(operation);
+  if (operation.startsWith('redemption:claim:')) await del(`ticket:${operation}`);
   return key;
+}
+
+interface SavedTicket {
+  iv: Uint8Array;
+  ciphertext: ArrayBuffer;
+  key: CryptoKey;
+  submitted?: boolean;
+}
+const claimOperation = (campaignId?: string) =>
+  `redemption:claim:${campaignId?.toLowerCase() ?? 'default'}`;
+const withTicketLock = async <T>(operation: string, run: () => Promise<T>): Promise<T> =>
+  typeof navigator !== 'undefined' && navigator.locks
+    ? await navigator.locks.request(`ticket:${operation}`, run)
+    : await run();
+
+/** Ticket secrets arrive in a fragment (never a request URL) and are encrypted for claim recovery. */
+export async function rememberTicketPass(campaignId: string, pass: string): Promise<void> {
+  if (!/^0x[0-9a-fA-F]{64}$/.test(campaignId) || !/^0x[0-9a-fA-F]{64}$/.test(pass))
+    throw new Error('Invalid event data-pass link');
+  const operation = claimOperation(campaignId);
+  await withTicketLock(operation, async () => {
+    const previous = await readTicketPass(operation);
+    if (previous === pass.toLowerCase()) return;
+    // A corrected link may replace an unsubmitted pass; never overwrite an uncertain or bound claim.
+    const saved = await get<SavedTicket>(`ticket:${operation}`);
+    if (previous && saved?.submitted)
+      throw new Error('A submitted ticket claim is already saved for this event on this browser');
+    const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+      'encrypt',
+      'decrypt',
+    ]);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ciphertext = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv, additionalData: new TextEncoder().encode(operation) },
+      key,
+      new TextEncoder().encode(pass.toLowerCase()),
+    );
+    await set(`ticket:${operation}`, { iv, ciphertext, key } satisfies SavedTicket);
+  });
+}
+
+/** Preserve the exact pass before a claim may bind it; another tab cannot change its recovery identity. */
+export async function submitTicketPass(operation: string, pass: Hex): Promise<void> {
+  await withTicketLock(operation, async () => {
+    const current = await readTicketPass(operation);
+    const saved = await get<SavedTicket>(`ticket:${operation}`);
+    if (current !== pass || !saved)
+      throw new Error('The event ticket changed; reopen its private link');
+    await set(`ticket:${operation}`, { ...saved, submitted: true });
+  });
+}
+
+/** Only definitive ticket admission failures release it; timeouts and unknown outcomes retain recovery. */
+export async function rejectTicketPass(operation: string, pass: Hex): Promise<void> {
+  await withTicketLock(operation, async () => {
+    if ((await readTicketPass(operation)) === pass) await del(`ticket:${operation}`);
+  });
+}
+
+async function readTicketPass(operation: string): Promise<Hex | undefined> {
+  const saved = await get<SavedTicket>(`ticket:${operation}`);
+  if (!saved) return undefined;
+  const plain = await crypto.subtle.decrypt(
+    {
+      name: 'AES-GCM',
+      iv: new Uint8Array(saved.iv),
+      additionalData: new TextEncoder().encode(operation),
+    },
+    saved.key,
+    saved.ciphertext,
+  );
+  const pass = new TextDecoder().decode(plain);
+  if (!/^0x[0-9a-f]{64}$/.test(pass)) throw new Error('Invalid saved ticket');
+  return pass as Hex;
 }
 
 /** A new proof is still required; only the delivery identity survives a lost response. */
 export async function prepareFreeClaim(campaignId?: string) {
-  const operation = `redemption:claim:${campaignId ?? 'default'}`;
+  const operation = claimOperation(campaignId);
   const { publicKey: spk, recoveryToken } = await redemptionSession(operation);
-  return { spk, recoveryToken, operation, challenge: await api.challenge('/claim', spk) };
+  const ticketPass = await readTicketPass(operation);
+  return {
+    spk,
+    recoveryToken,
+    operation,
+    ticketPass,
+    challenge: await api.challenge('/claim', spk),
+  };
 }
 
 export async function redeemPin(

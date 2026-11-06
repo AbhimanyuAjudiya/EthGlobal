@@ -26,6 +26,8 @@ import type {
 import { usd6FromWire, usd6ToWire } from '@ethglobal/protocol/units';
 
 import { fail } from '../errors.js';
+import { archiveCampaign, campaignHistory } from '../flows/campaign-history.js';
+import { campaignReclaimSummary } from '../flows/campaign-reclaim.js';
 import { sponsorFromHeader } from '../middleware/sponsor-auth.js';
 
 import type { ChainCampaign } from '../chain.js';
@@ -313,12 +315,16 @@ export function registerSponsorAnalytics(app: Hono<AppEnv>, deps: Deps): void {
       await sponsorFromHeader(deps, c.req.header('authorization'), campaignId)
     ).toLowerCase();
     const [found, chain] = await Promise.all([
-      deps.stores.campaigns.get(campaignId),
+      campaignHistory(deps, campaignId),
       deps.dataDrop.campaign(campaignId),
     ]);
-    if (found?.payload.sponsor.toLowerCase() !== signer || chain.sponsor.toLowerCase() !== signer)
+    if (found?.sponsor.toLowerCase() !== signer || chain.sponsor.toLowerCase() !== signer)
       throw fail('unauthorized', { detail: 'not this campaign’s sponsor' });
+    archiveCampaign(deps, found);
     const scan = await scanOf(campaignId);
-    return c.json(buildAnalytics(campaignId, found.payload, chain, scan, deps.now()));
+    return c.json({
+      ...buildAnalytics(campaignId, found, chain, scan, deps.now()),
+      reclaim: campaignReclaimSummary(deps, campaignId),
+    });
   });
 }

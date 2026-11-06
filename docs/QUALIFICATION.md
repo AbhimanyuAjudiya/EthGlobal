@@ -1,4 +1,21 @@
-# Prize qualification checklist (checked 2026-11-06 ~05:10 IST)
+# Prize qualification checklist
+
+## Current booth guidance — 6 November 2026
+
+Recommended three partner selections: **World, Hedera, Arkiv**, subject to accepted Continuity status and each category's required evidence. The detailed historical checks below are timestamped evidence, not a fresh statement of deployment or qualification.
+
+| Partner | Best-fit category | Remaining qualification boundary |
+|---|---|---|
+| World | [Cont] Best Use of IDKit — $2,500 pool | Show server-validated success and an alternative path, credential rationale and feedback. Agent Pass is a separate $2,500 Continuity category; client registration remains blocked. |
+| Hedera | Built on Hedera (Continuity) — $1,500 pool | Show substantial in-window functionality, not only polish. Ask whether this entry can also compete in AI Agents That Pay (x402); that category requires an autonomous paid request, transaction evidence, public source and a video. |
+| Arkiv | Build on Arkiv (existing projects) — $4,000 pool | New Mumbai work must write and expose a user-visible read. Provide the required schema, friction, reach, why-Arkiv and usage documents, writer address and query. Swarm bonus is $500 with a functioning integration. |
+| ENS | Best Integration of ENSv2 into an Existing Project — $3,000 pool | Published rules require Ethereum mainnet. The existing Sepolia integration does not satisfy this category. |
+
+Sources: [World](https://ethglobal.com/events/mumbai/prizes/world), [Hedera](https://ethglobal.com/events/mumbai/prizes/hedera), [Arkiv](https://ethglobal.com/events/mumbai/prizes/arkiv), [ENS](https://ethglobal.com/events/mumbai/prizes/ens), [submission rules](https://ethglobal.com/events/mumbai/info/details). Three partners maximum; several categories under one partner count as one selection. Deadline: 7 November 2026, 09:00 IST. eSIMAccess is the connectivity provider, not a prize qualification by itself.
+
+The new ticket-gated event journey and eligible post-event cancellation work must be described as implementation in progress until deployed and demonstrated. Do not claim an official event ticketing integration: this release uses organizer-issued passes from confirmed ticket references.
+
+## Earlier evidence checkpoint — 2026-11-06 ~05:10 IST
 
 Live checks run from this machine: `GET api.recharge.ajudiya.com/healthz` → `{"ok":true,"mode":"live","chainId":296,"degraded":false}`;
 `POST /gift {"name":"re-charge.eth","mb":100}` → **402** with `PAYMENT-REQUIRED` (`hedera:testnet`, asset `0.0.429274`,
@@ -78,8 +95,9 @@ required HTTPS redirect URI), then on the VPS set
 **Honest verdict (2026-11-06):** ENSv2 is now load-bearing for sponsors: each campaign's name is how travellers reach
 it (`/c/<slug>`) and the sponsor's branding lives in the name, guarded by ENSv2 EAC. Live on Sepolia today: `re-charge.eth`,
 its UserRegistry and `spike.re-charge.eth` (same call sequence as the API). Not yet live: the API job and the two web
-screens, until deployed with `ENS_ENABLED=true`. ENSv2 is Sepolia-only by necessity (mainnet v2 not active). Still
-costs one of three partner picks.
+screens, until deployed with `ENS_ENABLED=true`. **Correction from the current Mumbai prize page:** ENSv2 is now live
+on mainnet, and the existing-project category requires mainnet. Sepolia alone does not qualify for that category.
+Still costs one of three partner picks.
 
 ## 4. Arkiv (from https://ethglobal.com/events/mumbai/prizes, fetched 2026-11-06)
 

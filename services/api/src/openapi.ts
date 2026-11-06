@@ -13,6 +13,7 @@ import {
   agentPolicyViewSchema,
   cardPreviewSchema,
   cardRedeemRequestSchema,
+  catalogResponseSchema,
   challengeRequestSchema,
   challengeSchema,
   claimRequestSchema,
@@ -42,6 +43,8 @@ import {
   sponsorCardsResponseSchema,
   sponsorRegisterSchema,
   sponsorViewSchema,
+  sponsorTicketsRequestSchema,
+  sponsorTicketsResponseSchema,
   supportedResponseSchema,
   topUpQuerySchema,
   topUpResponseSchema,
@@ -49,6 +52,7 @@ import {
 } from '@ethglobal/protocol/schemas';
 
 import { facilitatorRequestSchema } from './routes/facilitator.js';
+import { previewSchema } from './routes/ticket-preview.js';
 
 type Method = 'get' | 'post' | 'put';
 interface Operation {
@@ -66,6 +70,64 @@ const registered = z.object({ id: z.string(), auditKey: z.string() });
 
 /** Every route of INTERFACES §7 (+ A-10, A-15, A-17, A-25). */
 export const OPERATIONS: readonly Operation[] = [
+  {
+    method: 'get',
+    path: '/catalog',
+    summary: 'Destination-specific packages with activation and cancellation terms',
+    query: z.object({ country: z.string().length(2) }),
+    responses: { 200: catalogResponseSchema, 400: errorBodySchema, 503: errorBodySchema },
+  },
+  {
+    method: 'post',
+    path: '/ticket/preview',
+    summary: 'Validate a private event pass before World ID; does not reserve it',
+    body: previewSchema,
+    headers: ['Idempotency-Key'],
+    responses: {
+      200: z.object({ valid: z.literal(true), campaignId: z.string() }),
+      400: errorBodySchema,
+      401: errorBodySchema,
+      403: errorBodySchema,
+      409: errorBodySchema,
+      410: errorBodySchema,
+      423: errorBodySchema,
+    },
+  },
+  {
+    method: 'post',
+    path: '/sponsor/{id}/tickets',
+    params: ['id'],
+    summary: 'Issue or recover organizer-authorized private ticket passes',
+    body: sponsorTicketsRequestSchema,
+    responses: {
+      201: sponsorTicketsResponseSchema,
+      400: errorBodySchema,
+      401: errorBodySchema,
+      403: errorBodySchema,
+      409: errorBodySchema,
+      429: errorBodySchema,
+    },
+  },
+  {
+    method: 'get',
+    path: '/sponsor/{id}/tickets',
+    params: ['id'],
+    headers: ['Authorization'],
+    summary: 'List private ticket references and reservation status without revealing passes',
+    responses: {
+      200: z.object({
+        campaignId: z.string(),
+        tickets: z.array(
+          z.object({
+            reference: z.string(),
+            issuedAt: z.number(),
+            status: z.enum(['issued', 'reserved']),
+          }),
+        ),
+      }),
+      401: errorBodySchema,
+    },
+  },
   {
     method: 'get',
     path: '/healthz',
@@ -105,6 +167,7 @@ export const OPERATIONS: readonly Operation[] = [
       202: entitledResponseSchema,
       401: errorBodySchema,
       402: paymentRequiredSchema,
+      403: errorBodySchema,
       409: errorBodySchema,
       423: errorBodySchema,
       429: errorBodySchema,

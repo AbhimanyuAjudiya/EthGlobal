@@ -6,6 +6,7 @@
 import { z } from 'zod';
 
 import { caipNetworkSchema, digitsSchema, hex32Schema, msSchema } from './common.js';
+import { campaignReclaimSummarySchema } from './entities.js';
 
 const count = z.int().nonnegative();
 /** A share of `funnel.claimed`, 0..1. */
@@ -29,6 +30,7 @@ export const notInstalledRowSchema = z.object({
 });
 
 export const sponsorAnalyticsSchema = z.object({
+  reclaim: campaignReclaimSummarySchema.optional(),
   campaignId: hex32Schema,
   network: caipNetworkSchema,
   /** When this answer was built (money and windows are computed at this instant). */

@@ -22,6 +22,15 @@ export const entitlementKindSchema = z.enum(['free', 'paid', 'gift', 'card']);
 export const entitlementStatusSchema = z.enum(['pending-profile', 'ready', 'installed', 'active']);
 export const usageSourceSchema = z.enum(['none', 'webhook', 'poll', 'simulated']);
 
+/** Service validity is distinct from the deadline to install a pre-travel allocation. */
+export const esimLifecycleSchema = z.object({
+  startsOn: z.enum(['first-network', 'installation', 'unknown']),
+  activatedAt: msSchema.optional(),
+  serviceExpiresAt: msSchema.optional(),
+  installBy: msSchema.optional(),
+  validityDays: z.int().positive().optional(),
+});
+
 export const entitlementSchema = z
   .object({
     v: z.literal(1),
@@ -37,6 +46,7 @@ export const entitlementSchema = z
     mbUsed: mbSchema,
     usageAsOf: msSchema,
     usageSource: usageSourceSchema,
+    lifecycle: esimLifecycleSchema.optional(),
     /** sha256(iccid): the clear ICCID never reaches the ledger (T-37). */
     iccidHash: hex32Schema.optional(),
     /** ICCID sealed to the server's own key (crypto.sealToServer). */
@@ -63,6 +73,36 @@ export type Entitlement = z.infer<typeof entitlementSchema>;
 // expiresIn: secondsUntil(expiresAt, now)
 
 /** paused/budget/spent live on-chain, never here. */
+export const campaignEventSchema = z
+  .object({
+    destinationCountry: z.string().regex(/^[A-Z]{2}$/),
+    startsAt: msSchema,
+    endsAt: msSchema,
+    reclaimAfter: msSchema,
+    ticketRequired: z.literal(true),
+    reclaimUnused: z.boolean(),
+    refundBasis: z.literal('claim-price'),
+    noticeVersion: z.literal(1),
+  })
+  .refine((event) => event.endsAt > event.startsAt && event.reclaimAfter >= event.endsAt, {
+    message: 'Event end must follow its start; recovery cannot begin before the event ends',
+  });
+export type CampaignEvent = z.infer<typeof campaignEventSchema>;
+
+export const campaignReclaimSummarySchema = z.object({
+  scheduled: z.int().nonnegative(),
+  pending: z.int().nonnegative(),
+  completed: z.int().nonnegative(),
+  ineligible: z.int().nonnegative(),
+  refundPendingUsd6: digitsSchema,
+  refundedUsd6: digitsSchema,
+});
+export const campaignReclaimViewSchema = z.object({
+  state: z.enum(['scheduled', 'pending', 'refunded', 'ineligible', 'manual']),
+  reclaimAfter: msSchema,
+  refundTx: z.string().max(128).optional(),
+});
+
 export const campaignSchema = z.object({
   v: z.literal(1),
   id: hex32Schema,
@@ -88,6 +128,8 @@ export const campaignSchema = z.object({
   contract: evmAddressSchema,
   createdAt: msSchema,
   expiresAt: msSchema,
+  /** Explicit terms for ticket-linked, pre-travel campaigns. Absent on legacy records. */
+  event: campaignEventSchema.optional(),
   /**
    * The campaign's ENSv2 name on Sepolia (ens/README.md), kept by the API's background job after registration; never
    * accepted from a client (sponsorRegisterSchema omits it). `txs`: the Sepolia transactions, oldest first.
@@ -189,6 +231,7 @@ export const receiptKindSchema = z.enum([
    * nothing is paid twice) · tx = refunded · usd6 '0' = aborted (the vendor refused; nothing refunded, terminal).
    */
   'plan-cancel',
+  'campaign-reclaim',
 ]);
 export const hcsRefSchema = z.object({ topic: z.string(), sequence: z.int().nonnegative() });
 export const receiptSchema = z.object({

@@ -279,6 +279,7 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
   let blocked: string | undefined;
   if (entitlementKey && me && (me.cancelledAt !== undefined || me.expiresAt <= clock))
     blocked = t('plan.ended');
+  else if (entitlementKey && me?.topUpAvailable === false) blocked = t('plan.eventBundleOnly');
   else if (quoteError) blocked = quoteError;
   else if (hederaSessionBound) blocked = t('pay.hederaUnavailable');
   else if (isHedera && hp.session?.chain !== chosen?.network) blocked = t('pay.hashpackNeeded');
@@ -311,7 +312,13 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
 
   const onConfirm = useCallback(async () => {
     const session = isHedera ? hp.session : undefined;
-    if (!q || !chosen || (isHedera ? !session : !wallet)) return;
+    if (
+      !q ||
+      !chosen ||
+      (isHedera ? !session : !wallet) ||
+      (entitlementKey && me?.topUpAvailable === false)
+    )
+      return;
     dispatch({ type: 'start', at: Date.now() });
     let paymentStarted = false;
     const allow = (plans?.paid.accepts ?? accepts).map((a) => ({
@@ -430,6 +437,7 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
     accepts,
     dispatch,
     entitlementKey,
+    me?.topUpAvailable,
     mb,
     t,
     title,

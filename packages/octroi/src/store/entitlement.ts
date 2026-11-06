@@ -82,7 +82,7 @@ export class EntitlementStore {
   async patch(
     key: string,
     patch: Partial<Entitlement> | ((current: Entitlement) => Partial<Entitlement>),
-    opts: { expiresAt?: number } = {},
+    opts: { expiresAt?: number | ((current: Entitlement) => number | undefined) } = {},
   ): Promise<Found<Entitlement>> {
     const checked = (changes: Partial<Entitlement>): Partial<Entitlement> => {
       if (changes.expiresAt !== undefined && changes.expiresAt !== opts.expiresAt) {
@@ -102,11 +102,14 @@ export class EntitlementStore {
     const found = await this.#repo.mutate(
       index,
       (existing) => {
-        const changes = changesFor({ ...existing.payload, key });
-        const expiresAt = opts.expiresAt ?? existing.payload.expiresAt;
+        const current = { ...existing.payload, key };
+        const changes = changesFor(current);
+        const requestedExpiry =
+          typeof opts.expiresAt === 'function' ? opts.expiresAt(current) : opts.expiresAt;
+        const expiresAt = requestedExpiry ?? existing.payload.expiresAt;
         const next: Entitlement = { ...existing.payload, ...changes, v: 1, key: index, expiresAt };
         const expiresIn =
-          opts.expiresAt === undefined ? undefined : lifetimeUntil(opts.expiresAt, this.now());
+          requestedExpiry === undefined ? undefined : lifetimeUntil(requestedExpiry, this.now());
         return { payload: next, ...(expiresIn === undefined ? {} : { expiresIn }) };
       },
       () => new RechargeError('not_found', `no live entitlement ${index}`),

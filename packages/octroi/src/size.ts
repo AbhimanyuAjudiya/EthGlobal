@@ -14,13 +14,16 @@ const EV_DEN = 10n;
  * wholesale ≤ 0 → the configured size under the cap (T-23).
  */
 export function sizeBundle(
-  c: Pick<Campaign, 'bundleMb' | 'idResaleUsd6' | 'wholesaleUsd6PerGb'>,
+  c: Pick<Campaign, 'bundleMb' | 'idResaleUsd6' | 'wholesaleUsd6PerGb' | 'event'>,
   tier: Tier,
 ): number {
   if (tier !== 'orb' && tier !== 'document') return 0;
   const configured = c.bundleMb[tier];
   if (!Number.isSafeInteger(configured) || configured <= 0) return 0;
   const capped = Math.min(configured, MAX_BUNDLE_MB);
+  // A privately issued event ticket buys the selected full package. The public giveaway's resale
+  // heuristic would silently turn an advertised 1 GB ticket benefit into a smaller logical balance.
+  if (c.event?.ticketRequired) return capped;
   if (c.wholesaleUsd6PerGb <= 0n) return capped;
   if (c.idResaleUsd6 <= 0n) return 0;
   const evMb = (EV_NUM * c.idResaleUsd6 * MB_PER_GB) / (EV_DEN * c.wholesaleUsd6PerGb);

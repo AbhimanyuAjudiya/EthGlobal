@@ -324,6 +324,10 @@ export async function claimEscrow(
         const pending = await pendingCampaignClaims(deps, campaignId, cardClaimKey);
         const { campaign, counters } = await campaignState(deps, campaignId);
         if (!campaign || !counters) throw fail('not_found');
+        if (deps.env.MODE === 'live' || campaign.event?.ticketRequired)
+          throw fail('ticket_required', {
+            detail: 'campaign claims require an organizer-issued ticket pass',
+          });
         if (counters.paused) throw fail('campaign_paused');
         if (campaign.expiresAt <= deps.now()) throw fail('campaign_expired');
         const claimsLeft = Math.max(0, remainingCampaignClaims(campaign, counters) - pending);

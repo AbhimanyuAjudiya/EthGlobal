@@ -246,6 +246,15 @@ export function ClaimPaths() {
           <p className="landing__sub" lang={lang}>
             {t('landing.sub', { mb: formatMb(freeMb) })}
           </p>
+          <p className="note" lang={lang}>
+            {t('landing.ticketIntro')}
+          </p>
+          <Link href="/sponsor" className="ui-button" data-variant="primary" prefetch={false}>
+            <span lang={lang}>{t('landing.organize')}</span>
+          </Link>
+          <p className="eyebrow" lang={lang}>
+            {t('landing.paidPlan')}
+          </p>
           <dl className="offer-facts" aria-label={t('landing.paidPlan')} lang={lang}>
             <div>
               <dt>{t('offer.data')}</dt>

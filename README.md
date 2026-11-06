@@ -148,6 +148,26 @@ once per human per campaign.
 | Tier table                                        | Orb/Document: free, up to 1 GB (demo campaign: 300/150 MB) · Device: paid, 1 GB for $4.00 (sizes are in `/plans`) |
 | Video timestamp                                   | TBD by human (Design/Producer, Fri 23:30)                                                                         |
 
+### World ID Agent Pass (the agent's human checkpoint)
+
+The agent (`services/agent`) buys top-ups under a signed `AgentPolicy`; with Agent Pass on, that authority has to be
+**armed** by a recent, backend-validated World ID authentication of the traveller, obtained through the Device
+Authorization Grant of `auth.world.org` (the agent is headless). Design, flow and integration feedback:
+[`docs/WORLD_AGENT_PASS.md`](docs/WORLD_AGENT_PASS.md).
+
+| Piece                                                                                                           | Where                                                                           |
+| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Protected action: an agent `GET /esim/topup` answers `403 pass_required` before any 402 until the pass is armed | `services/api/src/routes/claim.ts`                                              |
+| Checkpoint: `POST /agent/policy/:key/pass/start` and `/pass/poll`; the API is the confidential OIDC client      | `services/api/src/routes/agent-pass.ts`, `services/api/src/world-agent-pass.ts` |
+| The agent prints the verification link and user code, notes it on the HCS topic, polls, buys only on `approved` | `services/agent/src/pass.ts`                                                    |
+| The screen: QR of `verification_uri_complete` + user code, then armed / not granted / expired                   | `apps/web/components/AgentSheet.tsx`                                            |
+| Tests (19): device grant, token validation, replay, denied and expired paths                                    | `services/api/test/agent-pass.test.ts`, `services/agent/test/pass.test.ts`      |
+
+**Status, honestly:** integrated end to end against a labelled in-process simulator of the World IdP
+(`WORLD_AGENT_PASS_CLIENT_ID=simulated`, local mode only). The portal client is a human registration step
+(`docs/WORLD_AGENT_PASS.md` §6); the API runs with the feature off until `WORLD_AGENT_PASS_CLIENT_ID` is set, so nothing
+here has been exercised against `auth.world.org` with a real identity.
+
 ## Arkiv (+ Swarm)
 
 **Load-bearing:** entitlement. Entitlements, receipts, gifts, challenge nonces and agent policies are entities with

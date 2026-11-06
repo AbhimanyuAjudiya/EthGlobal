@@ -40,7 +40,7 @@ import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
 import { planHash, readTopUps, topUpsRequest, type AgentTopUp } from '../lib/arkiv-read';
 import { planHref } from '../lib/deliver';
-import { config, explorerName, explorerTemplate } from '../lib/env';
+import { config, explorerName, explorerTemplate, uaidAccountUrl } from '../lib/env';
 import { clockIst, dayLabel, formatMb, money, moneyUsdc, soldPlan } from '../lib/format';
 import { useClock, useEnsureChain, usePlans, useWallet, WrongChainError } from '../lib/hooks';
 import { buildProof, type Proof } from '../lib/proof';
@@ -621,6 +621,7 @@ function ArkivHistory({
 
   const open = history?.rows.find((r) => r.entityKey === selected);
   const openTx = open?.tx ? explorerTemplate(open.network)?.replace('{hash}', open.tx) : undefined;
+  const uaidHref = open?.uaid ? uaidAccountUrl(open.uaid) : undefined;
   const openTxName = explorerName(open?.network);
 
   return (
@@ -710,7 +711,14 @@ function ArkivHistory({
             {open.uaid ? (
               <ListRow
                 title={t('receipts.rowAgent')}
-                value={<Hash value={open.uaid} kind="agent UAID" lang={lang} />}
+                value={
+                  <Hash
+                    value={open.uaid}
+                    kind="agent UAID"
+                    lang={lang}
+                    {...(uaidHref ? { explorerHref: uaidHref, explorerName: 'HashScan' } : {})}
+                  />
+                }
               />
             ) : null}
             <ListRow

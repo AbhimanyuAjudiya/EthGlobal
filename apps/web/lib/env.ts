@@ -99,6 +99,26 @@ export const arkivEntityUrl = (key: string): string | undefined =>
 /** The HCS topic a receipt was logged to, on HashScan (`0.0.x`). */
 export const hcsTopicUrl = (topic: string): string => `${config.explorerHedera}/topic/${topic}`;
 
+/** An account's explorer page: HashScan takes `0.0.x` and 0x alike; an EVM explorer its address page. */
+export function accountUrl(network: string | undefined, account: string): string | undefined {
+  if (onHashScan(network)) return `${config.explorerHedera}/account/${account}`;
+  const evm = evmExplorer(network);
+  return evm ? `${evm}/address/${account}` : undefined;
+}
+
+/** A token's explorer page (the USDC of a payment): HashScan `0.0.x` / 0x, or an EVM explorer's token page. */
+export function tokenUrl(network: string | undefined, asset: string): string | undefined {
+  if (onHashScan(network)) return `${config.explorerHedera}/token/${asset}`;
+  const evm = evmExplorer(network);
+  return evm ? `${evm}/token/${asset}` : undefined;
+}
+
+/** The agent's Hedera account named inside its HCS-14 UAID (`…;nativeId=hedera:testnet:0.0.x`), on HashScan. */
+export function uaidAccountUrl(uaid: string): string | undefined {
+  const [, net, id] = /nativeId=hedera:(testnet|mainnet):(0\.0\.\d+)/.exec(uaid) ?? [];
+  return net && id ? accountUrl(`hedera:${net}`, id) : undefined;
+}
+
 /** Network name for travellers — never a chain id (design-references §7 #7). */
 export function networkName(network: string | undefined): string {
   if (!network) return 'Unknown network';

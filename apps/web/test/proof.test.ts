@@ -216,8 +216,33 @@ describe('lib/proof.ts evidence — grouped by partner, each with its link', () 
     expect(find(proof.items, 'pay.hFeePayer')).toMatchObject({
       partner: 'hedera',
       value: '0.0.7007',
+      href: 'https://hashscan.io/testnet/account/0.0.7007',
+      site: 'HashScan',
     });
+    // every account and token in the terms opens on HashScan; the agent's UAID opens its Hedera account
+    expect(find(proof.items, 'pay.hPayTo')?.href).toBe(
+      'https://hashscan.io/testnet/account/0.0.5005',
+    );
+    expect(find(proof.items, 'proof.asset')?.href).toBe(
+      'https://hashscan.io/testnet/token/0.0.429274',
+    );
     expect(JSON.stringify(proof)).not.toContain(PIN);
+  });
+
+  it('the agent UAID links to the Hedera account it names; an EVM payer links to its explorer address', () => {
+    const uaid =
+      'uaid:aid:q4Yxqi;uid=0;registry=hedera;proto=x402;nativeId=hedera:testnet:0.0.11320978';
+    const proof = buildProof({ response: { uaid }, x402: { accepted, settlement } });
+    expect(find(proof.items, 'proof.uaid')).toMatchObject({
+      value: uaid,
+      href: 'https://hashscan.io/testnet/account/0.0.11320978',
+    });
+    expect(find(proof.items, 'proof.payer')?.href).toBe(
+      `https://sepolia.basescan.org/address/${PAYER}`,
+    );
+    expect(find(proof.items, 'proof.asset')?.href).toBe(
+      `https://sepolia.basescan.org/token/${accepted.asset}`,
+    );
   });
 
   it('wallet transactions and the contract they called, by chain', () => {

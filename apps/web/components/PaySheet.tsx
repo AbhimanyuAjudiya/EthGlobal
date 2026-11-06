@@ -39,6 +39,7 @@ import { useLang, useNetworkName } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
 import { deliver, planHref } from '../lib/deliver';
+import { accountUrl, tokenUrl } from '../lib/env';
 import {
   clockIst,
   dayLabel,
@@ -70,6 +71,17 @@ import { chainIdOf, chainNow, isUserRejection, type Wallet } from '../lib/wallet
 const BALANCE_ABI = parseAbi(['function balanceOf(address) view returns (uint256)']);
 
 /** A new native plan is offered only when the API explicitly supports a signed memo binding. */
+/** A hash-like value with its explorer page when the chain has one. */
+function ExplorerValue({ value, href }: { value: string; href: string | undefined }) {
+  return href ? (
+    <a className="proof__link" data-hash href={href} target="_blank" rel="noreferrer">
+      {value}
+    </a>
+  ) : (
+    <span data-hash>{value}</span>
+  );
+}
+
 const sessionBound = (a: PaymentRequirements | undefined): boolean =>
   Boolean(a?.network.startsWith('hedera:')) &&
   a?.extra?.sessionKeyRequired === true &&
@@ -116,16 +128,37 @@ function HederaPanel({
         <Notice tone="info">{t('pay.hederaBody')}</Notice>
         <ListGroup flush label={t('pay.hederaTitle')}>
           <ListRow title={t('pay.hNetwork')} value={netName(terms.network)} />
-          <ListRow title={t('pay.hAsset')} value={<span data-hash>{terms.asset}</span>} mono />
+          <ListRow
+            title={t('pay.hAsset')}
+            value={
+              <ExplorerValue value={terms.asset} href={tokenUrl(terms.network, terms.asset)} />
+            }
+            mono
+          />
           <ListRow
             title={t('pay.hAmount')}
             value={`${moneyUsdc(BigInt(terms.amount))} · ${terms.amount}`}
             mono
           />
-          <ListRow title={t('pay.hPayTo')} value={<span data-hash>{terms.payTo}</span>} mono />
+          <ListRow
+            title={t('pay.hPayTo')}
+            value={
+              <ExplorerValue value={terms.payTo} href={accountUrl(terms.network, terms.payTo)} />
+            }
+            mono
+          />
           <ListRow
             title={t('pay.hFeePayer')}
-            value={<span data-hash>{terms.feePayer ?? '—'}</span>}
+            value={
+              terms.feePayer ? (
+                <ExplorerValue
+                  value={terms.feePayer}
+                  href={accountUrl(terms.network, terms.feePayer)}
+                />
+              ) : (
+                <span data-hash>—</span>
+              )
+            }
             mono
           />
           <ListRow title={t('pay.hValidFor')} value={`${terms.validForS} s`} mono />

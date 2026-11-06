@@ -8,11 +8,14 @@
 import type { PaymentRequirements, SettleResult } from '@ethglobal/protocol/schemas';
 
 import {
+  accountUrl,
   arkivEntityUrl,
   config,
   contractUrl,
   explorerName,
   explorerTemplate,
+  tokenUrl,
+  uaidAccountUrl,
   hcsTopicUrl,
 } from './env';
 import { clockIst, dayLabel, moneyUsdc } from './format';
@@ -112,6 +115,15 @@ const str = (o: unknown, k: string): string | undefined => {
   return typeof v === 'string' && v ? v : undefined;
 };
 
+/** An account or token on its chain's explorer; no link on the local chain. */
+function linked(
+  item: ProofItem,
+  href: string | undefined,
+  site: string | undefined = explorerName(item.partner === 'hedera' ? 'hedera:testnet' : undefined),
+): ProofItem {
+  return href ? { ...item, href, site: site ?? 'Explorer' } : item;
+}
+
 /** A transaction on its chain's explorer (BaseScan, HashScan); no link on the local chain. */
 function txItem(label: StringKey, hash: string, network: string): ProofItem {
   const template = explorerTemplate(network);
@@ -169,32 +181,50 @@ export function buildProof(input: ProofInput): Proof {
     const p = partnerOf(accepted.network);
     const feePayer = field(accepted.extra, 'feePayer');
     add({ partner: p, label: 'pay.hNetwork', kind: 'text', value: accepted.network });
-    add({ partner: p, label: 'proof.asset', kind: 'hash', value: accepted.asset });
+    add(
+      linked(
+        { partner: p, label: 'proof.asset', kind: 'hash', value: accepted.asset },
+        tokenUrl(accepted.network, accepted.asset),
+        explorerName(accepted.network),
+      ),
+    );
     add({
       partner: p,
       label: 'pay.hAmount',
       kind: 'text',
       value: `${moneyUsdc(accepted.amount)} · ${accepted.amount}`,
     });
-    add({ partner: p, label: 'pay.hPayTo', kind: 'hash', value: accepted.payTo });
     add(
-      typeof feePayer === 'string' && {
-        partner: p,
-        label: 'pay.hFeePayer',
-        kind: 'hash',
-        value: feePayer,
-      },
+      linked(
+        { partner: p, label: 'pay.hPayTo', kind: 'hash', value: accepted.payTo },
+        accountUrl(accepted.network, accepted.payTo),
+        explorerName(accepted.network),
+      ),
+    );
+    add(
+      typeof feePayer === 'string' &&
+        linked(
+          { partner: p, label: 'pay.hFeePayer', kind: 'hash', value: feePayer },
+          accountUrl(accepted.network, feePayer),
+          explorerName(accepted.network),
+        ),
     );
   }
   const settlement = x402?.settlement ?? (field(r, 'settlement') as SettleResult | undefined);
   if (settlement?.success) {
     add(txItem('proof.settlement', settlement.transaction, settlement.network));
-    add({
-      partner: partnerOf(settlement.network),
-      label: 'proof.payer',
-      kind: 'hash',
-      value: settlement.payer,
-    });
+    add(
+      linked(
+        {
+          partner: partnerOf(settlement.network),
+          label: 'proof.payer',
+          kind: 'hash',
+          value: settlement.payer,
+        },
+        accountUrl(settlement.network, settlement.payer),
+        explorerName(settlement.network),
+      ),
+    );
   } else if (settlement) {
     add({
       partner: partnerOf(settlement.network),
@@ -241,7 +271,14 @@ export function buildProof(input: ProofInput): Proof {
     });
   }
   const owner = str(r, 'owner');
-  add(owner && { partner: partnerOf(network), label: 'proof.signer', kind: 'hash', value: owner });
+  add(
+    owner &&
+      linked(
+        { partner: partnerOf(network), label: 'proof.signer', kind: 'hash', value: owner },
+        accountUrl(network, owner),
+        explorerName(network),
+      ),
+  );
   add(
     input.signedOn !== undefined && {
       partner: partnerOf(`eip155:${input.signedOn}`),
@@ -251,7 +288,14 @@ export function buildProof(input: ProofInput): Proof {
     },
   );
   const uaid = str(r, 'uaid');
-  add(uaid && { partner: 'hedera', label: 'proof.uaid', kind: 'hash', value: uaid });
+  add(
+    uaid &&
+      linked(
+        { partner: 'hedera', label: 'proof.uaid', kind: 'hash', value: uaid },
+        uaidAccountUrl(uaid),
+        'HashScan',
+      ),
+  );
 
   const receipt = field(r, 'receipt');
   const hcs = field(receipt, 'hcs');

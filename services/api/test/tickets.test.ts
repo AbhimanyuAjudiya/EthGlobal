@@ -1,6 +1,7 @@
 /**
- * The ticket allowlist: in MODE=live a campaign is disclosed only to the holder of a valid organizer-issued pass
- * (POST /ticket/preview); GET /plans never names one, with or without ?campaign=. MODE=local keeps the public default.
+ * The ticket allowlist: in MODE=live a ticketed campaign is disclosed only to the holder of a valid organizer-issued
+ * pass (POST /ticket/preview); GET /plans never names one, with or without ?campaign=. A campaign without a ticket
+ * gate is named to anyone who asks for it by id (the sponsor's claim link). MODE=local keeps the public default.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -54,6 +55,17 @@ describe('ticket allowlist', () => {
     });
     expect((await h.json(`/sponsor/${h.campaignId}/tickets/revoke`, revoke)).status).toBe(200);
     expect(await errorOf(await preview(pass!))).toBe('ticket_invalid');
+  });
+
+  it('live: a campaign without a ticket gate is named to whoever asks for it by id, never by default', async () => {
+    const h = await harness();
+    h.deps.env.MODE = 'live';
+    const asked = plansResponseSchema.parse(
+      await (await h.get(`/plans?campaign=${h.campaignId}`)).json(),
+    );
+    expect(asked.mode).toBe('live');
+    expect(asked.campaign?.id).toBe(h.campaignId);
+    expect(plansResponseSchema.parse(await (await h.get('/plans')).json()).campaign).toBeNull();
   });
 
   it('local: GET /plans?campaign= still answers for the registered campaign', async () => {

@@ -156,6 +156,9 @@ export function SponsorTable({ id }: { id: string }) {
   const [actionTitle, setActionTitle] = useState<string | undefined>();
   const [proof, setProof] = useState<Proof>();
   const [copied, setCopied] = useState<boolean>();
+  const [linkCopied, setLinkCopied] = useState(false);
+  // shown only once the dashboard has loaded in the browser, so the server never renders it
+  const claimLink = `${typeof window === 'undefined' ? '' : window.location.origin}/verify?campaign=${id}`;
 
   const loginIdentity = useRef<string | undefined>(undefined);
   const identity = `${id}:${wallet?.address.toLowerCase() ?? ''}`;
@@ -621,6 +624,24 @@ export function SponsorTable({ id }: { id: string }) {
                   : {})}
               />
             </>
+          ) : null}
+          {!campaign.event ? (
+            <ListRow
+              data-testid="claim-link"
+              title={t('sponsor.claimLink')}
+              subtitle={claimLink}
+              trailing={
+                <Pill tone={linkCopied ? 'positive' : 'neutral'}>
+                  {t(linkCopied ? 'sponsor.claimLinkCopied' : 'install.copy')}
+                </Pill>
+              }
+              onClick={() => {
+                void navigator.clipboard?.writeText(claimLink).then(
+                  () => setLinkCopied(true),
+                  () => setLinkCopied(false),
+                );
+              }}
+            />
           ) : null}
           <ListRow
             title="DataDrop"

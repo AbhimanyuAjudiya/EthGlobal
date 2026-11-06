@@ -3,8 +3,8 @@
  * `/c/<slug>` — claim by ENS name (ens/README.md): `<slug>.re-charge.eth` is resolved in the browser on Sepolia
  * (lib/ens.ts). A live name that points at our DataDrop shows the sponsor's branding and "Get … free", which opens the
  * World ID claim for THAT campaign (/verify?campaign=<id>); anything else (unknown, expired, a look-alike) says the
- * campaign has ended and offers paid data. In MODE=live the API discloses a campaign only to a ticket preview, so a
- * live name shows the branding and says the organizer's private pass link is the way in.
+ * campaign has ended and offers paid data. In MODE=live the API discloses a ticketed campaign only to a ticket
+ * preview, so such a live name shows the branding and says the organizer's private pass link is the way in.
  */
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -57,9 +57,9 @@ export function CampaignByName({ slug }: { slug: string }) {
         if (checked.ok) {
           const plans = await api.plans(checked.campaignId).catch(() => undefined);
           const c = plans?.campaign;
-          // live never answers with the campaign: only the pass link can open (and verify) the claim
+          // live names a ticketed campaign only through the pass link; a silent live answer means exactly that
           const live = plans ? plans.mode === 'live' : process.env.NEXT_PUBLIC_MODE === 'live';
-          if (live) {
+          if (live && !c) {
             if (alive) setState({ kind: 'done', ...checked, passRequired: true });
             return;
           }

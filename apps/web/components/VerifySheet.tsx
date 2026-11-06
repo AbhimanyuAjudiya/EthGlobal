@@ -131,7 +131,7 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
   const { t, lang } = useLang();
   const router = useRouter();
   const { plans: fetched } = usePlans(campaignId);
-  // live GET /plans discloses no campaign: a valid pass gets its facts from the preview, in the same shape
+  // live GET /plans names no ticketed campaign: a valid pass gets its facts from the preview, in the same shape
   const [previewPlans, setPreviewPlans] = useState<PlansResponse>();
   const plans = fetched?.campaign || !previewPlans ? fetched : previewPlans;
   const now = useClock(1000);

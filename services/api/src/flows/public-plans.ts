@@ -15,14 +15,13 @@ export async function buildPlans(
   asked?: Hex,
   authorized = false,
 ): Promise<PlansResponse> {
-  // Live: a ticketed (event) campaign is named only to an authorized pass holder; CAMPAIGN_ID may pin one public,
-  // non-event campaign that the landing advertises to everyone (the sponsored free bundle).
+  // A campaign asked for by id (a sponsor's claim link, an ENS name) is named to anyone unless it is a ticketed
+  // event campaign on live, which only an authorized pass holder sees. CAMPAIGN_ID pins the one public campaign
+  // the landing advertises when nothing is asked for; local falls back to the first registered campaign.
   const id =
-    deps.env.MODE === 'live'
-      ? authorized
-        ? asked
-        : deps.env.CAMPAIGN_ID
-      : (asked ?? deps.env.CAMPAIGN_ID ?? (await deps.stores.campaigns.list())[0]?.payload.id);
+    asked ??
+    deps.env.CAMPAIGN_ID ??
+    (deps.env.MODE === 'live' ? undefined : (await deps.stores.campaigns.list())[0]?.payload.id);
   let campaign: PlansResponse['campaign'] = null;
   if (id !== undefined) {
     const { campaign: value, counters } = await campaignState(deps, id as Hex);

@@ -147,7 +147,7 @@ export function registerPublic(app: Hono<AppEnv>, deps: Deps): void {
   app.get('/plans', async (c) => {
     const query = plansQuerySchema.safeParse({ campaign: c.req.query('campaign') });
     if (!query.success) throw fail('invalid_request', [{ path: 'campaign', message: 'bytes32' }]);
-    const id = deps.env.MODE === 'live' ? '' : (query.data.campaign?.toLowerCase() ?? '');
+    const id = query.data.campaign?.toLowerCase() ?? '';
     const hit = plans.get(id);
     const age = hit ? deps.now() - hit.at : Infinity;
     if (!hit || age >= PLANS_STALE_MAX_MS) await refreshPlans(id);

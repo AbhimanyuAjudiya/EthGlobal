@@ -12,12 +12,12 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { useAccount, useDisconnect, useSwitchChain } from 'wagmi';
+import { useAccount, useDisconnect } from 'wagmi';
 
 import { Button, Icon } from '@ethglobal/ui/components';
 
 import { LangSwitch, T, useLang, useNetworkName } from '../i18n/lang';
-import { config, IS_TESTNET } from '../lib/env';
+import { IS_TESTNET } from '../lib/env';
 import { plans } from '../lib/store';
 import { caip2, demoIndex, type Wallet } from '../lib/wallet';
 
@@ -307,23 +307,24 @@ export interface WalletControlProps {
   mounted: boolean;
   /** Connected: ENS name or the shortened address (RainbowKit `displayName`); the full address in `address`. */
   account?: { address: string; displayName: string } | undefined;
-  /** The wallet's chain, when it is not this app's (config.chainId). */
-  wrongNetwork?: { have: string; want: string } | undefined;
+  /**
+   * The wallet's current chain, said neutrally: each action switches to the chain it signs on itself (useEnsureChain),
+   * so no chain is "wrong" here.
+   */
+  network?: string | undefined;
   onConnect: () => void;
-  onSwitchNetwork: () => void;
   onDisconnect: () => void;
 }
 
 /**
  * The header's wallet control, in the menu button's style (44 px targets, RT-W-07): "Connect" opens RainbowKit's modal;
- * connected, the name or shortened address opens a small panel with the wrong-network warning and switch, and Disconnect.
+ * connected, the name or shortened address opens a small panel with the wallet's network and Disconnect.
  */
 export function WalletControl({
   mounted,
   account,
-  wrongNetwork,
+  network,
   onConnect,
-  onSwitchNetwork,
   onDisconnect,
 }: WalletControlProps) {
   const { t, lang } = useLang();
@@ -352,7 +353,7 @@ export function WalletControl({
         aria-controls={id}
         onClick={() => setOpen((o) => !o)}
       >
-        <Icon name={wrongNetwork ? 'warning' : 'wallet'} size={20} />
+        <Icon name="wallet" size={20} />
         <span lang="en" data-hash title={account.address}>
           {account.displayName}
         </span>
@@ -364,16 +365,10 @@ export function WalletControl({
         aria-label={t('wallet.connected')}
         hidden={!open}
       >
-        {wrongNetwork ? (
-          <p className="wallet-status__network" role="status" lang={lang}>
-            <Icon name="warning" />
-            {t('wallet.wrongNetwork', { network: wrongNetwork.have })}
+        {network ? (
+          <p className="wallet-status__network" lang={lang}>
+            {`${t('pay.hNetwork')} · ${network}`}
           </p>
-        ) : null}
-        {wrongNetwork ? (
-          <Button variant="secondary" onClick={onSwitchNetwork}>
-            <T k="wallet.switchTo" params={{ network: wrongNetwork.want }} />
-          </Button>
         ) : null}
         <Button variant="quiet" onClick={onDisconnect}>
           <T k="wallet.disconnect" />
@@ -399,7 +394,6 @@ export function HeaderWallet() {
 /** RainbowKit's ConnectButton, rendered as WalletControl; the demo wallet (MODE=local) shows its banner instead. */
 export function WalletButton({ wallet }: { wallet: WalletLabel | undefined }) {
   const netName = useNetworkName();
-  const { switchChain } = useSwitchChain();
   const { disconnect } = useDisconnect();
   if (wallet?.kind === 'demo') return <WalletBanner wallet={wallet} />;
   return (
@@ -408,13 +402,9 @@ export function WalletButton({ wallet }: { wallet: WalletLabel | undefined }) {
         <WalletControl
           mounted={mounted}
           account={account}
-          wrongNetwork={
-            chain && chain.id !== config.chainId
-              ? { have: netName(caip2(chain.id)), want: netName(caip2(config.chainId)) }
-              : undefined
-          }
+          // the name the wallet itself shows ("Hedera Testnet"); a chain this app does not list by its CAIP name
+          network={chain ? (chain.name ?? netName(caip2(chain.id))) : undefined}
           onConnect={openConnectModal}
-          onSwitchNetwork={() => switchChain({ chainId: config.chainId })}
           onDisconnect={() => disconnect()}
         />
       )}

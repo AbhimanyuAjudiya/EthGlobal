@@ -47,11 +47,13 @@ export interface Wallet {
 }
 
 export const caip2 = (chainId: number): string => `eip155:${chainId}`;
+/** The chain id of an `eip155:<id>` network (an EVM accepts entry's). */
+export const chainIdOf = (network: string): number => Number(network.slice('eip155:'.length));
 
 /**
  * The app's Wallet over a wagmi wallet client (lib/wagmi.ts): RainbowKit connects, wagmi hands over the client, and
  * pay402 / sponsor / redeem keep signing through this one interface. `chainId` is the wallet's chain, which may differ
- * from the app's (the connect button then shows the switch).
+ * from the one an action signs on: callers switch first (useEnsureChain in lib/hooks.ts).
  */
 export function walletFor(
   client: WalletClient,

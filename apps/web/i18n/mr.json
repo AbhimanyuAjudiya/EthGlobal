@@ -307,7 +307,6 @@
   "pay.notHere": "हा प्लॅन या फोनवर नाही: {mb} · {when} ला संपेल. तरीही टॉप-अप करायचा?",
   "pay.notHereButton": "हा प्लॅन टॉप-अप करा",
   "pay.notHereUnknown": "या कीचा प्लॅन नाही. काहीही कापले जाणार नाही.",
-  "pay.wrongNetwork": "{wallet} {have} वर आहे; हे पेमेंट {want} वर आहे.",
   "pay.lowBalance": "या खात्यात {balance} आहे; किंमत {price} आहे.",
   "pay.yourWallet": "तुमचे वॉलेट",
   "pay.hNetwork": "नेटवर्क",
@@ -430,9 +429,8 @@
   "wallet.connected": "कनेक्ट झाले",
   "wallet.disconnect": "डिस्कनेक्ट करा",
   "verify.showQr": "त्याऐवजी QR दाखवा",
-  "wallet.wrongNetwork": "वॉलेट {network} वर आहे",
-  "wallet.switchTo": "{network} वर जा",
   "wallet.connect": "कनेक्ट करा",
+  "wallet.switchNeeded": "पुढे जाण्यासाठी तुमच्या वॉलेटमध्ये {network} वर जा",
   "wallet.connectToPay": "पैसे देण्यासाठी वॉलेट कनेक्ट करा",
   "wallet.connectToClaim": "क्लेम करण्यासाठी वॉलेट कनेक्ट करा",
   "wallet.connectToReclaim": "परत घेण्यासाठी वॉलेट कनेक्ट करा"

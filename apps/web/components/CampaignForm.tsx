@@ -8,9 +8,9 @@ import { Button, Field, Hash } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
 import { api, ApiError } from '../lib/api';
-import { contractUrl, explorerName, networkName } from '../lib/env';
+import { config, contractUrl, explorerName, networkName } from '../lib/env';
 import { moneyUsdc } from '../lib/format';
-import { useHydrated, useWallet } from '../lib/hooks';
+import { useEnsureChain, useHydrated, useWallet } from '../lib/hooks';
 import {
   approveCall,
   createCampaignCall,
@@ -21,7 +21,7 @@ import {
   usdcAddress,
 } from '../lib/sponsor';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
-import { isUserRejection, type Wallet } from '../lib/wallet';
+import { caip2, isUserRejection, type Wallet } from '../lib/wallet';
 
 import type { ActionEvent } from '../lib/onchain-action';
 
@@ -96,6 +96,7 @@ async function send(
  */
 export function CampaignForm() {
   const { wallet } = useWallet('sponsor');
+  const ensureChain = useEnsureChain();
   const { openConnectModal } = useConnectModal();
   const approve = useOnchainAction();
   const create = useOnchainAction();
@@ -132,13 +133,15 @@ export function CampaignForm() {
     try {
       const budget = usd6(draft.budgetUsd);
       const price = usd6(draft.priceUsd);
-      const block = await wallet.reader.getBlock();
+      // approve, createCampaign and the SponsorLogin all happen on DataDrop's chain (296 live): switch once, first
+      const sponsor = await ensureChain(wallet, config.chainId);
+      const block = await sponsor.reader.getBlock();
       const expiresAtS = block.timestamp + BigInt(Number(draft.expiresDays)) * DAY_S;
-      const id = scopedCampaignId(wallet.address, BigInt(Date.now()));
-      const usdc = await usdcAddress(wallet);
+      const id = scopedCampaignId(sponsor.address, BigInt(Date.now()));
+      const usdc = await usdcAddress(sponsor);
       if (
         !(await send(
-          wallet,
+          sponsor,
           { to: usdc, ...approveCall(budget) },
           'approve USDC',
           approve.dispatch,
@@ -147,18 +150,18 @@ export function CampaignForm() {
         return;
       if (
         !(await send(
-          wallet,
+          sponsor,
           createCampaignCall(id, budget, price, Number(draft.perHour), expiresAtS),
           'createCampaign',
           create.dispatch,
         ))
       )
         return;
-      const login = await sponsorLogin(wallet, id);
+      const login = await sponsorLogin(sponsor, id);
       const res = await api.registerSponsor({
         campaign: {
           id,
-          sponsor: wallet.address,
+          sponsor: sponsor.address,
           name: draft.name.trim(),
           bundleMb: { orb: Number(draft.orbMb), document: Number(draft.documentMb), device: 0 },
           pricePerClaimUsd6: price.toString(),
@@ -169,7 +172,7 @@ export function CampaignForm() {
           // founder decision 2026-11-06 (T-23): at $1.50 the 80 % bundle-EV rule (octroi size.ts) allows the full 1 GB
           idResaleUsd6: '1500000',
           planId: 'in-1gb-7d',
-          network: wallet.network,
+          network: sponsor.network,
           contract: dataDropAddress(),
           expiresAt: Number(expiresAtS) * 1000,
         },
@@ -179,7 +182,7 @@ export function CampaignForm() {
       setRegistered({
         ...res,
         name: draft.name.trim(),
-        network: wallet.network,
+        network: sponsor.network,
         contract: dataDropAddress(),
       });
     } catch (e) {
@@ -193,9 +196,10 @@ export function CampaignForm() {
     } finally {
       setRunning(false);
     }
-  }, [wallet, draft, approve.dispatch, create.dispatch]);
+  }, [wallet, ensureChain, draft, approve.dispatch, create.dispatch]);
 
-  const network = wallet?.network ?? 'eip155:31337';
+  // both steps run on DataDrop's chain, whatever chain the wallet is on before it
+  const network = caip2(config.chainId);
   const contractHref = registered && contractUrl(registered.network, registered.contract);
   const contractExplorer = registered && explorerName(registered.network);
   // money says its unit and two decimals, grouped en-IN: "$1,000.00 USDC" (RT design review #9)

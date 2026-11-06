@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { useAccount, useConnect, useWalletClient } from 'wagmi';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useAccount, useConfig, useConnect, useSwitchChain, useWalletClient } from 'wagmi';
+import { getAccount } from 'wagmi/actions';
 
 import type { PlansResponse } from '@ethglobal/protocol/schemas';
 
 import { api, ApiError } from './api';
 import { demoConnectorId } from './wagmi';
-import { walletFor, type DemoRole, type Wallet } from './wallet';
+import { caip2, walletFor, type DemoRole, type Wallet } from './wallet';
 
 /**
  * One GET /plans per campaign in flight at a time ('' = the default campaign): screens mounting together share it,
@@ -104,6 +105,45 @@ export function useWallet(role: DemoRole = 'human'): { wallet: Wallet | undefine
     return walletFor(client, demo ? 'demo' : 'injected', connector.name, address, chainId);
   }, [client, address, chainId, connector]);
   return { wallet };
+}
+
+/** The wallet refused (or failed) to switch to the chain an action signs on; say "Switch to {chain} in your wallet". */
+export class WrongChainError extends Error {
+  override readonly name = 'WrongChainError';
+  constructor(
+    readonly chainId: number,
+    /** The chain as the wallet names it: "Hedera Testnet", "Base Sepolia". */
+    readonly chainName: string,
+  ) {
+    super(`Switch to ${chainName} in your wallet to continue`);
+  }
+}
+
+/**
+ * Every signature and transaction belongs to one chain — an x402 payment to its accepts entry's (Base Sepolia), the
+ * Recharge EIP-712 domain and DataDrop to config.chainId (Hedera testnet, 296) — and MetaMask refuses signTypedData
+ * for a domain on another chain. Call this right before signing: it switches the connected wallet to `chainId` (wagmi
+ * adds the chain first when the wallet does not know it, EIP-3085) and resolves the wallet as seen on that chain. A
+ * refused or failed switch throws WrongChainError, never a user-rejection code, so callers show the plain message.
+ */
+export function useEnsureChain(): (wallet: Wallet, chainId: number) => Promise<Wallet> {
+  const config = useConfig();
+  const { switchChainAsync } = useSwitchChain();
+  return useCallback(
+    async (wallet, chainId) => {
+      // the connection's chain right now, not the render-time `wallet.chainId`
+      if (getAccount(config).chainId !== chainId) {
+        try {
+          await switchChainAsync({ chainId });
+        } catch {
+          const name = config.chains.find((c) => c.id === chainId)?.name ?? `chain ${chainId}`;
+          throw new WrongChainError(chainId, name);
+        }
+      }
+      return wallet.chainId === chainId ? wallet : { ...wallet, chainId, network: caip2(chainId) };
+    },
+    [config, switchChainAsync],
+  );
 }
 
 const noopSubscribe = () => () => undefined;

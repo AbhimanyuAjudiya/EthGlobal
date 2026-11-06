@@ -37,7 +37,7 @@ import {
   soldPlan,
   usdcBalance,
 } from '../lib/format';
-import { useClock, usePlans, useWallet } from '../lib/hooks';
+import { useClock, useEnsureChain, usePlans, useWallet, WrongChainError } from '../lib/hooks';
 import {
   DemoWalletSigner,
   EvmWalletSigner,
@@ -51,7 +51,7 @@ import {
 import { beginSession } from '../lib/session-key';
 import { plans as store } from '../lib/store';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
-import { chainNow } from '../lib/wallet';
+import { chainIdOf, chainNow, type Wallet } from '../lib/wallet';
 
 import type { HashPackSession } from '../lib/hedera-wc';
 
@@ -226,6 +226,7 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
   const router = useRouter();
   const { plans } = usePlans();
   const { wallet } = useWallet('human');
+  const ensureChain = useEnsureChain();
   const { openConnectModal } = useConnectModal();
   const { row, dispatch, now } = useOnchainAction();
   const clock = useClock(1000);
@@ -309,14 +310,8 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
   if (quoteError) blocked = quoteError;
   else if (hederaSessionBound) blocked = t('pay.hederaTopupOnly');
   else if (isHedera && hp.session?.chain !== chosen?.network) blocked = t('pay.hashpackNeeded');
-  // no wallet yet: the pay button itself opens the connect modal
+  // no wallet yet: the pay button itself opens the connect modal; a wallet on another chain is switched on Pay
   else if (isHedera || !wallet) blocked = undefined;
-  else if (chosen && wallet.network !== chosen.network)
-    blocked = t('pay.wrongNetwork', {
-      wallet: walletLabel(wallet),
-      have: netName(wallet.network),
-      want: netName(chosen.network),
-    });
   else if (chosen && balance !== undefined && balance < BigInt(chosen.amount))
     blocked = t('pay.lowBalance', { balance: usdcBalance(balance), price });
   const connectFirst = !blocked && !isHedera && !wallet;
@@ -347,19 +342,22 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
     }));
     try {
       let signer: PaymentSigner;
+      let payer: Wallet | undefined;
       if (session) {
         // Hedera: no session key on the wire (LPA routes are blocked above), the PWA clock (validStart is back-dated)
         const hw = await import('../lib/hedera-wc');
         signer = await hw.hashPackPaySigner(session, allow);
       } else {
-        const Signer = wallet!.kind === 'demo' ? DemoWalletSigner : EvmWalletSigner;
-        signer = new Signer(wallet!, chosen.network, allow, { tamperAmount: await tamperAmount() });
+        // the EIP-3009 domain is the accepts entry's chain (Base Sepolia): the wallet signs there
+        payer = await ensureChain(wallet!, chainIdOf(chosen.network));
+        const Signer = payer.kind === 'demo' ? DemoWalletSigner : EvmWalletSigner;
+        signer = new Signer(payer, chosen.network, allow, { tamperAmount: await tamperAmount() });
       }
       const paid = await pay<TopUpResponse | EntitledResponse>(
         q,
         signer,
         session ? undefined : q.spk,
-        session ? Date.now() : await chainNow(wallet!),
+        payer ? await chainNow(payer) : Date.now(),
       );
       if (paid.error || !paid.settlement?.success) {
         dispatch({ type: 'preBroadcastError', reason: paymentFailureReason(paid.error) });
@@ -396,16 +394,24 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
         hash: settlement.transaction,
         network: settlement.network,
         label: title,
-        reader: wallet?.reader,
+        reader: payer?.reader,
         dispatch,
       });
     } catch (e) {
-      dispatch(signingFailure(e));
+      dispatch(
+        e instanceof WrongChainError
+          ? {
+              type: 'preBroadcastError',
+              reason: t('wallet.switchNeeded', { network: e.chainName }),
+            }
+          : signingFailure(e),
+      );
     }
   }, [
     q,
     chosen,
     wallet,
+    ensureChain,
     hp.session,
     isHedera,
     plans,

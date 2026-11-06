@@ -24,7 +24,7 @@ import { api, ApiError } from '../lib/api';
 import { planHash, readTopUps, topUpsRequest, type AgentTopUp } from '../lib/arkiv-read';
 import { config, explorerName, explorerTemplate } from '../lib/env';
 import { clockIst, dayLabel, formatMb, money, moneyUsdc, soldPlan } from '../lib/format';
-import { usePlans, useWallet } from '../lib/hooks';
+import { useEnsureChain, usePlans, useWallet, WrongChainError } from '../lib/hooks';
 import { plans as store } from '../lib/store';
 import { isUserRejection } from '../lib/wallet';
 
@@ -50,6 +50,7 @@ export function AgentSheet() {
   const netName = useNetworkName();
   const { plans } = usePlans();
   const { wallet } = useWallet('human');
+  const ensureChain = useEnsureChain();
   const { openConnectModal } = useConnectModal();
   const [key, setKey] = useState<string | null | undefined>();
   const [policy, setPolicy] = useState<TopUpPolicyWire | undefined>();
@@ -97,15 +98,17 @@ export function AgentSheet() {
       setStatus('signing');
       setMessage(undefined);
       try {
+        // the AgentPolicy is signed over the Recharge EIP-712 domain, on its chain
+        const owner = await ensureChain(wallet, config.chainId);
         const issuedAt = Date.now();
         const policyHash = keccak256(toBytes(canonicalJson(next)));
-        const signature = await wallet.signTypedData({
+        const signature = await owner.signTypedData({
           domain: rechargeDomain(config.chainId),
           types: AGENT_POLICY_TYPES,
           primaryType: 'AgentPolicy',
           message: {
             entitlementKey: key,
-            owner: wallet.address,
+            owner: owner.address,
             policyHash,
             issuedAt: BigInt(issuedAt),
           },
@@ -114,7 +117,7 @@ export function AgentSheet() {
         const holder = await store.holder(key);
         const saved = await api.putAgentPolicy({
           entitlementKey: key,
-          owner: wallet.address,
+          owner: owner.address,
           policy: next,
           issuedAt,
           signature,
@@ -125,11 +128,13 @@ export function AgentSheet() {
         setStatus('saved');
       } catch (e) {
         setStatus(isUserRejection(e) ? 'idle' : 'error');
-        if (!isUserRejection(e))
+        if (e instanceof WrongChainError)
+          setMessage(t('wallet.switchNeeded', { network: e.chainName }));
+        else if (!isUserRejection(e))
           setMessage(t(errorKey(e instanceof ApiError ? e.code : 'network')));
       }
     },
-    [wallet, key, t],
+    [wallet, ensureChain, key, t],
   );
 
   if (key === null)

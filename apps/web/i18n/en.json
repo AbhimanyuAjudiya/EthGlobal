@@ -307,7 +307,6 @@
   "pay.notHere": "This plan isn't on this phone: {mb} · expires {when}. Top it up anyway?",
   "pay.notHereButton": "Top up this plan",
   "pay.notHereUnknown": "No plan with this key. Nothing will be charged.",
-  "pay.wrongNetwork": "{wallet} is on {have}; this payment is on {want}.",
   "pay.lowBalance": "This account holds {balance}; the price is {price}.",
   "pay.yourWallet": "your wallet",
   "pay.hNetwork": "Network",
@@ -430,9 +429,8 @@
   "wallet.connected": "Connected",
   "wallet.disconnect": "Disconnect",
   "verify.showQr": "Show QR instead",
-  "wallet.wrongNetwork": "Wallet is on {network}",
-  "wallet.switchTo": "Switch to {network}",
   "wallet.connect": "Connect",
+  "wallet.switchNeeded": "Switch to {network} in your wallet to continue",
   "wallet.connectToPay": "Connect wallet to pay",
   "wallet.connectToClaim": "Connect wallet to claim",
   "wallet.connectToReclaim": "Connect wallet to reclaim"

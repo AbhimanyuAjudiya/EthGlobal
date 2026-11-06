@@ -8,7 +8,7 @@ import { Wallets } from '../components/Wallets';
 const ADDRESS = '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc';
 
 function control(props: Partial<WalletControlProps> = {}) {
-  const handlers = { onConnect: vi.fn(), onSwitchNetwork: vi.fn(), onDisconnect: vi.fn() };
+  const handlers = { onConnect: vi.fn(), onDisconnect: vi.fn() };
   render(<WalletControl mounted {...handlers} {...props} />);
   return handlers;
 }
@@ -40,15 +40,12 @@ describe('WalletControl (RainbowKit ConnectButton.Custom render)', () => {
     expect(h.onDisconnect).toHaveBeenCalledOnce();
   });
 
-  it('wrong network: names where the wallet is and switches to the app chain', () => {
-    const h = control({
-      account: { address: ADDRESS, displayName: 'rahul.eth' },
-      wrongNetwork: { have: 'Hedera EVM', want: 'Base' },
-    });
+  it('names the wallet’s network neutrally: no warning, no global switch (each action switches for itself)', () => {
+    control({ account: { address: ADDRESS, displayName: 'rahul.eth' }, network: 'Base Sepolia' });
     fireEvent.click(screen.getByRole('button', { name: 'rahul.eth' }));
-    expect(screen.getByRole('status').textContent).toBe('Wallet is on Hedera EVM');
-    fireEvent.click(screen.getByRole('button', { name: 'Switch to Base' }));
-    expect(h.onSwitchNetwork).toHaveBeenCalledOnce();
+    expect(screen.getByText('Network · Base Sepolia')).toBeTruthy();
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Switch to/ })).toBeNull();
     expect(screen.getByRole('button', { name: 'Disconnect' })).toBeTruthy();
   });
 });

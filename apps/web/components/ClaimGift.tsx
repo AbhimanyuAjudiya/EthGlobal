@@ -17,20 +17,23 @@ import { useLang } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { ApiError } from '../lib/api';
 import { planHref } from '../lib/deliver';
-import { explorerName, explorerTemplate } from '../lib/env';
+import { config, explorerName, explorerTemplate } from '../lib/env';
 import { dayLabel, formatMb, money } from '../lib/format';
-import { useClock, useWallet } from '../lib/hooks';
+import { useClock, useEnsureChain, useWallet, WrongChainError } from '../lib/hooks';
 import { claimGiftBySignature, reclaimGift, redeemPin } from '../lib/redeem';
 import { isUserRejection } from '../lib/wallet';
 
 const errText = (t: ReturnType<typeof useLang>['t'], e: unknown) =>
-  t(errorKey(e instanceof ApiError ? e.code : 'network'));
+  e instanceof WrongChainError
+    ? t('wallet.switchNeeded', { network: e.chainName })
+    : t(errorKey(e instanceof ApiError ? e.code : 'network'));
 
 /** `/gift/claim` — sign GiftClaim with the named wallet (no payment), or enter the PIN from the pass. */
 export function ClaimGift({ giftId, name }: { giftId?: string; name?: string }) {
   const { t, lang } = useLang();
   const router = useRouter();
   const { wallet } = useWallet('recipient');
+  const ensureChain = useEnsureChain();
   const { openConnectModal } = useConnectModal();
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState<string>();
@@ -62,7 +65,14 @@ export function ClaimGift({ giftId, name }: { giftId?: string; name?: string }) 
             disabled={working}
             onClick={() => {
               if (!wallet) openConnectModal?.();
-              else void run(() => claimGiftBySignature(wallet, giftId as Hex, name));
+              else
+                void run(async () =>
+                  claimGiftBySignature(
+                    await ensureChain(wallet, config.chainId),
+                    giftId as Hex,
+                    name,
+                  ),
+                );
             }}
             data-testid="claim-by-signature"
           >
@@ -103,6 +113,7 @@ export function ReclaimGift({ refreshKey = 0 }: { refreshKey?: number }) {
   const { t, lang } = useLang();
   const now = useClock(30_000);
   const { wallet } = useWallet('human');
+  const ensureChain = useEnsureChain();
   const { openConnectModal } = useConnectModal();
   const [gifts, setGifts] = useState<SentGift[]>([]);
   const [done, setDone] = useState<Record<string, GiftReclaimResponse>>({});
@@ -147,10 +158,12 @@ export function ReclaimGift({ refreshKey = 0 }: { refreshKey?: number }) {
                       openConnectModal?.();
                       return;
                     }
-                    reclaimGift(wallet, g.giftId as Hex).then(
-                      (r) => setDone((d) => ({ ...d, [g.giftId]: r })),
-                      (e: unknown) => setErrors((x) => ({ ...x, [g.giftId]: errText(t, e) })),
-                    );
+                    ensureChain(wallet, config.chainId)
+                      .then((payer) => reclaimGift(payer, g.giftId as Hex))
+                      .then(
+                        (r) => setDone((d) => ({ ...d, [g.giftId]: r })),
+                        (e: unknown) => setErrors((x) => ({ ...x, [g.giftId]: errText(t, e) })),
+                      );
                   }}
                 >
                   {!open

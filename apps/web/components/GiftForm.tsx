@@ -16,7 +16,7 @@ import { useLang, useNetworkName } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
 import { dayLabel, formatMb, money, moneyUsdc, priceFor } from '../lib/format';
-import { usePlans, useWallet } from '../lib/hooks';
+import { useEnsureChain, usePlans, useWallet, WrongChainError } from '../lib/hooks';
 import {
   DemoWalletSigner,
   EvmWalletSigner,
@@ -27,7 +27,12 @@ import {
 } from '../lib/pay402';
 import { get, set } from '../lib/store';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
-import { chainNow } from '../lib/wallet';
+import { chainIdOf, chainNow } from '../lib/wallet';
+
+/** The accepts entry an EVM wallet pays a gift with: its own chain when offered, else the first EVM one (Base). */
+const evmOffer = <T extends { network: string }>(accepts: readonly T[], current?: string) =>
+  accepts.find((a) => a.network === current) ??
+  accepts.find((a) => a.network.startsWith('eip155:'));
 
 type Resolution = 'idle' | 'resolving' | 'resolves' | 'unresolved' | 'error';
 
@@ -54,6 +59,7 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
   const walletLabel = useWalletLabel();
   const { plans } = usePlans();
   const { wallet } = useWallet('human');
+  const ensureChain = useEnsureChain();
   const { openConnectModal } = useConnectModal();
   const { row, dispatch, now } = useOnchainAction();
   const [name, setName] = useState('');
@@ -102,11 +108,13 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
     dispatch({ type: 'start', at: Date.now() });
     try {
       const q = await quote('/gift', { method: 'POST', body: { name: shownName, mb } });
-      const chosen = q.required.accepts.find((a) => a.network === wallet.network);
+      const chosen = evmOffer(q.required.accepts, wallet.network);
       if (!chosen) throw new ApiError(402, 'invalid_payment', 'no payable network');
-      const Signer = wallet.kind === 'demo' ? DemoWalletSigner : EvmWalletSigner;
+      // the EIP-3009 domain is that entry's chain: the wallet signs there
+      const payer = await ensureChain(wallet, chainIdOf(chosen.network));
+      const Signer = payer.kind === 'demo' ? DemoWalletSigner : EvmWalletSigner;
       const signer = new Signer(
-        wallet,
+        payer,
         chosen.network,
         (plans?.paid.accepts ?? q.required.accepts).map((a) => ({
           network: a.network,
@@ -114,7 +122,7 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
           payTo: a.payTo,
         })),
       );
-      const paid = await pay<GiftResponse>(q, signer, undefined, await chainNow(wallet));
+      const paid = await pay<GiftResponse>(q, signer, undefined, await chainNow(payer));
       if (paid.error || !paid.settlement?.success || !paid.data) {
         dispatch({ type: 'preBroadcastError', reason: paymentFailureReason(paid.error) });
         return;
@@ -128,7 +136,7 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
         to: paid.data.to,
         mb: paid.data.mb,
         claimBy: paid.data.claimBy,
-        payer: wallet.address,
+        payer: payer.address,
         usd6: chosen.amount,
       });
       onSent?.();
@@ -136,16 +144,23 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
         hash: paid.settlement.transaction,
         network: paid.settlement.network,
         label: 'gift',
-        reader: wallet.reader,
+        reader: payer.reader,
         dispatch,
       });
     } catch (e) {
-      dispatch(signingFailure(e));
+      dispatch(
+        e instanceof WrongChainError
+          ? {
+              type: 'preBroadcastError',
+              reason: t('wallet.switchNeeded', { network: e.chainName }),
+            }
+          : signingFailure(e),
+      );
     }
-  }, [wallet, dispatch, shownName, mb, plans, onSent]);
+  }, [wallet, ensureChain, dispatch, shownName, mb, plans, onSent, t]);
 
   const origin = typeof window === 'undefined' ? '' : window.location.origin;
-  const network = wallet?.network ?? plans?.paid.accepts[0]?.network ?? '';
+  const network = evmOffer(plans?.paid.accepts ?? [], wallet?.network)?.network ?? '';
   const connectFirst = resolution === 'resolves' && !wallet;
 
   /** The claim link goes to the recipient: the phone's share sheet where there is one, else the clipboard. */

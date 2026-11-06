@@ -2,7 +2,7 @@
 
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Hex } from '@ethglobal/protocol/ids';
 import type { SponsorView } from '@ethglobal/protocol/schemas';
@@ -15,13 +15,14 @@ import { SlideToConfirm } from './SlideToConfirm';
 import { api, ApiError } from '../lib/api';
 import {
   arkivEntityUrl,
+  config,
   contractUrl,
   explorerName,
   explorerTemplate,
   networkName,
 } from '../lib/env';
 import { clockIst, dayLabel, formatMb, money } from '../lib/format';
-import { useClock, useWallet } from '../lib/hooks';
+import { useClock, useEnsureChain, useWallet, WrongChainError } from '../lib/hooks';
 import { pauseCall, refundCall, sponsorLogin } from '../lib/sponsor';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
 import { isUserRejection } from '../lib/wallet';
@@ -92,6 +93,7 @@ function csv(view: SponsorView): string {
 /** `/sponsor/[id]` — a table that is the product: "1,214 claims" beside spend, cap and rate; Pause by slide. */
 export function SponsorTable({ id }: { id: string }) {
   const { wallet } = useWallet('sponsor');
+  const ensureChain = useEnsureChain();
   const { openConnectModal } = useConnectModal();
   const [view, setView] = useState<SponsorView | undefined>();
   const [auditKey, setAuditKey] = useState<string | undefined>();
@@ -115,19 +117,28 @@ export function SponsorTable({ id }: { id: string }) {
     [id, login],
   );
 
+  // one SponsorLogin per connected address: the switch to DataDrop's chain hands back a new wallet object
+  const signingIn = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (!wallet || login) return;
-    sponsorLogin(wallet, id as Hex).then(
-      (auth) => {
-        setLogin(auth);
-        void load(auth);
-      },
-      (e: unknown) =>
-        setError(
-          isUserRejection(e) ? 'Sign in with the sponsor wallet to see this campaign.' : String(e),
-        ),
-    );
-  }, [wallet, login, id, load]);
+    if (!wallet || login || signingIn.current === wallet.address) return;
+    signingIn.current = wallet.address;
+    ensureChain(wallet, config.chainId)
+      .then((sponsor) => sponsorLogin(sponsor, id as Hex))
+      .then(
+        (auth) => {
+          setLogin(auth);
+          void load(auth);
+        },
+        (e: unknown) =>
+          setError(
+            isUserRejection(e)
+              ? 'Sign in with the sponsor wallet to see this campaign.'
+              : e instanceof Error
+                ? e.message
+                : String(e),
+          ),
+      );
+  }, [wallet, ensureChain, login, id, load]);
 
   const runTx = useCallback(
     async (title: string, tx: { to: `0x${string}`; data: `0x${string}` }) => {
@@ -136,13 +147,15 @@ export function SponsorTable({ id }: { id: string }) {
       action.newRow();
       action.dispatch({ type: 'start', at: Date.now() });
       try {
-        const hash = await wallet.sendTransaction(tx);
+        // pause and refund are DataDrop calls: the sponsor wallet sends them on its chain
+        const sponsor = await ensureChain(wallet, config.chainId);
+        const hash = await sponsor.sendTransaction(tx);
         action.dispatch({ type: 'signed', hash, at: Date.now() });
         await followTransaction({
           hash,
-          network: wallet.network,
+          network: sponsor.network,
           label: title,
-          reader: wallet.reader,
+          reader: sponsor.reader,
           dispatch: action.dispatch,
         });
         await load();
@@ -150,11 +163,17 @@ export function SponsorTable({ id }: { id: string }) {
         action.dispatch(
           isUserRejection(e)
             ? { type: 'rejected' }
-            : { type: 'preBroadcastError', reason: 'the wallet could not send the transaction' },
+            : {
+                type: 'preBroadcastError',
+                reason:
+                  e instanceof WrongChainError
+                    ? e.message
+                    : 'the wallet could not send the transaction',
+              },
         );
       }
     },
-    [wallet, action, load],
+    [wallet, ensureChain, action, load],
   );
 
   const byTier = useMemo(

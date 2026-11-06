@@ -41,7 +41,7 @@ function Preflight() {
   );
 }
 
-/** One numbered step of "How it works": a title, a sentence or two, and the route(s) that do it. */
+/** One numbered ruled row of "How it works": a title, a sentence or two, and the route(s) that do it. */
 function Step({
   title,
   body,
@@ -58,7 +58,7 @@ function Step({
       <h3 className="how__title">{title}</h3>
       <p className="how__body">{body}</p>
       {children}
-      <p className="quiet-rows">
+      <p className="how__links">
         {links.map((link) => (
           <Link key={link.href} href={link.href} prefetch={false}>
             {link.label}
@@ -189,7 +189,8 @@ function EsimFacts() {
 }
 
 /**
- * `/` — one question, two paths, then everything else. The live, unscratched coupon carries the real count from
+ * `/` — one question, the coupon, one button; then ruled sections for organizers, the paid offer, the eSIM facts,
+ * the steps and every flow (no tiles, no mockups). The live, unscratched coupon carries the real count from
  * this load's own GET /plans ("1,214 of 2,000 sponsor bundles left · Hedera"); while it is on its way the coupon and
  * the button are skeletons, never a stored reading presented as current. Only a network failure brings back the
  * last reading this phone saved, labelled "as of 14:02" (and the button follows it); an API error omits the count.
@@ -219,8 +220,10 @@ export function ClaimPaths() {
   const planMb = formatMb(sold.mb);
   const planPrice = money(sold.usd6);
   const exhausted = Boolean(campaign && (campaign.paused || campaign.remainingClaims === 0));
+  // live /plans never discloses a campaign (the organizer's pass link does): its free path stays open
+  const liveMode = plans?.mode === 'live';
   // claim-first unless the reading shown says no sponsor bundle is open
-  const claimable = !plans || (campaign !== null && !exhausted);
+  const claimable = !plans || liveMode || (campaign !== null && !exhausted);
 
   let status: string | undefined;
   if (stale) status = t('landing.asOf', { time: clockIst(stale.at) });
@@ -235,9 +238,10 @@ export function ClaimPaths() {
   return (
     <main className="landing">
       <AppHeader />
+      {/* the hero: one question, the live coupon, one teal button carrying the number (design-references §1a) */}
       <div className="landing__grid">
         <section className="landing__copy">
-          <p className="eyebrow" lang={lang}>
+          <p className="landing__label" lang={lang}>
             {t('landing.eyebrow')}
           </p>
           <h1 className="landing__title" lang={lang}>
@@ -246,36 +250,10 @@ export function ClaimPaths() {
           <p className="landing__sub" lang={lang}>
             {t('landing.sub', { mb: formatMb(freeMb) })}
           </p>
-          <p className="note" lang={lang}>
-            {t('landing.ticketIntro')}
-          </p>
-          <Link href="/sponsor" className="ui-button" data-variant="primary" prefetch={false}>
-            <span lang={lang}>{t('landing.organize')}</span>
-          </Link>
-          <p className="eyebrow" lang={lang}>
-            {t('landing.paidPlan')}
-          </p>
-          <dl className="offer-facts" aria-label={t('landing.paidPlan')} lang={lang}>
-            <div>
-              <dt>{t('offer.data')}</dt>
-              <dd>{planMb}</dd>
-            </div>
-            <div>
-              <dt>{t('offer.validity')}</dt>
-              <dd>{t('offer.days', { days: plans?.paid.validityDays ?? 7 })}</dd>
-            </div>
-            <div>
-              <dt>{t('offer.price')}</dt>
-              <dd>
-                {planPrice}
-                <small> USDC</small>
-              </dd>
-            </div>
-          </dl>
         </section>
         {/* no validity line: /plans does not carry the campaign's validity, and a guess is fake specificity */}
         <section className="landing__coupon" aria-live="polite">
-          <p className="eyebrow" lang={lang}>
+          <p className="landing__label" lang={lang}>
             {t('landing.sponsored')}
           </p>
           {pending ? (
@@ -290,61 +268,86 @@ export function ClaimPaths() {
               id="landing-coupon"
             />
           )}
-          {plans && !stale && !campaign ? (
+          {plans && !stale && !campaign && !liveMode ? (
             <p className="note" lang={lang}>
               {t('landing.noCampaign')}
             </p>
           ) : null}
         </section>
         <section className="landing__actions">
-          <div className="paths">
-            {pending ? (
-              <div className="skeleton skeleton--button" aria-hidden="true" />
-            ) : claimable ? (
-              <Link
-                href="/verify"
-                className="ui-button ui-button--block"
-                data-variant="primary"
-                prefetch={false}
-              >
-                <span lang={lang}>{t('landing.human', { mb: formatMb(freeMb) })}</span>
-              </Link>
-            ) : (
-              <Link
-                href="/pay"
-                className="ui-button ui-button--block"
-                data-variant="primary"
-                prefetch={false}
-              >
-                <span lang={lang}>{t('landing.payInstead', { price: planPrice, mb: planMb })}</span>
-              </Link>
-            )}
-            {/* with no sponsor bundle open the primary button already sells the 1 GB plan */}
-            {claimable ? (
-              <Link
-                href="/pay"
-                className="ui-button ui-button--block"
-                data-variant="secondary"
-                prefetch={false}
-              >
-                <span lang={lang}>{t('landing.pay', { price: planPrice, mb: planMb })}</span>
-              </Link>
-            ) : null}
-          </div>
+          {pending ? (
+            <div className="skeleton skeleton--button" aria-hidden="true" />
+          ) : claimable ? (
+            <Link
+              href="/verify"
+              className="ui-button ui-button--block"
+              data-variant="primary"
+              prefetch={false}
+            >
+              <span lang={lang}>
+                {liveMode && !campaign
+                  ? t('claim.withPass')
+                  : t('landing.human', { mb: formatMb(freeMb) })}
+              </span>
+            </Link>
+          ) : (
+            <Link
+              href="/pay"
+              className="ui-button ui-button--block"
+              data-variant="primary"
+              prefetch={false}
+            >
+              <span lang={lang}>{t('landing.payInstead', { price: planPrice, mb: planMb })}</span>
+            </Link>
+          )}
           <Preflight />
-          <a className="compatibility-link" href="#compatibility" lang={lang}>
-            {t('landing.compatibility')}
-          </a>
-          <nav className="quiet-rows" aria-label="More ways in">
+          <nav className="landing__rows" aria-label="More ways in">
             <Link href="/card" prefetch={false}>
               <span lang={lang}>{t('landing.pin')}</span>
             </Link>
+            {/* with no sponsor bundle open the primary button already sells the 1 GB plan */}
+            {claimable ? (
+              <Link href="/pay" prefetch={false}>
+                <span lang={lang}>{t('landing.pay', { price: planPrice, mb: planMb })}</span>
+              </Link>
+            ) : null}
             <Link href="/plan" prefetch={false}>
               <span lang={lang}>{t('landing.open')}</span>
             </Link>
+            <a className="landing__anchor" href="#compatibility" lang={lang}>
+              {t('landing.compatibility')}
+            </a>
           </nav>
         </section>
       </div>
+      <section className="landing__section" lang={lang}>
+        <h2 className="landing__h2">{t('hub.sponsors')}</h2>
+        <div className="landing__body">
+          <p className="landing__prose">{t('landing.ticketIntro')}</p>
+          <Link href="/sponsor" className="ui-button" data-variant="secondary" prefetch={false}>
+            <span lang={lang}>{t('landing.organize')}</span>
+          </Link>
+        </div>
+      </section>
+      <section className="landing__section" lang={lang}>
+        <h2 className="landing__h2">{t('landing.paidPlan')}</h2>
+        <dl className="landing__offer" aria-label={t('landing.paidPlan')}>
+          <div>
+            <dt>{t('offer.data')}</dt>
+            <dd>{planMb}</dd>
+          </div>
+          <div>
+            <dt>{t('offer.validity')}</dt>
+            <dd>{t('offer.days', { days: plans?.paid.validityDays ?? 7 })}</dd>
+          </div>
+          <div>
+            <dt>{t('offer.price')}</dt>
+            <dd>
+              {planPrice} <small>USDC</small>
+            </dd>
+          </div>
+        </dl>
+      </section>
       <EsimFacts />
       <HowItWorks price={planPrice} mb={planMb} />
       <Everything price={planPrice} mb={planMb} />

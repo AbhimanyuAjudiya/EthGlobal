@@ -157,21 +157,90 @@ export async function sponsorTicketsRequest(wallet: Wallet, campaignId: Hex, ref
 
 const LIST = 'recharge.sponsor.campaigns';
 
-/** Campaign ids this browser created (per-viewer convenience; the API is the record). */
+interface SavedCampaign {
+  id: string;
+  name: string;
+  owner: string;
+  network?: string;
+  contract?: string;
+}
+
+/** Scoped ids encode the creator; old browser records have no trustworthy chain information. */
+export const campaignOwner = (id: string): string | undefined =>
+  /^0x[0-9a-f]{40}00000000[0-9a-f]{16}$/i.test(id) ? id.slice(0, 42).toLowerCase() : undefined;
+
+export const sponsorScope = (owner: string, network: string, contract: string): string =>
+  `${network}:${contract.toLowerCase()}:${owner.toLowerCase()}`;
+
+function savedCampaigns(key: string): SavedCampaign[] {
+  const value: unknown = JSON.parse(localStorage.getItem(key) ?? '[]');
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((row: unknown) => {
+    if (
+      !row ||
+      typeof row !== 'object' ||
+      !('id' in row) ||
+      !('name' in row) ||
+      typeof row.id !== 'string' ||
+      typeof row.name !== 'string'
+    )
+      return [];
+    const owner = campaignOwner(row.id);
+    if (
+      !owner ||
+      ('owner' in row && (typeof row.owner !== 'string' || row.owner.toLowerCase() !== owner))
+    )
+      return [];
+    return [
+      {
+        id: row.id.toLowerCase(),
+        name: row.name,
+        owner,
+        ...('network' in row && typeof row.network === 'string' ? { network: row.network } : {}),
+        ...('contract' in row && typeof row.contract === 'string'
+          ? { contract: row.contract }
+          : {}),
+      },
+    ];
+  });
+}
+
+/** Wallet/deployment-scoped convenience list; the API remains the authoritative record. */
 export const myCampaigns = {
-  list(): { id: string; name: string }[] {
+  list(owner: string, network: string, contract: string): SavedCampaign[] {
     try {
-      return JSON.parse(localStorage.getItem(LIST) ?? '[]') as { id: string; name: string }[];
+      const rows = [
+        ...savedCampaigns(`${LIST}:${sponsorScope(owner, network, contract)}`),
+        ...savedCampaigns(LIST),
+      ];
+      const seen = new Set<string>();
+      return rows.filter((row) => {
+        if (
+          row.owner !== owner.toLowerCase() ||
+          seen.has(row.id) ||
+          (row.network !== undefined && row.network !== network) ||
+          (row.contract !== undefined && row.contract.toLowerCase() !== contract.toLowerCase())
+        )
+          return false;
+        seen.add(row.id);
+        return true;
+      });
     } catch {
       return [];
     }
   },
-  add(entry: { id: string; name: string }) {
+  add(entry: SavedCampaign & { network: string; contract: string }) {
     try {
+      if (campaignOwner(entry.id) !== entry.owner.toLowerCase()) return;
       localStorage.setItem(
-        LIST,
+        `${LIST}:${sponsorScope(entry.owner, entry.network, entry.contract)}`,
         JSON.stringify(
-          [entry, ...myCampaigns.list().filter((c) => c.id !== entry.id)].slice(0, 20),
+          [
+            entry,
+            ...myCampaigns
+              .list(entry.owner, entry.network, entry.contract)
+              .filter((c) => c.id.toLowerCase() !== entry.id.toLowerCase()),
+          ].slice(0, 100),
         ),
       );
     } catch {

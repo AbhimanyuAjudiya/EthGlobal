@@ -18,6 +18,7 @@ import { usd6ToWire } from '@ethglobal/protocol/units';
 import { inputOf, type AppEnv } from '../context.js';
 import { fail } from '../errors.js';
 import { patchUsage } from './webhooks.js';
+import { planEvent } from '../flows/campaign-history.js';
 import { campaignReclaimBlocks, campaignReclaimView } from '../flows/campaign-reclaim.js';
 import { aborted, cancelPlan, cancelReceiptKey, decidePlanCancel } from '../flows/cancel.js';
 import {
@@ -240,6 +241,7 @@ function toMe(
     ...(refund === undefined ? {} : { refundable: refund }),
     ...(e.lifecycle === undefined ? {} : { lifecycle: e.lifecycle }),
     ...(isEventPlan(deps, e) ? { topUpAvailable: false, autoTopUpAvailable: false } : {}),
+    ...(planEvent(deps, e) === undefined ? {} : { event: planEvent(deps, e) }),
     ...(campaignReclaimView(deps, e.key) === undefined
       ? {}
       : { campaignReclaim: campaignReclaimView(deps, e.key) }),

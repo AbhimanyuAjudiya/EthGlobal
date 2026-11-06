@@ -62,6 +62,7 @@ const EVERY_FLOW = [
   '/verify',
 ];
 const CLAIM = /^Prove I.m human → 1\sGB$/;
+const PAID_PLAN = 'Optional self-paid India data plan';
 /** The reading this phone saved at 19:53 IST, before the sponsor's campaign went live. */
 const SAVED_AT = Date.UTC(2026, 10, 5, 14, 23);
 
@@ -80,11 +81,14 @@ describe('the landing is the hub', () => {
     mocks.plans.mockResolvedValue(plans);
     render(<ClaimPaths />, { wrapper: Wallets });
     await screen.findByRole('link', { name: /^Prove I.m human → 300\sMB$/ });
-    expect(document.querySelector('.landing__sub')?.textContent).toMatch(/your first 300\sMB/);
+    // the coupon carries the sponsor's size; the paid offer beside it keeps its own
+    expect(document.querySelector('#landing-coupon')?.getAttribute('aria-label')).toContain(
+      '300 MB',
+    );
     expect(screen.getByRole('region', { name: 'How it works' }).textContent).toContain(
       'your first bundle',
     );
-    expect(screen.getByLabelText('Your paid data plan').textContent).toMatch(/1\sGB/);
+    expect(screen.getByLabelText(PAID_PLAN).textContent).toMatch(/1\sGB/);
   });
   it('shows the paid data, validity and price from the current offer apart from the sponsor coupon', async () => {
     const plans = plansWith(true);
@@ -93,7 +97,7 @@ describe('the landing is the hub', () => {
     mocks.plans.mockResolvedValue(plans);
     render(<ClaimPaths />, { wrapper: Wallets });
     await screen.findByRole('link', { name: CLAIM });
-    const offer = screen.getByLabelText('Your paid data plan');
+    const offer = screen.getByLabelText(PAID_PLAN);
     expect(offer.textContent).toContain('14 days');
     expect(offer.textContent).toContain('$5.00');
     expect(offer.textContent).toContain('USDC');
@@ -163,7 +167,8 @@ describe('the header menu', () => {
     expect(within(dialog).getByRole('group', { name: 'Language' })).toBeTruthy();
     const nav = within(dialog).getByRole('navigation', { name: 'Everything Recharge does' });
     expect(hrefs(within(nav).getAllByRole('link')).sort()).toEqual(EVERY_FLOW);
-    await waitFor(() => expect(document.activeElement?.getAttribute('href')).toBe('/verify'));
+    // the first link of the first group: organizers come first in DESTINATIONS
+    await waitFor(() => expect(document.activeElement?.getAttribute('href')).toBe('/sponsor'));
 
     const stops = [...dialog.querySelectorAll<HTMLElement>('a[href], button')];
     const first = stops[0];

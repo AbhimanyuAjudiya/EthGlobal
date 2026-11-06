@@ -1,10 +1,14 @@
 /** T-85, AP18: X-Seed-* hooks work (and are logged) in MODE=local only; in live a request behaves like a control request. */
 import { describe, expect, it } from 'vitest';
 
-import { buyGift, DAY, harness, type Harness } from '../support/harness.js';
+import { T0 } from '@ethglobal/adapters/testing';
 
+import { eventFields } from '../support/campaign.js';
+import { buyGift, DAY, harness, issueTickets, type Harness } from '../support/harness.js';
+
+/** Live claims admit organizer-issued passes only, so the live harness runs a ticket-gated event campaign. */
 const seeded = async (live: boolean) => {
-  const h = await harness();
+  const h = await harness(live ? { campaign: { event: eventFields(T0) } } : {});
   if (live) h.deps.env.MODE = 'live';
   return h;
 };
@@ -22,7 +26,11 @@ describe('T-85 seed hooks are local-only', () => {
 
   it('live: X-Seed-Validity-S on /claim and X-Seed-Claim-Window-S on /gift are ignored', async () => {
     const h = await seeded(true);
-    const claim = await h.claim({ headers: { 'x-seed-validity-s': '90' } });
+    const [ticketPass] = await issueTickets(h, ['seat-1']);
+    const claim = await h.claim({
+      ticketPass: ticketPass!,
+      headers: { 'x-seed-validity-s': '90' },
+    });
     expect(((await claim.res.json()) as { expiresAt: number }).expiresAt).toBe(
       h.clock.now() + 7 * DAY,
     );

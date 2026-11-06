@@ -28,7 +28,9 @@ import {
   myCampaigns,
   htsTokenId,
   isHederaSponsorChain,
+  pauseCall,
   readSponsorFunding,
+  refundCall,
   scopedCampaignId,
   sponsorLogin,
   usdcAddress,
@@ -46,8 +48,20 @@ const supportedPackage = (mb: number) => logicalMb(mb) > 0 && mb <= 1074;
 const usdInput = (amount: string) =>
   `${BigInt(amount) / USD6}.${(BigInt(amount) % USD6).toString().padStart(6, '0')}`;
 const PROGRESS = 'recharge.sponsor.pending';
+/** Drafts set aside by "Start a new campaign": each names funds locked on chain, so none is ever deleted here. */
+const ARCHIVE = 'recharge.sponsor.pending.archive';
+/** API answers that no retry of the same draft can change. */
+const PERMANENT = new Set(['invalid_request', 'unauthorized']);
 const associationKey = (wallet: Wallet, token: string) =>
   `recharge.sponsor.association:${wallet.chainId}:${wallet.address.toLowerCase()}:${token.toLowerCase()}`;
+/** The configured DataDrop address, or undefined while MODE=local has no chain yet (the form still renders). */
+const configuredContract = (): string | undefined => {
+  try {
+    return dataDropAddress();
+  } catch {
+    return undefined;
+  }
+};
 interface FundingState {
   identity: string;
   data?: SponsorFunding;
@@ -199,6 +213,9 @@ export function CampaignForm() {
   const identity = `${wallet?.address.toLowerCase() ?? ''}:${wallet?.chainId ?? ''}`;
   const currentFunding = funding?.identity === identity ? funding : undefined;
   const association = useOnchainAction();
+  const pause = useOnchainAction();
+  const refund = useOnchainAction();
+  const [permanent, setPermanent] = useState(false);
   const selectedPlan =
     catalog?.country === draft.country
       ? catalog.plans.find((plan) => plan.id === draft.planId)
@@ -342,7 +359,11 @@ export function CampaignForm() {
   }, []);
 
   const hydrated = useHydrated();
-  const list = hydrated ? myCampaigns.list() : [];
+  // both steps run on DataDrop's chain, whatever chain the wallet is on before it
+  const network = caip2(config.chainId);
+  // this wallet's campaigns on this deployment only: another wallet's never show in this browser
+  const contract = hydrated ? configuredContract() : undefined;
+  const list = wallet && contract ? myCampaigns.list(wallet.address, network, contract) : [];
 
   const field = (
     key: Exclude<keyof Draft, 'reclaimUnused'>,
@@ -525,7 +546,13 @@ export function CampaignForm() {
       );
       if (!created) return;
       txs.push({ label: 'proof.createTx', hash: created, network: sponsor.network });
-      myCampaigns.add({ id, name: campaign.name });
+      myCampaigns.add({
+        id,
+        name: campaign.name,
+        owner: campaign.sponsor,
+        network: campaign.network,
+        contract: campaign.contract,
+      });
       const login = await sponsorLogin(sponsor, id);
       let res: { id: string; auditKey: string };
       try {
@@ -542,7 +569,13 @@ export function CampaignForm() {
       setResume(undefined);
       // the audit key is shown once below; the proof keeps only its first and last characters
       evidence.response = res;
-      myCampaigns.add({ id: res.id, name: draft.name.trim() });
+      myCampaigns.add({
+        id: res.id,
+        name: campaign.name,
+        owner: campaign.sponsor,
+        network: campaign.network,
+        contract: campaign.contract,
+      });
       setRegistered({
         ...res,
         name: draft.name.trim(),
@@ -551,6 +584,9 @@ export function CampaignForm() {
       });
     } catch (e) {
       evidence.error = e;
+      // the API refuses this funded draft for good (no event terms, another wallet): say what remains of it
+      if (e instanceof ApiError && PERMANENT.has(e.code) && readProgress()?.createHash)
+        setPermanent(true);
       setError(
         e instanceof ApiError
           ? `${e.code}: ${e.message}`
@@ -565,8 +601,60 @@ export function CampaignForm() {
     }
   }, [wallet, ensureChain, draft, running, approve, create, hedera, selectedPlan, t]);
 
-  // both steps run on DataDrop's chain, whatever chain the wallet is on before it
-  const network = caip2(config.chainId);
+  /** Set the saved draft aside (ARCHIVE keeps it: it names locked funds) and open a fresh form. */
+  const startNew = () => {
+    if (!resume || running) return;
+    try {
+      const value: unknown = JSON.parse(localStorage.getItem(ARCHIVE) ?? '[]');
+      const kept: unknown[] = Array.isArray(value) ? value : [];
+      localStorage.setItem(ARCHIVE, JSON.stringify([resume, ...kept].slice(0, 20)));
+      localStorage.removeItem(PROGRESS);
+    } catch {
+      return; // storage refused: the draft stays where it is
+    }
+    setResume(undefined);
+    setPermanent(false);
+    setDraft(initial);
+    setError(undefined);
+    setProof(undefined);
+    approve.newRow();
+    create.newRow();
+  };
+  /** The sponsor wallet pauses or refunds the funded-but-unregistered campaign (DataDrop pause / refund). */
+  const recover = async (kind: 'pause' | 'refund') => {
+    if (!wallet || !resume?.createHash || running) return;
+    const row = kind === 'pause' ? pause : refund;
+    setRunning(true);
+    setError(undefined);
+    row.newRow();
+    try {
+      const sponsor = await ensureChain(wallet, config.chainId);
+      const id = resume.campaign.id as Hex;
+      await send(
+        sponsor,
+        kind === 'pause' ? pauseCall(id, true) : refundCall(id),
+        kind === 'pause' ? 'pause campaign' : 'refund campaign',
+        row.dispatch,
+        undefined,
+        () => undefined,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRunning(false);
+    }
+  };
+  // a draft funded before event terms were required never registers on the live API; say so before any click
+  const unregistrable = Boolean(
+    resume && (permanent || (process.env.NEXT_PUBLIC_MODE === 'live' && !resume.campaign.event)),
+  );
+  let locked: string | undefined;
+  try {
+    if (resume) locked = moneyUsdc(BigInt(resume.budget));
+  } catch {
+    // an old draft with no readable budget: the sentence still stands without the amount
+  }
+
   const contractHref = registered && contractUrl(registered.network, registered.contract);
   const contractExplorer = registered && explorerName(registered.network);
   // money says its unit and two decimals, grouped en-IN: "$1,000.00 USDC" (RT design review #9)
@@ -588,35 +676,53 @@ export function CampaignForm() {
 
   return (
     <div className="sponsor-create" lang={lang}>
-      <section aria-label="Your campaigns">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th scope="col">Name</th>
-              <th scope="col">Campaign id</th>
-            </tr>
-          </thead>
-          <tbody>
-            {list.length === 0 ? (
-              <tr className="ghost">
-                <td colSpan={2}>{t('event.intro')}</td>
+      <section className="pane" aria-labelledby="campaigns-title">
+        <h2 id="campaigns-title" className="pane__title">
+          Your campaigns
+        </h2>
+        <div className="table-scroll">
+          <table className="data-table campaign-list">
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Network</th>
+                <th scope="col">Campaign id</th>
               </tr>
-            ) : (
-              list.map((c) => (
-                <tr key={c.id}>
-                  <td>
-                    <Link href={`/sponsor/${c.id}`} prefetch={false}>
-                      {c.name}
-                    </Link>
-                  </td>
-                  <td>
-                    <Hash value={c.id} kind="campaign id" />
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {list.length === 0 ? (
+                <>
+                  {/* the empty state teaches: the real columns, ghost rows and one verb */}
+                  <tr className="ghost">
+                    <td colSpan={3}>
+                      <a href="#create-title">Create a campaign</a> — name, destination package,
+                      budget, hourly cap.
+                    </td>
+                  </tr>
+                  <tr className="ghost" aria-hidden="true">
+                    <td>—</td>
+                    <td>—</td>
+                    <td>—</td>
+                  </tr>
+                </>
+              ) : (
+                list.map((c) => (
+                  <tr key={c.id}>
+                    <td>
+                      <Link href={`/sponsor/${c.id}`} prefetch={false}>
+                        {c.name}
+                      </Link>
+                    </td>
+                    <td>{networkName(c.network ?? network)}</td>
+                    <td>
+                      <Hash value={c.id} kind="campaign id" />
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
       <div className="campaign-builder">
         <form
@@ -636,6 +742,38 @@ export function CampaignForm() {
               finish registration without funding a new campaign.{' '}
               <Hash value={resume.campaign.id} kind="campaign id" />
             </p>
+          ) : null}
+          {resume && unregistrable ? (
+            <section
+              className="sheet-row"
+              aria-label="Draft cannot be registered"
+              data-testid="draft-stuck"
+            >
+              <p className="note" role="status">
+                This draft can’t be registered any more: the campaign was funded before event terms
+                were required, so the API refuses it. Its locked budget
+                {locked ? ` (${locked})` : ''} stays in this campaign on chain; the sponsor wallet
+                can refund what is unspent once the campaign has expired, or 24 hours after pausing
+                it. Start a new campaign to fund one with event terms; this draft is kept on this
+                device.
+              </p>
+              <div className="row-actions">
+                <Button
+                  variant="secondary"
+                  disabled={running || !resume.createHash}
+                  onClick={() => void recover('pause')}
+                >
+                  Pause campaign
+                </Button>
+                <Button
+                  variant="secondary"
+                  disabled={running || !resume.createHash}
+                  onClick={() => void recover('refund')}
+                >
+                  Refund unspent budget
+                </Button>
+              </div>
+            </section>
           ) : null}
           {field('name', 'Name')}
           <p className="note">{t('event.intro')}</p>
@@ -881,6 +1019,17 @@ export function CampaignForm() {
             // no second wallet widget: the action itself opens the header's connect modal
             <Button onClick={() => openConnectModal?.()}>Connect wallet to fund and create</Button>
           )}
+          {resume ? (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={running}
+              onClick={startNew}
+              data-testid="campaign-start-new"
+            >
+              Start a new campaign
+            </Button>
+          ) : null}
         </form>
         <div className="campaign-progress">
           <ActionView
@@ -913,6 +1062,36 @@ export function CampaignForm() {
             <p className="note" role="status">
               {error}
             </p>
+          ) : null}
+          {pause.row.state !== 'idle' ? (
+            <ActionView
+              row={pause.row}
+              now={pause.now}
+              title="Pause this campaign"
+              network={network}
+              networkLabel={networkName(network)}
+              actionLabel="Recovery"
+              blocked=""
+              walletName={wallet?.name ?? 'your wallet'}
+              result="Campaign paused"
+              expectedMs={expectedMsFor(network)}
+              className="sponsor-step"
+            />
+          ) : null}
+          {refund.row.state !== 'idle' ? (
+            <ActionView
+              row={refund.row}
+              now={refund.now}
+              title="Refund the unspent budget"
+              network={network}
+              networkLabel={networkName(network)}
+              actionLabel="Recovery"
+              blocked=""
+              walletName={wallet?.name ?? 'your wallet'}
+              result="Budget refunded to the sponsor wallet"
+              expectedMs={expectedMsFor(network)}
+              className="sponsor-step"
+            />
           ) : null}
           <ProofPanel proof={proof} />
           {registered ? (

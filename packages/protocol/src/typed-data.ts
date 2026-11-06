@@ -49,6 +49,16 @@ export const SPONSOR_TICKETS_TYPES = {
   ],
 } as const;
 export const SPONSOR_TICKETS_TTL_MS = 600_000;
+/** Distinct write authorization: an issuance signature can never be replayed as a revocation. */
+export const SPONSOR_TICKET_REVOCATION_TYPES = {
+  SponsorTicketRevocation: [
+    { name: 'campaignId', type: 'bytes32' },
+    { name: 'sponsor', type: 'address' },
+    { name: 'ticketsHash', type: 'bytes32' },
+    { name: 'nonce', type: 'bytes32' },
+    { name: 'issuedAt', type: 'uint256' },
+  ],
+} as const;
 
 /** Ticket references are opaque, case-sensitive IDs from the organizer's confirmed attendee list. */
 export function canonicalTicketRefs(refs: readonly string[]): string[] {

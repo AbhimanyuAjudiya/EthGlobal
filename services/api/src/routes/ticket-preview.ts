@@ -7,6 +7,7 @@ import { hex32Schema } from '@ethglobal/protocol/schemas';
 import { inputOf, type AppEnv } from '../context.js';
 import { fail } from '../errors.js';
 import { deliveryRecoveryHash } from '../flows/fulfil.js';
+import { buildPlans } from '../flows/public-plans.js';
 import { ticketAdmission } from '../flows/tickets.js';
 import { campaignState } from '../middleware/octroi.js';
 import { validateJson } from '../middleware/validate.js';
@@ -31,15 +32,22 @@ export function registerTicketPreview(app: Hono<AppEnv>, deps: Deps): void {
     if (campaign.expiresAt <= deps.now()) throw fail('campaign_expired');
     if (counters.paused) throw fail('campaign_paused');
     const recoveryKeyHash = deliveryRecoveryHash(deps, c.req.header('idempotency-key'));
-    ticketAdmission(deps, campaign, {
-      ticketPass: body.ticketPass,
-      ...(body.eventNoticeVersion === undefined
-        ? {}
-        : { eventNoticeVersion: body.eventNoticeVersion }),
-      sessionPubKey: body.sessionPubKey.toLowerCase() as Hex,
-      ...(recoveryKeyHash === undefined ? {} : { recoveryKeyHash }),
-    });
+    ticketAdmission(
+      deps,
+      campaign,
+      {
+        ticketPass: body.ticketPass,
+        ...(body.eventNoticeVersion === undefined
+          ? {}
+          : { eventNoticeVersion: body.eventNoticeVersion }),
+        sessionPubKey: body.sessionPubKey.toLowerCase() as Hex,
+        ...(recoveryKeyHash === undefined ? {} : { recoveryKeyHash }),
+      },
+      { requireNotice: false },
+    );
+    const plans = await buildPlans(deps, campaign.id as Hex, true);
+    if (!plans.campaign) throw fail('not_found');
     c.header('Cache-Control', 'no-store');
-    return c.json({ valid: true, campaignId: campaign.id });
+    return c.json({ valid: true, campaignId: campaign.id, plans });
   });
 }

@@ -973,6 +973,87 @@
       "signers": {
         "eip155:*": ["0x976EA74026E726554dB657fA54763abd0C3a0aa9"]
       }
+    },
+    "esimLifecycleSchema": {
+      "startsOn": "first-network",
+      "installBy": 1796299200000,
+      "validityDays": 7
+    },
+    "campaignEventSchema": {
+      "destinationCountry": "IN",
+      "startsAt": 1793793600000,
+      "endsAt": 1793966400000,
+      "reclaimAfter": 1793966400000,
+      "ticketRequired": true,
+      "reclaimUnused": false,
+      "refundBasis": "claim-price",
+      "noticeVersion": 1
+    },
+    "campaignReclaimSummarySchema": {
+      "scheduled": 12,
+      "pending": 2,
+      "completed": 30,
+      "ineligible": 1,
+      "refundPendingUsd6": "1000000",
+      "refundedUsd6": "15000000"
+    },
+    "campaignReclaimViewSchema": {
+      "state": "scheduled",
+      "reclaimAfter": 1793966400000
+    },
+    "planEventSchema": {
+      "campaignId": "0xc1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+      "name": "Mumbai Tech Week",
+      "destinationCountry": "IN"
+    },
+    "catalogResponseSchema": {
+      "country": "IN",
+      "plans": [
+        {
+          "id": "in-300mb-7d",
+          "name": "India 300 MB · 7 days",
+          "mb": 300,
+          "validityDays": 7,
+          "wholesaleUsd6": "342000",
+          "activation": {
+            "startsOn": "first-network",
+            "installWithinDays": 30
+          },
+          "cancellation": "unsupported"
+        }
+      ]
+    },
+    "sponsorTicketsRequestSchema": {
+      "ticketRefs": ["seat-1", "seat-2"],
+      "auth": {
+        "sponsor": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+        "nonce": "0x4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e",
+        "issuedAt": 1793707200000,
+        "signature": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e"
+      }
+    },
+    "sponsorTicketsResponseSchema": {
+      "campaignId": "0xc1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+      "tickets": [
+        {
+          "reference": "seat-1",
+          "pass": "0x7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a"
+        }
+      ],
+      "issuedAt": 1793707200000
+    },
+    "sponsorTicketRevocationRequestSchema": {
+      "ticketRefs": ["seat-2"],
+      "auth": {
+        "sponsor": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+        "nonce": "0x4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e",
+        "issuedAt": 1793707200000,
+        "signature": "0x5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e"
+      }
+    },
+    "sponsorTicketRevocationResponseSchema": {
+      "campaignId": "0xc1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+      "revoked": ["seat-2"]
     }
   },
   "variants": {

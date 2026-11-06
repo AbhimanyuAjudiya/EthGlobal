@@ -38,6 +38,7 @@ export const HCS_TYPES = [
   'agent-topup',
   'agent-pass',
   'plan-cancel',
+  'campaign-reclaim',
 ] as const;
 export type HcsType = (typeof HCS_TYPES)[number];
 

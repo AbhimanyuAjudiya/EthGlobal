@@ -50,6 +50,7 @@ const LEDGER_WRITES = [
   '/sponsor',
   '/sponsor/:id/cards',
   '/sponsor/:id/tickets',
+  '/sponsor/:id/tickets/revoke',
   '/agent/policy',
   '/plan/cancel',
 ];

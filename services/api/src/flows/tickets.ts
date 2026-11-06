@@ -11,6 +11,7 @@ export interface CampaignTicket {
   reference: string;
   passHash: Hex;
   issuedAt: number;
+  revokedAt?: number;
   binding?: { claimKey: Hex; sessionPubKey: Hex; recoveryKeyHash: Hex; boundAt: number };
 }
 
@@ -52,9 +53,14 @@ export function ticketAdmission(
   deps: Deps,
   campaign: Campaign,
   input: { ticketPass?: string; eventNoticeVersion?: 1; sessionPubKey: Hex; recoveryKeyHash?: Hex },
+  options: { requireNotice?: boolean } = {},
 ): (claimKey: Hex) => Promise<boolean> {
   if (!campaign.event?.ticketRequired) throw fail('ticket_required');
-  if (campaign.event.reclaimUnused && input.eventNoticeVersion !== campaign.event.noticeVersion)
+  if (
+    options.requireNotice !== false &&
+    campaign.event.reclaimUnused &&
+    input.eventNoticeVersion !== campaign.event.noticeVersion
+  )
     throw fail('invalid_request', { detail: 'accept the disclosed event cancellation terms' });
   if (!input.ticketPass || !/^0x[0-9a-f]{64}$/i.test(input.ticketPass) || !input.recoveryKeyHash)
     throw fail('ticket_required');
@@ -63,7 +69,7 @@ export function ticketAdmission(
   const find = () =>
     deps.campaignTickets.get(id)?.tickets.find((ticket) => ticket.passHash === hash);
   const initial = find();
-  if (!initial) throw fail('ticket_invalid');
+  if (!initial || initial.revokedAt !== undefined) throw fail('ticket_invalid');
   const matchesHolder = (ticket: CampaignTicket) =>
     !ticket.binding ||
     (ticket.binding.sessionPubKey === input.sessionPubKey &&
@@ -73,6 +79,7 @@ export function ticketAdmission(
     deps.mutex.run(`tickets:${id}`, async () => {
       const book = deps.campaignTickets.get(id);
       const ticket = find();
+      if (ticket?.revokedAt !== undefined) throw fail('ticket_invalid');
       if (!book || !ticket || !matchesHolder(ticket)) throw fail('ticket_used');
       if (ticket.binding) {
         if (ticket.binding.claimKey !== claimKey) throw fail('ticket_used');

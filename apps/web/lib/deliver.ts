@@ -1,7 +1,7 @@
 /**
  * One delivery path for every lane that returns `entitledResponseSchema` (/claim, /esim/provision,
  * /gift/claim, /card/redeem): open the sealed LPA with the in-memory session key (zeroised inside
- * openDelivery), keep the LPA (one at a time) and the key in IndexedDB, make the plan this device's current one,
+ * openDelivery), keep the LPA (encrypted, one per plan) and the key in IndexedDB, make the plan this device's current one,
  * record the issuing facts /plan replays once.
  */
 import type { SealedBox } from '@ethglobal/crypto';
@@ -39,6 +39,14 @@ export async function deliver(
   });
   // the person just claimed or bought this plan on this device: it becomes the one /install acts on
   await plans.adopt(key);
+  // the trip's label on /plan ("My plans"): the event and its destination, from the issuing answer
+  if (res.event)
+    await plans.saveMetadata(key, {
+      eventId: res.event.campaignId,
+      eventName: res.event.name,
+      destinationCountry: res.event.destinationCountry,
+      createdAt: Date.now(),
+    });
   await plans.saveIssued(key, {
     ...facts,
     arkivKey: res.receipt.arkivKey,

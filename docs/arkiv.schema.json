@@ -118,6 +118,43 @@
             "simulated"
           ]
         },
+        "lifecycle": {
+          "type": "object",
+          "properties": {
+            "startsOn": {
+              "type": "string",
+              "enum": [
+                "first-network",
+                "installation",
+                "unknown"
+              ]
+            },
+            "activatedAt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "serviceExpiresAt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "installBy": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "validityDays": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "startsOn"
+          ],
+          "additionalProperties": false
+        },
         "iccidHash": {
           "type": "string",
           "pattern": "^0x[0-9a-fA-F]{64}$"
@@ -301,6 +338,56 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "event": {
+          "type": "object",
+          "properties": {
+            "destinationCountry": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            },
+            "startsAt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "endsAt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "reclaimAfter": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "ticketRequired": {
+              "type": "boolean",
+              "const": true
+            },
+            "reclaimUnused": {
+              "type": "boolean"
+            },
+            "refundBasis": {
+              "type": "string",
+              "const": "claim-price"
+            },
+            "noticeVersion": {
+              "type": "number",
+              "const": 1
+            }
+          },
+          "required": [
+            "destinationCountry",
+            "startsAt",
+            "endsAt",
+            "reclaimAfter",
+            "ticketRequired",
+            "reclaimUnused",
+            "refundBasis",
+            "noticeVersion"
+          ],
+          "additionalProperties": false
         },
         "ens": {
           "type": "object",
@@ -601,7 +688,8 @@
             "gift-claim",
             "gift-reclaim",
             "card-redeem",
-            "plan-cancel"
+            "plan-cancel",
+            "campaign-reclaim"
           ]
         },
         "entitlementKeyHash": {

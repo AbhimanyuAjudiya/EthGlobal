@@ -3,7 +3,8 @@
  * `/c/<slug>` — claim by ENS name (ens/README.md): `<slug>.re-charge.eth` is resolved in the browser on Sepolia
  * (lib/ens.ts). A live name that points at our DataDrop shows the sponsor's branding and "Get … free", which opens the
  * World ID claim for THAT campaign (/verify?campaign=<id>); anything else (unknown, expired, a look-alike) says the
- * campaign has ended and offers paid data.
+ * campaign has ended and offers paid data. In MODE=live the API discloses a campaign only to a ticket preview, so a
+ * live name shows the branding and says the organizer's private pass link is the way in.
  */
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -20,7 +21,8 @@ import {
   type CampaignName as Resolved,
 } from '../lib/ens';
 
-type State = { kind: 'loading' } | { kind: 'offline' } | ({ kind: 'done' } & Resolved);
+type State =
+  { kind: 'loading' } | { kind: 'offline' } | ({ kind: 'done'; passRequired?: boolean } & Resolved);
 
 export function CampaignByNameRoute() {
   const { slug: raw } = useParams<{ slug: string | string[] }>();
@@ -43,6 +45,12 @@ export function CampaignByName({ slug }: { slug: string }) {
         if (checked.ok) {
           const plans = await api.plans(checked.campaignId).catch(() => undefined);
           const c = plans?.campaign;
+          // live never answers with the campaign: only the pass link can open (and verify) the claim
+          const live = plans ? plans.mode === 'live' : process.env.NEXT_PUBLIC_MODE === 'live';
+          if (live) {
+            if (alive) setState({ kind: 'done', ...checked, passRequired: true });
+            return;
+          }
           if (plans && (!c || c.paused || c.remainingClaims === 0)) {
             if (alive) setState({ kind: 'done', ok: false, name: checked.name, reason: 'expired' });
             return;
@@ -82,7 +90,7 @@ export function CampaignByName({ slug }: { slug: string }) {
     );
   } else if (!state.ok) {
     body = (
-      <div role="status" data-testid="campaign-ended">
+      <div role="status" className="campaign-page__ended" data-testid="campaign-ended">
         <p className="sheet__lede">This campaign has ended.</p>
         <div className="sheet__actions">
           <Link href="/pay" className="ui-button" data-variant="primary" prefetch={false}>
@@ -93,16 +101,25 @@ export function CampaignByName({ slug }: { slug: string }) {
     );
   } else {
     const bundle = state.bundle?.split('·')[0]?.trim() ?? 'data';
+    // "1 GB" → the figure and its unit: the bundle is this page's one hero, as the MB is on the coupon
+    const [figure, ...unit] = bundle.split(' ');
     body = (
-      <div data-testid="campaign-live">
+      <div className="campaign-page__live" data-testid="campaign-live">
+        {state.bundle ? (
+          <p className="campaign-hero">
+            <span className="campaign-hero__figure">{figure}</span>
+            <span className="campaign-hero__unit">{unit.join(' ')} free</span>
+          </p>
+        ) : null}
         {state.avatar && !avatarFailed ? (
           // ENS's avatar service, not next/image: no image proxy on our side; CSP img-src allows only that host
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={ensAvatarUrl(state.name)}
             alt=""
-            width={72}
-            height={72}
+            width={48}
+            height={48}
+            className="campaign-page__avatar"
             onError={() => setAvatarFailed(true)}
           />
         ) : null}
@@ -115,16 +132,30 @@ export function CampaignByName({ slug }: { slug: string }) {
           </p>
         ) : null}
         {state.bundle ? <p className="note">{state.bundle}, paid by the sponsor</p> : null}
-        <div className="sheet__actions">
-          <Link
-            href={`/verify?campaign=${state.campaignId}`}
-            className="ui-button ui-button--block"
-            data-variant="primary"
-            prefetch={false}
-          >
-            Get {bundle} free
-          </Link>
-        </div>
+        {state.passRequired ? (
+          <>
+            <p role="status" data-testid="pass-required">
+              This event&apos;s {bundle} is claimed through the private pass link your organizer
+              sent with your ticket. This public name alone does not open the claim.
+            </p>
+            <div className="sheet__actions">
+              <Link href="/pay" className="ui-button" data-variant="secondary" prefetch={false}>
+                Buy data
+              </Link>
+            </div>
+          </>
+        ) : (
+          <div className="sheet__actions">
+            <Link
+              href={`/verify?campaign=${state.campaignId}`}
+              className="ui-button ui-button--block"
+              data-variant="primary"
+              prefetch={false}
+            >
+              Get {bundle} free
+            </Link>
+          </div>
+        )}
       </div>
     );
   }
@@ -132,7 +163,7 @@ export function CampaignByName({ slug }: { slug: string }) {
   return (
     <Screen>
       <AppHeader />
-      <section className="sheet" aria-labelledby="campaign-name">
+      <section className="sheet campaign-page" aria-labelledby="campaign-name">
         <h1 id="campaign-name" className="sheet__kicker mono-key">
           {name}
         </h1>

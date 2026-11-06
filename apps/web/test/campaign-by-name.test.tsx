@@ -60,6 +60,16 @@ describe('/c/<slug> — claim by ENS name', () => {
     expect(screen.queryByText(/free$/)).toBeNull();
   });
 
+  it('in live the API discloses no campaign to a name: the pass link is the way in, not /verify?campaign=', async () => {
+    vi.stubEnv('NEXT_PUBLIC_MODE', 'live');
+    mocks.read.mockResolvedValue(facts(ours));
+    render(<CampaignByName slug="goa-beach" />, { wrapper: Wallets });
+    expect((await screen.findByTestId('pass-required')).textContent).toMatch(/private pass link/);
+    expect(screen.queryByRole('link', { name: /free$/ })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Buy data' }).getAttribute('href')).toBe('/pay');
+    vi.unstubAllEnvs();
+  });
+
   it('an expired name has ended', async () => {
     mocks.read.mockResolvedValue(facts(ours, BigInt(Math.floor(Date.now() / 1000) - 60)));
     render(<CampaignByName slug="goa-beach" />, { wrapper: Wallets });

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { PLAN_MB, type Hex } from '@ethglobal/protocol/ids';
-import type { ChallengeWire } from '@ethglobal/protocol/schemas';
+import type { ChallengeWire, PlansResponse } from '@ethglobal/protocol/schemas';
 import { Button, Coupon } from '@ethglobal/ui/components';
 
 import { ProofPanel } from './ProofPanel';
@@ -28,6 +28,7 @@ import {
   submitTicketPass,
   rejectTicketPass,
 } from '../lib/redeem';
+import { plans as planStore } from '../lib/store';
 
 type Phase =
   | { kind: 'preparing' }
@@ -88,6 +89,15 @@ async function openIdkit(
   return req.pollUntilCompletion({ pollInterval: 2000, timeout: 120_000 });
 }
 
+/** "India" for IN in the reader's language; the code itself when the runtime has no name for it. */
+function regionName(code: string, lang: string): string {
+  try {
+    return new Intl.DisplayNames([lang], { type: 'region' }).of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
+
 const SEEN = new Set(['replay', 'already_claimed']);
 const SPONSOR = new Set(['hourly_cap', 'budget_exhausted', 'campaign_paused', 'campaign_expired']);
 
@@ -103,11 +113,44 @@ function phaseFor(e: unknown, t: (k: ReturnType<typeof errorKey>) => string): Ph
   return { kind: 'closed', retryS: err.retryAfterS ?? 30, message: t(errorKey(err.code)) };
 }
 
+/**
+ * Determinate ring for "Checking": fills toward SLOW_CLAIM_MS from the elapsed time, redrawn on the 1 s clock (no
+ * CSS animation). ponytail: holds at 95 % past 10 s — the line then says it can take a minute; the API gives no
+ * real progress to draw.
+ */
+function CheckingRing({ elapsed }: { elapsed: number }) {
+  const r = 9;
+  const c = 2 * Math.PI * r;
+  const done = Math.min(0.95, Math.max(0, elapsed / SLOW_CLAIM_MS));
+  return (
+    <svg
+      className="verify-sheet__ring"
+      viewBox="0 0 24 24"
+      width="24"
+      height="24"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r={r} className="verify-sheet__ring-track" />
+      <circle
+        cx="12"
+        cy="12"
+        r={r}
+        className="verify-sheet__ring-fill"
+        strokeDasharray={c}
+        strokeDashoffset={c * (1 - done)}
+      />
+    </svg>
+  );
+}
+
 /** `campaignId`: claim for that campaign (from /c/<slug>, the ENS name) instead of the default one. */
 export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
   const { t, lang } = useLang();
   const router = useRouter();
-  const { plans } = usePlans(campaignId);
+  const { plans: fetched } = usePlans(campaignId);
+  // live GET /plans discloses no campaign: a valid pass gets its facts from the preview, in the same shape
+  const [previewPlans, setPreviewPlans] = useState<PlansResponse>();
+  const plans = fetched?.campaign || !previewPlans ? fetched : previewPlans;
   const now = useClock(1000);
   const [phase, setPhase] = useState<Phase>({ kind: 'preparing' });
   // read once on the client; the server never renders the `waiting` phase, so no hydration mismatch
@@ -134,9 +177,9 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
     const prepareSession = async () => {
       const fragment = new URLSearchParams(window.location.hash.slice(1));
       const pass = fragment.get('ticket');
-      if (pass) {
-        const id = campaignId ?? plans?.campaign?.id;
-        if (!id) return undefined;
+      const id = campaignId ?? fetched?.campaign?.id;
+      // a pass without a campaign cannot be kept: the sheet then says the organizer's link is needed
+      if (pass && id) {
         await rememberTicketPass(id, pass);
         fragment.delete('ticket');
         const rest = fragment.toString();
@@ -146,12 +189,22 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
           `${window.location.pathname}${window.location.search}${rest ? `#${rest}` : ''}`,
         );
       }
-      return prepareFreeClaim(campaignId ?? plans?.campaign?.id);
+      const next = await prepareFreeClaim(id);
+      // the pass is checked, and the event it is for disclosed, before the sheet asks for World ID
+      const preview =
+        next.ticketPass && id
+          ? await api.previewTicket(
+              { campaignId: id as Hex, ticketPass: next.ticketPass, sessionPubKey: next.spk },
+              next.recoveryToken,
+            )
+          : undefined;
+      return { next, preview };
     };
     prepareSession().then(
-      (next) => {
-        if (!alive || !next) return;
+      ({ next, preview }) => {
+        if (!alive) return;
         session.current = next;
+        if (preview) setPreviewPlans(preview.plans);
         setHasTicket(!!next.ticketPass);
         setPhase({ kind: 'ready' });
       },
@@ -160,7 +213,7 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
     return () => {
       alive = false;
     };
-  }, [round, campaignId, plans?.campaign?.id]);
+  }, [round, campaignId, fetched?.campaign?.id]);
   const prepare = () => {
     setPhase({ kind: 'preparing' });
     setRound((n) => n + 1);
@@ -207,6 +260,16 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
           s.spk,
         );
         await finishRedemption(s.operation, key, res.status === 201 && !res.data.sealedLpa);
+        // which event and country this plan was claimed for, so the plans list can tell two trips apart
+        await planStore
+          .saveMetadata(key, {
+            eventId: campaign.id,
+            eventName: campaign.name,
+            planName: campaign.name,
+            createdAt: Date.now(),
+            ...(campaign.event ? { destinationCountry: campaign.event.destinationCountry } : {}),
+          })
+          .catch(() => undefined);
         // 201 and 202 deliver the same way: a pending profile has no LPA yet and /plan says so (T-25)
         router.push(planHref(key));
       } catch (e) {
@@ -322,7 +385,9 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
                 {t('verify.open')}
               </a>
               {showQr ? (
-                <QrCode url={phase.connectorURI} sizeMm={44} label={t('verify.scan')} />
+                <div className="verify-sheet__qr">
+                  <QrCode url={phase.connectorURI} sizeMm={44} label={t('verify.scan')} />
+                </div>
               ) : (
                 <Button variant="quiet" onClick={() => setShowQr(true)}>
                   {t('verify.showQr')}
@@ -331,7 +396,9 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
             </>
           ) : phase.connectorURI ? (
             <>
-              <QrCode url={phase.connectorURI} sizeMm={44} label={t('verify.scan')} />
+              <div className="verify-sheet__qr">
+                <QrCode url={phase.connectorURI} sizeMm={44} label={t('verify.scan')} />
+              </div>
               <p className="quiet-rows">
                 <a href={phase.connectorURI} lang={lang}>
                   {t('verify.open')}
@@ -344,11 +411,14 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
       break;
     case 'checking':
       status = (
-        <p role="status" lang={lang}>
-          {t(now - phase.since >= SLOW_CLAIM_MS ? 'verify.checkingLong' : 'verify.checking', {
-            elapsed: `${Math.max(1, Math.round((now - phase.since) / 1000))} s`,
-          })}
-        </p>
+        <div className="verify-sheet__checking">
+          <CheckingRing elapsed={now - phase.since} />
+          <p role="status" lang={lang}>
+            {t(now - phase.since >= SLOW_CLAIM_MS ? 'verify.checkingLong' : 'verify.checking', {
+              elapsed: `${Math.max(1, Math.round((now - phase.since) / 1000))} s`,
+            })}
+          </p>
+        </div>
       );
       break;
     case 'unconfirmed':
@@ -418,28 +488,51 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
   }
 
   const canStart = phase.kind === 'ready' || phase.kind === 'failed';
-  const ticketRequired = plans?.mode === 'live' || plans?.campaign?.event?.ticketRequired;
-  const event = plans?.campaign?.event;
+  const campaign = plans?.campaign;
+  const ticketRequired = plans?.mode === 'live' || campaign?.event?.ticketRequired;
+  const event = campaign?.event;
+  // no pass on this browser: in live there is no default campaign, so nothing can be claimed from here
+  const needsPass = phase.kind === 'ready' && !!ticketRequired && !hasTicket;
   const admissionReady =
-    !!plans?.campaign && (!ticketRequired || hasTicket) && (!event?.reclaimUnused || acceptedTerms);
+    !!campaign && (!ticketRequired || hasTicket) && (!event?.reclaimUnused || acceptedTerms);
   return (
     <Screen wide className="verify-screen">
       <AppHeader />
-      <div className="verify-layout">
+      <div className="verify-stage">
         {plans?.campaign ? (
-          <div className="verify__coupon" aria-hidden="true">
+          <div className="verify-stage__coupon" aria-hidden="true">
             <Coupon mb={mb} sponsor={plans.campaign.name} lang={lang} />
           </div>
         ) : null}
-        <section className="sheet" aria-labelledby="verify-title">
-          <h1 id="verify-title" className="sheet__kicker" lang={lang}>
+        <section className="sheet verify-sheet" aria-labelledby="verify-title">
+          {campaign ? (
+            // which event this page claims for: two pass links for two countries must not look alike
+            <div className="verify-sheet__event" data-testid="claim-event" lang={lang}>
+              <p className="verify-sheet__label">{t('verify.eventFor')}</p>
+              <p className="verify-sheet__event-name">{campaign.name}</p>
+              {event ? (
+                <p className="verify-sheet__event-when">
+                  {regionName(event.destinationCountry, lang)} ·{' '}
+                  {new Date(event.startsAt).toLocaleDateString(lang)} –{' '}
+                  {new Date(event.endsAt).toLocaleDateString(lang)}
+                </p>
+              ) : null}
+              <p className="note">{t('verify.eventBundle', { mb: formatMb(mb) })}</p>
+            </div>
+          ) : null}
+          <h1 id="verify-title" className="verify-sheet__title" lang={lang}>
             {t('verify.title')}
           </h1>
-          <p className="sheet__lede sheet__lede--dominant" lang={lang}>
+          <p className="verify-sheet__lede" lang={lang}>
             {t('verify.lede')}
           </p>
-          {ticketRequired ? (
-            <p lang={lang}>{t(hasTicket ? 'verify.ticketExplained' : 'verify.ticketNeeded')}</p>
+          {needsPass ? (
+            <div className="verify-sheet__pass" role="status" data-testid="pass-needed" lang={lang}>
+              <p>{t('verify.passNeeded')}</p>
+              <p className="note">{t('verify.ticketNeeded')}</p>
+            </div>
+          ) : ticketRequired && hasTicket ? (
+            <p lang={lang}>{t('verify.ticketExplained')}</p>
           ) : null}
           {event ? (
             <p className="note" lang={lang}>
@@ -447,13 +540,13 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
             </p>
           ) : null}
           {event?.reclaimUnused ? (
-            <div className="quiet-rows">
+            <div className="verify-sheet__terms">
               <p lang={lang}>
                 {t('verify.reclaimTerms', {
                   date: new Date(event.reclaimAfter).toLocaleDateString(lang),
                 })}
               </p>
-              <label>
+              <label className="verify-sheet__check">
                 <input
                   type="checkbox"
                   checked={acceptedTerms}
@@ -464,10 +557,10 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
               </label>
             </div>
           ) : null}
-          <div className="verify__status">{status}</div>
+          <div className="verify-sheet__status">{status}</div>
           <Caution k="warn.thisBrowser" />
           <div className="sheet__actions">
-            {canStart ? (
+            {canStart && !needsPass ? (
               <Button block onClick={() => void start()} disabled={!admissionReady}>
                 {process.env.NEXT_PUBLIC_MODE === 'local'
                   ? t('verify.simulated')
@@ -498,7 +591,8 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
             ) : null}
             {phase.kind === 'failed' ||
             phase.kind === 'noCredential' ||
-            phase.kind === 'sponsorFailed' ? (
+            phase.kind === 'sponsorFailed' ||
+            needsPass ? (
               <Link href="/pay" className="ui-button" data-variant="secondary" prefetch={false}>
                 {t('landing.payInstead', { price, mb: payMb })}
               </Link>

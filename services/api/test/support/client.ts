@@ -26,6 +26,9 @@ import {
   rechargeDomain,
   SPONSOR_CARDS_TYPES,
   SPONSOR_LOGIN_TYPES,
+  SPONSOR_TICKET_REVOCATION_TYPES,
+  SPONSOR_TICKETS_TYPES,
+  sponsorTicketsHash,
 } from '@ethglobal/protocol/typed-data';
 import { encodePaymentPayload, sessionNonce } from '@ethglobal/protocol/x402';
 
@@ -180,6 +183,42 @@ export async function sponsorCardsRequest(
   return {
     count: o.count,
     mb: o.mb,
+    auth: { sponsor: account.address, nonce, issuedAt: o.issuedAt, signature },
+  };
+}
+
+/** The body of POST /sponsor/:id/tickets (`SponsorTickets`) or …/tickets/revoke (`SponsorTicketRevocation`). */
+export async function sponsorTicketsRequest(
+  key: Hex,
+  chainId: number,
+  campaignId: Hex,
+  o: { ticketRefs: string[]; issuedAt: number; nonce?: Hex; revoke?: boolean },
+) {
+  const account = privateKeyToAccount(key);
+  const nonce = o.nonce ?? bytesToHex(randomBytes(32));
+  const message = {
+    campaignId,
+    sponsor: account.address,
+    ticketsHash: await sponsorTicketsHash(o.ticketRefs),
+    nonce,
+    issuedAt: BigInt(o.issuedAt),
+  };
+  const domain = rechargeDomain(chainId);
+  const signature = o.revoke
+    ? await account.signTypedData({
+        domain,
+        types: SPONSOR_TICKET_REVOCATION_TYPES,
+        primaryType: 'SponsorTicketRevocation',
+        message,
+      })
+    : await account.signTypedData({
+        domain,
+        types: SPONSOR_TICKETS_TYPES,
+        primaryType: 'SponsorTickets',
+        message,
+      });
+  return {
+    ticketRefs: o.ticketRefs,
     auth: { sponsor: account.address, nonce, issuedAt: o.issuedAt, signature },
   };
 }

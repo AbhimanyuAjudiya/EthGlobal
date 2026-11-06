@@ -45,6 +45,8 @@ import {
   sponsorViewSchema,
   sponsorTicketsRequestSchema,
   sponsorTicketsResponseSchema,
+  sponsorTicketRevocationRequestSchema,
+  sponsorTicketRevocationResponseSchema,
   supportedResponseSchema,
   topUpQuerySchema,
   topUpResponseSchema,
@@ -80,11 +82,12 @@ export const OPERATIONS: readonly Operation[] = [
   {
     method: 'post',
     path: '/ticket/preview',
-    summary: 'Validate a private event pass before World ID; does not reserve it',
+    summary:
+      'Validate a private event pass before World ID; does not reserve it. The only live disclosure of campaign terms',
     body: previewSchema,
     headers: ['Idempotency-Key'],
     responses: {
-      200: z.object({ valid: z.literal(true), campaignId: z.string() }),
+      200: z.object({ valid: z.literal(true), campaignId: z.string(), plans: plansResponseSchema }),
       400: errorBodySchema,
       401: errorBodySchema,
       403: errorBodySchema,
@@ -109,6 +112,21 @@ export const OPERATIONS: readonly Operation[] = [
     },
   },
   {
+    method: 'post',
+    path: '/sponsor/{id}/tickets/revoke',
+    params: ['id'],
+    summary: 'Revoke unreserved ticket passes; a revoked reference can never be reissued',
+    body: sponsorTicketRevocationRequestSchema,
+    responses: {
+      200: sponsorTicketRevocationResponseSchema,
+      400: errorBodySchema,
+      401: errorBodySchema,
+      404: errorBodySchema,
+      409: errorBodySchema,
+      429: errorBodySchema,
+    },
+  },
+  {
     method: 'get',
     path: '/sponsor/{id}/tickets',
     params: ['id'],
@@ -121,7 +139,7 @@ export const OPERATIONS: readonly Operation[] = [
           z.object({
             reference: z.string(),
             issuedAt: z.number(),
-            status: z.enum(['issued', 'reserved']),
+            status: z.enum(['issued', 'reserved', 'revoked']),
           }),
         ),
       }),
@@ -138,7 +156,7 @@ export const OPERATIONS: readonly Operation[] = [
     method: 'get',
     path: '/plans',
     summary:
-      'Campaign, paid terms and gift sizes (cached 60 s); ?campaign=<id> answers for that registered campaign',
+      'Paid terms and gift sizes (cached 60 s). Live: campaign is always null (terms come from POST /ticket/preview); local: the default campaign, or ?campaign=<id>',
     query: plansQuerySchema,
     responses: { 200: plansResponseSchema, 400: errorBodySchema },
   },

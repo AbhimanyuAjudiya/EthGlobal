@@ -149,16 +149,17 @@ export const api = {
         schema: rpContextSchema,
       })
     ).data,
+  /** A valid pass discloses the campaign's facts as `plans` (shaped like /plans, which in live carries none). */
   previewTicket: async (
     body: { campaignId: Hex; ticketPass: Hex; sessionPubKey: Hex; eventNoticeVersion?: 1 },
     recoveryToken: string,
-  ) =>
-    (
-      await call<{ valid: true; campaignId: Hex }>('/ticket/preview', {
-        body,
-        headers: { 'Idempotency-Key': recoveryToken },
-      })
-    ).data,
+  ) => {
+    const { data } = await call<{ valid: true; campaignId: Hex; plans: unknown }>(
+      '/ticket/preview',
+      { body, headers: { 'Idempotency-Key': recoveryToken } },
+    );
+    return { ...data, plans: plansResponseSchema.parse(data.plans) };
+  },
   claim: (
     body: {
       proof: unknown;

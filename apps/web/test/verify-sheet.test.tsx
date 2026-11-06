@@ -8,6 +8,7 @@ import { SLOW_CLAIM_MS, VerifySheet } from '../components/VerifySheet';
 import { Wallets } from '../components/Wallets';
 import { LangProvider } from '../i18n/lang';
 import { ApiError } from '../lib/api';
+import { del } from '../lib/store';
 
 import type * as ApiModule from '../lib/api';
 import type * as DeliverModule from '../lib/deliver';
@@ -36,6 +37,7 @@ const mocks = vi.hoisted(() => {
     challenge: vi.fn(),
     rpContext: vi.fn(),
     claim: vi.fn<(body: { sessionPubKey: string }, recoveryToken?: string) => Promise<unknown>>(),
+    previewTicket: vi.fn(),
     deliver: vi.fn(),
     poll: vi.fn(),
   };
@@ -50,7 +52,13 @@ vi.mock('../lib/api', async (importOriginal) => {
   const mod = await importOriginal<typeof ApiModule>();
   return {
     ...mod,
-    api: { ...mod.api, challenge: mocks.challenge, rpContext: mocks.rpContext, claim: mocks.claim },
+    api: {
+      ...mod.api,
+      challenge: mocks.challenge,
+      rpContext: mocks.rpContext,
+      claim: mocks.claim,
+      previewTicket: mocks.previewTicket,
+    },
   };
 });
 vi.mock('../lib/local/world-sim', () => ({ simulatedProof: () => Promise.resolve({ sim: true }) }));
@@ -290,4 +298,60 @@ it('keeps the claim session stable when language changes during delivery', async
   localStorage.removeItem('recharge.lang');
   vi.unstubAllEnvs();
   vi.clearAllMocks();
+});
+
+describe('VerifySheet — a pass link says which event it claims for (live)', () => {
+  const LOCAL = mocks.plans;
+  const ID = `0x${'4'.repeat(64)}`;
+  const PASS = `0x${'7'.repeat(64)}`;
+  /** What the pass preview discloses: live GET /plans itself carries `campaign: null`. */
+  const EVENT: PlansResponse = {
+    ...LOCAL,
+    mode: 'live',
+    campaign: {
+      ...LOCAL.campaign!,
+      id: ID,
+      name: 'Goa Welcome',
+      event: {
+        destinationCountry: 'IN',
+        startsAt: Date.UTC(2026, 11, 5),
+        endsAt: Date.UTC(2026, 11, 7),
+        reclaimAfter: Date.UTC(2026, 11, 8),
+        ticketRequired: true,
+        reclaimUnused: false,
+        refundBasis: 'claim-price',
+        noticeVersion: 1,
+      },
+    },
+  };
+  afterEach(async () => {
+    mocks.plans = LOCAL;
+    window.location.hash = '';
+    await del(`ticket:redemption:claim:${ID}`);
+    vi.unstubAllEnvs();
+    vi.clearAllMocks();
+  });
+
+  it('names the event, its country and the bundle from the preview, before World App is asked', async () => {
+    vi.stubEnv('NEXT_PUBLIC_MODE', 'live');
+    mocks.plans = { ...EVENT, campaign: null };
+    mocks.challenge.mockResolvedValue(CHALLENGE);
+    mocks.previewTicket.mockResolvedValue({ valid: true, campaignId: ID, plans: EVENT });
+    window.location.hash = `#ticket=${PASS}`;
+    render(<VerifySheet campaignId={ID} />, { wrapper: Wallets });
+    const event = await screen.findByTestId('claim-event');
+    expect(event.textContent).toContain('Goa Welcome');
+    expect(event.textContent).toContain('India');
+    expect(event.textContent).toMatch(/300\sMB/);
+    expect(mocks.previewTicket).toHaveBeenCalledWith(
+      expect.objectContaining({ campaignId: ID, ticketPass: PASS }),
+      expect.any(String),
+    );
+    // the pass left the address bar, the claim is open, and nothing says a pass is missing
+    expect(window.location.hash).toBe('');
+    expect(screen.getByRole('button', { name: 'Open World App' }).hasAttribute('disabled')).toBe(
+      false,
+    );
+    expect(screen.queryByTestId('pass-needed')).toBeNull();
+  });
 });

@@ -179,6 +179,12 @@ export const receiptRefSchema = z.object({
   hcs: hcsRefSchema.optional(),
 });
 /** Returned by /claim, /esim/provision, /gift/claim, /card/redeem. sealedLpa appears exactly once (T-31). */
+/** Minimal authoritative event context for a holder's saved plan; never inferred from the current campaign page. */
+export const planEventSchema = z.object({
+  campaignId: hex32Schema,
+  name: safeTextSchema(64),
+  destinationCountry: z.string().regex(/^[A-Z]{2}$/),
+});
 export const entitledResponseSchema = z.object({
   entitlementKey: z.string(),
   kind: entitlementKindSchema,
@@ -189,6 +195,7 @@ export const entitledResponseSchema = z.object({
   validityDays: z.int(),
   lifecycle: esimLifecycleSchema.optional(),
   campaignReclaim: campaignReclaimViewSchema.optional(),
+  event: planEventSchema.optional(),
   /** Absent when status = 'pending-profile'. */
   sealedLpa: sealedBoxSchema.optional(),
   /** DataDrop.claim tx (free lane / card). */
@@ -354,12 +361,13 @@ export const meResponseSchema = z.object({
   cancelledAt: msSchema.optional(),
   refund: planRefundSchema.optional(),
   campaignReclaim: campaignReclaimViewSchema.optional(),
+  event: planEventSchema.optional(),
 });
 export const receiptPublicSchema = receiptSchema.omit({ entitlementKeyHash: true, key: true });
 export const receiptsResponseSchema = z.object({ receipts: z.array(receiptPublicSchema) });
 
 const bundleMbSchema = z.object({ orb: mbSchema, document: mbSchema, device: z.literal(0) });
-/** GET /plans?campaign=<id>: that registered campaign instead of the default one (claim by ENS name, /c/<slug>). */
+/** Live GET /plans is generic. Ticket-authorized previews return scoped campaign terms using the same response. */
 export const plansQuerySchema = z.object({ campaign: hex32Schema.optional() });
 export const plansResponseSchema = z.object({
   mode: z.enum(['local', 'live']),
@@ -427,6 +435,13 @@ export const sponsorTicketsResponseSchema = z.object({
 });
 export type SponsorTicketsRequest = z.infer<typeof sponsorTicketsRequestSchema>;
 export type SponsorTicketsResponse = z.infer<typeof sponsorTicketsResponseSchema>;
+export const sponsorTicketRevocationRequestSchema = sponsorTicketsRequestSchema;
+export const sponsorTicketRevocationResponseSchema = z.object({
+  campaignId: hex32Schema,
+  revoked: z.array(z.string()),
+});
+export type SponsorTicketRevocationRequest = z.infer<typeof sponsorTicketRevocationRequestSchema>;
+export type SponsorTicketRevocationResponse = z.infer<typeof sponsorTicketRevocationResponseSchema>;
 export const sponsorRegisterSchema = z.object({
   campaign: campaignSchema.omit({ v: true, createdAt: true, ens: true }),
   auth: z.object(signedAuth),

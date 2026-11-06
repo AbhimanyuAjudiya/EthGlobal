@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => {
     ensure: vi.fn(async () => wallet),
     login: vi.fn(),
     plans: vi.fn(),
+    catalog: vi.fn(),
     register:
       vi.fn<(body: { campaign: { id: string } }) => Promise<{ id: string; auditKey: string }>>(),
     validate: vi.fn(async () => undefined),
@@ -41,12 +42,55 @@ vi.mock('../lib/env', async (original) => ({
 }));
 vi.mock('../lib/api', async (original) => ({
   ...(await original<typeof ApiModule>()),
-  api: { plans: mocks.plans, validateSponsor: mocks.validate, registerSponsor: mocks.register },
+  api: {
+    plans: mocks.plans,
+    catalog: mocks.catalog,
+    validateSponsor: mocks.validate,
+    registerSponsor: mocks.register,
+  },
 }));
 vi.mock('../lib/sponsor', async (original) => ({
   ...(await original<typeof SponsorModule>()),
   sponsorLogin: mocks.login,
 }));
+/** The one supported destination package the catalog mock offers. */
+const PACKAGE = {
+  id: 'in-1gb-7d',
+  name: 'India 1 GB',
+  mb: 1000,
+  validityDays: 7,
+  wholesaleUsd6: '1200000',
+  activation: { startsOn: 'first-network', installWithinDays: 180 },
+  cancellation: 'never-installed',
+} as const;
+const DAY = 86_400_000;
+/** A datetime-local value in this device's time zone, as the form reads it back. */
+const local = (ms: number) => {
+  const d = new Date(ms);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+/** Name the campaign, pick IN → the one package, and date a `days`-long event starting in ten days. */
+async function planEvent(days = 2) {
+  const startsAt = Date.now() + 10 * DAY;
+  const dates = {
+    startsAt,
+    endsAt: startsAt + days * DAY,
+    claimUntil: startsAt + DAY,
+    reclaimAfter: startsAt + days * DAY,
+  };
+  fireEvent.change(screen.getByTestId('campaign-name'), { target: { value: 'Mumbai Welcome' } });
+  fireEvent.change(screen.getByRole('textbox', { name: 'Destination country' }), {
+    target: { value: 'IN' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Find destination plans' }));
+  fireEvent.change(await screen.findByLabelText('Provider package'), {
+    target: { value: PACKAGE.id },
+  });
+  for (const [key, at] of Object.entries(dates))
+    fireEvent.change(screen.getByTestId(`campaign-${key}`), { target: { value: local(at) } });
+  return dates;
+}
 beforeEach(() => {
   localStorage.clear();
   mocks.wallet.reader.getBlock.mockResolvedValue({
@@ -64,6 +108,7 @@ beforeEach(() => {
   mocks.plans.mockResolvedValue({
     sponsor: { minPricePerClaimUsd6: '1200000', maxCampaignDurationMs: 181 * 86400000 },
   });
+  mocks.catalog.mockResolvedValue({ country: 'IN', plans: [PACKAGE] });
   mocks.login.mockResolvedValue({ issuedAt: Date.now(), signature: '0xaa' });
   mocks.register.mockImplementation(async ({ campaign }) => ({
     id: campaign.id,
@@ -75,11 +120,26 @@ afterEach(() => {
   localStorage.clear();
 });
 describe('sponsor preflight and resumed registration', () => {
-  it('validates metadata before approving or funding', async () => {
+  it('validates the package terms and the advertised floor before approving or funding', async () => {
     render(<CampaignForm />);
-    fireEvent.change(screen.getByTestId('campaign-validityDays'), { target: { value: '31' } });
+    const dates = await planEvent();
+    // a ten-day event on a seven-day package never reaches the API
+    const tenDays = local(dates.startsAt + 10 * DAY);
+    fireEvent.change(screen.getByTestId('campaign-endsAt'), { target: { value: tenDays } });
+    fireEvent.change(screen.getByTestId('campaign-reclaimAfter'), { target: { value: tenDays } });
     fireEvent.click(screen.getByTestId('campaign-submit'));
-    await waitFor(() => expect(mocks.plans).toHaveBeenCalled());
+    await screen.findByText(/Choose a package whose installation window and validity cover/, {
+      selector: 'p',
+    });
+    expect(mocks.plans).not.toHaveBeenCalled();
+    // dates back in range, but a claim priced under the advertised floor stops after GET /plans
+    const twoDays = local(dates.endsAt);
+    fireEvent.change(screen.getByTestId('campaign-endsAt'), { target: { value: twoDays } });
+    fireEvent.change(screen.getByTestId('campaign-reclaimAfter'), { target: { value: twoDays } });
+    fireEvent.change(screen.getByTestId('campaign-priceUsd'), { target: { value: '1.00' } });
+    fireEvent.click(screen.getByTestId('campaign-submit'));
+    await screen.findByText(/Each claim must fund at least \$1\.20 USDC/, { selector: 'p' });
+    expect(mocks.plans).toHaveBeenCalled();
     await waitFor(() =>
       expect(screen.getByTestId('campaign-submit').hasAttribute('disabled')).toBe(false),
     );
@@ -89,6 +149,7 @@ describe('sponsor preflight and resumed registration', () => {
   it('resumes the same funded campaign after reload without a second approve or funding transaction', async () => {
     mocks.login.mockRejectedValueOnce(new Error('Wallet closed'));
     const first = render(<CampaignForm />);
+    await planEvent();
     fireEvent.click(screen.getByTestId('campaign-submit'));
     await screen.findByText('Wallet closed');
     const saved = JSON.parse(localStorage.getItem('recharge.sponsor.pending')!) as {
@@ -109,6 +170,7 @@ describe('sponsor preflight and resumed registration', () => {
   it('does not approve or fund a provider plan rejected by server preflight', async () => {
     mocks.validate.mockRejectedValueOnce(new Error('Provider package cannot cover this campaign'));
     render(<CampaignForm />);
+    await planEvent();
     fireEvent.click(screen.getByTestId('campaign-submit'));
     await screen.findByText('Provider package cannot cover this campaign');
     expect(mocks.wallet.sendTransaction).not.toHaveBeenCalled();

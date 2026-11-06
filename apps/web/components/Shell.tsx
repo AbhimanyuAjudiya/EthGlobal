@@ -283,7 +283,10 @@ export function TabBar({
 }) {
   const [key, setKey] = useState<string | undefined>();
   useEffect(() => {
-    void plans.latest().then(setKey);
+    // "Make current" on /plan and a fresh claim re-point the tabs without a reload
+    const read = () => void plans.latest().then(setKey);
+    read();
+    return plans.subscribe(read);
   }, []);
   if (!key) return null;
   const k = encodeURIComponent(key);

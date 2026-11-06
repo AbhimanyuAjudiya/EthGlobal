@@ -1,7 +1,7 @@
-import { PlanIndex } from '../../components/routes';
+import { MyPlans } from '../../components/MyPlans';
 
-export const metadata = { title: 'Plan' };
+export const metadata = { title: 'My plans' };
 
 export default function Plan() {
-  return <PlanIndex />;
+  return <MyPlans />;
 }

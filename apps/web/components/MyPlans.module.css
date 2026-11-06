@@ -1,0 +1,100 @@
+/* This device's plans as ruled rows (the eSIM-wallet list), never cards: name and state left, data right. */
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.row {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  min-width: 0;
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--border-subtle);
+  overflow-wrap: anywhere;
+}
+
+/* the current plan: a 2 px teal rule on its leading edge, like the tab bar's current tab */
+.row[data-current]::before {
+  content: '';
+  position: absolute;
+  inset-block: var(--space-3);
+  inset-inline-start: calc(-1 * var(--space-3));
+  width: 2px;
+  background: var(--accent);
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  flex: 1 1 14rem;
+}
+
+.name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-16);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.meta,
+.offline {
+  margin: 0;
+  font-size: var(--text-13);
+  color: var(--text-tertiary);
+}
+
+.selected {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.side {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.data {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-size: var(--text-14);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.actions :global(.ui-button) {
+  text-decoration: none;
+}
+
+.ghostName,
+.ghostMeta,
+.ghostData {
+  display: block;
+  height: 1rem;
+  border-radius: 2px;
+}
+.ghostName {
+  width: 10rem;
+}
+.ghostMeta {
+  width: 14rem;
+  height: 0.75rem;
+}
+.ghostData {
+  width: 6rem;
+}

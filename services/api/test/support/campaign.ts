@@ -2,7 +2,7 @@
 
 import { campaignFromPayload, type Campaign } from '@ethglobal/octroi';
 import type { Hex } from '@ethglobal/protocol/ids';
-import type { SponsorRegister } from '@ethglobal/protocol/schemas';
+import type { CampaignEvent, SponsorRegister } from '@ethglobal/protocol/schemas';
 
 import type { Address } from 'viem';
 
@@ -22,6 +22,19 @@ export const campaignFields = (
   idResaleUsd6: '500000',
   planId: 'in-300mb-7d',
   network: 'eip155:31337',
+  ...o,
+});
+
+/** A ticket-gated event (`event.ticketRequired`): two days from `startsAt` (inside the 7-day plan), no reclaim. */
+export const eventFields = (startsAt: number, o: Partial<CampaignEvent> = {}): CampaignEvent => ({
+  destinationCountry: 'IN',
+  startsAt,
+  endsAt: startsAt + 2 * 86_400_000,
+  reclaimAfter: startsAt + 2 * 86_400_000,
+  ticketRequired: true,
+  reclaimUnused: false,
+  refundBasis: 'claim-price',
+  noticeVersion: 1,
   ...o,
 });
 

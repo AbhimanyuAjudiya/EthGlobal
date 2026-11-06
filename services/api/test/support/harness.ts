@@ -7,7 +7,12 @@ import { randomUUID } from 'node:crypto';
 
 import { namehash } from 'viem';
 
-import type { MockConsensusLog, MockReseller, MockTreasury } from '@ethglobal/adapters';
+import {
+  MOCK_PLANS,
+  MockReseller,
+  type MockConsensusLog,
+  type MockTreasury,
+} from '@ethglobal/adapters';
 import {
   anvilAccounts,
   anvilKeys,
@@ -20,10 +25,12 @@ import {
 import { bytesToHex, generateSessionKeypair, type SessionKeypair } from '@ethglobal/crypto';
 import { PLAN_MB, type Hex } from '@ethglobal/protocol/ids';
 import type {
+  CampaignEvent,
   ChallengeWire,
   EntitledResponse,
   GiftResponse,
   PaymentRequirements,
+  SponsorTicketsResponse,
 } from '@ethglobal/protocol/schemas';
 import { decodePaymentRequired, PAYMENT_SIGNATURE_HEADER } from '@ethglobal/protocol/x402';
 
@@ -34,6 +41,7 @@ import {
   scopedCampaignId,
   signGiftClaim,
   signGiftReclaim,
+  sponsorTicketsRequest,
 } from './client.js';
 import { createApp } from '../../src/app.js';
 import { buildDeps, type Deps, type DepsOverrides } from '../../src/deps.js';
@@ -50,7 +58,14 @@ export const SECRET = `0x${'07'.repeat(32)}`;
 export interface HarnessOptions {
   env?: Record<string, string>;
   overrides?: DepsOverrides;
-  campaign?: { claimsPerHour?: number; budget?: bigint; paused?: boolean; expiresInMs?: number };
+  campaign?: {
+    claimsPerHour?: number;
+    budget?: bigint;
+    paused?: boolean;
+    expiresInMs?: number;
+    /** A ticket-gated event campaign (eventFields): whole-package bundles, claims need an organizer pass. */
+    event?: CampaignEvent;
+  };
 }
 
 export type Harness = Awaited<ReturnType<typeof harness>>;
@@ -76,6 +91,21 @@ export async function harness(opts: HarnessOptions = {}) {
     dataDrop,
     anvilAnswers: async () => false,
     ...opts.overrides,
+    // an event campaign needs packages whose activation window is known (assertCampaignPlan); MOCK_PLANS' is not
+    ...(opts.campaign?.event && !opts.overrides?.adapters?.reseller
+      ? {
+          adapters: {
+            ...opts.overrides?.adapters,
+            reseller: new MockReseller({
+              now: clock.now,
+              plans: MOCK_PLANS.map((plan) => ({
+                ...plan,
+                activation: { startsOn: 'first-network', installWithinDays: 30 },
+              })),
+            }),
+          },
+        }
+      : {}),
   };
   const deps: Deps = await buildDeps(env, overrides);
   /**
@@ -106,6 +136,9 @@ export async function harness(opts: HarnessOptions = {}) {
       contract: dataDrop.address,
       createdAt: T0,
       expiresAt,
+      ...(opts.campaign?.event
+        ? { event: opts.campaign.event, bundleMb: { orb: 300, document: 300, device: 0 } }
+        : {}),
     }),
   );
   deps.seedCampaignId = campaignId;
@@ -150,6 +183,9 @@ export async function harness(opts: HarnessOptions = {}) {
       keys?: SessionKeypair;
       campaignId?: Hex;
       headers?: Record<string, string>;
+      /** Organizer-issued pass (issueTickets); sends an Idempotency-Key so the pass binds to this holder. */
+      ticketPass?: Hex;
+      eventNoticeVersion?: 1;
     } = {},
   ) {
     const keys = o.keys ?? generateSessionKeypair();
@@ -159,8 +195,15 @@ export async function harness(opts: HarnessOptions = {}) {
     const proof = fixtureProof(o.level ?? 'orb', challenge.signal as Hex, o.seed ?? 'human-1');
     const res = await json(
       '/claim',
-      { proof, campaignId: o.campaignId ?? campaignId, challenge, sessionPubKey: spk },
-      o.headers,
+      {
+        proof,
+        campaignId: o.campaignId ?? campaignId,
+        challenge,
+        sessionPubKey: spk,
+        ...(o.ticketPass === undefined ? {} : { ticketPass: o.ticketPass }),
+        ...(o.eventNoticeVersion === undefined ? {} : { eventNoticeVersion: o.eventNoticeVersion }),
+      },
+      { ...(o.ticketPass === undefined ? {} : { 'idempotency-key': randomUUID() }), ...o.headers },
     );
     return { res, keys, spk, challenge, proof };
   }
@@ -206,6 +249,17 @@ export async function harness(opts: HarnessOptions = {}) {
     treasury: deps.adapters.treasury as MockTreasury,
     adapters: deps.adapters,
   };
+}
+
+/** POST /sponsor/:id/tickets as the organizer (SPONSOR_KEY): the passes for `refs` on an event campaign. */
+export async function issueTickets(h: Harness, refs: string[], campaignId = h.campaignId) {
+  const body = await sponsorTicketsRequest(SPONSOR_KEY, h.deps.chainId, campaignId, {
+    ticketRefs: refs,
+    issuedAt: h.clock.now(),
+  });
+  const res = await h.json(`/sponsor/${campaignId}/tickets`, body);
+  if (res.status !== 201) throw new Error(`tickets ${res.status} ${await res.text()}`);
+  return ((await res.json()) as SponsorTicketsResponse).tickets.map((t) => t.pass as Hex);
 }
 
 /** The HCS messages of the deployment topic, parsed. */

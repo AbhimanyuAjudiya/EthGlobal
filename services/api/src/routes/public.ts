@@ -1,16 +1,6 @@
 /** Public health, destination catalog, campaign plans, challenges and metrics. */
-import {
-  challenge as issueChallenge,
-  MAX_CAMPAIGN_MS,
-  remainingCampaignClaims,
-} from '@ethglobal/octroi';
-import {
-  ENTITLEMENT_CACHE_S,
-  GIFT_CLAIM_WINDOW_S,
-  PLAN_MB,
-  STEP_MB,
-  type Hex,
-} from '@ethglobal/protocol/ids';
+import { challenge as issueChallenge } from '@ethglobal/octroi';
+import { ENTITLEMENT_CACHE_S, type Hex } from '@ethglobal/protocol/ids';
 import {
   challengeRequestSchema,
   catalogResponseSchema,
@@ -25,14 +15,14 @@ import { usd6ToWire } from '@ethglobal/protocol/units';
 import { inputOf, type AppEnv } from '../context.js';
 import { fail } from '../errors.js';
 import { catalogPlans } from '../flows/plan.js';
-import { campaignState } from '../middleware/octroi.js';
+import { buildPlans } from '../flows/public-plans.js';
 import { validateJson } from '../middleware/validate.js';
 
 import type { Deps } from '../deps.js';
 import type { Hono } from 'hono';
 
 /** Every paid lane (new plans, top-ups, gifts) sells one size: PLAN_MB, the smallest eSIM the reseller sells. */
-export const GIFT_SIZES_MB = [PLAN_MB];
+export { GIFT_SIZES_MB } from '../flows/public-plans.js';
 
 export function registerPublic(app: Hono<AppEnv>, deps: Deps): void {
   app.get('/healthz', async (c) => {
@@ -92,12 +82,12 @@ export function registerPublic(app: Hono<AppEnv>, deps: Deps): void {
     return c.json(await pending);
   });
 
-  // one cache entry per campaign asked for (`?campaign=`: claim by ENS name, /c/<slug>), '' = the default campaign
+  // One cache entry per explicitly requested campaign. Live generic plans never discover a campaign for a visitor.
   const plans = new Map<string, { at: number; body: PlansResponse }>();
   app.get('/plans', async (c) => {
     const query = plansQuerySchema.safeParse({ campaign: c.req.query('campaign') });
     if (!query.success) throw fail('invalid_request', [{ path: 'campaign', message: 'bytes32' }]);
-    const id = query.data.campaign?.toLowerCase() ?? '';
+    const id = deps.env.MODE === 'live' ? '' : (query.data.campaign?.toLowerCase() ?? '');
     let hit = plans.get(id);
     if (!hit || deps.now() - hit.at >= ENTITLEMENT_CACHE_S * 1000) {
       hit = { at: deps.now(), body: await buildPlans(deps, id === '' ? undefined : (id as Hex)) };
@@ -127,42 +117,3 @@ export function registerPublic(app: Hono<AppEnv>, deps: Deps): void {
 
 /** Distinct `?campaign=` answers kept (the global rate limit bounds how fast new ones arrive). */
 const PLANS_CACHE_MAX = 256;
-
-async function buildPlans(deps: Deps, asked?: Hex): Promise<PlansResponse> {
-  const id = asked ?? deps.env.CAMPAIGN_ID ?? (await deps.stores.campaigns.list())[0]?.payload.id;
-  let campaign: PlansResponse['campaign'] = null;
-  if (id !== undefined) {
-    const { campaign: c, counters } = await campaignState(deps, id as Hex);
-    if (c && counters) {
-      campaign = {
-        id: c.id,
-        name: c.name,
-        sponsor: c.sponsor,
-        bundleMb: c.bundleMb,
-        remainingClaims: remainingCampaignClaims(c, counters),
-        maxClaims: c.maxClaims,
-        paused: counters.paused,
-        expiresAt: c.expiresAt,
-        network: c.network,
-        ...(c.event ? { event: c.event } : {}),
-      };
-    }
-  }
-  return {
-    mode: deps.env.MODE,
-    campaign,
-    paid: {
-      stepMb: STEP_MB,
-      priceUsd6PerStep: usd6ToWire(deps.env.PRICE_USD6_PER_STEP),
-      validityDays: deps.env.VALIDITY_DAYS,
-      accepts: deps.accepts,
-      sizesMb: [PLAN_MB],
-    },
-    gift: { sizesMb: GIFT_SIZES_MB, claimWindowS: GIFT_CLAIM_WINDOW_S },
-    sponsor: {
-      minPricePerClaimUsd6: usd6ToWire(deps.env.COST_USD6_PER_CLAIM),
-      maxCampaignDurationMs: MAX_CAMPAIGN_MS,
-    },
-    simulated: { usage: deps.env.MODE === 'local', personhood: deps.env.MODE === 'local' },
-  };
-}

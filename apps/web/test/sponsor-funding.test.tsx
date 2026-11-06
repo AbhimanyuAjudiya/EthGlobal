@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => {
     register: vi.fn(),
     validate: vi.fn(),
     plans: vi.fn(),
+    catalog: vi.fn(),
   };
 });
 vi.mock('@rainbow-me/rainbowkit', () => ({ useConnectModal: () => ({}) }));
@@ -44,7 +45,12 @@ vi.mock('../lib/env', async (original) => ({
 }));
 vi.mock('../lib/api', async (original) => ({
   ...(await original<typeof ApiModule>()),
-  api: { plans: mocks.plans, validateSponsor: mocks.validate, registerSponsor: mocks.register },
+  api: {
+    plans: mocks.plans,
+    catalog: mocks.catalog,
+    validateSponsor: mocks.validate,
+    registerSponsor: mocks.register,
+  },
 }));
 vi.mock('../lib/sponsor', async (original) => ({
   ...(await original<typeof SponsorModule>()),
@@ -52,6 +58,44 @@ vi.mock('../lib/sponsor', async (original) => ({
 }));
 const TOKEN = '0x0000000000000000000000000000000000068cda';
 const TX = `0x${'78'.repeat(32)}`;
+/** The one supported destination package the catalog mock offers. */
+const PACKAGE = {
+  id: 'in-1gb-7d',
+  name: 'India 1 GB',
+  mb: 1000,
+  validityDays: 7,
+  wholesaleUsd6: '1200000',
+  activation: { startsOn: 'first-network', installWithinDays: 180 },
+  cancellation: 'never-installed',
+} as const;
+const DAY = 86_400_000;
+/** A datetime-local value in this device's time zone, as the form reads it back. */
+const local = (ms: number) => {
+  const d = new Date(ms);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+/** Name the campaign, pick IN → the one package, and date a `days`-long event starting in ten days. */
+async function planEvent(days = 2) {
+  const startsAt = Date.now() + 10 * DAY;
+  const dates = {
+    startsAt,
+    endsAt: startsAt + days * DAY,
+    claimUntil: startsAt + DAY,
+    reclaimAfter: startsAt + days * DAY,
+  };
+  fireEvent.change(screen.getByTestId('campaign-name'), { target: { value: 'Mumbai Welcome' } });
+  fireEvent.change(screen.getByRole('textbox', { name: 'Destination country' }), {
+    target: { value: 'IN' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Find destination plans' }));
+  fireEvent.change(await screen.findByLabelText('Provider package'), {
+    target: { value: PACKAGE.id },
+  });
+  for (const [key, at] of Object.entries(dates))
+    fireEvent.change(screen.getByTestId(`campaign-${key}`), { target: { value: local(at) } });
+  return dates;
+}
 beforeEach(() => {
   vi.resetAllMocks();
   localStorage.clear();
@@ -82,6 +126,7 @@ beforeEach(() => {
   mocks.plans.mockResolvedValue({
     sponsor: { minPricePerClaimUsd6: '1200000', maxCampaignDurationMs: 181 * 86400000 },
   });
+  mocks.catalog.mockResolvedValue({ country: 'IN', plans: [PACKAGE] });
   mocks.validate.mockResolvedValue(undefined);
   mocks.login.mockResolvedValue({ issuedAt: Date.now(), signature: '0xaa' });
   mocks.register.mockImplementation(async ({ campaign }: { campaign: { id: string } }) => ({
@@ -109,6 +154,7 @@ describe('Hedera campaign funding readiness', () => {
   });
   it('associates explicitly, reads back, then requires funded USDC before approve/create', async () => {
     render(<CampaignForm />);
+    await planEvent();
     fireEvent.click(await screen.findByRole('button', { name: 'Associate USDC' }));
     await screen.findByText('USDC associated · balance $0.00 USDC');
     expect(mocks.wallet.sendTransaction).toHaveBeenCalledTimes(1);
@@ -128,6 +174,7 @@ describe('Hedera campaign funding readiness', () => {
   it('a successful transaction without confirmed association stays blocked and rechecks the same hash', async () => {
     mocks.confirmAssociation = false;
     render(<CampaignForm />);
+    await planEvent();
     fireEvent.click(await screen.findByRole('button', { name: 'Associate USDC' }));
     await screen.findByRole('alert');
     expect(screen.getByTestId('campaign-submit').hasAttribute('disabled')).toBe(true);
@@ -143,6 +190,7 @@ describe('Hedera campaign funding readiness', () => {
   it('does not allow funding when the wallet RPC cannot verify association', async () => {
     mocks.wallet.reader.readContract.mockRejectedValueOnce(new Error('RPC unavailable'));
     render(<CampaignForm />);
+    await planEvent();
     await screen.findByRole('alert');
     expect(screen.getByTestId('campaign-submit').hasAttribute('disabled')).toBe(true);
     expect(mocks.wallet.sendTransaction).not.toHaveBeenCalled();
@@ -153,6 +201,7 @@ describe('Hedera campaign funding readiness', () => {
   it('a rejected association leaves the campaign unfunded and allows an explicit retry', async () => {
     mocks.wallet.sendTransaction.mockRejectedValueOnce({ code: 4001 });
     render(<CampaignForm />);
+    await planEvent();
     fireEvent.click(await screen.findByRole('button', { name: 'Associate USDC' }));
     await screen.findByRole('alert');
     expect(screen.getByTestId('campaign-submit').hasAttribute('disabled')).toBe(true);
@@ -166,6 +215,7 @@ describe('Hedera campaign funding readiness', () => {
     mocks.associated = true;
     mocks.balance = 12_000_000n;
     render(<CampaignForm />);
+    await planEvent();
     await waitFor(() =>
       expect(screen.getByTestId('campaign-submit').hasAttribute('disabled')).toBe(false),
     );
@@ -180,6 +230,7 @@ describe('Hedera campaign funding readiness', () => {
     mocks.balance = 12_000_000n;
     mocks.login.mockRejectedValueOnce(new Error('Wallet closed'));
     const first = render(<CampaignForm />);
+    await planEvent();
     await waitFor(() =>
       expect(screen.getByTestId('campaign-submit').hasAttribute('disabled')).toBe(false),
     );

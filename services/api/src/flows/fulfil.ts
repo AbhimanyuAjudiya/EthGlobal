@@ -25,6 +25,7 @@ import {
 } from '@ethglobal/protocol/schemas';
 
 import { fail } from '../errors.js';
+import { planEvent } from './campaign-history.js';
 import {
   assertCampaignDelivery,
   campaignOrderStarting,
@@ -124,6 +125,7 @@ export async function fulfil(
         settlement: ctx.settlement,
         hcs: recorded.hcs,
         campaignReclaim: campaignReclaimView(deps, key),
+        event: planEvent(deps, existing.payload),
       }),
     };
   }
@@ -172,6 +174,7 @@ export async function fulfil(
     settlement: ctx.settlement,
     hcs: recorded.hcs,
     campaignReclaim: campaignReclaimView(deps, key),
+    event: planEvent(deps, delivered),
   });
   return { status: sealed ? 201 : 202, body };
 }
@@ -207,6 +210,7 @@ function entitledBody(
     hcs: Recorded['hcs'];
     status?: 'ready' | 'pending-profile';
     campaignReclaim?: EntitledResponse['campaignReclaim'];
+    event?: EntitledResponse['event'];
   },
 ): EntitledResponse {
   return {
@@ -219,6 +223,7 @@ function entitledBody(
     validityDays: e.lifecycle?.validityDays ?? Math.round((e.expiresAt - e.createdAt) / DAY_MS),
     ...(e.lifecycle === undefined ? {} : { lifecycle: e.lifecycle }),
     ...(x.campaignReclaim === undefined ? {} : { campaignReclaim: x.campaignReclaim }),
+    ...(x.event === undefined ? {} : { event: x.event }),
     ...(x.sealed ? { sealedLpa: x.sealed } : {}),
     ...(x.claimTx === undefined ? {} : { claimTx: x.claimTx }),
     ...(x.settlement === undefined ? {} : { settlement: x.settlement }),
@@ -241,7 +246,12 @@ export function deliveryMetadata(
       settlement: context?.settlement,
       hcs: undefined,
       status: pending ? 'pending-profile' : 'ready',
-      ...(deps ? { campaignReclaim: campaignReclaimView(deps, found.payload.key) } : {}),
+      ...(deps
+        ? {
+            campaignReclaim: campaignReclaimView(deps, found.payload.key),
+            event: planEvent(deps, found.payload),
+          }
+        : {}),
     }),
   };
 }
@@ -262,6 +272,7 @@ export async function pendingResponse(deps: Deps, found: Found<Entitlement>): Pr
       settlement: undefined,
       hcs: claim?.hcs,
       campaignReclaim: campaignReclaimView(deps, e.key),
+      event: planEvent(deps, e),
     }),
   };
 }

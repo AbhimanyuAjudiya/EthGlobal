@@ -104,17 +104,90 @@ export async function entries<T>(prefix: string): Promise<Awaited<T>[]> {
 
 const KEYS = 'entitlementKeys';
 const LPA = 'lpa:';
+const OWNED = 'owned-plan:';
+const CURRENT = 'recharge.currentPlan';
+const CHANGED = 'recharge.plans.changed';
+const listeners = new Set<() => void>();
+const ephemeralLpas = new Map<string, string>();
+
+function changed(): void {
+  for (const listener of listeners) listener();
+  try {
+    localStorage.setItem(CHANGED, String(Date.now()));
+  } catch {
+    /* device-local convenience */
+  }
+}
+
+interface EncryptedActivation {
+  v: 1;
+  iv: Uint8Array<ArrayBuffer>;
+  ciphertext: ArrayBuffer;
+  /** Nonextractable, structured-cloned by IndexedDB; no serialized encryption secret. */
+  encryptionKey: CryptoKey;
+}
+
+export interface PlanMetadata {
+  eventId?: string;
+  eventName?: string;
+  destinationCountry?: string;
+  planName?: string;
+  createdAt?: number;
+}
+
+const activationAad = (key: string) => new TextEncoder().encode(`recharge-activation:v1:${key}`);
+
+async function readActivation(key: string): Promise<string | undefined> {
+  if (ephemeralLpas.has(key)) return ephemeralLpas.get(key);
+  const stored = await get<string | EncryptedActivation>(`${LPA}${key}`);
+  if (typeof stored === 'string') {
+    // Preserve older installations while migrating only this plan's plaintext record.
+    await plans.saveLpa(key, stored);
+    return stored;
+  }
+  if (stored?.v !== 1) return undefined;
+  try {
+    const clear = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: stored.iv, additionalData: activationAad(key) },
+      stored.encryptionKey,
+      stored.ciphertext,
+    );
+    return new TextDecoder().decode(clear);
+  } catch {
+    // Keep the encrypted record; an unsupported browser or temporarily unavailable key is not deletion consent.
+    return undefined;
+  }
+}
 
 export const plans = {
   async keys(): Promise<string[]> {
-    return (await get<string[]>(KEYS)) ?? [];
+    const [legacy, ownedKeys] = await Promise.all([get<string[]>(KEYS), allKeys()]);
+    const owned = await Promise.all(
+      ownedKeys
+        .filter((key) => key.startsWith(OWNED))
+        .map(async (key) => ({
+          key: key.slice(OWNED.length),
+          at: (await get<{ at: number }>(key))?.at ?? 0,
+        })),
+    );
+    owned.sort((a, b) => b.at - a.at);
+    return [...new Set([...owned.map((row) => row.key), ...(legacy ?? [])])];
   },
   async add(key: string): Promise<void> {
-    const keys = await plans.keys();
-    if (!keys.includes(key)) await set(KEYS, [key, ...keys].slice(0, 20));
+    // Independent rows prevent concurrent claims in two tabs overwriting each other's plan list.
+    if (!(await plans.owns(key))) {
+      await set(`${OWNED}${key}`, { at: Date.now() });
+      changed();
+    }
   },
   async latest(): Promise<string | undefined> {
     const keys = await plans.keys();
+    try {
+      const tab = sessionStorage.getItem(CURRENT);
+      if (tab && keys.includes(tab)) return tab;
+    } catch {
+      /* private-mode fallback below */
+    }
     const current = await get<string>('currentKey');
     // the pointer only ever names a plan this device holds (RT-W-03); a stale or planted value is ignored
     return current && keys.includes(current) ? current : keys[0];
@@ -127,26 +200,73 @@ export const plans = {
    */
   async setCurrent(key: string): Promise<boolean> {
     if (!(await plans.owns(key))) return false;
+    try {
+      sessionStorage.setItem(CURRENT, key);
+    } catch {
+      /* persistent fallback below */
+    }
     await set('currentKey', key);
+    changed();
     return true;
   },
   /** The person tapped "Keep this plan on this phone": the key joins this device's plans and becomes current. */
   async adopt(key: string): Promise<void> {
     await plans.add(key);
-    await set('currentKey', key);
+    await plans.setCurrent(key);
   },
-  lpa: (key: string) => get<string>(`${LPA}${key}`),
+  lpa: readActivation,
   /**
-   * One opened LPA at a time (THREAT-MODEL §8, T-76, RT-W-01): saving a new one deletes every other `lpa:*`.
-   * The LPA is a bearer secret; an older plan's code is gone once a newer one arrives on this device.
+   * Each trip retains its own encrypted activation record. Claiming another plan never erases this one.
+   * If persistent encryption is unavailable, retain only an in-memory code and keep delivery recovery armed.
    */
   async saveLpa(key: string, lpa: string): Promise<boolean> {
-    await set(`${LPA}${key}`, lpa);
-    for (const k of await allKeys()) if (k.startsWith(LPA) && k !== `${LPA}${key}`) await del(k);
-    return !memory.has(`${LPA}${key}`);
+    try {
+      const encryptionKey = await crypto.subtle.generateKey(
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt'],
+      );
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ciphertext = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv, additionalData: activationAad(key) },
+        encryptionKey,
+        new TextEncoder().encode(lpa),
+      );
+      await set(`${LPA}${key}`, {
+        v: 1,
+        iv,
+        ciphertext,
+        encryptionKey,
+      } satisfies EncryptedActivation);
+      ephemeralLpas.delete(key);
+      return !memory.has(`${LPA}${key}`);
+    } catch {
+      ephemeralLpas.set(key, lpa);
+      await del(`${LPA}${key}`);
+      return false;
+    }
   },
   /** The eSIM is installed: the activation code has done its job and leaves this device (T-76, RT-W-01). */
-  forgetLpa: (key: string) => del(`${LPA}${key}`),
+  forgetLpa: async (key: string) => {
+    ephemeralLpas.delete(key);
+    await del(`${LPA}${key}`);
+  },
+  metadata: (key: string) => get<PlanMetadata>(`plan-metadata:${key}`),
+  saveMetadata: async (key: string, metadata: PlanMetadata) => {
+    await set(`plan-metadata:${key}`, { ...(await plans.metadata(key)), ...metadata });
+    changed();
+  },
+  subscribe: (listener: () => void): (() => void) => {
+    listeners.add(listener);
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === CHANGED) listener();
+    };
+    if (typeof window !== 'undefined') window.addEventListener('storage', onStorage);
+    return () => {
+      listeners.delete(listener);
+      if (typeof window !== 'undefined') window.removeEventListener('storage', onStorage);
+    };
+  },
   snapshot: (key: string) => get<{ at: number; me: MeResponse }>(`me:${key}`),
   saveSnapshot: (key: string, me: MeResponse) => set(`me:${key}`, { at: Date.now(), me }),
   /** The claiming session's public key (A-35): sent with the first PUT /agent/policy of a free entitlement. */

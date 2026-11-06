@@ -34,7 +34,7 @@ This records the code audit, fixes, and validation performed in this checkout. P
 
 ## Verified checkpoints
 
-- The final workspace application run passed 2,547 tests, with 20 existing skips: protocol 370, crypto 31, EIP-3009 68, adapters 375, policy/claim logic 447, API 565, agent 200, web 184, UI 175, scripts 108, and video 24. The skips are adapters 14, web three, and scripts three. This is the completed native-Hedera and campaign follow-up run, replacing the earlier combined package checkpoints.
+- The final workspace application run passed 2,523 tests, with 20 existing skips: protocol 370, crypto 31, EIP-3009 68, adapters 375, policy/claim logic 447, API 565, agent 200, web 184, UI 175, and scripts 108. The skips are adapters 14, web three, and scripts three. This is the completed native-Hedera and campaign follow-up run. The separate earlier 24-test video checkpoint is not included in this run's total.
 - Solidity: 213 passing tests across 28 suites.
 - Semgrep: 854 product files, zero findings and zero engine errors; the rule self-tests passed 31 positive and 24 negative cases. Slither passed the medium/high severity gate; five low-severity timestamp/interface-shadowing observations remain. Target discovery used an explicit Git file inventory after automatic discovery stalled.
 - Dependency manifests and lockfile align across 13 importers. The production high/critical advisory gate passed under the repository's existing accepted exceptions; moderate/low transitive advisories remain. Duplication measured 0.41%, below the 1% gate.

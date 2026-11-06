@@ -488,7 +488,7 @@ Source: `developer-docs@b07e972:world-id/SKILL.md`, `world-id/idkit/integrate.md
   | `/esim/usage/query` | `{ esimTranNoList:[...] }` | usage (needs esimTranNo, not ICCID) |
   | `/esim/cancel` (unused, refund) / `/esim/revoke` (activated, no refund) / `/esim/suspend` / `/esim/unsuspend` | `{ esimTranNo }` | |
   | `/esim/sendSms` | `{ iccid, message }` | |
-  | `/webhook/save` / `/webhook/query` | `{ webhookUrl }` / `{}` | `obj.webhook` |
+  | `/webhook/save` / `/webhook/query` | `{ webhook }` (live 2026-11-06: `webhookUrl` → 000105 "must not be blank"; the vendor first POSTs a test notification from 52.76.129.149 and answers 210010 "notify webhook fail" unless that gets a 200) / `{}` | `obj.webhook` |
 - `ac` = activation code (the LPA string for the profile) and `qrCodeUrl` = PNG of it; in the reference example `ac` is `""` while `smdpStatus` is `RELEASED` right after order — **[unverified]** when it is populated; test with a real order.
 - Status model: New = `RELEASED`/`GOT_RESOURCE`/eid empty; installed = `ENABLED`/eid present; in use = `IN_USE`, `orderUsage > 0`; depleted `USED_UP`; deleted `DELETED`.
 - Webhooks: types `ORDER_STATUS` (payload has no ICCID — query the API), `ESIM_STATUS` (smdpStatus + esimStatus), `SMDP_EVENT` (DOWNLOAD, INSTALLATION, ENABLED), `DATA_USAGE` (1–3 h delay), `VALIDITY_USAGE` (1 day before expiry), `CHECK_HEALTH` (one-time on setup). Sender IPs to whitelist: `3.1.131.226, 54.254.74.88, 18.136.190.97, 18.136.60.197, 18.136.19.137`. **Exact webhook JSON schema and any signature header are not in the skill reference [unverified]** — treat as untrusted and re-query `/esim/query`.

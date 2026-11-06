@@ -65,7 +65,8 @@ function Preflight() {
  * other flow → the ONE primary pill. The live card carries the real count from this load's own GET /plans ("free ·
  * 1,214 of 2,000 left"); while it is on its way the card is a skeleton and the ActionBar is empty, never a stored
  * reading presented as current. Only a network failure brings back the last reading this phone saved, labelled "as of
- * 14:02" (and the button follows it); an API error omits the count. A device that already holds a plan goes to it.
+ * 14:02" (and the button follows it); an API error omits the count. Home stays reachable with a plan on this device: the Plan tab and the
+ * "My plan" row lead to it (the owner rejected a redirect).
  */
 export function ClaimPaths() {
   const { t, lang } = useLang();
@@ -75,8 +76,6 @@ export function ClaimPaths() {
   useEffect(() => {
     captureInstallPrompt();
     void get<Saved>('plans').then(setSaved);
-    // DESIGN.md §7: Home with a plan on this device is that plan; the server-rendered landing stays the shell
-    void store.latest().then((key) => key && window.location.replace(planHref(key)));
   }, []);
   useEffect(() => {
     if (live && liveAt) void set('plans', { at: liveAt, plans: live });

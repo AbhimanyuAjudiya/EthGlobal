@@ -41,7 +41,13 @@ import {
 import { clockIst, dayLabel, formatMb, money } from '../lib/format';
 import { useClock, useEnsureChain, useWallet, WrongChainError } from '../lib/hooks';
 import { buildProof, type Proof } from '../lib/proof';
-import { pauseCall, refundCall, sponsorLogin } from '../lib/sponsor';
+import {
+  forgetSponsorLogin,
+  pauseCall,
+  refundCall,
+  SPONSOR_LOGIN_REUSE_MS,
+  sponsorLogin,
+} from '../lib/sponsor';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
 import { caip2, isUserRejection } from '../lib/wallet';
 
@@ -164,7 +170,10 @@ export function SponsorTable({ id }: { id: string }) {
         if (next.auditKey) setAuditKey(next.auditKey);
       } catch (e) {
         if (loginIdentity.current !== requestedIdentity) return;
-        if (e instanceof ApiError && e.status === 401) setLogin(undefined);
+        if (e instanceof ApiError && e.status === 401) {
+          forgetSponsorLogin(id, auth.sponsor);
+          setLogin(undefined);
+        }
         setError(e instanceof ApiError ? `${e.code}: ${e.message}` : String(e));
       }
     },
@@ -211,7 +220,7 @@ export function SponsorTable({ id }: { id: string }) {
         setLogin(undefined);
         setError('Your sponsor sign-in expired. Sign in again to refresh this campaign.');
       },
-      Math.max(1, login.issuedAt + 55 * 60_000 - Date.now()),
+      Math.max(1, login.issuedAt + SPONSOR_LOGIN_REUSE_MS - Date.now()),
     );
     return () => clearTimeout(timer);
   }, [login]);

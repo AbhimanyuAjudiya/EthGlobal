@@ -172,8 +172,57 @@ export function refundOpensAt(c: CampaignOnChain, nowMs: number): number | undef
   return byPause !== undefined ? Math.min(byPause, c.expiresAt) : c.expiresAt;
 }
 
-/** EIP-712 SponsorLogin{campaignId, sponsor, issuedAt} over rechargeDomain(chain); valid 1 h (T-72). */
-export async function sponsorLogin(wallet: Wallet, campaignId: Hex) {
+export interface SponsorLogin {
+  sponsor: Address;
+  issuedAt: number;
+  signature: Hex;
+}
+
+/** A SponsorLogin is accepted for 1 h (T-72); it is reused for 55 min so a tab signs once per campaign, not per visit. */
+export const SPONSOR_LOGIN_REUSE_MS = 55 * 60_000;
+const LOGIN = 'recharge.sponsor-login';
+const loginSlot = (campaignId: string, sponsor: string) =>
+  `${LOGIN}:${config.chainId}:${campaignId.toLowerCase()}:${sponsor.toLowerCase()}`;
+
+function storedLogin(slot: string, sponsor: Address): SponsorLogin | undefined {
+  try {
+    const value: unknown = JSON.parse(sessionStorage.getItem(slot) ?? 'null');
+    if (
+      !value ||
+      typeof value !== 'object' ||
+      !('sponsor' in value) ||
+      !('issuedAt' in value) ||
+      !('signature' in value) ||
+      value.sponsor !== sponsor ||
+      typeof value.issuedAt !== 'number' ||
+      typeof value.signature !== 'string' ||
+      !/^0x[0-9a-f]+$/i.test(value.signature) ||
+      Date.now() - value.issuedAt >= SPONSOR_LOGIN_REUSE_MS
+    )
+      return undefined;
+    return { sponsor, issuedAt: value.issuedAt, signature: value.signature as Hex };
+  } catch {
+    return undefined;
+  }
+}
+
+/** Drops the tab's remembered sign-in for one campaign (after the API refused it). */
+export function forgetSponsorLogin(campaignId: string, sponsor: string): void {
+  try {
+    sessionStorage.removeItem(loginSlot(campaignId, sponsor));
+  } catch {
+    // per-tab convenience only
+  }
+}
+
+/**
+ * EIP-712 SponsorLogin{campaignId, sponsor, issuedAt} over rechargeDomain(chain); valid 1 h (T-72). The signature is
+ * kept in sessionStorage (this tab, this origin) and reused while fresh: it only reads this sponsor's own dashboard.
+ */
+export async function sponsorLogin(wallet: Wallet, campaignId: Hex): Promise<SponsorLogin> {
+  const slot = loginSlot(campaignId, wallet.address);
+  const cached = storedLogin(slot, wallet.address);
+  if (cached) return cached;
   const issuedAt = await chainNow(wallet);
   const signature = await wallet.signTypedData({
     domain: rechargeDomain(config.chainId),
@@ -181,7 +230,13 @@ export async function sponsorLogin(wallet: Wallet, campaignId: Hex) {
     primaryType: 'SponsorLogin',
     message: { campaignId, sponsor: wallet.address, issuedAt: BigInt(issuedAt) },
   });
-  return { sponsor: wallet.address, issuedAt, signature };
+  const login: SponsorLogin = { sponsor: wallet.address, issuedAt, signature };
+  try {
+    sessionStorage.setItem(slot, JSON.stringify(login));
+  } catch {
+    // per-tab convenience only
+  }
+  return login;
 }
 
 /** Private ticket passes require a specific write signature; dashboard read credentials are insufficient. */

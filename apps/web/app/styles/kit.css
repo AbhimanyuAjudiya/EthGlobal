@@ -1604,6 +1604,9 @@ pre.mono-key {
   .app-shell {
     display: grid;
     grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+    /* explicit rows: the 100dvh sidebar spans all three, and only the page row may grow to meet it; with implicit
+       auto rows a short page (an error card) shared that height out to the TopBar and the TESTNET rail too */
+    grid-template-rows: auto auto minmax(0, 1fr);
     align-content: start;
   }
   .app-shell > * {

@@ -53,7 +53,7 @@
   /* ── Text ────────────────────────────────────────────────────────────── */
   --text-primary: light-dark(#121110, #f3f0ec);
   --text-secondary: light-dark(#4d4944, #b5aea6);
-  --text-tertiary: light-dark(#7d776f, #8c857d);
+  --text-tertiary: light-dark(#706a63, #8c857d);
   --text-disabled: light-dark(#b2aca4, #5f5953); /* no AA claim */
 
   /* ── Accent: the legacy names, aliased to the brand ─────────────────── */

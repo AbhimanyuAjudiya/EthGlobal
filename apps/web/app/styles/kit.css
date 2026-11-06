@@ -8,11 +8,10 @@
   --page-w: 30rem;
   --topbar-h: 3rem;
   --nav-h: 3.5rem;
-  --sidebar-w: 15rem; /* 240 px: the laptop sidebar, the ConsoleShell's too */
+  --sidebar-w: 15rem; /* 240 px: the laptop sidebar */
   --card-pad: var(--gutter);
   /* WCAG AA: tokens.css's light #7d776f is 4.43:1 on white (3.87:1 on brand-pale) and the kit sets captions, row
      subtitles, tab labels and hints in it; #706a63 is 5.34:1 / 4.66:1. Dark value unchanged. */
-  --text-tertiary: light-dark(#706a63, #8c857d);
 }
 @media (min-width: 600px) {
   :root {
@@ -260,8 +259,7 @@
   line-height: var(--leading-text);
   text-align: center;
 }
-.app-shell > .testnet-strip,
-.console-shell > .testnet-strip {
+.app-shell > .testnet-strip {
   border-radius: 0;
 }
 
@@ -1291,29 +1289,17 @@
   text-align: right;
 }
 
-/* ── ConsoleShell ──────────────────────────────────────────────────────── */
-.console-shell {
-  min-height: 100dvh;
-  background: var(--bg-canvas);
-}
-.console-shell .topbar {
-  padding-inline: var(--gutter);
-}
-.console-shell__body {
-  box-sizing: border-box;
-  max-width: calc(72rem + 2 * var(--gutter));
-  margin: 0 auto;
-  padding: 0 var(--gutter) var(--space-8);
-}
-.console-shell__nav {
+/* ── SubNav (a page's sections) and the laptop sidebar: one pill-link look ── */
+.subnav {
   display: flex;
   gap: var(--space-2);
-  margin: 0 calc(-1 * var(--gutter)) var(--space-5);
-  padding: var(--space-2) var(--gutter);
+  margin-inline: calc(-1 * var(--gutter));
+  padding: 0 var(--gutter) var(--space-2);
   overflow-x: auto;
   border-bottom: 1px solid var(--border-subtle);
 }
-.console-shell__link {
+.subnav__link,
+.app-sidebar__link {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
@@ -1325,15 +1311,15 @@
   text-decoration: none;
   white-space: nowrap;
 }
-.console-shell__link[aria-current='page'] {
-  background: var(--bg-sunken);
-  color: var(--text-primary);
+.subnav__link {
+  flex: none;
 }
-.console-shell__main {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-  min-width: 0;
+/* active: brand-pale pill; the label stays ink (brand on brand-pale is 2.6:1, under AA) */
+.subnav__link[aria-current='page'],
+.app-sidebar__link[aria-current='page'] {
+  background: var(--brand-pale);
+  color: var(--text-primary);
+  font-weight: 700;
 }
 
 /* ── EmptyState / Skeleton ─────────────────────────────────────────────── */
@@ -1678,6 +1664,14 @@ pre.mono-key {
   .page[data-layout='wide'] {
     max-width: calc(48rem + 2 * var(--space-8));
   }
+  /* console: the sponsor console's tables and StatTile rows */
+  .page[data-layout='console'] {
+    max-width: calc(72rem + 2 * var(--space-8));
+  }
+  .subnav {
+    margin-inline: 0;
+    padding-inline: 0;
+  }
   /* split: the full 72 rem for a PageSplit; a split screen's loading / error states keep the single column */
   .page[data-layout='split']:has(.page-split) {
     max-width: calc(72rem + 2 * var(--space-8));
@@ -1761,30 +1755,6 @@ pre.mono-key {
     display: none;
   }
 
-  /* ConsoleShell: the same sidebar width and link look */
-  .console-shell__body {
-    display: grid;
-    grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
-    gap: var(--space-6);
-    max-width: calc(var(--sidebar-w) + 72rem + var(--space-6) + 2 * var(--gutter));
-    padding-top: var(--space-5);
-  }
-  .console-shell__nav {
-    position: sticky;
-    top: calc(var(--topbar-h) + var(--space-5));
-    flex-direction: column;
-    align-self: start;
-    margin: 0;
-    padding: 0;
-    border: 0;
-  }
-  /* active: brand-pale pill, brand icon; the label stays ink (brand on brand-pale is 2.6:1, under AA) */
-  .console-shell__link[aria-current='page'],
-  .app-sidebar__link[aria-current='page'] {
-    background: var(--brand-pale);
-    color: var(--text-primary);
-    font-weight: 700;
-  }
   .app-sidebar__link[aria-current='page'] .kit-icon {
     color: var(--brand);
     stroke-width: 2.25;

@@ -71,7 +71,7 @@ export function CardRoute() {
   );
 }
 
-/** The sponsor console keeps its own frame (app/sponsor/layout.tsx; kit ConsoleShell). */
+/** A campaign's dashboard; its frame is the sponsor layout's AppShell (components/SponsorShell.tsx). */
 export function SponsorRoute() {
   const params = useParams<{ id: string }>();
   return <SponsorTable id={param(params.id) ?? ''} />;

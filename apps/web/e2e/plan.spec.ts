@@ -27,10 +27,9 @@ test.describe('/plan/[key]', () => {
     await expect(page.getByTestId('degraded-banner')).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Install eSIM · 2 min' })).toBeVisible();
     // the top-up is the plan's "Add data" QuickAction, for this plan's key
-    await expect(page.locator('.quick-actions').getByRole('link', { name: 'Add data', exact: true })).toHaveAttribute(
-      'href',
-      `/pay?key=${encodeURIComponent(key)}`,
-    );
+    await expect(
+      page.locator('.quick-actions').getByRole('link', { name: 'Add data', exact: true }),
+    ).toHaveAttribute('href', `/pay?key=${encodeURIComponent(key)}`);
     // the Details row carries the Arkiv entity key, shown directly (no disclosure)
     await expect(page.getByTestId('arkiv-key')).toHaveText(me.arkivKey);
   });

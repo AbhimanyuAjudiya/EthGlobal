@@ -64,9 +64,7 @@ test.describe('accessibility', () => {
     await expect(title).toHaveText('भारत पहुँचें। 2 मिनट में ऑनलाइन हों।');
     await expect(page.locator('.page-header')).toHaveAttribute('lang', 'hi');
     await expect(page.locator('#landing-coupon')).toHaveAttribute('lang', 'hi');
-    await expect(page.locator('#landing-coupon .balance-card__caption')).toContainText(
-      'की ओर से',
-    );
+    await expect(page.locator('#landing-coupon .balance-card__caption')).toContainText('की ओर से');
     await expect(page.locator('#landing-coupon .balance-card__note')).toContainText('मुफ़्त');
     // DESIGN.md v3 §3: Devanagari gets the style's leading + 0.15
     expect((await leading()) - latin).toBeCloseTo(0.15, 2);

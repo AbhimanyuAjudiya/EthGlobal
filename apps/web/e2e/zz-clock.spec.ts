@@ -18,8 +18,8 @@ test('gift: reclaim after claimBy (clock mocked via API seed) → refund receipt
     .getByRole('button', { name: 'Gift 1 GB to rahul.eth · $4.00' })
     .click();
   await expect(page.getByTestId('gift-result')).toBeVisible({ timeout: 20_000 });
-  // the Reclaim list lives on /gift/claim
-  await page.goto('/gift/claim');
+  // the Reclaim list lives on /gift, with the payer's wallet
+  await page.goto('/gift');
   const row = page.getByTestId('reclaim-row').first();
   await expect(
     row.getByRole('button', { name: 'Reclaim opens after the claim window closes' }),

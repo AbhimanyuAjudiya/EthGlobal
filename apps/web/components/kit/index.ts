@@ -17,7 +17,6 @@ export {
 } from './Button';
 export { Card, type CardProps, type CardTone } from './Card';
 export { ChoiceChips, type ChoiceChipsProps, type ChoiceOption } from './ChoiceChips';
-export { ConsoleShell, type ConsoleSection, type ConsoleShellProps } from './ConsoleShell';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
 export { Field, type FieldProps } from './Field';
 export { KitIcon, KIT_ICONS, type KitIconName, type KitIconProps } from './icons';
@@ -31,6 +30,7 @@ export { QuickActions, type QuickAction } from './QuickActions';
 export { Section, type SectionProps } from './Section';
 export { Sheet, type SheetProps } from './Sheet';
 export { Skeleton, type SkeletonProps } from './Skeleton';
+export { SubNav, type SubNavItem, type SubNavProps } from './SubNav';
 export { StatTile, type StatTileProps } from './StatTile';
 export { Stepper, type StepperProps } from './Stepper';
 export { Table, type TableColumn, type TableProps } from './Table';

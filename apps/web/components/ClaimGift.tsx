@@ -134,7 +134,6 @@ export function ClaimGift(props: { giftId?: string; name?: string }) {
         {t('warn.thisBrowser')}
       </Notice>
       <ProofPanel proof={proof} />
-      <ReclaimGift />
       <ActionBar>
         {bySignature ? (
           <Button

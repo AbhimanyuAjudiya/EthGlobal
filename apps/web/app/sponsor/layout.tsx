@@ -1,15 +1,14 @@
-import { ConsoleSectionLinks } from '../../components/ConsoleSectionLinks';
-import { ConsoleShell } from '../../components/kit';
+import { SponsorShell } from '../../components/SponsorShell';
 
 import type { ReactNode } from 'react';
 
 export const metadata = { title: { default: 'Sponsor', template: '%s · Sponsor · Recharge' } };
 
-/** Sponsor console (DESIGN.md §4): ConsoleShell, with a campaign's section links once one is open. */
+/** Sponsor console (DESIGN.md §4): the same AppShell as every screen, its sections in a SubNav. English only. */
 export default function SponsorLayout({ children }: { children: ReactNode }) {
   return (
-    <ConsoleShell active="campaigns" aside={<ConsoleSectionLinks />}>
-      {children}
-    </ConsoleShell>
+    <div lang="en">
+      <SponsorShell>{children}</SponsorShell>
+    </div>
   );
 }

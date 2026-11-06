@@ -17,8 +17,14 @@ test.describe('claim: / → /verify → /plan', () => {
       }),
     ).toBeVisible();
     // the other paths: Pay instead / Scratch card QuickActions, and "My plan" under "Everything else"
-    await expect(page.getByRole('link', { name: 'Pay instead', exact: true })).toHaveAttribute('href', '/pay');
-    await expect(page.getByRole('link', { name: 'Scratch card', exact: true })).toHaveAttribute('href', '/card');
+    await expect(page.getByRole('link', { name: 'Pay instead', exact: true })).toHaveAttribute(
+      'href',
+      '/pay',
+    );
+    await expect(page.getByRole('link', { name: 'Scratch card', exact: true })).toHaveAttribute(
+      'href',
+      '/card',
+    );
     await expect(page.getByRole('link', { name: /^My plan/ })).toHaveAttribute('href', '/plan');
     const campaign = plans.campaign;
     expect(campaign).not.toBeNull();
@@ -106,7 +112,10 @@ test.describe('claim: / → /verify → /plan', () => {
     );
     await expect(page.getByTestId('issuing-verified')).toContainText(/^Verified · (Orb|Document)$/);
     for (const row of ['issuing-verified', 'issuing-paid', 'issuing-arkiv'])
-      await expect(page.getByTestId(row).locator('.avatar')).toHaveAttribute('data-tone', 'positive');
+      await expect(page.getByTestId(row).locator('.avatar')).toHaveAttribute(
+        'data-tone',
+        'positive',
+      );
     await expect(page.getByTestId('issuing-paid')).toContainText(
       /Sponsor paid\s*0x[0-9a-f]{4}…[0-9a-f]{4}/,
     );

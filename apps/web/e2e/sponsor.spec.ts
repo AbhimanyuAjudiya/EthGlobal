@@ -54,9 +54,7 @@ test("sponsor: create → approve → createCampaign (two OnchainAction rows, ha
   await audit.getByRole('link', { name: 'Open Mumbai Arrivals e2e' }).click();
   await page.waitForURL(/\/sponsor\/0x[0-9a-f]{64}$/);
   await expect(page.getByTestId('sponsor-claims')).toHaveText('0 claims');
-  await expect(page.locator('.page-header__lead')).toContainText(
-    '$0.00 of $50.00 · 10 cap · 10/h',
-  );
+  await expect(page.locator('.page-header__lead')).toContainText('$0.00 of $50.00 · 10 cap · 10/h');
   // no donut: the tier table, and the empty expiring / claims lists as EmptyStates (not empty tables)
   await expect(page.getByRole('table')).toHaveCount(1);
   await expect(page.locator('.empty-state')).toHaveCount(2);

@@ -251,6 +251,8 @@ export function routeChrome(path: string | null): { nav?: ShellNav; back?: strin
   if (p === '/receipts' || p === '/install')
     return { nav: p === '/install' ? 'plan' : 'more', back: '/plan' };
   if (p === '/card' || p === '/agent') return { nav: 'more', back: '/' };
+  if (p === '/sponsor') return { nav: 'more' };
+  if (p.startsWith('/sponsor/')) return { nav: 'more', back: '/sponsor' };
   return { back: '/' };
 }
 
@@ -368,16 +370,22 @@ export function BottomNav({ active }: { active?: ShellNav | undefined }) {
 }
 
 /** The More sheet's destinations as plain sidebar items (laptop). */
-const SIDEBAR_MORE: readonly { href: string; icon: KitIconName; label: StringKey }[] = [
+const SIDEBAR_MORE: readonly {
+  href: string;
+  icon: KitIconName;
+  label: StringKey;
+  /** Other path prefixes that belong to this item (a campaign's claim page belongs to Organizers). */
+  also?: readonly string[];
+}[] = [
   { href: '/receipts', icon: 'receipt', label: 'receipts.title' },
   { href: '/card', icon: 'card', label: 'home.qa.card' },
   { href: '/agent', icon: 'agent', label: 'agent.autoTitle' },
-  { href: '/sponsor', icon: 'organizers', label: 'home.qa.organizers' },
+  { href: '/sponsor', icon: 'organizers', label: 'home.qa.organizers', also: ['/c/'] },
 ];
 
 /**
  * The laptop sidebar (from 1024 px; display: none below, so the phone is unchanged): the wordmark, the four tabs, the
- * More destinations as plain items, and the proof switch at the bottom. Same link look as the ConsoleShell's.
+ * More destinations as plain items, and the proof switch at the bottom. Same pill look as the SubNav's.
  */
 function Sidebar({ active, path }: { active?: ShellNav | undefined; path: string | null }) {
   const { t, lang } = useLang();
@@ -389,7 +397,10 @@ function Sidebar({ active, path }: { active?: ShellNav | undefined; path: string
       href: item.href,
       icon: item.icon,
       label: t(item.label),
-      current: path !== null && (path === item.href || path.startsWith(`${item.href}/`)),
+      current:
+        path !== null &&
+        (path === item.href ||
+          [`${item.href}/`, ...(item.also ?? [])].some((prefix) => path.startsWith(prefix))),
     })),
   ];
   return (
@@ -403,7 +414,7 @@ function Sidebar({ active, path }: { active?: ShellNav | undefined; path: string
             key={item.id}
             href={item.href}
             prefetch={false}
-            className="console-shell__link app-sidebar__link"
+            className="app-sidebar__link"
             aria-current={item.current ? 'page' : undefined}
           >
             <KitIcon name={item.icon} size={24} />
@@ -445,9 +456,9 @@ export interface AppShellProps {
   bare?: boolean;
   /**
    * The column from 1024 px (DESIGN.md §4): `single` 40 rem (forms, sheets), `wide` 48 rem (lists), `split` 72 rem
-   * for a PageSplit screen. Phones ignore it.
+   * for a PageSplit screen, `console` 72 rem for the sponsor console's tables. Phones ignore it.
    */
-  layout?: 'split' | 'single' | 'wide';
+  layout?: 'split' | 'single' | 'wide' | 'console';
   children: ReactNode;
   className?: string;
 }
@@ -623,7 +634,7 @@ export function WalletControl({
 }
 
 /**
- * The one wallet control, top-right on every screen (AppHeader, the sponsor console): whatever wagmi has connected. It
+ * The one wallet control, top-right on every screen (the TopBar): whatever wagmi has connected. It
  * never connects a wallet itself; in MODE=local a screen that signs connects its demo role through useWallet.
  */
 export function HeaderWallet() {

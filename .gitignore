@@ -57,3 +57,5 @@ apps/web/blob-report/
 fixtures/**/live-*.raw.json
 .state/
 *.bundle
+# landing page checker output (screenshots, history)
+marketing/site/.taste-skill/

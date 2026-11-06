@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en" data-type="software" data-radius="round" data-ground="sand" data-buttons="pill" data-motion>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Recharge: travel eSIM for India, first 300 MB free</title>
+<meta name="description" content="Prove you are one human with World ID and a sponsor pays for your first 300 MB of data in India, delivered as an eSIM in about two minutes. Top up with USDC on Base or Hedera; the ledger lives on Arkiv.">
+<meta name="site-kind" content="software">
+<meta name="page-type" content="software">
+<link rel="preload" href="fonts/anek-devanagari-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/system.css">
+<link rel="stylesheet" href="assets/ui/cards.css">
+<link rel="stylesheet" href="assets/motion/motion.css">
+<link rel="stylesheet" href="assets/backgrounds/backgrounds.css">
+<link rel="stylesheet" href="assets/layout/layout.css">
+<link rel="stylesheet" href="assets/icons/icon.css">
+<style>
+@font-face { font-family: "Anek Devanagari"; src: url("fonts/anek-devanagari-latin.woff2") format("woff2");
+  font-weight: 100 800; font-stretch: 75% 125%; font-display: swap; }
+@font-face { font-family: "Chivo Mono"; src: url("fonts/chivo-mono-latin.woff2") format("woff2");
+  font-weight: 100 900; font-display: swap; }
+/* start.mjs brand --page software --bg #ffffff --ink #121110 --accent #ff6a1f --surface #f4efe6 --muted #7d776f --radius round;
+   the faces are the brand's own (DESIGN.md section 3), self-hosted, in place of the dealt Google pairing */
+:root {
+  --p-bg: #ffffff; --p-surface: #f4efe6; --p-ink: #121110; --p-muted: #6a665f;
+  --p-accent: #ff6a1f; --p-accent-ink: #111111; --p-action: #ff6a1f; --p-action-ink: #111111;
+  --p-inv-bg: #121110; --p-inv-surface: #1f1e1d; --p-inv-ink: #ffffff; --p-inv-muted: #9b9a9a;
+  --p-inv-accent: #ff6a1f; --p-inv-accent-ink: #111111; --p-inv-action: #ff6a1f; --p-inv-action-ink: #111111;
+  --font-display: "Anek Devanagari", system-ui, sans-serif;
+  --font-text: "Anek Devanagari", system-ui, sans-serif;
+  --font-mono: "Chivo Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --display-weight: 800;
+  --display-tracking: -0.02em;
+  --display-tracking-xl: -0.02em;
+  --display-stretch: 112%;
+  --ly-scale: 1.04;
+}
+</style>
+<link rel="stylesheet" href="assets/diagrams/diagram.css">
+<script src="assets/backgrounds/backgrounds.js"></script>
+<script>document.documentElement.classList.add('mo-js');setTimeout(()=>document.documentElement.classList.add('mo-safe'),2500)</script>
+<link rel="modulepreload" href="assets/moments/moments.js">
+<link rel="modulepreload" href="assets/moments/lib.js">
+<link rel="modulepreload" href="assets/moments/line-carries-colour/moment.js">
+<style>
+  /* page CSS: only inside the visuals */
+  :is(h1, h2, .btn--xl) { font-stretch: var(--display-stretch); }
+  .num, .hash { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  /* the phone: an 8px ink bezel round the app's real first screen */
+  .device { padding: 8px; border-radius: 40px; background: var(--p-ink); }
+  .device > img { display: block; width: 100%; height: auto; border-radius: 32px; aspect-ratio: 360 / 756; background: #fff; }
+  /* hero: the phone on the lit ground, cut by the frame's foot; the receipt card over its lower right */
+  .hero__art > .ly-piece--main.device { left: var(--s-8); top: var(--s-8); width: min(360px, calc(100% - 2 * var(--s-8))); }
+  .hero__art > .ly-piece--note { right: var(--s-6); bottom: var(--s-6); width: 268px; z-index: 2; }
+  .d-card { background: #fff; color: var(--p-ink); border-radius: 16px; padding: var(--s-4) var(--s-5); box-shadow: 0 0 0 1px rgb(0 0 0 / .06), 0 14px 32px -18px rgb(0 0 0 / .35); }
+  .d-card__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 6px; }
+  .d-card h5 { margin: 0; font: 500 16px/1.3 var(--font-text); }
+  .d-chip { font: 500 13px/1 var(--font-text); padding: 6px 10px; border-radius: 999px; background: #ffe9db; color: #140a04; }
+  .d-line { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 14px; color: #3d3a36; border-top: 1px solid rgb(0 0 0 / .06); }
+  .d-line i { width: 20px; height: 20px; border-radius: 50%; flex: none; display: grid; place-items: center; background: #dff5e6; color: #1f7a3f; font-style: normal; font-size: 12px; }
+  .d-line b { font-weight: 500; color: #121110; }
+  .d-line .hash { margin-left: auto; font-size: 12px; color: #6a665f; }
+  @media (max-width: 1023px) {
+    .hero__art > .ly-piece--main.device { left: var(--s-6); top: var(--s-6); width: min(340px, calc(100% - 2 * var(--s-6))); }
+  }
+  @media (max-width: 639px) {
+    .hero__art > .ly-piece--main.device { --pw: min(300px, calc(100% - 2 * var(--s-6))); left: calc(50% - var(--pw) / 2); top: var(--s-4); width: var(--pw); }
+  }
+  /* steps: one phone per panel, rising out of its foot */
+  #how .panel { --p-h: 340px; }
+  #how .stage > .at-rise.device { --fit-max: 236px; --ax: max(24px, 50% - 118px); --ay: 32px; --ay-sm: 24px; }
+  /* split frames: phones on the frame's ground, cut by its foot */
+  .phones { position: absolute; inset: 0; }
+  .footer .nav__logo .mark--initial { width: 26px; height: 26px; font-size: 15px; }
+  .phones > .device { position: absolute; top: var(--s-8); width: var(--pw); }
+  .phones { --pw: calc((100% - 2 * var(--s-7) - var(--s-6)) / 2); }
+  .phones > .device:first-child { left: var(--s-7); }
+  .phones > .device + .device { left: auto; right: var(--s-7); top: calc(2 * var(--s-8)); }
+  .phones--one { --pw: min(300px, calc(100% - 2 * var(--s-8))); }
+  .phones--one > .device:first-child { left: calc(50% - var(--pw) / 2); }
+  @media (max-width: 639px) {
+    .phones { --pw: min(240px, calc(100% - 2 * var(--s-6))); }
+    .phones > .device:first-child { left: calc(50% - var(--pw) / 2); top: var(--s-6); }
+    .phones > .device + .device { display: none; }
+  }
+  #travellers .frame, #organizers .frame { height: 560px; }
+  .frame--faq { height: 300px; margin-top: var(--s-4); }
+  /* the words' first line level with the picture's first box (SR-8) */
+  @media (min-width: 1024px) { .hero__text { padding-top: 24px; } #travellers .stack-4 { padding-top: 15px; } #organizers .stack-4, #faq .stack-4 { padding-top: 12px; } }
+  .closing__cta { gap: var(--s-5); }
+  .footer__legal { line-height: 24px; }
+  @media (min-width: 640px) { #how .grid > .card { grid-column: span 4; } }
+  @media (min-width: 640px) and (max-width: 1279px) { #how .panel { --p-h: 280px; } }
+  @media (min-width: 640px) and (max-width: 1023px) { #how .panel { --p-h: calc(100svh - 484px); } }
+  @media (min-width: 640px) and (max-width: 1279px) { #travellers .phones { --pw: min(260px, calc(100% - 2 * var(--s-7))); } #travellers .phones > .device:first-child { left: calc(50% - var(--pw) / 2); } #travellers .phones > .device + .device { display: none; } }
+  @media (max-width: 1023px) { #travellers .frame, #organizers .frame { height: 420px; } .frame--faq { height: 180px; } }
+  @media (max-width: 639px) { #travellers .frame, #organizers .frame { height: 300px; } .frame--faq { height: 112px; } #how .panel { --p-h: 320px; } #stack .panel { background: #fff; } }
+  /* travellers: three facts as rows under the words */
+  .facts { list-style: none; margin: 0; padding: 0; }
+  .facts li { padding-block: var(--s-4); border-bottom: 1px solid var(--line); }
+  /* underneath: the diagram across the wrap, four short notes under it */
+  #stack .panel { --p-h: 340px; border-radius: var(--r-lg); }
+  #stack .notes { margin-top: var(--s-7); }
+  #stack .notes h3 { font: 500 var(--t-card)/1.3 var(--font-text); margin: 0 0 var(--s-2); }
+  #stack .notes p { margin: 0; }
+  @media (max-width: 1279px) { #stack .panel { --p-h: 260px; } }
+  @media (max-width: 639px) { #stack .panel { --p-h: 280px; } }
+</style>
+</head>
+<body>
+<!-- type: software (site-kind software): a fintech / travel eSIM app
+     deal: hero collage (dealt centred first: one desktop window, re-dealt for a phone app), nav nav-centre
+     (dealt nav-cards: no photographs, so re-dealt per sections.md section 2), close close-type,
+     footer footer-statement, rhythm surface-pairs, buttons pill (the brand's round pills), mark initial,
+     ground sand; palette: the brand's own (start.mjs brand), faces Anek Devanagari + Chivo Mono (DESIGN.md)
+     effect: gradient-mesh in the hero art frame; card ground: none fits after the excludes, panels take the lit ground
+     moments: line-carries-colour on #organizers (the surface band) -->
+<header class="nav nav--centre">
+  <div class="wrap nav__bar">
+    <a class="nav__logo" href="#top"><span class="mark mark--initial" aria-hidden="true">R</span>Recharge</a>
+    <nav class="nav__links" aria-label="Main">
+      <div class="nav__item"><a class="nav__link" href="#how">Steps</a></div>
+      <div class="nav__item">
+        <a class="nav__link" href="#travellers">Travellers <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        <div class="nav__menu">
+          <div class="wrap grid">
+            <div class="menu-col span-3">
+              <p class="t-label">For travellers</p>
+              <a href="#how">Free data<span>300 MB after World ID</span></a>
+              <a href="#travellers">Gifts<span>Data to an ENS name</span></a>
+              <a href="#travellers">Scratch cards<span>Redeem a printed PIN</span></a>
+            </div>
+            <div class="menu-col span-3">
+              <p class="t-label">For organizers</p>
+              <a href="#organizers">Campaigns<span>Fund data for an event</span></a>
+              <a href="#organizers">Private passes<span>Only ticket holders claim</span></a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="nav__item"><a class="nav__link" href="#organizers">Organizers</a></div>
+      <div class="nav__item"><a class="nav__link" href="#stack">Technology</a></div>
+      <div class="nav__item"><a class="nav__link" href="#faq">Questions</a></div>
+    </nav>
+    <div class="nav__actions">
+      <a class="btn btn--primary" href="https://app.recharge.ajudiya.com/">Get started</a>
+    </div>
+    <button class="nav__toggle" type="button" aria-expanded="false" aria-label="Menu">
+      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 5h14M2 13h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero hero--collage" aria-labelledby="hero-h">
+    <div class="wrap"><div class="hero-text grid hero__grid">
+      <div class="hero__text span-6">
+        <h1 id="hero-h">Travel eSIM for India, online in two minutes</h1>
+        <p class="hero__lead">Prove you are one human with World ID and a sponsor pays for your first 300 MB. Top up later with USDC on Base or Hedera.</p>
+        <div class="btn-row"><a class="btn btn--primary" href="https://app.recharge.ajudiya.com/">Get started<svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"/><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"/></svg></a><a class="btn btn--secondary" href="#how">See the 3 steps</a></div>
+        <p class="hero__proof">Built at ETHGlobal Mumbai 2026.</p>
+      </div>
+      <div class="hero__art span-6 start-7" data-fx="gradient-mesh" data-fx-params='{"grid":0}' role="img" aria-label="The Recharge home screen with 300 MB ready, and a receipt showing the World ID check, the sponsor's payment and the eSIM">
+        <div class="ly-piece ly-piece--main device" aria-hidden="true">
+          <img src="images/landing.webp" width="360" height="756" alt="" fetchpriority="high" data-source="client" data-subject="Recharge home screen">
+        </div>
+        <div class="ly-piece ly-piece--note d-card" aria-hidden="true">
+          <div class="d-card__row"><h5>Your first bundle</h5><span class="d-chip">300 MB</span></div>
+          <div class="d-line"><i>✓</i><span><b>Verified</b> with World ID</span></div>
+          <div class="d-line"><i>✓</i><span><b>Sponsor paid</b></span><span class="hash">0x78b2…2183</span></div>
+          <div class="d-line"><i>✓</i><span><b>Receipt</b> on Hedera</span></div>
+        </div>
+      </div>
+    </div></div>
+  </section>
+
+  <section class="section" id="how" style="--hm: 2" aria-labelledby="how-h">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="how-h">Online in 3 steps. <span class="muted">Prove, install, top up.</span></h2>
+      </div>
+      <div class="grid">
+        <article class="card card--row card--open span-4 m-nolift">
+          <span class="step-num">1</span>
+          <h3>Prove you are one human</h3>
+          <p>World ID checks you once without your name. A sponsor then pays for 300 MB.</p>
+          <div class="panel"><div class="stage stage--fade-b"><div class="at-rise fit device">
+            <img src="images/verify.webp" width="360" height="756" alt="The verify screen: Prove you're one human" loading="lazy" decoding="async" data-source="client" data-subject="Recharge verify screen">
+          </div></div></div>
+        </article>
+        <article class="card card--row card--open span-4 m-nolift">
+          <span class="step-num">2</span>
+          <h3>Install the eSIM</h3>
+          <p>Follow five short steps in Settings. The line works in about two minutes.</p>
+          <div class="panel"><div class="stage stage--fade-b"><div class="at-rise fit device">
+            <img src="images/install-ios.webp" width="360" height="756" alt="The install screen with its steps for iPhone" loading="lazy" decoding="async" data-source="client" data-subject="Recharge install screen">
+          </div></div></div>
+        </article>
+        <article class="card card--row card--open span-4 m-nolift">
+          <span class="step-num">3</span>
+          <h3>Top up the eSIM with USDC</h3>
+          <p>Add 1 GB for 7 days at $4.00, paid in USDC on Base or Hedera.</p>
+          <div class="panel"><div class="stage stage--fade-b"><div class="at-rise fit device">
+            <img src="images/pay.webp" width="360" height="756" alt="The add data screen: 1 GB for $4.00" loading="lazy" decoding="async" data-source="client" data-subject="Recharge add data screen">
+          </div></div></div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="travellers" aria-labelledby="travellers-h">
+    <div class="wrap">
+      <div class="grid">
+        <div class="span-6 stack-4">
+          <h2 id="travellers-h">Data for travellers, paid your way</h2>
+          <p class="t-lead">Buy more data for yourself, send it to a friend or redeem a card you were handed.</p>
+          <ul class="facts">
+            <li>Gift 1 GB to an ENS name such as rahul.eth</li>
+            <li>Scratch a printed card and enter its 16-digit PIN</li>
+            <li>See every payment with its on-chain hash</li>
+          </ul>
+        </div>
+        <div class="frame frame--split span-6 start-7">
+          <div class="stage phones">
+            <div class="device"><img src="images/gift.webp" width="360" height="756" alt="The gift screen sending 1 GB to rahul.eth" loading="lazy" decoding="async" data-source="client" data-subject="Recharge gift screen"></div>
+            <div class="device"><img src="images/card.webp" width="360" height="756" alt="A redeemed scratch card for 300 MB" loading="lazy" decoding="async" data-source="client" data-subject="Recharge scratch card screen"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section ground-surface" id="organizers" aria-labelledby="organizers-h" data-moment="line-carries-colour" data-moment-opts='{"from": "base"}'>
+    <div class="wrap">
+      <div class="grid">
+        <div class="span-6 stack-4">
+          <h2 id="organizers-h">Sponsor console for event organizers</h2>
+          <p class="t-lead">Fund a campaign in USDC and give your guests free data the moment they land.</p>
+          <ul class="facts">
+            <li>Set a budget, a claim deadline and a cap</li>
+            <li>Issue private passes to ticket holders only</li>
+            <li>Track claims and spend, and export them</li>
+          </ul>
+          <div class="btn-row"><a class="btn btn--secondary" href="https://app.recharge.ajudiya.com/sponsor">Open the sponsor console</a></div>
+        </div>
+        <div class="frame frame--split span-6 start-7">
+          <div class="stage phones phones--one">
+            <div class="device"><img src="images/sponsor-campaign.webp" width="360" height="756" alt="A live campaign in the sponsor console" loading="lazy" decoding="async" data-source="client" data-subject="Recharge sponsor console"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="stack" style="--hm: 2" aria-labelledby="stack-h">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="stack-h">What runs underneath Recharge. <span class="muted">Open source, on public chains.</span></h2>
+      </div>
+      <div class="panel">
+        <div class="dg" data-diagram data-dg-still><script type="application/json">{"layout":"lanes","ground":"none","alt":"A traveller's phone goes to Recharge, which checks World ID, takes USDC over x402 and writes the plan to Arkiv.","input":{"label":"Phone","icon":"ui:smartphone","sub":"New eSIM"},"core":{"label":"Recharge","icon":"ui:zap"},"lanes":[{"label":"Human","icon":"ui:user","done":true,"sub":"World ID"},{"label":"Paid","icon":"ui:banknote","done":true,"sub":"USDC via x402"},{"label":"Saved","icon":"ui:database","done":true,"sub":"Arkiv ledger"}]}</script></div>
+      </div>
+      <div class="grid notes">
+        <div class="span-3"><h3>World ID</h3><p>One free bundle per human, not per phone.</p></div>
+        <div class="span-3"><h3>x402 and USDC</h3><p>Pay per bundle in USDC on Base or Hedera.</p></div>
+        <div class="span-3"><h3>Arkiv ledger</h3><p>Each plan is an entry with its own expiry.</p></div>
+        <div class="span-3"><h3>eSIM gifts by ENS name</h3><p>Send data to a name instead of an address.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="faq" aria-labelledby="faq-h">
+    <div class="wrap">
+      <div class="grid">
+        <div class="span-6 stack-4">
+          <h2 id="faq-h">Questions</h2>
+          <p class="t-lead">The source is on <a class="link" href="https://github.com/AbhimanyuAjudiya/EthGlobal">GitHub</a>.</p>
+          <div class="frame frame--faq">
+            <div class="stage phones phones--one">
+              <div class="device"><img src="images/receipts.webp" width="360" height="756" alt="The receipts screen listing a 300 MB bundle" loading="lazy" decoding="async" data-source="client" data-subject="Recharge receipts screen"></div>
+            </div>
+          </div>
+        </div>
+        <div class="faq span-6 start-7">
+          <div class="faq__item"><h3>Who pays for the free 300 MB?</h3><p>The event or brand that funds the campaign, in USDC.</p></div>
+          <div class="faq__item"><h3>Which phones take the eSIM?</h3><p>Any eSIM-capable phone that is not locked to a carrier.</p></div>
+          <div class="faq__item"><h3>Can I claim the free eSIM twice?</h3><p>No. It is one free bundle per human, not per phone.</p></div>
+          <div class="faq__item"><h3>What does an eSIM top-up cost?</h3><p>1 GB for 7 days is $4.00, paid in USDC.</p></div>
+          <div class="faq__item"><h3>Where are my eSIM receipts?</h3><p>Receipts list every payment with its on-chain hash.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer closing footer--statement" id="contact" aria-labelledby="close-h">
+  <div class="wrap">
+    <div class="closing__cta close--type">
+      <div class="section-head">
+        <h2 id="close-h">Your first 300 MB in India</h2>
+        <p>Prove you are one human and the eSIM is yours in two minutes.</p>
+      </div>
+      <a class="btn btn--primary btn--xl btn--wide" href="https://app.recharge.ajudiya.com/">Get started<svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"/><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"/></svg></a>
+    </div>
+    <div class="closing__links">
+      <div class="grid">
+        <div class="span-4 stack-4">
+          <a class="nav__logo" href="#top"><span class="mark mark--initial" aria-hidden="true">R</span>Recharge</a>
+                  </div>
+        <div class="span-2 footer__col"><h4>Travellers</h4><ul><li><a href="#how">Steps</a></li><li><a href="#travellers">Gifts and cards</a></li></ul></div>
+        <div class="span-2 footer__col"><h4>Organizers</h4><ul><li><a href="#organizers">Campaigns</a></li><li><a href="#faq">Questions</a></li></ul></div>
+        <div class="span-2 footer__col"><h4>Technology</h4><ul><li><a href="#stack">Underneath</a></li></ul></div>
+        <div class="span-2 footer__col"><h4>Source</h4><ul><li><a href="https://github.com/AbhimanyuAjudiya/EthGlobal">GitHub</a></li></ul></div>
+      </div>
+      <div class="footer__legal">
+        <span>&copy; 2026 Recharge &nbsp; Built at ETHGlobal Mumbai 2026</span>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script type="module" src="assets/system.js"></script>
+<script type="module" src="assets/motion/motion.js"></script>
+<script type="module" src="assets/layout/layout.js"></script>
+<script type="module" src="assets/diagrams/mount.js"></script>
+</body>
+</html>

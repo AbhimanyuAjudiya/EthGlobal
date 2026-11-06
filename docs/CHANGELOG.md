@@ -111,12 +111,39 @@ Hedera EVM with one claim, one IDKit 4 verification. Hashes (Thu 5 Nov 2026 IST)
 From 21:00 IST. Each line: `HH:MM IST · author · package · sponsor · what · commit`.
 
 - 21:00 IST · TBD by human (Founder, Thu 21:00) · — · — · kickoff; VPS flipped to the in-window branch, `MODE=live` · —
+- 21:16 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · docs · — · DISCLOSURE.md: v0-prekickoff = 380ff32 (tag created after kickoff, commit before it); inventory at the tag · d42e4ca
+- 15:24 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · README.md, docs, fixtures … · — · deps-check: drop @hashgraphonline/standards-sdk, override ws/zod advisories; lockfile regenerated · 7c83eb8
+
 
 ## [2026-11-06]
 
 - 06:00 IST · TBD by human (Sponsor lead, Fri 06:00) · — · Hedera / World / Arkiv · swap-gate verdicts (`DEMO-SCRIPT.md`) · —
 
 - 18:00 IST · TBD by human (Founder, Fri 18:00) · — · — · partner selection locked in the dashboard · —
+- 02:18 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · apps/web, ops/vps, security/redteam · — · web: landing becomes a hub, header menu, how-it-works walkthrough, plain warnings, three install options; APP_ · 08d351a
+- 02:27 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · apps/web · — · web: connected wallet status with Switch wallet / Disconnect; follow accountsChanged/chainChanged · 3e34040
+- 02:37 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · README.md, docs · — · Live: app.recharge.ajudiya.com (AWS ap-south-1, testnet rails) in README, DISCLOSURE and the runbook · 28cc6a0
+- 02:52 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · apps/web · World · Verify: one tap to World App on a phone, QR behind 'Show QR instead'; desktop keeps the QR first · 82d345a
+- 03:09 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · apps/web · — · Mobile audit: the sponsor claims table scrolls inside itself instead of wrapping times and keys over four line · c4f3918
+- 04:48 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · .env.example, apps/web, docs … · — · web: RainbowKit + wagmi for EVM wallets (mobile WalletConnect), demo wallet as a local-only connector · 3923b0a
+- 04:57 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · security/redteam · — · RT-P-14: deps-check red after RainbowKit — two unreachable high advisories in wagmi's tree, gate relaxation ne · 48afae0
+- 05:04 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · pnpm-workspace.yaml · — · deps-check: accept GHSA-mrhx-c7xc-m3w5 and GHSA-qr28-fpjm-wq7f via auditConfig.ignoreGhsas (RT-P-14, founder y · fd1b78c
+- 05:05 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · ops/vps · — · ops: commit the AWS one-shot deploy script (ops/vps/aws-up.sh); key from ~/.ssh · 4c7b49c
+- 05:12 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · package.json, scripts, services/agent · — · lint: ESLint per workspace directory (one eslint . now needs >8 GB with the wagmi/viem types); agent scripts/  · bfc3b86
+- 05:11 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · apps/web, pnpm-lock.yaml, pnpm-workspace.yaml … · Hedera · web: pay the Hedera x402 rail with HashPack over WalletConnect (HIP-820) · 7fc688a
+- 05:12 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · security/redteam · — · findings: index RT-W-14 · 0c4dba6
+- 05:15 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · docs, scripts, services/agent · — · lint runner uses pnpm exec (deps-check npx rule); drop the one-off pay-gift script; docs/QUALIFICATION.md (par · fceee0f
+- 05:18 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · README.md, docs · — · docs: plan video and submission before the Sat 7 Nov 09:00 IST close; README tag time matches DISCLOSURE · f6be885
+- 05:18 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · LICENSE, README.md · ENS · add MIT LICENSE; README footer names it · 959b1c8
+- 05:19 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · README.md · Hedera · README Hedera: live artefacts (DataDrop, USDC, facilitator, settled payment, HCS topic, UAID) and the 5-step p · aec4d3d
+- 05:22 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · README.md, arkiv · Arkiv · arkiv/: judge folder (what we store, expiry, a live arkiv_query, schema, friction, before/after, swarm); READM · d1d8a72
+- 05:23 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · docs · World · WORLD_AGENT_PASS §7: time to first success and the one improvement · 03c7f4f
+- 05:24 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · services/api · — · api: /openapi.json serves https://api.recharge.ajudiya.com as the server in MODE=live (committed spec keeps th · e80dd0b
+- 05:24 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · docs · Hedera, World, Arkiv, ENS · QUALIFICATION: statuses after the deadline re-plan, LICENSE, README Hedera/Arkiv, arkiv/, World debrief, opena · 58fc863
+- 05:24 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · docs · — · QUALIFICATION: README line refs · e580976
+- 05:25 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · .gitignore, ops/vps · — · ops: aws-up writes the git bundle to a temp dir, *.bundle ignored · 96abd2e
+- 05:28 IST · Abhimanyu Ajudiya (AI-assisted, see DISCLOSURE §4) · docs · — · docs: DEMO-SCRIPT is the shot list for the one submission video (3:30, ⏳ eSIM install and agent top-up with fa · a61683d
+
 
 ## [2026-11-07]
 
@@ -124,7 +151,7 @@ From 21:00 IST. Each line: `HH:MM IST · author · package · sponsor · what ·
 
 ## Pre-kickoff vs in-window lines per sponsor path
 
-Generate at submission (Sat 07:30, **TBD by human (Design/Producer, Sat 07:30)**), one command per row:
+Generated Fri 6 Nov 05:40 IST at HEAD (re-run at submission), one command per row; share = in-window insertions ÷ lines at HEAD:
 
 ```sh
 git diff --stat v0-prekickoff..HEAD -- packages/contracts/src services/api/src/routes/claim.ts services/api/src/accepts.ts services/api/src/chain.ts services/api/src/flows/record.ts services/agent/src/payers/hedera.ts services/agent/src/receipts.ts services/agent/src/identity.ts packages/adapters/src/live/hcs-log.ts packages/adapters/src/live/remote-facilitator.ts   # Hedera
@@ -135,7 +162,7 @@ git diff --stat v0-prekickoff..HEAD -- packages/adapters/src/live/ens-resolver.t
 
 | Sponsor | Lines at `v0-prekickoff` | Lines added/changed in the window | In-window share |
 |---|---|---|---|
-| Hedera | TBD | TBD | TBD |
-| World | TBD | TBD | TBD |
-| Arkiv | TBD | TBD | TBD |
-| ENS | TBD | TBD | TBD |
+| Hedera | 1571 | +0 / −0 | 0 % |
+| World | 1221 | +0 / −0 | 0 % |
+| Arkiv | 741 | +0 / −0 | 0 % |
+| ENS | 546 | +0 / −0 | 0 % |

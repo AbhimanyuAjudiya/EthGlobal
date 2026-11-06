@@ -41,7 +41,7 @@ Say this at 0:00, the same words as the README:
 | 03:02 | `rabdi.explorer.arkiv.network/address/0xC335…4d3c` | open the entity | the writer address and the entity with its expiry block | Every entitlement, gift and receipt is written by this one address; the agent and the gift claim read them back from Arkiv. |
 | 03:08 | `/gift` | type `re-charge.eth` in "ENS name" | "re-charge.eth resolves · the address is printed on the pass" | You can gift data to an ENS name; if nobody claims it, the USDC comes back. |
 | 03:14 | `/sponsor` (sponsor pool) | none | the campaign, claims count and budget bar (DataDrop on Hedera EVM) | Sponsors fund the free pool in USDC with a budget and an hourly cap. |
-| 03:19 | README, "Continuity disclosure" section | scroll to it | the disclosure block with the tag `v0-prekickoff` | Honestly: the scaffold, the contract and one test payment were built before kickoff; the live deploy, the agent, gifting and the sponsor pools on testnet were built in the window, dated in CHANGELOG.md. |
+| 03:19 | README, "Continuity disclosure" section | scroll to it | the disclosure block with the tag `v0-prekickoff` | Honestly: the product — gateway, quota engine, sponsor pools, the top-up agent, gifting, Arkiv and the first testnet payments — was built before kickoff and is tagged `v0-prekickoff`; in the window we took it live on AWS, added the wallet layer, HashPack payments, the mobile flow and the submission material, dated in CHANGELOG.md. |
 | 03:27 | landing hub | none | `app.recharge.ajudiya.com` in the URL bar | Proof or pay: a sponsor pays for humans, agents pay their own way, and the ledger forgets on schedule. |
 
 End at 03:30.

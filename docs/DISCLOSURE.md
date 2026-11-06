@@ -21,10 +21,13 @@ and hashes.
 > `0x2d4d52989545FF0d0CD91D77A33f14063f57c9E6` (one claim, tx `0xec5f963f2bacf55c8c408d4d699650197f19077dbfa209b723039ad75f886c53`), one IDKit
 > verification (action `recharge-welcome`, log hash `09396c147bb69ba45d104b52941234157b7c591a662ff43385aa61347b3779b0`). A team-funded free
 > welcome-bundle campaign ran from 4 Nov (1 claim by kickoff). Pre-bought eSIM
-> inventory, reseller accounts and faucet claims are listed below. **During the window** (dated commits in
-> `CHANGELOG.md`): credential-tiered sponsor pools on Hedera EVM, expiring Arkiv entitlements and the three reads that
-> depend on them, the Hedera Agent Kit top-up agent with an HCS-14 identity and HCS receipts, gifts to ENS names, the
-> scratch-card run, the design pass, live provisioning on three devices. **AI use:** an AI orchestrator wrote most of
+> inventory, reseller accounts and faucet claims are listed below. **During the window** (dated commits in `CHANGELOG.md`; `git log v0-prekickoff..HEAD`): the live deployment at
+> app.recharge.ajudiya.com on AWS (testnet rails), the EVM wallet layer (RainbowKit/wagmi, WalletConnect on phones),
+> human Hedera payments with HashPack over WalletConnect (HIP-820), the one-tap mobile verify flow, the landing hub
+> and walkthrough, the submission material (LICENSE, `arkiv/`, `docs/QUALIFICATION.md`, the demo script) and
+> dependency/lint gate fixes. The sponsor pools, the expiring Arkiv entitlements, the top-up agent with its HCS-14
+> identity and HCS receipts, gifts to ENS names and the scratch-card run were built and exercised on testnet
+> **before** kickoff (5 Nov afternoon, §2 below); in the window they were deployed live, not rewritten. **AI use:** an AI orchestrator wrote most of
 > the pre-kickoff code under human direction and review, with a red-team pass; in-window commits are authored by the
 > named team members with AI assistance for tests, fixtures and documentation. Keys were generated on-site and never
 > entered an AI context.

@@ -229,11 +229,17 @@ seed. Live mode ignores them, and `env.ts` refuses `SEED_*` variables.
 Recharge is entered in the Continuity track. The full text, the pre-kickoff inventory (`v0-prekickoff` = commit `380ff32`,
 committed Thu 5 Nov 20:20:57 IST; the tag object was created at 21:16 IST, after kickoff, with no commit in between), every pre-deployed tx hash and entity key, and the kickoff eligibility answers are in
 [`docs/DISCLOSURE.md`](docs/DISCLOSURE.md). The dated in-window work is in [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
+In plain terms: the product (gateway, quota engine, sponsor pools, the top-up agent with HCS-14 identity and HCS receipts,
+gifts to ENS names, Arkiv expiry, the first testnet payments) was built and exercised **before** kickoff; **in the window**
+it went live on AWS at app.recharge.ajudiya.com and gained the EVM wallet layer (RainbowKit/wagmi, WalletConnect), human
+Hedera payments with HashPack, the one-tap mobile verify flow, the landing hub and the submission material. The per-sponsor
+table at the end of `CHANGELOG.md` (`git diff --stat v0-prekickoff..HEAD`) shows 0 % in-window change on the Hedera, World,
+Arkiv and ENS integration paths themselves.
 
 ## AI use
 
-An AI orchestrator wrote most of the pre-kickoff code under human direction and review, with a red-team pass. In-window
-commits are authored by the named team members with AI assistance for tests, fixtures and documentation. Keys were
+An AI orchestrator (Claude) and its builder/red-team agents wrote most of the code, before kickoff and in the window,
+under the founder's direction and review; every in-window commit carries a `Co-Authored-By: Claude` line. Keys were
 generated on-site and never entered an AI context.
 
 ## Revenue
@@ -243,26 +249,10 @@ generated on-site and never entered an AI context.
 ## Dependencies: the 3-day release-age gate
 
 `pnpm-workspace.yaml` sets `minimumReleaseAge: 4320` (THREAT-MODEL T-65: never resolve a version published less than
-3 days ago). Several catalog pins were younger than that when they were chosen, for example `@arkiv-network/sdk@1.0.1`
-and `@vitest/coverage-v8@5.1.0`. Packages added in waves 1–3 (`octroi`, `protocol`, `crypto`, `eip3009`, `agent`,
-`scripts`) also have no `pnpm-lock.yaml` entry yet. So **`pnpm install --frozen-lockfile` (and CI) fails until the
-pinned versions age past the gate and the lockfile is regenerated.** Nobody has loosened the gate, and it must not be
-loosened to unblock a build.
-
-**The lockfile refresh (RT-P-04), Thu 5 Nov afternoon IST (after ≈ 08:30 UTC, when the youngest pin clears the
-gate).** On a machine with registry access, a human runs `bash scripts/refresh-lockfile.sh`. It runs `pnpm install`, then
-`pnpm install --frozen-lockfile`, then `security/redteam/tools/deps-check.sh`, and stages `pnpm-lock.yaml`. Review the
-diff and commit it. Every direct dependency is now an exact `catalog:` pin (RT-P-05), so the refresh resolves the
-versions the tests ran on, and only transitive versions are new. Until then CI's install step fails with a message
-pointing here and at `docs/ONSITE-RUNBOOK.md` §0. The blocking `fixture-scan` job needs no install and still runs.
-After the refresh, always install with `pnpm install --frozen-lockfile`.
-
-How the build machine bridged it: each workstream installed gate-compliant copies with
-`npm install --before=2026-10-31 --prefix <scratchpad>/<name> <pkg>@<version>`, then symlinked them into the package's
-`node_modules` with a per-package link script (`link-api.sh`, `link-agent.sh`, `link-scripts.sh`, …, kept outside the
-repo). `package.json` files declare only `workspace:*` and `catalog:` versions, so a real `pnpm install` replaces every
-link. The one new third-party dependency in wave 3 is the QR encoder **`uqr@0.1.3`** (MIT, zero dependencies, published
-2026-04-03), pinned in the catalog and used only by `scripts/print-cards.ts`.
+3 days ago). The gate has never been loosened. The lockfile was regenerated on 6 Nov 2026 once the youngest pins had aged
+past it, so `pnpm install --frozen-lockfile` and CI pass. Two high advisories in wagmi's transitive tree are accepted with
+written reasons in `auditConfig.ignoreGhsas` (finding RT-P-14): the vulnerable code is not reachable and the patched
+versions are cross-major.
 
 ## Repository layout
 

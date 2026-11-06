@@ -26,6 +26,20 @@ export interface CampaignCounters {
   claimed?: boolean;
 }
 
+/** Both the sponsor's lifetime claim cap and the funded budget limit new claims. */
+export function remainingCampaignClaims(
+  campaign: Pick<Campaign, 'maxClaims' | 'pricePerClaimUsd6'>,
+  counters: Pick<CampaignCounters, 'budgetUsd6' | 'spentUsd6'>,
+): number {
+  const price = campaign.pricePerClaimUsd6;
+  if (price <= 0n || counters.spentUsd6 >= counters.budgetUsd6) return 0;
+  const capLeft = BigInt(campaign.maxClaims) - counters.spentUsd6 / price;
+  if (capLeft <= 0n) return 0;
+  const budgetLeft = (counters.budgetUsd6 - counters.spentUsd6) / price;
+  // capLeft is bounded by the schema's safe integer maxClaims; do not convert a large budget first.
+  return Number(capLeft < budgetLeft ? capLeft : budgetLeft);
+}
+
 /** Throws RechargeError('invalid_request') with the zod issues when `value` is not a valid campaign payload. */
 export function parseCampaignPayload(value: unknown): CampaignPayload {
   const parsed = campaignSchema.safeParse(value);

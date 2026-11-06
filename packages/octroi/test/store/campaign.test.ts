@@ -2,11 +2,34 @@ import { describe, expect, it } from 'vitest';
 
 import { InMemoryLedger } from '@ethglobal/adapters';
 
-import { campaignFromPayload, campaignToPayload, type Campaign } from '../../src/index.js';
+import {
+  campaignFromPayload,
+  campaignToPayload,
+  remainingCampaignClaims,
+  type Campaign,
+} from '../../src/index.js';
 import { CampaignStore } from '../../src/store/index.js';
 import { campaign, CAMPAIGN_ID, T0 } from '../helpers.js';
 
 const setup = () => new CampaignStore(new InMemoryLedger({ now: () => T0 }), () => T0);
+
+describe('remainingCampaignClaims', () => {
+  it.each([
+    [100_000_000n, 500_000n, 1],
+    [100_000_000n, 1_000_000n, 0],
+    [500_000n, 0n, 1],
+    [500_000n, 500_000n, 0],
+    [500_000n, 1_000_000n, 0],
+    [2n ** 127n, 0n, 2],
+  ])(
+    'budget %s and spent %s leave %s claims under a two-claim cap',
+    (budgetUsd6, spentUsd6, expected) => {
+      expect(remainingCampaignClaims(campaign({ maxClaims: 2 }), { budgetUsd6, spentUsd6 })).toBe(
+        expected,
+      );
+    },
+  );
+});
 
 describe('CampaignStore', () => {
   it('put/get/list round-trip bigint money through digit strings; put replaces', async () => {

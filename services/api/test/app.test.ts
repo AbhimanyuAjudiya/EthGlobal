@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { PlansResponse } from '@ethglobal/protocol/schemas';
+
 import { createChainIdResolver } from '../src/chain.js';
 import { openApiDocument, OPERATIONS } from '../src/openapi.js';
 import { errorOf, harness } from './support/harness.js';
@@ -107,6 +109,15 @@ describe('app basics', () => {
     };
     expect(Object.keys(m.histograms).some((k) => k.startsWith('http_ms'))).toBe(true);
     expect(m.degraded).toBe(false);
+  });
+
+  it('GET /plans subtracts fulfilled claims from the lifetime cap even with a larger funded budget', async () => {
+    const h = await harness();
+    const found = await h.deps.stores.campaigns.get(h.campaignId);
+    await h.deps.stores.campaigns.put({ ...found!.payload, maxClaims: 2 });
+    expect((await h.claim({ seed: 'lifetime-cap-public' })).res.status).toBe(201);
+    const plans = (await (await h.get('/plans')).json()) as PlansResponse;
+    expect(plans.campaign).toMatchObject({ maxClaims: 2, remainingClaims: 1 });
   });
 });
 

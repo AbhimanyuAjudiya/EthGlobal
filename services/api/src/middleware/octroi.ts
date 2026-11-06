@@ -6,6 +6,7 @@ import {
   decide,
   freeEntitlementKey,
   holderHash,
+  remainingCampaignClaims,
   sizeBundle,
   signalFor,
   type Campaign,
@@ -21,7 +22,7 @@ import { fail } from '../errors.js';
 import { consume } from '../flows/challenge.js';
 import { deliveryMetadata, fulfil, pendingResponse, type Fulfilled } from '../flows/fulfil.js';
 import { paymentFingerprint, rememberPaid } from '../flows/payments.js';
-import { assertPlanCapacity } from '../flows/plan.js';
+import { assertConfiguredCapacity } from '../flows/plan.js';
 
 import type { Release } from '../admission.js';
 import type { AppEnv, Ctx } from '../context.js';
@@ -75,8 +76,7 @@ export const octroi = (input: (c: Ctx) => LaneInput | Promise<LaneInput>) =>
     let engine: OctroiDeps = deps.octroi;
     const fingerprint = lane.lane === 'paid' ? await paymentFingerprint(c) : undefined;
     if (lane.lane === 'free') {
-      const mark = deps.admission.mark();
-      const { campaign, counters } = await campaignState(deps, lane.campaignId);
+      let { campaign, counters } = await campaignState(deps, lane.campaignId);
       c.set('campaign', campaign);
       // a served-but-undelivered claim is re-bound before any slot is taken: nothing is claimed (RT-A-17)
       const rebound = await rebindPending(c, deps, lane);
@@ -85,17 +85,37 @@ export const octroi = (input: (c: Ctx) => LaneInput | Promise<LaneInput>) =>
       const prior = tag
         ? deps.intents.get(claimIntentKey(deps, lane.sessionPubKey, lane.campaignId, tag))
         : undefined;
-      if (campaign && !prior)
-        await assertPlanCapacity(
+      if (campaign && !prior) {
+        const configuredCampaign = campaign;
+        await assertConfiguredCapacity(
           deps,
-          campaign.planId,
           Math.max(
-            ...(['orb', 'document', 'device'] as const).map((tier) => sizeBundle(campaign, tier)),
+            ...(['orb', 'document', 'device'] as const).map((tier) =>
+              sizeBundle(configuredCampaign, tier),
+            ),
           ),
         );
+      }
       const claimed =
         prior && (await deps.dataDrop.claimed(lane.campaignId, prior.decision.claimKey));
-      if (campaign && counters && !claimed) release = admit(deps, campaign, counters, mark);
+      if (campaign && counters && !claimed)
+        release = await deps.mutex.run(`campaign:${lane.campaignId.toLowerCase()}`, async () => {
+          const mark = deps.admission.mark();
+          const openCards = await deps.stores.gifts.openCampaignCards(lane.campaignId);
+          const pending = await pendingCampaignClaims(
+            deps,
+            lane.campaignId,
+            prior?.decision.claimKey,
+            openCards.map((card) => card.payload.giftId),
+          );
+          const fresh = await campaignState(deps, lane.campaignId);
+          if (!fresh.campaign || !fresh.counters) throw fail('not_found');
+          campaign = fresh.campaign;
+          counters = fresh.counters;
+          c.set('campaign', campaign);
+          // Printed cards already promise campaign slots. Minting/redemption uses this same lock and counter.
+          return admit(deps, campaign, counters, mark, openCards.length + pending);
+        });
       engine = {
         ...deps.octroi,
         onFreeReservation: async (decision, reservation) => {
@@ -239,21 +259,56 @@ export async function campaignState(
   return { campaign, counters };
 }
 
+/** Under the campaign mutex, before reading counters: unresolved sends still reserve lifetime/budget capacity. */
+export async function pendingCampaignClaims(
+  deps: Deps,
+  campaignId: Hex,
+  excludeClaimKey?: Hex,
+  reservedGiftIds: readonly string[] = [],
+): Promise<number> {
+  const keys = new Set(
+    deps.intents
+      .entries()
+      .map(([, intent]) => intent)
+      .filter(
+        (intent) =>
+          intent.campaignId.toLowerCase() === campaignId.toLowerCase() &&
+          (intent.chainPendingUntil ?? 0) > deps.now() &&
+          intent.decision.claimKey.toLowerCase() !== excludeClaimKey?.toLowerCase(),
+      )
+      .map((intent) => intent.decision.claimKey),
+  );
+  const open = new Set(reservedGiftIds.map((id) => id.toLowerCase()));
+  for (const [, pending] of deps.pendingCardClaims.entries()) {
+    if (
+      pending.campaignId.toLowerCase() === campaignId.toLowerCase() &&
+      pending.expiresAt > deps.now() &&
+      pending.claimKey.toLowerCase() !== excludeClaimKey?.toLowerCase() &&
+      !open.has(pending.giftId.toLowerCase())
+    )
+      keys.add(pending.claimKey);
+  }
+  const mined = await Promise.all([...keys].map((key) => deps.dataDrop.claimed(campaignId, key)));
+  return mined.filter((claimed) => !claimed).length;
+}
+
 /**
- * The admission slot (RT-A-03): slots = min(claimsPerHour − claimsThisHour, ⌊(budget − spent) / price⌋) − inFlight
- * − commits since `mark`. Nobody is verified for a claim the hour OR the budget cannot pay; the refusal names the
+ * The admission slot (RT-A-03): slots = min(hour remaining, lifetime remaining, budget remaining) − inFlight
+ * − commits since `mark`. Nobody is verified for a claim the campaign cannot accept; the refusal names the
  * constraint that bound (409 budget_exhausted, else 429 hourly_cap).
  */
-function admit(deps: Deps, campaign: Campaign, counters: CampaignCounters, mark: number): Release {
+function admit(
+  deps: Deps,
+  campaign: Campaign,
+  counters: CampaignCounters,
+  mark: number,
+  reservedCards = 0,
+): Release {
   const hourLeft = campaign.claimsPerHour - counters.claimsThisHour;
-  const price = campaign.pricePerClaimUsd6;
-  const budgetLeft =
-    price > 0n
-      ? Number((counters.budgetUsd6 - counters.spentUsd6) / price)
-      : Number.MAX_SAFE_INTEGER;
-  const release = deps.admission.take(campaign.id, Math.min(hourLeft, budgetLeft), 0, mark);
+  const claimsLeft = Math.max(0, remainingCampaignClaims(campaign, counters) - reservedCards);
+  const release = deps.admission.take(campaign.id, Math.min(hourLeft, claimsLeft), 0, mark);
   if (release) return release;
-  if (budgetLeft <= hourLeft) throw fail('budget_exhausted');
+  if (claimsLeft <= hourLeft) throw fail('budget_exhausted');
   throw fail('hourly_cap', { retryAfterS: secondsToNextHour(deps.now()) });
 }
 
@@ -427,6 +482,7 @@ async function resumeIntent(deps: Deps, lane: FreeLane) {
   // or when this human is served (entitle.ts deletes only the served human's own intent).
   if (intent?.campaignId.toLowerCase() !== lane.campaignId.toLowerCase()) return undefined;
   if (tag === undefined || tag !== intent.nullifierTag) return undefined;
+  if (intent.decision.entitlement.expiresAt <= deps.now()) throw fail('expired');
   if (intent.recoveryKeyHash !== undefined && intent.recoveryKeyHash !== lane.recoveryKeyHash)
     throw fail('unauthorized');
   await consume(deps, lane.challenge, '/claim', lane.sessionPubKey);
@@ -444,7 +500,11 @@ async function resumeIntent(deps: Deps, lane: FreeLane) {
         if (!(await deps.stores.claims.reserve(lock.key, lock.scope, lock.expiresAt, token)))
           throw fail('replay', { detail: 'claim reservation belongs to another attempt' });
       }
-      deps.intents.set(spk, { ...intent, reserved: true }, intent.decision.entitlement.expiresAt);
+      deps.intents.set(
+        spk,
+        { ...intent, reserved: true },
+        Math.max(intent.decision.entitlement.expiresAt, intent.chainPendingUntil ?? 0),
+      );
     } catch (error) {
       for (const lock of locks) await deps.stores.claims.release(lock.key, token);
       throw error;

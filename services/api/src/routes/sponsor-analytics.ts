@@ -8,7 +8,13 @@
  * the ownership check needs it. Rate limit: the global per-IP limit, as GET /sponsor/:id. The answer carries no plan
  * key, ledger index, entitlement hash, claim key or payer — only counts, times, tiers, claim txs and Arkiv entity keys.
  */
-import { INDEX_PREFIX, sizeBundle, type Campaign, type Found } from '@ethglobal/octroi';
+import {
+  INDEX_PREFIX,
+  remainingCampaignClaims,
+  sizeBundle,
+  type Campaign,
+  type Found,
+} from '@ethglobal/octroi';
 import { dayBucket, hourBucket, type Hex } from '@ethglobal/protocol/ids';
 import type {
   AnalyticsTier,
@@ -197,7 +203,10 @@ export function buildAnalytics(
   const topUps = [...members.values()].flatMap((m) => m.topUps);
   const price = chain.pricePerClaim;
   const remaining = chain.budget > chain.spent ? chain.budget - chain.spent : 0n;
-  const remainingClaims = price > 0n ? safeNumber(remaining / price) : 0;
+  const remainingClaims = remainingCampaignClaims(
+    { maxClaims: campaign.maxClaims, pricePerClaimUsd6: price },
+    { budgetUsd6: chain.budget, spentUsd6: chain.spent },
+  );
   const perHour = last24h / 24;
   const claims = scan.claims;
   return {

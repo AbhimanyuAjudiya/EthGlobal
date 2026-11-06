@@ -6,6 +6,39 @@ import { fixtureProof } from '@ethglobal/adapters/testing';
 import { errorOf, harness } from './fixture.js';
 
 describe('attack: hourly cap and burned proofs (AP5)', () => {
+  it('reserves the final lifetime claim before verification even when the budget and hourly cap allow more', async () => {
+    const h = await harness({ campaign: { claimsPerHour: 10, budget: 10_000_000n } });
+    const campaign = await h.deps.stores.campaigns.get(h.campaignId);
+    await h.deps.stores.campaigns.put({ ...campaign!.payload, maxClaims: 1 });
+    let entered!: () => void;
+    let release!: () => void;
+    const started = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const checkProof = h.adapters.personhood.verify.bind(h.adapters.personhood);
+    const verify = vi.spyOn(h.adapters.personhood, 'verify').mockImplementation(async (...args) => {
+      entered();
+      await blocked;
+      return checkProof(...args);
+    });
+    const first = h.claim({ seed: 'last-lifetime-slot' });
+    await started;
+    const denied = await h.claim({ seed: 'parallel-lifetime-slot' });
+    expect([denied.res.status, await errorOf(denied.res)]).toEqual([409, 'budget_exhausted']);
+    expect(verify).toHaveBeenCalledTimes(1);
+    release();
+    expect((await first).res.status).toBe(201);
+    h.clock.advance(60 * 60_000);
+    const later = await h.claim({ seed: 'next-hour-lifetime-slot' });
+    expect([later.res.status, await errorOf(later.res)]).toEqual([409, 'budget_exhausted']);
+    expect(verify).toHaveBeenCalledTimes(1);
+    expect(h.dataDrop.claimedEvents).toHaveLength(1);
+    expect(h.reseller.orders()).toHaveLength(1);
+  });
+
   it('a revert HourlyCap from the chain ⇒ 429 retryable, the admission slot is released, the next claim succeeds', async () => {
     const h = await harness({ campaign: { claimsPerHour: 3 } });
     h.dataDrop.failNext.claim = 'HourlyCap';

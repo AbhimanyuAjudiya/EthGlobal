@@ -95,12 +95,21 @@ export interface ClaimIntent {
   /** The first attempt's challenge signal: a retry may resend that proof instead of proving again. */
   signal: Hex;
   claimTx?: Hex;
+  /** Ambiguous chain submission keeps its campaign capacity until resolved or the campaign ends. */
+  chainPendingUntil?: number;
   reserved?: boolean;
   reservation?: {
     token: Hex;
     keys: string[];
     locks: { key: string; scope: 'free-live' | 'free-campaign'; expiresAt: number }[];
   };
+}
+
+export interface PendingCardClaim {
+  campaignId: Hex;
+  claimKey: Hex;
+  giftId: Hex;
+  expiresAt: number;
 }
 
 export interface RpSigner {
@@ -155,6 +164,8 @@ export interface Deps {
    * human completes it (durable, RT-A-11; retained through the original entitlement/campaign lifetime).
    */
   intents: DurableMap<ClaimIntent>;
+  /** A submitted card claim can outlive the printed PIN; retain its capacity through campaign expiry. */
+  pendingCardClaims: DurableMap<PendingCardClaim>;
   /** World ID Agent Pass (docs/WORLD_AGENT_PASS.md); undefined = off (no WORLD_AGENT_PASS_CLIENT_ID). */
   agentPass: AgentPass | undefined;
   /** ENSv2 campaign names (flows/ens.ts, ens/README.md); undefined = off (ENS_ENABLED unset). */
@@ -282,6 +293,7 @@ export async function buildDeps(
     orderRetries: new WindowLimiter(1, 60_000, now),
     rebinds: new WindowLimiter(3, 3_600_000, now),
     intents: state.map<ClaimIntent>('intents'),
+    pendingCardClaims: state.map<PendingCardClaim>('pending-card-claims'),
     agentPass: createAgentPass(env, {
       ...(overrides.fetch === undefined ? {} : { fetch: overrides.fetch }),
       now,

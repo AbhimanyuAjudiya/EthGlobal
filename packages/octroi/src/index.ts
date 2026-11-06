@@ -4,6 +4,7 @@ export {
   assertCampaignLifetime,
   campaignFromPayload,
   campaignToPayload,
+  remainingCampaignClaims,
   CampaignTooLongError,
   CLAIM_RECORD_GRACE_MS,
   MAX_CAMPAIGN_MS,

@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import { MockReseller } from '@ethglobal/adapters';
 import { fixtureProof, T0 } from '@ethglobal/adapters/testing';
 import { sponsorViewSchema } from '@ethglobal/protocol/schemas';
 
@@ -66,14 +67,73 @@ describe('POST /sponsor', () => {
     });
     expect((await h.json('/sponsor/validate', { campaign })).status).toBe(200);
     expect(await h.deps.stores.campaigns.get(campaign.id as `0x${string}`)).toBeNull();
-    expect(
-      (await h.json('/sponsor/validate', { campaign: { ...campaign, planId: 'in-300mb-7d' } }))
-        .status,
-    ).toBe(400);
+    h.deps.env.RESELLER_PLAN_ID = 'in-300mb-7d';
+    expect((await h.json('/sponsor/validate', { campaign })).status).toBe(400);
     expect(
       (await h.json('/sponsor/validate', { campaign: { ...campaign, pricePerClaimUsd6: '1' } }))
         .status,
     ).toBe(400);
+  });
+
+  it('validates the operator vendor package and fulfils it when the campaign form carries a display alias', async () => {
+    const reseller = new MockReseller({
+      plans: [
+        {
+          id: 'JC060',
+          provider: 'mock',
+          name: 'India 1 GB',
+          country: 'IN',
+          dataMb: 1000,
+          validityDays: 7,
+          wholesaleUsd6: 1_200_000n,
+        },
+      ],
+    });
+    const h = await harness({
+      env: { RESELLER_PLAN_ID: 'JC060' },
+      overrides: { adapters: { reseller } },
+    });
+    const id = onChain(h);
+    const campaign = campaignFields({
+      id,
+      sponsor: SPONSOR,
+      contract: h.dataDrop.address,
+      expiresAt: T0 + 10 * DAY,
+      planId: 'in-1gb-7d',
+      pricePerClaimUsd6: '1200000',
+      wholesaleUsd6PerGb: '1200000',
+      idResaleUsd6: '1500000',
+      bundleMb: { orb: 1000, document: 1000, device: 0 },
+    });
+    expect((await h.json('/sponsor/validate', { campaign })).status).toBe(200);
+    const auth = await sponsorLogin(SPONSOR_KEY, h.deps.chainId, id, h.clock.now());
+    expect((await h.json('/sponsor', { campaign, auth })).status).toBe(201);
+    const catalog = vi.spyOn(reseller, 'plans').mockResolvedValueOnce([]);
+    expect((await h.claim({ campaignId: id })).res.status).toBe(503);
+    expect(h.dataDrop.claimedEvents).toHaveLength(0);
+    expect(reseller.orders()).toHaveLength(0);
+    catalog.mockRestore();
+    expect((await h.claim({ campaignId: id })).res.status).toBe(201);
+    expect(h.dataDrop.claimedEvents).toHaveLength(1);
+    expect(reseller.orders()).toHaveLength(1);
+    expect(reseller.orders()[0]?.profile.planId).toBe('JC060');
+  });
+
+  it('refuses preflight and registration when the configured vendor package is absent even if the form alias exists', async () => {
+    const h = await harness({ env: { RESELLER_PLAN_ID: 'UNKNOWN-VENDOR-PACKAGE' } });
+    const id = onChain(h);
+    const campaign = campaignFields({
+      id,
+      sponsor: SPONSOR,
+      contract: h.dataDrop.address,
+      expiresAt: T0 + 10 * DAY,
+      planId: 'in-1gb-7d',
+      pricePerClaimUsd6: '1200000',
+    });
+    expect((await h.json('/sponsor/validate', { campaign })).status).toBe(503);
+    expect((await register(h)).status).toBe(503);
+    expect(await h.deps.stores.campaigns.get(id)).toBeNull();
+    expect(h.reseller.orders()).toHaveLength(0);
   });
   it('register with a valid SponsorLogin → 201 + auditKey', async () => {
     const h = await harness();

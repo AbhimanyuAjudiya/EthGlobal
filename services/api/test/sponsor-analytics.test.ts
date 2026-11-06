@@ -404,6 +404,17 @@ describe('buildAnalytics', () => {
     expect(x.notInstalled.usd6).toBe('1200000');
   });
 
+  it('remaining claims respect the lifetime cap independently of unspent campaign money', () => {
+    const x = buildAnalytics(
+      id,
+      { ...campaign(), maxClaims: 2 },
+      { ...chain, budget: 120_000_000n, spent: 1_200_000n },
+      scan({}),
+      T0,
+    );
+    expect(x.money).toMatchObject({ remainingUsd6: '118800000', remainingClaims: 1 });
+  });
+
   it(`tracks at most ${NOT_INSTALLED_ROWS_MAX} not-installed rows, oldest first, and counts them all`, () => {
     const plans = Array.from({ length: NOT_INSTALLED_ROWS_MAX + 1 }, (_, i) =>
       plan(i + 1, T0 - (i + 1) * 60_000, {

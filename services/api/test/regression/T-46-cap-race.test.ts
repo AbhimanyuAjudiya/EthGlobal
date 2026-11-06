@@ -6,6 +6,8 @@ import { harness } from '../support/harness.js';
 describe('T-46 hourly-cap race', () => {
   it('admission takes the slot before verify', async () => {
     const h = await harness({ campaign: { claimsPerHour: 5 } });
+    // Isolate admission from the independently tested 80%-burst anomaly pause.
+    vi.spyOn(h.deps.anomaly, 'record').mockResolvedValue(false);
     const verify = vi.spyOn(h.adapters.personhood, 'verify');
     const results = await Promise.all(
       Array.from({ length: 20 }, (_, i) => h.claim({ seed: `race-${i}` })),

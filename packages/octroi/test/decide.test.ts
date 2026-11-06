@@ -139,6 +139,22 @@ describe('decide — free lane', () => {
     );
   });
 
+  it('the lifetime claim cap survives an hour reset and blocks verification despite unused budget', async () => {
+    const d = deps();
+    const verify = vi.spyOn(d.personhood, 'verify');
+    const put = vi.spyOn(d.ledger, 'put');
+    const c = campaign({ maxClaims: 2 });
+    const ct = counters({
+      budgetUsd6: 100n * c.pricePerClaimUsd6,
+      spentUsd6: 2n * c.pricePerClaimUsd6,
+      claimsThisHour: 0,
+      hourBucket: counters().hourBucket - 1,
+    });
+    expect(await decide(freeReq(d, { campaign: c, counters: ct }), d)).toEqual(denied('cap'));
+    expect(verify).not.toHaveBeenCalled();
+    expect(put).not.toHaveBeenCalled();
+  });
+
   it('a count from an earlier hour bucket no longer applies', async () => {
     const d = deps({ personhood: permissive() });
     const ct = counters({ claimsThisHour: 5, hourBucket: counters().hourBucket - 1 });

@@ -21,6 +21,7 @@ import {
   entitlementIndex,
   giftEntitlementKey,
   holderHash,
+  remainingCampaignClaims,
   type Entitlement,
 } from '@ethglobal/octroi';
 import type { Found } from '@ethglobal/octroi/store';
@@ -41,7 +42,9 @@ import type {
 } from '@ethglobal/protocol/schemas';
 import { GIFT_CLAIM_TYPES, rechargeDomain } from '@ethglobal/protocol/typed-data';
 
+import { ChainRevert } from '../chain.js';
 import { fail } from '../errors.js';
+import { campaignState, pendingCampaignClaims } from '../middleware/octroi.js';
 import { signedBy } from '../signatures.js';
 import { claimOnChain } from './entitle.js';
 import { deliveryMetadata, deliveryRecoveryHash, fulfil } from './fulfil.js';
@@ -244,8 +247,8 @@ export const giftDeliveredKey = (deps: Pick<Deps, 'secret'>, giftId: Hex): strin
   keys.claim(hmacKey(deps.secret, 'gift-delivered', giftId.toLowerCase()));
 
 /**
- * Claim or redeem one escrow: per-giftId mutex → markClaimed (idempotent for our key) → campaign-funded cards claim
- * on DataDrop → the gift-claim/card-redeem receipt (durable, BEFORE delivery; a failure here is a 503 and no LPA) →
+ * Claim or redeem one escrow: per-giftId mutex → campaign-funded cards reserve capacity and claim on DataDrop →
+ * markClaimed (idempotent for our key) → the gift-claim/card-redeem receipt (durable, BEFORE delivery; a failure here is a 503 and no LPA) →
  * the once-only delivery marker → fulfil() → HCS. A gift whose entitlement exists, or whose LPA was already handed
  * out (even if that entitlement has since expired, RT-A-06), refuses a different holder. An authenticated retry
  * with its original private recovery token and session receives only metadata, then recovers ciphertext via /delivery.
@@ -281,35 +284,80 @@ export async function claimEscrow(
       return deliveryMetadata(recovered, delivery.context);
     }
     await assertConfiguredCapacity(deps, gift.mb);
-    try {
-      await deps.stores.gifts.markClaimed(giftId, key);
-    } catch (error) {
-      if (
-        error instanceof RechargeError &&
-        (error.code === 'not_found' || error.code === 'already_claimed')
-      )
-        throw fail(error.code === 'not_found' ? 'expired' : 'already_claimed');
-      throw error;
-    }
+    const markClaimed = async () => {
+      try {
+        await deps.stores.gifts.markClaimed(giftId, key);
+      } catch (error) {
+        if (
+          error instanceof RechargeError &&
+          (error.code === 'not_found' || error.code === 'already_claimed')
+        )
+          throw fail(error.code === 'not_found' ? 'expired' : 'already_claimed');
+        throw error;
+      }
+    };
     let claimTx: Hex | undefined;
     let claimKey: Hex | undefined;
     if (gift.fundedBy === 'campaign' && gift.campaignId !== undefined) {
       if (ctx.pin === undefined)
         throw fail('unauthorized', { detail: 'campaign cards redeem by PIN' });
-      const campaignId = gift.campaignId as Hex;
+      const campaignId = gift.campaignId.toLowerCase() as Hex;
       claimKey = keccak256(
         concat(hexToBytes(campaignId), hexToBytes(hmacKey(deps.secret, 'card', ctx.pin))),
       );
-      // a retry after a failed delivery finds the claim already on-chain and does not claim twice
-      if (!(await deps.dataDrop.claimed(campaignId, claimKey)))
-        claimTx = await claimOnChain(deps, campaignId, claimKey);
-      else {
-        claimTx = await deps.dataDrop.claimTransaction?.(campaignId, claimKey);
-        if (!claimTx)
-          throw fail('chain_unavailable', {
-            detail: 'claimed card transaction is not yet available',
+      const cardClaimKey = claimKey;
+      // gift → campaign is the only nested lock order here. Keep the card open until its claim is mined,
+      // and replace its open-card promise with the mined counter before another mint/free claim can read it.
+      claimTx = await deps.mutex.run(`campaign:${campaignId}`, async () => {
+        // Recovery of this exact mined claim consumes no new campaign capacity, even after pause/cap/expiry.
+        if (await deps.dataDrop.claimed(campaignId, cardClaimKey)) {
+          const tx = await deps.dataDrop.claimTransaction?.(campaignId, cardClaimKey);
+          if (!tx)
+            throw fail('chain_unavailable', {
+              detail: 'claimed card transaction is not yet available',
+            });
+          deps.pendingCardClaims.delete(cardClaimKey);
+          await markClaimed();
+          return tx;
+        }
+        const mark = deps.admission.mark();
+        const pending = await pendingCampaignClaims(deps, campaignId, cardClaimKey);
+        const { campaign, counters } = await campaignState(deps, campaignId);
+        if (!campaign || !counters) throw fail('not_found');
+        if (counters.paused) throw fail('campaign_paused');
+        if (campaign.expiresAt <= deps.now()) throw fail('campaign_expired');
+        const claimsLeft = Math.max(0, remainingCampaignClaims(campaign, counters) - pending);
+        const hourLeft = campaign.claimsPerHour - counters.claimsThisHour;
+        const release = deps.admission.take(campaignId, Math.min(claimsLeft, hourLeft), 0, mark);
+        if (!release) {
+          if (claimsLeft <= hourLeft) throw fail('budget_exhausted');
+          throw fail('hourly_cap', {
+            retryAfterS: Math.ceil((3_600_000 - (deps.now() % 3_600_000)) / 1000),
           });
-      }
+        }
+        const priorPending = deps.pendingCardClaims.get(cardClaimKey);
+        try {
+          // Persist before sending: an ambiguous transaction may mine after this card's claim window ends.
+          deps.pendingCardClaims.set(
+            cardClaimKey,
+            { campaignId, claimKey: cardClaimKey, giftId, expiresAt: campaign.expiresAt },
+            campaign.expiresAt,
+          );
+          const tx = await claimOnChain(deps, campaignId, cardClaimKey, release);
+          deps.pendingCardClaims.delete(cardClaimKey);
+          await markClaimed();
+          return tx;
+        } catch (error) {
+          // A failed retry does not resolve an earlier uncertain send of the same claim.
+          if (error instanceof ChainRevert && priorPending === undefined)
+            deps.pendingCardClaims.delete(cardClaimKey);
+          throw error;
+        } finally {
+          release();
+        }
+      });
+    } else {
+      await markClaimed();
     }
     const now = deps.now();
     const entitlement: Entitlement = {

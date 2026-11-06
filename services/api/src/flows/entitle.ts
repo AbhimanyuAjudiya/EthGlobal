@@ -93,23 +93,43 @@ async function serveFree(
         nullifierTag: tag,
         signal: saved?.signal ?? (body.challenge.signal as Hex),
       },
-      decision.entitlement.expiresAt,
+      Math.max(decision.entitlement.expiresAt, saved?.chainPendingUntil ?? 0),
     );
     let tx: Hex;
     try {
-      if (saved && (await deps.dataDrop.claimed(campaign.id as Hex, decision.claimKey))) {
-        const recovered =
-          saved.claimTx ??
-          (await deps.dataDrop.claimTransaction?.(campaign.id as Hex, decision.claimKey));
-        if (!recovered)
-          throw new ChainUnavailable('mined claim transaction could not be recovered');
-        tx = recovered;
-        c.get('releaseSlot')?.();
-      } else {
-        tx = await claimOnChain(deps, campaign.id as Hex, decision.claimKey, c.get('releaseSlot'));
-      }
+      tx = await deps.mutex.run(`campaign:${campaign.id.toLowerCase()}`, async () => {
+        if (saved && (await deps.dataDrop.claimed(campaign.id as Hex, decision.claimKey))) {
+          const recovered =
+            saved.claimTx ??
+            (await deps.dataDrop.claimTransaction?.(campaign.id as Hex, decision.claimKey));
+          if (!recovered)
+            throw new ChainUnavailable('mined claim transaction could not be recovered');
+          c.get('releaseSlot')?.();
+          return recovered;
+        }
+        const before = deps.intents.get(intentKey)!;
+        deps.intents.set(
+          intentKey,
+          { ...before, chainPendingUntil: campaign.expiresAt },
+          Math.max(decision.entitlement.expiresAt, campaign.expiresAt),
+        );
+        try {
+          return await claimOnChain(
+            deps,
+            campaign.id as Hex,
+            decision.claimKey,
+            c.get('releaseSlot'),
+          );
+        } catch (error) {
+          // A prior unknown send can still mine even if this retry definitively reverts.
+          if (error instanceof ChainRevert && before.chainPendingUntil === undefined)
+            deps.intents.set(intentKey, before, decision.entitlement.expiresAt);
+          throw error;
+        }
+      });
       const intent = deps.intents.get(intentKey)!;
-      deps.intents.set(intentKey, { ...intent, claimTx: tx }, decision.entitlement.expiresAt);
+      const { chainPendingUntil: _pending, ...confirmed } = intent;
+      deps.intents.set(intentKey, { ...confirmed, claimTx: tx }, decision.entitlement.expiresAt);
     } catch (error) {
       // verified but not served: keep the decision for this session's retry (T-24), bound to this human's
       // nullifier (RT-A-05) and kept durably (RT-A-11); terminal reverts are not kept
@@ -132,7 +152,7 @@ async function serveFree(
             nullifierTag,
             signal: pending?.signal ?? (body.challenge.signal as Hex),
           },
-          decision.entitlement.expiresAt,
+          Math.max(decision.entitlement.expiresAt, pending?.chainPendingUntil ?? 0),
         );
       }
       throw error;

@@ -2,7 +2,7 @@
 
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { Hex } from '@ethglobal/protocol/ids';
 import { sponsorRegisterSchema, type SponsorRegister } from '@ethglobal/protocol/schemas';
@@ -17,12 +17,17 @@ import { useEnsureChain, useHydrated, useWallet } from '../lib/hooks';
 import { buildProof, type Proof, type ProofInput } from '../lib/proof';
 import {
   approveCall,
+  associateUsdcCall,
   createCampaignCall,
   dataDropAddress,
   myCampaigns,
+  htsTokenId,
+  isHederaSponsorChain,
+  readSponsorFunding,
   scopedCampaignId,
   sponsorLogin,
   usdcAddress,
+  type SponsorFunding,
 } from '../lib/sponsor';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
 import { caip2, isUserRejection, type Wallet } from '../lib/wallet';
@@ -33,6 +38,15 @@ import type { ActionEvent } from '../lib/onchain-action';
 const USD6 = 1_000_000n;
 const DAY_S = 86_400n;
 const PROGRESS = 'recharge.sponsor.pending';
+const associationKey = (wallet: Wallet, token: string) =>
+  `recharge.sponsor.association:${wallet.chainId}:${wallet.address.toLowerCase()}:${token.toLowerCase()}`;
+interface FundingState {
+  identity: string;
+  data?: SponsorFunding;
+  busy?: boolean;
+  error?: string;
+  hash?: Hex;
+}
 interface Progress {
   draft: Draft;
   campaign: SponsorRegister['campaign'];
@@ -152,6 +166,114 @@ export function CampaignForm() {
   const [running, setRunning] = useState(false);
   const [proof, setProof] = useState<Proof>();
   const [resume, setResume] = useState<Progress>();
+  const [funding, setFunding] = useState<FundingState>();
+  const fundingRound = useRef(0);
+  const hedera = isHederaSponsorChain(config.chainId);
+  const identity = `${wallet?.address.toLowerCase() ?? ''}:${wallet?.chainId ?? ''}`;
+  const currentFunding = funding?.identity === identity ? funding : undefined;
+  const association = useOnchainAction();
+
+  const checkFunding = useCallback(
+    async (switchChain = false) => {
+      if (!wallet || !hedera) return;
+      const ticket = ++fundingRound.current;
+      setFunding({ identity, busy: true });
+      try {
+        const sponsor = switchChain ? await ensureChain(wallet, config.chainId) : wallet;
+        if (sponsor.chainId !== config.chainId) return;
+        const data = await readSponsorFunding(sponsor);
+        if (ticket === fundingRound.current)
+          setFunding({ identity: `${sponsor.address.toLowerCase()}:${sponsor.chainId}`, data });
+        if (data.associated) localStorage.removeItem(associationKey(sponsor, data.token));
+      } catch (error) {
+        if (ticket === fundingRound.current)
+          setFunding({
+            identity,
+            error: error instanceof Error ? error.message : 'Could not check USDC. Try again.',
+          });
+      }
+    },
+    [wallet, hedera, identity, ensureChain],
+  );
+  useEffect(() => {
+    let alive = true;
+    queueMicrotask(() => {
+      if (alive && wallet?.chainId === config.chainId && hedera) void checkFunding();
+    });
+    return () => {
+      alive = false;
+      fundingRound.current += 1;
+    };
+  }, [wallet?.chainId, wallet?.address, hedera, checkFunding]);
+
+  const associate = async () => {
+    if (!wallet || running || currentFunding?.busy) return;
+    const ticket = ++fundingRound.current;
+    setFunding({
+      identity,
+      ...(currentFunding?.data ? { data: currentFunding.data } : {}),
+      busy: true,
+    });
+    association.newRow();
+    try {
+      const sponsor = await ensureChain(wallet, config.chainId);
+      const data = await readSponsorFunding(sponsor);
+      if (!data.associated) {
+        const storageKey = associationKey(sponsor, data.token);
+        const saved = localStorage.getItem(storageKey);
+        const prior =
+          saved && /^0x[0-9a-f]{64}$/i.test(saved) ? (saved as Hex) : currentFunding?.hash;
+        // Confirm browser storage works before asking for a transaction; retain any broadcast hash for retry.
+        if (!prior) {
+          localStorage.setItem(storageKey, 'preparing');
+          localStorage.removeItem(storageKey);
+        }
+        let hash = prior;
+        const confirmed = await send(
+          sponsor,
+          associateUsdcCall(data.token),
+          'associate campaign USDC',
+          association.dispatch,
+          prior,
+          (value) => {
+            hash = value;
+            if (value) localStorage.setItem(storageKey, value);
+            else localStorage.removeItem(storageKey);
+          },
+        );
+        if (!confirmed) {
+          if (ticket === fundingRound.current)
+            setFunding({
+              identity,
+              data,
+              ...(hash ? { hash } : {}),
+              error: hash
+                ? 'Association is still being checked. Check the same transaction before trying again.'
+                : 'USDC association was not completed.',
+            });
+          return;
+        }
+      }
+      const verified = await readSponsorFunding(sponsor);
+      if (!verified.associated)
+        throw new Error(
+          'The transaction finished, but USDC is not associated. Refresh and check your wallet.',
+        );
+      localStorage.removeItem(associationKey(sponsor, verified.token));
+      if (ticket === fundingRound.current) setFunding({ identity, data: verified });
+    } catch (error) {
+      if (ticket === fundingRound.current)
+        setFunding({
+          identity,
+          ...(currentFunding?.data ? { data: currentFunding.data } : {}),
+          error: isUserRejection(error)
+            ? 'Association cancelled in the wallet.'
+            : error instanceof Error
+              ? error.message
+              : 'Could not associate USDC. Try again.',
+        });
+    }
+  };
   useEffect(() => {
     let alive = true;
     // Hydrate browser-only recovery state after the server-compatible first render.
@@ -244,6 +366,20 @@ export function CampaignForm() {
       const campaign = active.campaign;
       const id = campaign.id as Hex;
       const budget = BigInt(active.budget);
+      // A previously broadcast create must resume its existing receipt even if its funding depleted this wallet.
+      if (hedera && !active.createHash) {
+        const ready = await readSponsorFunding(sponsor);
+        setFunding({
+          identity: `${sponsor.address.toLowerCase()}:${sponsor.chainId}`,
+          data: ready,
+        });
+        if (!ready.associated)
+          throw new Error('Associate this wallet with campaign USDC before funding.');
+        if (ready.balance < budget)
+          throw new Error(
+            `This wallet has ${moneyUsdc(ready.balance)}. Add ${moneyUsdc(budget - ready.balance)} on ${networkName(sponsor.network)}, then refresh the balance.`,
+          );
+      }
       const usdc = await usdcAddress(sponsor);
       evidence.network = sponsor.network;
       evidence.contract = { address: campaign.contract, network: sponsor.network };
@@ -317,7 +453,7 @@ export function CampaignForm() {
       if (txs.length || evidence.response || evidence.error !== undefined)
         setProof(buildProof({ ...evidence, txs }));
     }
-  }, [wallet, ensureChain, draft, running, approve, create]);
+  }, [wallet, ensureChain, draft, running, approve, create, hedera]);
 
   // both steps run on DataDrop's chain, whatever chain the wallet is on before it
   const network = caip2(config.chainId);
@@ -325,11 +461,20 @@ export function CampaignForm() {
   const contractExplorer = registered && explorerName(registered.network);
   // money says its unit and two decimals, grouped en-IN: "$1,000.00 USDC" (RT design review #9)
   let budgetText = `${draft.budgetUsd} USDC`;
+  let budgetAmount: bigint | undefined;
   try {
-    budgetText = moneyUsdc(usd6(draft.budgetUsd));
+    budgetAmount = usd6(draft.budgetUsd);
+    budgetText = moneyUsdc(budgetAmount);
   } catch {
     // a half-typed amount stays as typed
   }
+  const fundingBlocked =
+    hedera &&
+    !resume?.createHash &&
+    (!currentFunding?.data?.associated ||
+      budgetAmount === undefined ||
+      currentFunding.data.balance < budgetAmount ||
+      currentFunding.busy === true);
 
   return (
     <div className="sponsor-create">
@@ -399,8 +544,100 @@ export function CampaignForm() {
             {field('validityDays', 'Plan validity (days)')}
             {field('expiresDays', 'Campaign ends in (days)')}
           </div>
+          {wallet && hedera ? (
+            <section
+              className="sheet-row"
+              aria-label="Campaign funding readiness"
+              data-testid="sponsor-funding"
+            >
+              <h3 className="pane__title">Campaign funding · {networkName(network)}</h3>
+              <p className="note">
+                Use this wallet’s USDC on {config.chainId === 296 ? 'Hedera testnet' : 'Hedera'}.
+                Base USDC cannot fund this pool. Keep HBAR for the association and campaign
+                transaction fees.
+              </p>
+              <Hash
+                value={wallet.address}
+                kind="funding wallet"
+                explorerHref={`https://hashscan.io/${config.chainId === 296 ? 'testnet' : 'mainnet'}/account/${wallet.address}`}
+                explorerName="HashScan"
+              />
+              {currentFunding?.data ? (
+                <>
+                  <p className="note">
+                    USDC token: {htsTokenId(currentFunding.data.token) ?? currentFunding.data.token}
+                  </p>
+                  <p role="status">
+                    {currentFunding.data.associated
+                      ? `USDC associated · balance ${moneyUsdc(currentFunding.data.balance)}`
+                      : 'Associate USDC before receiving tokens or funding this campaign.'}
+                  </p>
+                  {currentFunding.data.associated &&
+                  budgetAmount !== undefined &&
+                  currentFunding.data.balance < budgetAmount ? (
+                    <p className="note">
+                      Add {moneyUsdc(budgetAmount - currentFunding.data.balance)} to this wallet on{' '}
+                      {config.chainId === 296 ? 'Hedera testnet' : 'Hedera'}, then refresh the
+                      balance.
+                    </p>
+                  ) : null}
+                  {!currentFunding.data.associated ? (
+                    <Button
+                      variant="secondary"
+                      disabled={running || currentFunding.busy}
+                      onClick={() => void associate()}
+                    >
+                      {currentFunding.hash
+                        ? 'Check association transaction'
+                        : currentFunding.busy
+                          ? 'Checking association…'
+                          : 'Associate USDC'}
+                    </Button>
+                  ) : null}
+                </>
+              ) : (
+                <p className="note">
+                  {currentFunding?.busy
+                    ? 'Checking USDC association and balance…'
+                    : 'Check this wallet’s USDC association and balance before funding.'}
+                </p>
+              )}
+              <Button
+                variant="quiet"
+                disabled={running || currentFunding?.busy}
+                onClick={() => void checkFunding(true)}
+              >
+                {wallet.chainId === config.chainId
+                  ? 'Refresh USDC balance'
+                  : 'Switch to Hedera and check funds'}
+              </Button>
+              {currentFunding?.error ? (
+                <p className="note" role="alert">
+                  {currentFunding.error}
+                </p>
+              ) : null}
+              {association.row.state !== 'idle' ? (
+                <ActionView
+                  row={association.row}
+                  now={association.now}
+                  title="Associate campaign USDC"
+                  network={network}
+                  networkLabel={networkName(network)}
+                  actionLabel="Token setup"
+                  blocked=""
+                  walletName={wallet.name}
+                  result="Association transaction confirmed"
+                  expectedMs={expectedMsFor(network)}
+                />
+              ) : null}
+            </section>
+          ) : null}
           {wallet ? (
-            <Button type="submit" disabled={running} data-testid="campaign-submit">
+            <Button
+              type="submit"
+              disabled={running || fundingBlocked}
+              data-testid="campaign-submit"
+            >
               {resume ? 'Resume this campaign' : `Fund ${budgetText} and create`}
             </Button>
           ) : (

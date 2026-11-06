@@ -267,6 +267,8 @@ async function consume(
 function campaignBlock(c: Campaign, counters: CampaignCounters, now: number): Deny | null {
   if (counters.paused) return deny('paused');
   if (now >= c.expiresAt) return deny('expired');
+  if (c.pricePerClaimUsd6 > 0n && counters.spentUsd6 / c.pricePerClaimUsd6 >= BigInt(c.maxClaims))
+    return deny('cap');
   // A count from an earlier hour bucket no longer applies (DataDrop resets per bucket).
   const stale = counters.hourBucket < hourBucket(now);
   const claimsThisHour = stale ? 0 : counters.claimsThisHour;

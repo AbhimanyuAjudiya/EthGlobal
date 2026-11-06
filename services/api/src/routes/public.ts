@@ -1,5 +1,9 @@
 /** GET /healthz, GET /plans, POST /challenge, POST /world/rp-context, GET /metrics.json. */
-import { challenge as issueChallenge, MAX_CAMPAIGN_MS } from '@ethglobal/octroi';
+import {
+  challenge as issueChallenge,
+  MAX_CAMPAIGN_MS,
+  remainingCampaignClaims,
+} from '@ethglobal/octroi';
 import {
   ENTITLEMENT_CACHE_S,
   GIFT_CLAIM_WINDOW_S,
@@ -89,14 +93,12 @@ async function buildPlans(deps: Deps, asked?: Hex): Promise<PlansResponse> {
   if (id !== undefined) {
     const { campaign: c, counters } = await campaignState(deps, id as Hex);
     if (c && counters) {
-      const price = c.pricePerClaimUsd6 > 0n ? c.pricePerClaimUsd6 : 1n;
-      const left = Number((counters.budgetUsd6 - counters.spentUsd6) / price);
       campaign = {
         id: c.id,
         name: c.name,
         sponsor: c.sponsor,
         bundleMb: c.bundleMb,
-        remainingClaims: Math.max(0, Math.min(left, c.maxClaims)),
+        remainingClaims: remainingCampaignClaims(c, counters),
         maxClaims: c.maxClaims,
         paused: counters.paused,
         expiresAt: c.expiresAt,

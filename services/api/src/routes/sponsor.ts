@@ -10,8 +10,8 @@
  * POST /sponsor/:id/cards (A-43, RT-P-08) is the live way to mint campaign-funded scratch cards for a print run: it
  * needs the sponsor's WRITE credential, a fresh EIP-712 `SponsorCards{campaignId, sponsor, count, mb, nonce,
  * issuedAt}` (≤ 10 min old, nonce one-shot) by the on-chain sponsor of a registered, unpaused campaign; count ≤ 200
- * and ≤ the claims the remaining budget still pays for. The PINs appear once, in the 201 body; the ledger holds
- * serials and PIN HMACs, the log holds counts. Not idempotent by design (a cached replay would re-show PINs):
+ * and ≤ the remaining lifetime claim cap and funded budget after outstanding cards. The PINs appear once in the
+ * 201 body; the ledger holds serials and PIN HMACs, the log holds counts. Not idempotent by design (a cached replay would re-show PINs):
  * a retry needs a new nonce and mints a new batch.
  */
 import { bytesToHex, hmacKey } from '@ethglobal/crypto';
@@ -19,6 +19,7 @@ import {
   assertCampaignLifetime,
   auditKey,
   campaignFromPayload,
+  remainingCampaignClaims,
   sizeBundle,
   type Campaign,
 } from '@ethglobal/octroi';
@@ -43,7 +44,8 @@ import { WindowLimiter } from '../admission.js';
 import { inputOf, type AppEnv } from '../context.js';
 import { fail } from '../errors.js';
 import { claimWindowMs, mintCard, type MintedCard } from '../flows/gift.js';
-import { assertConfiguredCapacity, assertPlanCapacity } from '../flows/plan.js';
+import { assertConfiguredCapacity } from '../flows/plan.js';
+import { pendingCampaignClaims } from '../middleware/octroi.js';
 import {
   SPONSOR_FUTURE_SKEW_MS,
   sponsorFromHeader,
@@ -206,75 +208,92 @@ export function registerSponsor(app: Hono<AppEnv>, deps: Deps): void {
     // after the signature: unsigned junk cannot spend the sponsor's batch quota
     const limited = cardBatches.hit(campaignId);
     if (!limited.ok) throw fail('rate_limited', { retryAfterS: limited.retryAfterS });
-    // RT-P-08: the mark is taken before the counters are read (Admission: a batch that commits after it is still
-    // subtracted), and the open cards are read beside the chain's budget — outstanding PINs are promised claims
-    const mark = deps.admission.mark();
-    const [found, chain, open] = await Promise.all([
-      deps.stores.campaigns.get(campaignId),
-      deps.dataDrop.campaign(campaignId),
-      deps.stores.gifts.openCampaignCards(campaignId),
-    ]);
-    const sponsor = auth.sponsor.toLowerCase();
-    if (
-      found?.payload.sponsor.toLowerCase() !== sponsor ||
-      chain.sponsor.toLowerCase() !== sponsor
-    ) {
-      throw fail('unauthorized', { detail: 'not this campaign’s sponsor' });
-    }
-    const now = deps.now();
-    if (chain.paused) throw fail('campaign_paused');
-    if (chain.expiresAt <= now || found.payload.expiresAt <= now) throw fail('campaign_expired');
-    const paysFor =
-      chain.pricePerClaim > 0n ? (chain.budget - chain.spent) / chain.pricePerClaim : 0n;
-    const remaining =
-      paysFor > BigInt(Number.MAX_SAFE_INTEGER) ? Number.MAX_SAFE_INTEGER : Number(paysFor);
-    // Atomic across batches (RT-P-08): `count` slots taken synchronously with the Admission reservation claims use
-    // (its own `cards:` key, so a 200-card batch in flight never counts against the claims' hourly cap) against
-    // (budget − spent) / price − open cards − cards in flight − cards committed since the mark.
-    const slot = `cards:${campaignId}`;
-    const release = deps.admission.takeMany(slot, count, remaining, open.length, mark);
-    if (!release) {
-      const left = Math.max(0, remaining - open.length - deps.admission.inFlight(slot));
-      throw fail('budget_exhausted', {
-        detail: `the budget pays for ${left} more cards (${open.length} unredeemed cards outstanding)`,
-      });
-    }
-    let minted = false;
-    try {
-      // one-shot nonce: the same signed batch twice is a replay, never a second set of PINs
-      if (
-        !(await firstTime(
-          deps,
-          `cards-${auth.nonce.toLowerCase()}`,
-          campaignId,
-          now + SPONSOR_CARDS_TTL_MS,
-        ))
-      )
-        throw fail('replay', { detail: 'this SponsorCards nonce was used' });
-      const claimBy = Math.min(now + claimWindowMs(), chain.expiresAt, found.payload.expiresAt);
-      const cards: MintedCard[] = [];
-      for (let i = 0; i < count; i += MINT_CONCURRENCY) {
-        const n = Math.min(MINT_CONCURRENCY, count - i);
-        cards.push(
-          ...(await Promise.all(
-            Array.from({ length: n }, () => mintCard(deps, campaignId, mb, claimBy)),
-          )),
-        );
-      }
-      // counts only: no PIN, no serial list in the log (T-50, T-64)
-      deps.logger.info({ event: 'ledger.op', op: 'card.mint', count, mb }, 'sponsor cards minted');
-      minted = true;
-      const reply: SponsorCardsResponse = {
+    // Serialize snapshots and promises with both claim paths; vendor fulfilment never holds this lock.
+    return deps.mutex.run(`campaign:${campaignId}`, async () => {
+      const mark = deps.admission.mark();
+      // Reuse one open-card snapshot to count its pending-chain marker only once, even across card expiry.
+      const open = await deps.stores.gifts.openCampaignCards(campaignId);
+      // Resolve durable uncertain claims before the chain snapshot: a late mined result must appear in spent.
+      const pending = await pendingCampaignClaims(
+        deps,
         campaignId,
-        mb,
-        claimBy,
-        cards: cards.map(({ serial, pin }) => ({ serial, pin, mb })),
-      };
-      return c.json(reply, 201);
-    } finally {
-      // committed: the cards now exist on the ledger (the next batch's `open` read counts them)
-      release(minted);
-    }
+        undefined,
+        open.map((card) => card.payload.giftId),
+      );
+      const [found, chain] = await Promise.all([
+        deps.stores.campaigns.get(campaignId),
+        deps.dataDrop.campaign(campaignId),
+      ]);
+      const sponsor = auth.sponsor.toLowerCase();
+      if (
+        found?.payload.sponsor.toLowerCase() !== sponsor ||
+        chain.sponsor.toLowerCase() !== sponsor
+      ) {
+        throw fail('unauthorized', { detail: 'not this campaign’s sponsor' });
+      }
+      const now = deps.now();
+      if (chain.paused) throw fail('campaign_paused');
+      if (chain.expiresAt <= now || found.payload.expiresAt <= now) throw fail('campaign_expired');
+      const remaining = remainingCampaignClaims(
+        { ...found.payload, pricePerClaimUsd6: chain.pricePerClaim },
+        { budgetUsd6: chain.budget, spentUsd6: chain.spent },
+      );
+      // Open cards promise future claims. Already admitted free/card claims consume the same lifetime/budget
+      // capacity, even before their transactions mine. This lock also covers those chain writes and card batches.
+      const promised = open.length + pending + deps.admission.inFlight(campaignId);
+      const slot = `cards:${campaignId}`;
+      const release = deps.admission.takeMany(slot, count, remaining, promised, mark);
+      if (!release) {
+        const left = Math.max(0, remaining - promised - deps.admission.inFlight(slot));
+        throw fail('budget_exhausted', {
+          detail: `the campaign can fund ${left} more cards (${open.length} unredeemed cards outstanding)`,
+        });
+      }
+      let minted = false;
+      try {
+        // one-shot nonce: the same signed batch twice is a replay, never a second set of PINs
+        if (
+          !(await firstTime(
+            deps,
+            `cards-${auth.nonce.toLowerCase()}`,
+            campaignId,
+            now + SPONSOR_CARDS_TTL_MS,
+          ))
+        )
+          throw fail('replay', { detail: 'this SponsorCards nonce was used' });
+        const claimBy = Math.min(now + claimWindowMs(), chain.expiresAt, found.payload.expiresAt);
+        const cards: MintedCard[] = [];
+        for (let i = 0; i < count; i += MINT_CONCURRENCY) {
+          const n = Math.min(MINT_CONCURRENCY, count - i);
+          // Await every write even if one fails: otherwise the lock could open while a successful sibling
+          // still creates a card, letting the next batch miss that outstanding promise in its snapshot.
+          const results = await Promise.allSettled(
+            Array.from({ length: n }, () => mintCard(deps, campaignId, mb, claimBy)),
+          );
+          const failed = results.find((result) => result.status === 'rejected');
+          if (failed?.status === 'rejected') throw failed.reason;
+          for (const result of results) {
+            if (result.status === 'fulfilled') cards.push(result.value);
+          }
+        }
+        // counts only: no PIN, no serial list in the log (T-50, T-64)
+        deps.logger.info(
+          { event: 'ledger.op', op: 'card.mint', count, mb },
+          'sponsor cards minted',
+        );
+        minted = true;
+        const reply: SponsorCardsResponse = {
+          campaignId,
+          mb,
+          claimBy,
+          cards: cards.map(({ serial, pin }) => ({ serial, pin, mb })),
+        };
+        return c.json(reply, 201);
+      } finally {
+        // committed: the cards now exist on the ledger (the next batch's `open` read counts them)
+        release(minted);
+      }
+    });
   });
 }
 
@@ -298,9 +317,9 @@ async function validateDraft(
       },
     ]);
   const value = campaignFromPayload({ ...campaign, v: 1, createdAt: deps.now() });
-  await assertPlanCapacity(
+  // Free fulfilment orders the operator's configured package, not the sponsor form's descriptive plan alias.
+  await assertConfiguredCapacity(
     deps,
-    campaign.planId,
     Math.max(...(['orb', 'document', 'device'] as const).map((tier) => sizeBundle(value, tier))),
   );
 }

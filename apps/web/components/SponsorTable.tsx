@@ -10,6 +10,7 @@ import { Button, Hash } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
 import { EnsCampaign } from './EnsCampaign';
+import { CampaignAnalytics } from './CampaignAnalytics';
 import { SlideToConfirm } from './SlideToConfirm';
 import { api, ApiError } from '../lib/api';
 import {
@@ -260,6 +261,7 @@ export function SponsorTable({ id }: { id: string }) {
         </p>
         <ClaimsPerHour claims={view.claims} cap={campaign.claimsPerHour} now={now} />
       </section>
+      <CampaignAnalytics id={id} login={login} />
       <section className="pane" aria-labelledby="tiers-title">
         <h2 id="tiers-title" className="pane__title">
           Claims by credential level

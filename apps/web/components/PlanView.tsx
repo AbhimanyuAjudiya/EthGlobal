@@ -19,6 +19,7 @@ import { AddToHomeScreen, NotificationAsk } from './AddToHomeScreen';
 import { CopyButton } from './InstallSteps';
 import { IssuingRows, useOdometer } from './IssuingRows';
 import { PlanActions } from './PlanActions';
+import { ProofPanel } from './ProofPanel';
 import { QrCode } from './QrCode';
 import { AppHeader, Caution, Screen, TabBar } from './Shell';
 import { useLang } from '../i18n/lang';
@@ -302,6 +303,7 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
           }}
         />
       ) : null}
+      <ProofPanel proof={facts?.proof} />
       <MbMeter
         remainingMb={m.remainingMb}
         totalMb={m.mbTotal}

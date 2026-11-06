@@ -9,6 +9,7 @@ import { BoardingPass, Button, Field, Hash } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
 import { ProofRows } from './IssuingRows';
+import { ProofPanel } from './ProofPanel';
 import { renderQr } from './QrCode';
 import { saveCardPng } from './save-card';
 import { useWalletLabel } from './Shell';
@@ -25,9 +26,10 @@ import {
   quote,
   signingFailure,
 } from '../lib/pay402';
+import { buildProof, type Proof } from '../lib/proof';
 import { get, set } from '../lib/store';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
-import { chainIdOf, chainNow } from '../lib/wallet';
+import { chainIdOf, chainNow, isUserRejection } from '../lib/wallet';
 
 /** The accepts entry an EVM wallet pays a gift with: its own chain when offered, else the first EVM one (Base). */
 const evmOffer = <T extends { network: string }>(accepts: readonly T[], current?: string) =>
@@ -69,6 +71,7 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
   const mb = picked !== undefined && sizes.includes(picked) ? picked : (sizes[0] ?? PLAN_MB);
   const [resolved, setResolved] = useState<{ name: string; mb: number; result: Resolution }>();
   const [gift, setGift] = useState<GiftResponse | undefined>();
+  const [proof, setProof] = useState<Proof | undefined>();
   const [copied, setCopied] = useState(false);
   const typed = name.trim().toLowerCase();
   const wellFormed = typed.length >= 3 && typed.includes('.');
@@ -106,6 +109,7 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
   const send = useCallback(async () => {
     if (!wallet) return;
     dispatch({ type: 'start', at: Date.now() });
+    setProof(undefined);
     try {
       const q = await quote('/gift', { method: 'POST', body: { name: shownName, mb } });
       const chosen = evmOffer(q.required.accepts, wallet.network);
@@ -123,10 +127,21 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
         })),
       );
       const paid = await pay<GiftResponse>(q, signer, undefined, await chainNow(payer));
+      const x402 = { accepted: paid.paid?.accepted, settlement: paid.settlement };
       if (paid.error || !paid.settlement?.success || !paid.data) {
+        setProof(buildProof({ error: paid.error ?? new Error('settlement failed'), x402 }));
         dispatch({ type: 'preBroadcastError', reason: paymentFailureReason(paid.error) });
         return;
       }
+      // the gift's pass carries its PIN: lib/proof.ts drops it from the proof
+      setProof(
+        buildProof({
+          response: paid.data,
+          status: paid.status,
+          x402,
+          ens: { name: paid.data.name, address: paid.data.to },
+        }),
+      );
       dispatch({ type: 'signed', hash: paid.settlement.transaction, at: Date.now() });
       setGift(paid.data);
       await sentGifts.add({
@@ -148,6 +163,7 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
         dispatch,
       });
     } catch (e) {
+      if (!isUserRejection(e)) setProof(buildProof({ error: e }));
       dispatch(
         e instanceof WrongChainError
           ? {
@@ -284,6 +300,7 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
         onRetry={() => dispatch({ type: 'retry' })}
         lang={lang}
       />
+      {gift ? null : <ProofPanel proof={proof} />}
       {gift ? (
         <section className="gift__result" data-testid="gift-result">
           <p className="resolve-line">
@@ -325,7 +342,7 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
               {t('gift.print')}
             </Button>
           </div>
-          <ProofRows receipt={gift.receipt} />
+          <ProofPanel proof={proof} fallback={<ProofRows receipt={gift.receipt} />} />
         </section>
       ) : null}
     </section>

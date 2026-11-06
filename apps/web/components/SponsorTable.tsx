@@ -11,6 +11,7 @@ import { Button, Hash } from '@ethglobal/ui/components';
 import { ActionView } from './ActionView';
 import { EnsCampaign } from './EnsCampaign';
 import { CampaignAnalytics } from './CampaignAnalytics';
+import { ProofPanel } from './ProofPanel';
 import { SlideToConfirm } from './SlideToConfirm';
 import { api, ApiError } from '../lib/api';
 import {
@@ -23,9 +24,12 @@ import {
 } from '../lib/env';
 import { clockIst, dayLabel, formatMb, money } from '../lib/format';
 import { useClock, useEnsureChain, useWallet, WrongChainError } from '../lib/hooks';
+import { buildProof, type Proof } from '../lib/proof';
 import { pauseCall, refundCall, sponsorLogin } from '../lib/sponsor';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
-import { isUserRejection } from '../lib/wallet';
+import { caip2, isUserRejection } from '../lib/wallet';
+
+import type { StringKey } from '../i18n/strings';
 
 const enIN = new Intl.NumberFormat('en-IN');
 const TIERS = ['orb', 'document', 'device'] as const;
@@ -102,6 +106,7 @@ export function SponsorTable({ id }: { id: string }) {
   const action = useOnchainAction();
   const now = useClock(60_000);
   const [actionTitle, setActionTitle] = useState<string | undefined>();
+  const [proof, setProof] = useState<Proof>();
 
   const load = useCallback(
     async (auth = login) => {
@@ -141,16 +146,19 @@ export function SponsorTable({ id }: { id: string }) {
   }, [wallet, ensureChain, login, id, load]);
 
   const runTx = useCallback(
-    async (title: string, tx: { to: `0x${string}`; data: `0x${string}` }) => {
+    async (title: string, tx: { to: `0x${string}`; data: `0x${string}` }, label: StringKey) => {
       if (!wallet) return;
       setActionTitle(title);
+      setProof(undefined);
       action.newRow();
       action.dispatch({ type: 'start', at: Date.now() });
+      const contract = { address: tx.to, network: caip2(config.chainId) };
       try {
         // pause and refund are DataDrop calls: the sponsor wallet sends them on its chain
         const sponsor = await ensureChain(wallet, config.chainId);
         const hash = await sponsor.sendTransaction(tx);
         action.dispatch({ type: 'signed', hash, at: Date.now() });
+        setProof(buildProof({ txs: [{ label, hash, network: sponsor.network }], contract }));
         await followTransaction({
           hash,
           network: sponsor.network,
@@ -160,6 +168,7 @@ export function SponsorTable({ id }: { id: string }) {
         });
         await load();
       } catch (e) {
+        if (!isUserRejection(e)) setProof(buildProof({ error: e, contract }));
         action.dispatch(
           isUserRejection(e)
             ? { type: 'rejected' }
@@ -434,7 +443,13 @@ export function SponsorTable({ id }: { id: string }) {
             type="button"
             className="ui-button"
             data-variant="secondary"
-            onClick={() => void runTx('Resume the campaign', pauseCall(campaign.id as Hex, false))}
+            onClick={() =>
+              void runTx(
+                'Resume the campaign',
+                pauseCall(campaign.id as Hex, false),
+                'proof.pauseTx',
+              )
+            }
           >
             Resume claims
           </button>
@@ -443,7 +458,9 @@ export function SponsorTable({ id }: { id: string }) {
             label="Slide to pause claims"
             releaseLabel="Release to pause"
             disabled={!wallet}
-            onConfirm={() => void runTx('Pause the campaign', pauseCall(campaign.id as Hex, true))}
+            onConfirm={() =>
+              void runTx('Pause the campaign', pauseCall(campaign.id as Hex, true), 'proof.pauseTx')
+            }
           />
         )}
         <button
@@ -451,7 +468,13 @@ export function SponsorTable({ id }: { id: string }) {
           className="ui-button"
           data-variant="quiet"
           disabled={!expired}
-          onClick={() => void runTx('Refund the unspent budget', refundCall(campaign.id as Hex))}
+          onClick={() =>
+            void runTx(
+              'Refund the unspent budget',
+              refundCall(campaign.id as Hex),
+              'proof.refundTx',
+            )
+          }
         >
           {expired
             ? `Refund ${money(budget - spent)}`
@@ -470,6 +493,7 @@ export function SponsorTable({ id }: { id: string }) {
             expectedMs={expectedMsFor(campaign.network)}
           />
         ) : null}
+        <ProofPanel proof={proof} />
       </section>
     </div>
   );

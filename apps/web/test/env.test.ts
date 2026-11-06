@@ -74,5 +74,10 @@ describe("explorer links follow the transaction's own network, not the app's cha
     expect(env.arkivEntityUrl(`gift:${key}`)).toBeUndefined();
     const local = await load({ NEXT_PUBLIC_MODE: 'local' });
     expect(local.explorerTemplate('eip155:31337')).toBeUndefined();
+    // live signs its domain on 296: a Base Sepolia x402 settlement still links to BaseScan
+    const live = await load({ NEXT_PUBLIC_CHAIN_ID: '296' });
+    expect(live.explorerTemplate('eip155:84532')).toBe('https://sepolia.basescan.org/tx/{hash}');
+    expect(live.explorerName('eip155:84532')).toBe('BaseScan');
+    expect(live.explorerTemplate('eip155:296')).toBe(`${hashscan}/transaction/{hash}`);
   });
 });

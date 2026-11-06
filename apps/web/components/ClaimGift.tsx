@@ -12,6 +12,7 @@ import { Button, Hash, Receipt } from '@ethglobal/ui/components';
 import { sentGifts, type SentGift } from './GiftForm';
 import { ProofRows } from './IssuingRows';
 import { PinField } from './PinField';
+import { ProofPanel } from './ProofPanel';
 import { Caution } from './Shell';
 import { useLang } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
@@ -20,6 +21,7 @@ import { planHref } from '../lib/deliver';
 import { config, explorerName, explorerTemplate } from '../lib/env';
 import { dayLabel, formatMb, money } from '../lib/format';
 import { useClock, useEnsureChain, useWallet, WrongChainError } from '../lib/hooks';
+import { buildProof, type Proof } from '../lib/proof';
 import { claimGiftBySignature, reclaimGift, redeemPin } from '../lib/redeem';
 import { isUserRejection } from '../lib/wallet';
 
@@ -38,15 +40,21 @@ export function ClaimGift({ giftId, name }: { giftId?: string; name?: string }) 
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState<string>();
   const [status, setStatus] = useState<string>();
+  // a failed claim's proof; a served one travels to /plan with the issued facts (lib/redeem.ts)
+  const [proof, setProof] = useState<Proof>();
   const [working, setWorking] = useState(false);
 
   const run = async (fn: () => Promise<string>) => {
     setWorking(true);
     setStatus(undefined);
+    setProof(undefined);
     try {
       router.push(planHref(await fn()));
     } catch (e) {
-      if (!isUserRejection(e)) setStatus(errText(t, e));
+      if (!isUserRejection(e)) {
+        setStatus(errText(t, e));
+        setProof(buildProof({ error: e, ...(name ? { ens: { name } } : {}) }));
+      }
       setWorking(false);
     }
   };
@@ -104,6 +112,7 @@ export function ClaimGift({ giftId, name }: { giftId?: string; name?: string }) 
       <p className="note" role="status" lang={lang}>
         {status ?? ' '}
       </p>
+      <ProofPanel proof={proof} />
     </section>
   );
 }
@@ -118,6 +127,7 @@ export function ReclaimGift({ refreshKey = 0 }: { refreshKey?: number }) {
   const [gifts, setGifts] = useState<SentGift[]>([]);
   const [done, setDone] = useState<Record<string, GiftReclaimResponse>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [proofs, setProofs] = useState<Record<string, Proof>>({});
 
   useEffect(() => {
     void sentGifts.list().then(setGifts);
@@ -161,8 +171,14 @@ export function ReclaimGift({ refreshKey = 0 }: { refreshKey?: number }) {
                     ensureChain(wallet, config.chainId)
                       .then((payer) => reclaimGift(payer, g.giftId as Hex))
                       .then(
-                        (r) => setDone((d) => ({ ...d, [g.giftId]: r })),
-                        (e: unknown) => setErrors((x) => ({ ...x, [g.giftId]: errText(t, e) })),
+                        (r) => {
+                          setDone((d) => ({ ...d, [g.giftId]: r }));
+                          setProofs((p) => ({ ...p, [g.giftId]: buildProof({ response: r }) }));
+                        },
+                        (e: unknown) => {
+                          setErrors((x) => ({ ...x, [g.giftId]: errText(t, e) }));
+                          setProofs((p) => ({ ...p, [g.giftId]: buildProof({ error: e }) }));
+                        },
                       );
                   }}
                 >
@@ -182,8 +198,11 @@ export function ReclaimGift({ refreshKey = 0 }: { refreshKey?: number }) {
                   lang={lang}
                 />
               ) : null}
-              {refunded ? <ProofRows receipt={refunded.receipt} /> : null}
               {errors[g.giftId] ? <span className="note">{errors[g.giftId]}</span> : null}
+              <ProofPanel
+                proof={proofs[g.giftId]}
+                fallback={refunded ? <ProofRows receipt={refunded.receipt} /> : null}
+              />
             </li>
           );
         })}

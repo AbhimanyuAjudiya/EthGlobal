@@ -20,6 +20,7 @@ import { Button, MbMeter, RuledList } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
 import { ProofRows } from './IssuingRows';
+import { ProofPanel } from './ProofPanel';
 import { QrCode } from './QrCode';
 import { AppHeader, Caution, Screen, TabBar, useWalletLabel } from './Shell';
 import { useLang, useNetworkName } from '../i18n/lang';
@@ -48,10 +49,11 @@ import {
   quote,
   type Quote,
 } from '../lib/pay402';
+import { buildProof, type Proof } from '../lib/proof';
 import { beginSession } from '../lib/session-key';
 import { plans as store } from '../lib/store';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
-import { chainIdOf, chainNow, type Wallet } from '../lib/wallet';
+import { chainIdOf, chainNow, isUserRejection, type Wallet } from '../lib/wallet';
 
 import type { HashPackSession } from '../lib/hedera-wc';
 
@@ -240,6 +242,7 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
   const [me, setMe] = useState<MeResponse | undefined>();
   const [result, setResult] = useState<string | undefined>();
   const [receipt, setReceipt] = useState<ReceiptRef | undefined>();
+  const [proof, setProof] = useState<Proof | undefined>();
   const [doneKey, setDoneKey] = useState<string | undefined>();
   const [hp, setHp] = useState<HashPackState>({});
 
@@ -359,11 +362,16 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
         session ? undefined : q.spk,
         payer ? await chainNow(payer) : Date.now(),
       );
+      // the decoded x402 headers: the accepts entry that was signed, the PAYMENT-RESPONSE settlement
+      const x402 = { accepted: paid.paid?.accepted, settlement: paid.settlement };
       if (paid.error || !paid.settlement?.success) {
+        setProof(buildProof({ error: paid.error ?? new Error('settlement failed'), x402 }));
         dispatch({ type: 'preBroadcastError', reason: paymentFailureReason(paid.error) });
         return;
       }
       const settlement = paid.settlement;
+      const issued = buildProof({ response: paid.data, status: paid.status, x402 });
+      setProof(issued);
       dispatch({ type: 'signed', hash: settlement.transaction, at: Date.now() });
       if (entitlementKey) {
         const body = paid.data as TopUpResponse;
@@ -385,6 +393,7 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
         const key = await deliver(body, sessionNonce(q.spk, keccak256), {
           network: settlement.network,
           you: money(chosen.amount),
+          proof: issued,
         });
         setResult(t('pay.resultNew', { mb: formatMb(mb) }));
         setReceipt(body.receipt);
@@ -398,6 +407,7 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
         dispatch,
       });
     } catch (e) {
+      if (!isUserRejection(e)) setProof(buildProof({ error: e }));
       dispatch(
         e instanceof WrongChainError
           ? {
@@ -527,6 +537,7 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
         }}
         onRetry={() => {
           dispatch({ type: 'retry' });
+          setProof(undefined);
           setQuoteRound((n) => n + 1);
         }}
         lang={lang}
@@ -544,7 +555,10 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
           {t('pay.useNetwork', { network: netName(payableInstead.network) })}
         </Button>
       ) : null}
-      {receipt && row.state !== 'failed' ? <ProofRows receipt={receipt} /> : null}
+      <ProofPanel
+        proof={proof}
+        fallback={receipt && row.state !== 'failed' ? <ProofRows receipt={receipt} /> : null}
+      />
       {/* the plan exists once the API settled, even while the chain read is still catching up */}
       {doneKey && row.state !== 'failed' ? (
         <button

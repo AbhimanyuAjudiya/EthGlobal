@@ -7,10 +7,12 @@ import { useCallback, useState } from 'react';
 import { Button, Field, Hash } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
+import { ProofPanel } from './ProofPanel';
 import { api, ApiError } from '../lib/api';
 import { config, contractUrl, explorerName, networkName } from '../lib/env';
 import { moneyUsdc } from '../lib/format';
 import { useEnsureChain, useHydrated, useWallet } from '../lib/hooks';
+import { buildProof, type Proof, type ProofInput } from '../lib/proof';
 import {
   approveCall,
   createCampaignCall,
@@ -23,6 +25,7 @@ import {
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
 import { caip2, isUserRejection, type Wallet } from '../lib/wallet';
 
+import type { StringKey } from '../i18n/strings';
 import type { ActionEvent } from '../lib/onchain-action';
 
 const USD6 = 1_000_000n;
@@ -60,12 +63,13 @@ function usd6(text: string): bigint {
   return BigInt(m[1] ?? '0') * USD6 + BigInt((m[2] ?? '').padEnd(6, '0') || '0');
 }
 
+/** Sends one transaction through its OnchainAction row; the hash once final, else undefined. */
 async function send(
   wallet: Wallet,
   tx: { to: `0x${string}`; data: `0x${string}` },
   label: string,
   dispatch: (e: ActionEvent) => void,
-): Promise<boolean> {
+): Promise<string | undefined> {
   dispatch({ type: 'start', at: Date.now() });
   let hash: `0x${string}`;
   try {
@@ -76,18 +80,17 @@ async function send(
         ? { type: 'rejected' }
         : { type: 'preBroadcastError', reason: 'the wallet could not send the transaction' },
     );
-    return false;
+    return undefined;
   }
   dispatch({ type: 'signed', hash, at: Date.now() });
-  return (
-    (await followTransaction({
-      hash,
-      network: wallet.network,
-      label,
-      reader: wallet.reader,
-      dispatch,
-    })) === 'finalized'
-  );
+  const final = await followTransaction({
+    hash,
+    network: wallet.network,
+    label,
+    reader: wallet.reader,
+    dispatch,
+  });
+  return final === 'finalized' ? hash : undefined;
 }
 
 /**
@@ -110,6 +113,7 @@ export function CampaignForm() {
     contract: string;
   }>();
   const [running, setRunning] = useState(false);
+  const [proof, setProof] = useState<Proof>();
 
   const hydrated = useHydrated();
   const list = hydrated ? myCampaigns.list() : [];
@@ -129,7 +133,11 @@ export function CampaignForm() {
   const run = useCallback(async () => {
     if (!wallet) return;
     setError(undefined);
+    setProof(undefined);
     setRunning(true);
+    // the proof gathers what happened, whichever way the run ends: the transactions, the answer or the error
+    const evidence: ProofInput = {};
+    const txs: { label: StringKey; hash: string; network: string }[] = [];
     try {
       const budget = usd6(draft.budgetUsd);
       const price = usd6(draft.priceUsd);
@@ -139,24 +147,24 @@ export function CampaignForm() {
       const expiresAtS = block.timestamp + BigInt(Number(draft.expiresDays)) * DAY_S;
       const id = scopedCampaignId(sponsor.address, BigInt(Date.now()));
       const usdc = await usdcAddress(sponsor);
-      if (
-        !(await send(
-          sponsor,
-          { to: usdc, ...approveCall(budget) },
-          'approve USDC',
-          approve.dispatch,
-        ))
-      )
-        return;
-      if (
-        !(await send(
-          sponsor,
-          createCampaignCall(id, budget, price, Number(draft.perHour), expiresAtS),
-          'createCampaign',
-          create.dispatch,
-        ))
-      )
-        return;
+      evidence.network = sponsor.network;
+      evidence.contract = { address: dataDropAddress(), network: sponsor.network };
+      const approved = await send(
+        sponsor,
+        { to: usdc, ...approveCall(budget) },
+        'approve USDC',
+        approve.dispatch,
+      );
+      if (!approved) return;
+      txs.push({ label: 'proof.approveTx', hash: approved, network: sponsor.network });
+      const created = await send(
+        sponsor,
+        createCampaignCall(id, budget, price, Number(draft.perHour), expiresAtS),
+        'createCampaign',
+        create.dispatch,
+      );
+      if (!created) return;
+      txs.push({ label: 'proof.createTx', hash: created, network: sponsor.network });
       const login = await sponsorLogin(sponsor, id);
       const res = await api.registerSponsor({
         campaign: {
@@ -178,6 +186,8 @@ export function CampaignForm() {
         },
         auth: { issuedAt: login.issuedAt, signature: login.signature },
       });
+      // the audit key is shown once below; the proof keeps only its first and last characters
+      evidence.response = res;
       myCampaigns.add({ id: res.id, name: draft.name.trim() });
       setRegistered({
         ...res,
@@ -186,6 +196,7 @@ export function CampaignForm() {
         contract: dataDropAddress(),
       });
     } catch (e) {
+      evidence.error = e;
       setError(
         e instanceof ApiError
           ? `${e.code}: ${e.message}`
@@ -195,6 +206,8 @@ export function CampaignForm() {
       );
     } finally {
       setRunning(false);
+      if (txs.length || evidence.response || evidence.error !== undefined)
+        setProof(buildProof({ ...evidence, txs }));
     }
   }, [wallet, ensureChain, draft, approve.dispatch, create.dispatch]);
 
@@ -310,6 +323,7 @@ export function CampaignForm() {
           {error}
         </p>
       ) : null}
+      <ProofPanel proof={proof} />
       {registered ? (
         <section className="audit-key" data-testid="audit-key" aria-labelledby="audit-title">
           <h2 id="audit-title" className="pane__title">

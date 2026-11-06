@@ -16,6 +16,7 @@ import { AGENT_POLICY_TYPES, canonicalJson, rechargeDomain } from '@ethglobal/pr
 import { priceUsd6, usd6FromWire } from '@ethglobal/protocol/units';
 import { Button, Hash } from '@ethglobal/ui/components';
 
+import { ProofPanel } from './ProofPanel';
 import { QrCode } from './QrCode';
 import { AppHeader, Screen, TabBar } from './Shell';
 import { useLang, useNetworkName } from '../i18n/lang';
@@ -25,6 +26,7 @@ import { planHash, readTopUps, topUpsRequest, type AgentTopUp } from '../lib/ark
 import { config, explorerName, explorerTemplate } from '../lib/env';
 import { clockIst, dayLabel, formatMb, money, moneyUsdc, soldPlan } from '../lib/format';
 import { useEnsureChain, usePlans, useWallet, WrongChainError } from '../lib/hooks';
+import { buildProof, type Proof } from '../lib/proof';
 import { plans as store } from '../lib/store';
 import { isUserRejection } from '../lib/wallet';
 
@@ -58,6 +60,7 @@ export function AgentSheet() {
   const [rows, setRows] = useState<ReceiptPublic[]>([]);
   const [status, setStatus] = useState<'idle' | 'signing' | 'saving' | 'saved' | 'error'>('idle');
   const [message, setMessage] = useState<string | undefined>();
+  const [proof, setProof] = useState<Proof>();
 
   useEffect(() => {
     void (async () => {
@@ -97,6 +100,7 @@ export function AgentSheet() {
       if (!wallet || !key) return;
       setStatus('signing');
       setMessage(undefined);
+      setProof(undefined);
       try {
         // the AgentPolicy is signed over the Recharge EIP-712 domain, on its chain
         const owner = await ensureChain(wallet, config.chainId);
@@ -126,7 +130,15 @@ export function AgentSheet() {
         setView(saved);
         setPolicy(saved.policy);
         setStatus('saved');
+        setProof(
+          buildProof({
+            response: saved,
+            network: owner.network,
+            signedOn: config.chainId,
+          }),
+        );
       } catch (e) {
+        if (!isUserRejection(e)) setProof(buildProof({ error: e, signedOn: config.chainId }));
         setStatus(isUserRejection(e) ? 'idle' : 'error');
         if (e instanceof WrongChainError)
           setMessage(t('wallet.switchNeeded', { network: e.chainName }));
@@ -230,6 +242,7 @@ export function AgentSheet() {
               ? t('agent.saved', { address: `${view.owner.slice(0, 6)}…${view.owner.slice(-4)}` })
               : (message ?? ' ')}
         </p>
+        <ProofPanel proof={proof} />
         {view && capUsd6 > 0n ? (
           <p className="note" lang={lang}>
             {spent >= capUsd6

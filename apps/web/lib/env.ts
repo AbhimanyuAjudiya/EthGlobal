@@ -58,26 +58,38 @@ export const config = {
 const onHashScan = (network: string | undefined): boolean =>
   Boolean(network?.startsWith('hedera:')) || network === 'eip155:295' || network === 'eip155:296';
 
+const BASESCAN: Readonly<Record<string, string>> = {
+  'eip155:8453': 'https://basescan.org',
+  'eip155:84532': 'https://sepolia.basescan.org',
+};
+
+/**
+ * An EVM transaction's explorer by its own network: the configured one (NEXT_PUBLIC_EXPLORER_EVM) for the app's chain,
+ * BaseScan for Base — the x402 rail, whatever chain the app signs its domain on (296 live) — else none (Anvil).
+ */
+function evmExplorer(network: string | undefined): string {
+  if (network === `eip155:${chainId}` && config.explorerEvm) return config.explorerEvm;
+  return (network && BASESCAN[network]) ?? '';
+}
+
 /** Explorer URL template for a transaction on `network` (CAIP-2), `{hash}` placeholder; undefined → no link. */
 export function explorerTemplate(network: string | undefined): string | undefined {
   if (onHashScan(network)) return `${config.explorerHedera}/transaction/{hash}`;
-  if (network?.startsWith('eip155:') && config.explorerEvm)
-    return `${config.explorerEvm}/tx/{hash}`;
-  return undefined;
+  const evm = evmExplorer(network);
+  return evm ? `${evm}/tx/{hash}` : undefined;
 }
 
 export function explorerName(network: string | undefined): string | undefined {
   if (onHashScan(network)) return 'HashScan';
-  if (network?.startsWith('eip155:') && config.explorerEvm) return 'Explorer';
-  return undefined;
+  if (network && BASESCAN[network]) return 'BaseScan';
+  return evmExplorer(network) ? 'Explorer' : undefined;
 }
 
 /** A contract's explorer page (the sponsor's DataDrop); undefined → no link (local chain). */
 export function contractUrl(network: string | undefined, address: string): string | undefined {
   if (onHashScan(network)) return `${config.explorerHedera}/contract/${address}`;
-  if (network?.startsWith('eip155:') && config.explorerEvm)
-    return `${config.explorerEvm}/address/${address}`;
-  return undefined;
+  const evm = evmExplorer(network);
+  return evm ? `${evm}/address/${address}` : undefined;
 }
 
 /** An Arkiv entity's explorer page; only a real entity key (0x + 64 hex) has one — not a local ledger or logical key. */

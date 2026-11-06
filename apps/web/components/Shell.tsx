@@ -10,6 +10,7 @@ import {
   useId,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react';
 import { useAccount, useDisconnect } from 'wagmi';
@@ -74,16 +75,68 @@ export const DESTINATIONS: readonly {
   },
 ];
 
-/** The open panel's tab stops, in document order (its links and buttons; none is ever disabled). */
+/** The open panel's tab stops, in document order (its links, buttons and the switch; none is ever disabled). */
 const tabStops = (panel: HTMLElement) => [
-  ...panel.querySelectorAll<HTMLElement>('a[href], button'),
+  ...panel.querySelectorAll<HTMLElement>('a[href], button, input'),
 ];
+
+const PROOF_KEY = 'recharge.proof';
+const proofListeners = new Set<() => void>();
+/** This tab's choice when localStorage is unavailable (private mode). */
+let proofChoice: boolean | undefined;
+
+/** "Show proof after each action": this browser's choice, else on while the chain is a testnet (judges see it). */
+function readProof(): boolean {
+  if (proofChoice !== undefined) return proofChoice;
+  try {
+    const stored = localStorage.getItem(PROOF_KEY);
+    return stored === null ? IS_TESTNET : stored === 'on';
+  } catch {
+    return IS_TESTNET;
+  }
+}
+
+function subscribeProof(listener: () => void) {
+  proofListeners.add(listener);
+  return () => {
+    proofListeners.delete(listener);
+  };
+}
+
+/** Whether the ProofPanel shows after an action (the menu's switch, per browser). */
+export const useProofShown = (): boolean =>
+  useSyncExternalStore(subscribeProof, readProof, () => IS_TESTNET);
+
+/** The menu's "Show proof after each action" switch, persisted per browser (a per-viewer convenience). */
+function ProofSwitch() {
+  const { t, lang } = useLang();
+  const on = useProofShown();
+  return (
+    <label className="proof-switch" lang={lang}>
+      <input
+        type="checkbox"
+        role="switch"
+        checked={on}
+        onChange={(e) => {
+          proofChoice = e.target.checked;
+          try {
+            localStorage.setItem(PROOF_KEY, proofChoice ? 'on' : 'off');
+          } catch {
+            // per-viewer convenience only
+          }
+          for (const listener of proofListeners) listener();
+        }}
+      />
+      {t('proof.switch')}
+    </label>
+  );
+}
 
 /**
  * The header menu, on every screen whether or not a plan exists: a "Menu" disclosure button and a panel with every
- * destination (and, with `withLang`, the language switch: the phone header has no room for it). Open, the panel holds
- * the focus (Tab and Shift+Tab wrap inside it); Escape or Close shuts it and returns the focus to the button; a tap
- * outside shuts it. Every target is 44 px or more (RT-W-07).
+ * destination, the "Show proof after each action" switch and, with `withLang`, the language switch (the phone header
+ * has no room for it). Open, the panel holds the focus (Tab and Shift+Tab wrap inside it); Escape or Close shuts it
+ * and returns the focus to the button; a tap outside shuts it. Every target is 44 px or more (RT-W-07).
  */
 export function SiteMenu({ withLang = false }: { withLang?: boolean }) {
   const { t, lang } = useLang();
@@ -164,11 +217,10 @@ export function SiteMenu({ withLang = false }: { withLang?: boolean }) {
             {t('menu.close')}
           </button>
         </div>
-        {withLang ? (
-          <div className="site-menu__prefs">
-            <LangSwitch />
-          </div>
-        ) : null}
+        <div className="site-menu__prefs">
+          {withLang ? <LangSwitch /> : null}
+          <ProofSwitch />
+        </div>
         <nav className="site-menu__groups" aria-label={t('hub.title')}>
           {DESTINATIONS.map((group) => (
             <div key={group.group}>

@@ -5,6 +5,8 @@
  */
 import type { MeResponse } from '@ethglobal/protocol/schemas';
 
+import type { Proof } from './proof';
+
 const DB = 'recharge';
 const STORE = 'kv';
 const memory = new Map<string, unknown>();
@@ -154,6 +156,8 @@ export interface IssuedFacts {
   you: string;
   sponsor?: string;
   shown?: boolean;
+  /** The issuing answer as lib/proof.ts redacted it (no activation code, PIN or key): /plan's ProofPanel. */
+  proof?: Proof;
 }
 
 export interface PendingTx {

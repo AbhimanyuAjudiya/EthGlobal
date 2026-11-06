@@ -15,6 +15,8 @@ import {
 import { ScratchDemo } from './demos';
 import { CLAIM_BY, HASH, HASHSCAN, HOST, NOW, PINS, REPLACEMENT_HASH, serialFor } from './fixtures';
 import { renderQrSlot } from './qr-slot';
+import { ProofPanel } from '../../components/ProofPanel';
+import { buildProof } from '../../lib/proof';
 
 import type { ReactNode } from 'react';
 
@@ -410,6 +412,42 @@ export default function ComponentGallery() {
             you="$0.40"
             networkFee="$0.01"
             failed
+          />
+        </State>
+      </Group>
+
+      <Group id="proof" title="ProofPanel" source="components/ProofPanel.tsx · lib/proof.ts">
+        <State name="top-up on Base" note="x402 terms, settlement, HCS, Arkiv; open from 560 px">
+          <ProofPanel
+            proof={buildProof({
+              response: {
+                entitlementKey: 'ent:v1:gallery-plan-key-0000000000000000',
+                mbTotal: 2000,
+                mbUsed: 0,
+                expiresAt: NOW + 7 * 86_400_000,
+                receipt: {
+                  arkivKey: `0x${'ab'.repeat(32)}`,
+                  hcs: { topic: '0.0.6006', sequence: 7 },
+                },
+              },
+              status: 200,
+              x402: {
+                accepted: {
+                  scheme: 'exact',
+                  network: 'eip155:84532',
+                  asset: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+                  amount: '4000000',
+                  payTo: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+                  maxTimeoutSeconds: 300,
+                },
+                settlement: {
+                  success: true,
+                  transaction: HASH,
+                  network: 'eip155:84532',
+                  payer: '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc',
+                },
+              },
+            })}
           />
         </State>
       </Group>

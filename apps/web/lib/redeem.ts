@@ -15,6 +15,7 @@ import {
 import { api } from './api';
 import { deliver } from './deliver';
 import { config } from './env';
+import { buildProof } from './proof';
 import { beginSession } from './session-key';
 
 import type { Wallet } from './wallet';
@@ -29,7 +30,10 @@ export async function redeemPin(
     route === '/card/redeem'
       ? await api.redeemCard({ pin, challenge, sessionPubKey: spk })
       : await api.giftClaim({ pin, challenge, sessionPubKey: spk });
-  return deliver(res.data, challenge.nonce as Hex, { you: '$0.00' });
+  return deliver(res.data, challenge.nonce as Hex, {
+    you: '$0.00',
+    proof: buildProof({ response: res.data, status: res.status }),
+  });
 }
 
 export async function claimGiftBySignature(
@@ -58,7 +62,15 @@ export async function claimGiftBySignature(
     challenge,
     sessionPubKey: spk,
   });
-  return deliver(res.data, challenge.nonce as Hex, { you: '$0.00' });
+  return deliver(res.data, challenge.nonce as Hex, {
+    you: '$0.00',
+    // the name the gift was sent to and the wallet that proved it holds it
+    proof: buildProof({
+      response: res.data,
+      status: res.status,
+      ens: { name, address: wallet.address },
+    }),
+  });
 }
 
 /** The /gift/reclaim challenge "session key" is the payer address left-padded to 32 bytes (api README #4). */

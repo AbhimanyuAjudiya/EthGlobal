@@ -124,7 +124,7 @@ test.describe('W5 storage after a claim (T-60, T-61)', () => {
     expect(lpa).toMatch(/^LPA:1\$local\.test\$/);
     // localStorage: only the documented per-viewer keys
     for (const k of Object.keys(dump.local))
-      expect(k).toMatch(/^recharge\.(lang|a2hs\.dismissed|sim\.seed|sponsor\.campaigns)$/);
+      expect(k).toMatch(/^recharge\.(lang|a2hs\.dismissed|sim\.seed|sponsor\.campaigns|proof)$/);
     expect(Object.keys(dump.session)).toEqual([]);
     const everything = [...Object.values(dump.local), ...dump.idb, ...dump.caches].join('\n');
     expect(everything).not.toMatch(/secret|secretKey|"sk"/i);

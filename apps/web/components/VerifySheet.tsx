@@ -8,6 +8,7 @@ import { PLAN_MB, type Hex } from '@ethglobal/protocol/ids';
 import type { ChallengeWire } from '@ethglobal/protocol/schemas';
 import { Button, Coupon } from '@ethglobal/ui/components';
 
+import { ProofPanel } from './ProofPanel';
 import { QrCode } from './QrCode';
 import { AppHeader, Caution, Screen } from './Shell';
 import { TierLedger } from './TierLedger';
@@ -19,6 +20,7 @@ import { isHandheld } from '../lib/device';
 import { config } from '../lib/env';
 import { formatMb, mmss, money, soldPlan } from '../lib/format';
 import { useClock, usePlans } from '../lib/hooks';
+import { buildProof, type Proof } from '../lib/proof';
 import { beginSession } from '../lib/session-key';
 
 type Phase =
@@ -108,6 +110,8 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
   // read once on the client; the server never renders the `waiting` phase, so no hydration mismatch
   const [handheld] = useState(() => typeof window !== 'undefined' && isHandheld(window));
   const [showQr, setShowQr] = useState(false);
+  // a failed claim's proof (the API's error answer); a served claim's travels to /plan with the issued facts
+  const [proof, setProof] = useState<Proof>();
   const session = useRef<{ spk: Hex; challenge: ChallengeWire } | undefined>(undefined);
 
   const [round, setRound] = useState(0);
@@ -137,6 +141,7 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
       const campaign = plans?.campaign;
       if (!s || !campaign) return;
       setPhase({ kind: 'checking', since: Date.now() });
+      setProof(undefined);
       try {
         // the IDKit result is forwarded UNCHANGED as `proof` (A-25)
         const res = await api.claim({
@@ -149,10 +154,17 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
           network: campaign.network,
           you: '$0.00',
           sponsor: campaign.name,
+          proof: buildProof({
+            response: res.data,
+            status: res.status,
+            network: campaign.network,
+            world: true,
+          }),
         });
         // 201 and 202 deliver the same way: a pending profile has no LPA yet and /plan says so (T-25)
         router.push(planHref(key));
       } catch (e) {
+        setProof(buildProof({ error: e, network: campaign.network, world: true }));
         // no answer is not "nothing happened": the API keeps claiming after the socket drops (RT-W-13)
         if (e instanceof ApiError && e.code === 'network') setPhase({ kind: 'unconfirmed' });
         else fail(e);
@@ -354,6 +366,7 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
             {t('verify.simulatedNote')}
           </p>
         ) : null}
+        <ProofPanel proof={proof} />
         {plans ? <TierLedger plans={plans} /> : null}
       </section>
     </Screen>

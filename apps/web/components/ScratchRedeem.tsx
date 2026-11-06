@@ -10,12 +10,14 @@ import type { CardPreview } from '@ethglobal/protocol/schemas';
 import { Button, Coupon, ScratchCard } from '@ethglobal/ui/components';
 
 import { PinField } from './PinField';
+import { ProofPanel } from './ProofPanel';
 import { AppHeader, Caution, Screen } from './Shell';
 import { useLang } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
 import { planHref } from '../lib/deliver';
 import { dayLabel, formatMb } from '../lib/format';
+import { buildProof, type Proof } from '../lib/proof';
 import { redeemPin } from '../lib/redeem';
 
 /**
@@ -33,6 +35,8 @@ export function ScratchRedeem({ serial }: { serial?: string }) {
   const [revealed, setRevealed] = useState(false);
   const [working, setWorking] = useState(false);
   const [status, setStatus] = useState<string | undefined>();
+  // a failed redeem's proof; a served one travels to /plan with the issued facts (lib/redeem.ts)
+  const [proof, setProof] = useState<Proof>();
 
   useEffect(() => {
     if (!serial) return;
@@ -58,10 +62,12 @@ export function ScratchRedeem({ serial }: { serial?: string }) {
     if (!checked) return;
     setWorking(true);
     setStatus(undefined);
+    setProof(undefined);
     try {
       router.push(planHref(await redeemPin(checked, '/card/redeem')));
     } catch (e) {
       setStatus(t(errorKey(e instanceof ApiError ? e.code : 'network')));
+      setProof(buildProof({ error: e }));
       setWorking(false);
     }
   };
@@ -153,6 +159,7 @@ export function ScratchRedeem({ serial }: { serial?: string }) {
       <p className="note" role="status" lang={lang}>
         {status ?? ' '}
       </p>
+      <ProofPanel proof={proof} />
     </Screen>
   );
 }

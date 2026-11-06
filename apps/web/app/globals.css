@@ -61,18 +61,33 @@ a {
 
 .app-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
   min-height: 3.5rem;
 }
-/* the wallet control wraps under the language switch and the menu on a phone (360 px), right-aligned */
+/* one row on a phone (360 px): wordmark · wallet · Menu; the language switch joins it from 480 px (it is in the menu) */
 .app-header__right {
   display: flex;
-  flex-wrap: wrap;
   justify-content: flex-end;
   align-items: center;
   gap: 0.5rem;
+  min-width: 0;
+}
+.app-header__right > .lang-switch {
+  display: none;
+}
+@media (min-width: 480px) {
+  .app-header__right > .lang-switch {
+    display: inline-flex;
+  }
+}
+.site-menu__prefs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  padding-bottom: 0.5rem;
 }
 .wordmark {
   display: inline-flex;
@@ -963,13 +978,21 @@ a {
   font-size: var(--text-14);
 }
 /* The header's wallet control (Shell.tsx WalletControl): "Connect", or the short address opening a small panel under
-   it — the network switch when the wallet is elsewhere, and Disconnect (48 px buttons). */
+   it — the wallet's network, said neutrally, and Disconnect (48 px buttons). */
 .wallet-toggle {
   flex: none;
   white-space: nowrap;
 }
+/* compact: an ENS name never pushes the row past the screen */
+.wallet-toggle > [data-hash] {
+  display: block;
+  max-width: 7rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .wallet-menu {
   position: relative;
+  flex: none;
 }
 .wallet-status {
   position: absolute;

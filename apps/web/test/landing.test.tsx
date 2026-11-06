@@ -127,6 +127,8 @@ describe('the header menu', () => {
     fireEvent.click(toggle);
     const dialog = screen.getByRole('dialog', { name: 'Menu' });
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    // the phone header has no room for the language switch: the menu's sheet carries it
+    expect(within(dialog).getByRole('group', { name: 'Language' })).toBeTruthy();
     const nav = within(dialog).getByRole('navigation', { name: 'Everything Recharge does' });
     expect(hrefs(within(nav).getAllByRole('link')).sort()).toEqual(EVERY_FLOW);
     await waitFor(() => expect(document.activeElement?.getAttribute('href')).toBe('/verify'));

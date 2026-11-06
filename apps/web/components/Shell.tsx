@@ -81,10 +81,11 @@ const tabStops = (panel: HTMLElement) => [
 
 /**
  * The header menu, on every screen whether or not a plan exists: a "Menu" disclosure button and a panel with every
- * destination. Open, the panel holds the focus (Tab and Shift+Tab wrap inside it); Escape or Close shuts it and
- * returns the focus to the button; a tap outside shuts it. Every target is 44 px or more (RT-W-07).
+ * destination (and, with `withLang`, the language switch: the phone header has no room for it). Open, the panel holds
+ * the focus (Tab and Shift+Tab wrap inside it); Escape or Close shuts it and returns the focus to the button; a tap
+ * outside shuts it. Every target is 44 px or more (RT-W-07).
  */
-export function SiteMenu() {
+export function SiteMenu({ withLang = false }: { withLang?: boolean }) {
   const { t, lang } = useLang();
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
@@ -163,6 +164,11 @@ export function SiteMenu() {
             {t('menu.close')}
           </button>
         </div>
+        {withLang ? (
+          <div className="site-menu__prefs">
+            <LangSwitch />
+          </div>
+        ) : null}
         <nav className="site-menu__groups" aria-label={t('hub.title')}>
           {DESTINATIONS.map((group) => (
             <div key={group.group}>
@@ -195,8 +201,9 @@ export function Caution({ k }: { k: StringKey }) {
 }
 
 /**
- * Wordmark top-left; language switch, the menu and the one wallet control top-right. On a phone the wallet control
- * wraps under the other two, right-aligned, so the header never scrolls sideways.
+ * One row at 360 px: wordmark · the one wallet control (icon + short address, or Connect) · Menu. From 480 px the
+ * language switch joins the row; below that it lives in the menu's sheet (always there too), so nothing wraps or
+ * scrolls sideways.
  */
 export function AppHeader({ right }: { right?: ReactNode }) {
   return (
@@ -207,8 +214,8 @@ export function AppHeader({ right }: { right?: ReactNode }) {
       <div className="app-header__right">
         {right}
         <LangSwitch />
-        <SiteMenu />
         <HeaderWallet />
+        <SiteMenu withLang />
       </div>
     </header>
   );

@@ -51,7 +51,10 @@ test.describe('accessibility', () => {
 
   test('Hindi strings carry lang="hi" and Marathi lang="mr"', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('button', { name: 'हिं' }).click();
+    // at phone width (390 px) the language switch lives in the menu's sheet; the header row is wordmark · wallet · Menu
+    await expect(page.locator('.app-header__right > .lang-switch')).toBeHidden();
+    await page.locator('.app-header__right > .menu-toggle:not(.wallet-toggle)').click();
+    await page.getByRole('dialog').getByRole('button', { name: 'हिं' }).click();
     const title = page.locator('.landing__title');
     await expect(title).toHaveText('बिना डेटा के मुंबई पहुँच रहे हैं?');
     await expect(title).toHaveAttribute('lang', 'hi');
@@ -66,10 +69,11 @@ test.describe('accessibility', () => {
     expect(lineHeight).toBeGreaterThanOrEqual(1.59);
     await page.goto('/verify');
     await expect(page.locator('#verify-title')).toHaveText('साबित करें कि आप एक इंसान हैं');
-    await page.getByRole('button', { name: 'मरा' }).click();
+    await page.locator('.app-header__right > .menu-toggle:not(.wallet-toggle)').click();
+    await page.getByRole('dialog').getByRole('button', { name: 'मरा' }).click();
     await expect(page.locator('#verify-title')).toHaveText('तुम्ही एक माणूस आहात हे सिद्ध करा');
     await expect(page.locator('#verify-title')).toHaveAttribute('lang', 'mr');
-    await page.getByRole('button', { name: 'EN' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'EN' }).click();
   });
 
   test('focus ring visible on every control', async ({ page }) => {

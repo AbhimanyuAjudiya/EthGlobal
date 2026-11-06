@@ -172,7 +172,12 @@ test.describe('i18n: Hindi / Marathi rendering', () => {
     collect: (route: string, a: Audit) => string[],
   ): Promise<string[]> {
     await page.goto('/');
-    await page.getByRole('button', { name: lang === 'hi' ? 'हिं' : 'मरा' }).click();
+    // below 480 px the language switch is in the menu's sheet
+    await page.locator('.app-header__right > .menu-toggle:not(.wallet-toggle)').click();
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: lang === 'hi' ? 'हिं' : 'मरा' })
+      .click();
     const issues: string[] = [];
     for (const route of routes) {
       await settle(page, route);

@@ -354,7 +354,13 @@ export const meResponseSchema = z.object({
     .object({
       usd6: digitsSchema,
       network: caipNetworkSchema,
+      /** Where the refund goes: the wallet that paid (for a gift, the one that bought it). */
       to: z.union([evmAddressSchema, nativePayerSchema]),
+      /** Who may sign the cancel; absent = only `to`. A gift adds the address it was named to. */
+      signers: z
+        .array(z.union([evmAddressSchema, nativePayerSchema]))
+        .max(4)
+        .optional(),
     })
     .optional(),
   // … or, once cancelled, when (= expiresAt) and the refund

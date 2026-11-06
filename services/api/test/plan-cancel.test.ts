@@ -292,19 +292,39 @@ describe('POST /plan/cancel', () => {
     expect(h.treasury.refunds()).toHaveLength(0);
   });
 
-  it('free (sponsored), gift and card plans ⇒ 409 not-paid', async () => {
+  it('free (sponsored) and card plans ⇒ 409 not-paid', async () => {
     const h = await harness();
     const free = await provisioned(h);
     const card = await redeemPin(h, (await seedCard(h)).pin);
-    const gift = await redeemPin(h, (await buyGift(h, 'bob.eth', 1000)).pin, '/gift/claim');
-    expect([card.status, gift.status]).toEqual([201, 201]);
-    for (const key of [
-      free.key,
-      ((await card.json()) as EntitledResponse).entitlementKey,
-      ((await gift.json()) as EntitledResponse).entitlementKey,
-    ])
+    expect(card.status).toBe(201);
+    for (const key of [free.key, ((await card.json()) as EntitledResponse).entitlementKey])
       expect(await reasonOf((await cancel(h, key)).res)).toEqual([409, 'not-paid']);
     expect(h.treasury.refunds()).toHaveLength(0);
+  });
+
+  it('a gifted plan: /me offers the refund to the gift buyer; only that wallet may cancel, and the money goes back to it', async () => {
+    const h = await harness();
+    const bought = await buyGift(h, 'bob.eth', 1000);
+    const claimed = await redeemPin(h, bought.pin, '/gift/claim');
+    expect(claimed.status).toBe(201);
+    const key = ((await claimed.json()) as EntitledResponse).entitlementKey;
+    const buyer = addressOf(HUMAN_KEY);
+    const before = await me(h, key);
+    expect(before.body.kind).toBe('gift');
+    // the buyer may cancel, and so may the address the gift was named to; the money goes to the buyer only
+    expect(before.body.refundable).toMatchObject({ to: buyer });
+    expect(before.body.refundable?.signers).toEqual(expect.arrayContaining([buyer]));
+    // the recipient's device holds the key, but a wallet that did not pay cannot pull the refund
+    expect(await reasonOf((await cancel(h, key, STRANGER_KEY)).res)).toEqual([401, 'not-payer']);
+    expect(h.treasury.refunds()).toHaveLength(0);
+    const { res } = await cancel(h, key);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as PlanCancelResponse;
+    expect(h.treasury.refunds()).toHaveLength(1);
+    expect(h.treasury.refunds()[0]).toMatchObject({ to: buyer, usd6: BigInt(body.refund.usd6) });
+    expect(BigInt(body.refund.usd6)).toBe(BigInt(before.body.refundable?.usd6 ?? '0'));
+    const after = await me(h, key);
+    expect(after.body.cancelledAt).toBeDefined();
   });
 
   it('the vendor refuses ⇒ 409 vendor-refused, no refund, the receipt aborted (usd6 0, no tx); the plan stays live and usable', async () => {

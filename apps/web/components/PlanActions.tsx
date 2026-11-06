@@ -177,6 +177,10 @@ function CancelPlan({
   const amount = money(offer.usd6);
   const busy = step === 'signing' || step === 'sending';
   const native = offer.network.startsWith('hedera:');
+  // who may sign: the wallet that paid, and for a gift the address it was named to; the money goes to `offer.to`
+  const signers = offer.signers ?? [offer.to];
+  const maySign = (account: string | undefined) =>
+    account !== undefined && signers.some((s) => s.toLowerCase() === account.toLowerCase());
 
   const failed = (e: unknown) => {
     setStep('confirm');
@@ -206,7 +210,7 @@ function CancelPlan({
 
   const cancelNative = async () => {
     const session = hp.session;
-    if (session?.chain !== offer.network || session.accountId !== offer.to) return;
+    if (session?.chain !== offer.network || !maySign(session.accountId)) return;
     setError(undefined);
     setStep('signing');
     try {
@@ -289,8 +293,8 @@ function CancelPlan({
     );
 
   const isPayer = native
-    ? hp.session?.chain === offer.network && hp.session.accountId === offer.to
-    : wallet?.address.toLowerCase() === offer.to.toLowerCase();
+    ? hp.session?.chain === offer.network && maySign(hp.session.accountId)
+    : maySign(wallet?.address);
   return (
     <Card
       as="section"

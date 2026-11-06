@@ -20,7 +20,13 @@ import { fail } from '../errors.js';
 import { patchUsage } from './webhooks.js';
 import { planEvent } from '../flows/campaign-history.js';
 import { campaignReclaimBlocks, campaignReclaimView } from '../flows/campaign-reclaim.js';
-import { aborted, cancelPlan, cancelReceiptKey, decidePlanCancel } from '../flows/cancel.js';
+import {
+  aborted,
+  cancelPlan,
+  cancelReceiptKey,
+  decidePlanCancel,
+  giftOf,
+} from '../flows/cancel.js';
 import {
   activationBox,
   assertDeliveryUsable,
@@ -146,14 +152,15 @@ export function registerMe(app: Hono<AppEnv>, deps: Deps): void {
 
 /** Paid and ready: what POST /plan/cancel would refund now and to whom (the ledger half of its eligibility). */
 async function refundable(deps: Deps, e: Entitlement): Promise<MeResponse['refundable']> {
-  if (e.kind !== 'paid' || e.status !== 'ready') return undefined;
+  if ((e.kind !== 'paid' && e.kind !== 'gift') || e.status !== 'ready') return undefined;
   if (deps.paidOperations.entries().some(([, operation]) => operation.targetKey === e.key))
     return undefined;
   const receipts = await deps.stores.receipts.forEntitlement(sha256Hex(e.key)).catch(() => null);
   if (!receipts) return undefined; // the offer waits for the next read; the cancel itself re-checks everything
-  const v = decidePlanCancel(e, receipts, deps.env.GIFT_RECLAIM_FEE_USD6);
+  const gift = e.kind === 'gift' ? await giftOf(deps, e.key).catch(() => undefined) : undefined;
+  const v = decidePlanCancel(e, receipts, deps.env.GIFT_RECLAIM_FEE_USD6, gift);
   return v.kind === 'refund'
-    ? { usd6: usd6ToWire(v.usd6), network: v.network, to: v.to }
+    ? { usd6: usd6ToWire(v.usd6), network: v.network, to: v.to, signers: [...v.signers] }
     : undefined;
 }
 

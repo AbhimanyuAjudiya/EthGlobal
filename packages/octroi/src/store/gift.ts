@@ -54,6 +54,18 @@ export class GiftStore {
     return rows.filter((g) => g.payload.fundedBy === 'campaign');
   }
 
+  /** The claimed gift behind an entitlement, by the entitlement's one-way index (`claimedKey`). */
+  async byClaimedKey(index: string): Promise<Found<Gift> | null> {
+    // ponytail: scans the claimed gifts (a handful); an annotation would make decode() reject rows written before it
+    const rows = await this.#repo.findAll({ [ANN.state]: 'claimed' });
+    return (
+      rows.find(
+        (g) =>
+          g.payload.claimedKey !== undefined && entitlementIndex(g.payload.claimedKey) === index,
+      ) ?? null
+    );
+  }
+
   byPinKey(pinKey: Hex): Promise<Found<Gift> | null> {
     return this.#repo.findOne({ [ANN.pinKey]: lower(pinKey) });
   }

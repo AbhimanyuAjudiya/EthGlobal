@@ -11,10 +11,20 @@ import { isAddress, type Address } from 'viem';
 
 import { isAdapterError } from '@ethglobal/adapters';
 import { openFromServer, sha256Hex, utf8, type SealedBox } from '@ethglobal/crypto';
-import type { Challenge, Entitlement } from '@ethglobal/octroi';
+import {
+  entitlementIndex,
+  INDEX_PREFIX,
+  type Challenge,
+  type Entitlement,
+} from '@ethglobal/octroi';
 import type { ErrorCode } from '@ethglobal/protocol/errors';
 import type { Hex } from '@ethglobal/protocol/ids';
-import type { PlanCancelRequest, PlanCancelResponse, Receipt } from '@ethglobal/protocol/schemas';
+import type {
+  Gift,
+  PlanCancelRequest,
+  PlanCancelResponse,
+  Receipt,
+} from '@ethglobal/protocol/schemas';
 import {
   CANCEL_PLAN_TYPES,
   nativeCancelMessage,
@@ -46,7 +56,7 @@ export type PlanCancelDeny =
   | 'nothing-to-refund';
 
 export const CANCEL_DENY_CODES: Readonly<Record<PlanCancelDeny, ErrorCode>> = {
-  // free, sponsored, gift and card plans: no wallet paid for them, nothing to give back
+  // free, sponsored and card plans: no wallet paid for them, nothing to give back
   'not-paid': 'replay',
   'already-cancelled': 'replay',
   'topped-up': 'replay',
@@ -59,34 +69,69 @@ export const CANCEL_DENY_CODES: Readonly<Record<PlanCancelDeny, ErrorCode>> = {
 };
 
 export type PlanCancelVerdict =
-  | { kind: 'refund'; to: string; network: string; usd6: bigint; feeUsd6: bigint }
+  | {
+      kind: 'refund';
+      /** Where the money goes: the wallet that paid (a gift: the one that bought the gift). */
+      to: string;
+      network: string;
+      usd6: bigint;
+      feeUsd6: bigint;
+      /** Who may sign the CancelPlan: the payer; for a gift also the address the gift was named to. */
+      signers: readonly string[];
+    }
   | { kind: 'deny'; reason: PlanCancelDeny };
+
+/** The escrow a gifted plan came from: the claimed gift whose `claimedKey` is this plan's index (capability or index). */
+export async function giftOf(deps: Deps, keyOrIndex: string): Promise<Gift | undefined> {
+  const index = keyOrIndex.startsWith(INDEX_PREFIX) ? keyOrIndex : entitlementIndex(keyOrIndex);
+  return (await deps.stores.gifts.byClaimedKey(index))?.payload;
+}
+
+/** An EVM address on an EVM network, a `0.0.x` account on Hedera: a payer a wallet can authenticate. */
+const validPayer = (network: string | undefined, payer: string | undefined): payer is string =>
+  payer !== undefined &&
+  (network?.startsWith('eip155:')
+    ? isAddress(payer, { strict: false })
+    : ['hedera:testnet', 'hedera:mainnet'].includes(network ?? '') &&
+      /^0\.0\.[1-9]\d{0,11}$/.test(payer));
 
 /**
  * The ledger half of the eligibility, pure (the vendor's "unused" is read at cancel time); /me shows its refund.
- * Refund = the provision receipt's usd6 on its network minus max(fee, 0), to the payer the ENTITLEMENT recorded —
- * an EVM address or native Hedera account authenticated by its wallet; never a destination from the request.
+ * Refund = the payment's usd6 on its network minus max(fee, 0), to the wallet that paid: a paid plan's provision
+ * receipt and the payer the ENTITLEMENT recorded, a gifted plan's escrow (`gift`) and the gift's payer. Never a
+ * destination from the request.
  */
 export function decidePlanCancel(
   e: Entitlement,
   receipts: readonly Receipt[],
   feeUsd6: bigint,
+  gift?: Gift | null,
 ): PlanCancelVerdict {
   const deny = (reason: PlanCancelDeny) => ({ kind: 'deny', reason }) as const;
-  if (e.kind !== 'paid') return deny('not-paid');
+  if (e.kind !== 'paid' && e.kind !== 'gift') return deny('not-paid');
   if (receipts.some((r) => r.kind === 'plan-cancel')) return deny('already-cancelled');
   if (receipts.some((r) => r.kind === 'topup' || r.kind === 'agent-topup'))
     return deny('topped-up');
   if (e.status === 'installed' || e.status === 'active') return deny('installed');
   if (e.iccidEnc === undefined) return deny('pending-profile');
-  if (
-    e.payer === undefined ||
-    (e.network?.startsWith('eip155:')
-      ? !isAddress(e.payer, { strict: false })
-      : !['hedera:testnet', 'hedera:mainnet'].includes(e.network ?? '') ||
-        !/^0\.0\.[1-9]\d{0,11}$/.test(e.payer))
-  )
-    return deny('not-payer');
+  const fee = feeUsd6 < 0n ? 0n : feeUsd6;
+  if (e.kind === 'gift') {
+    // the gift's escrow is the payment record: its buyer gets the money back, and may cancel; so may the
+    // address the gift was named to (a PIN-claimed gift names nobody)
+    if (gift?.usd6 === undefined || gift.network === undefined) return deny('no-payment');
+    if (!validPayer(gift.network, gift.payer)) return deny('not-payer');
+    const usd6 = usd6FromWire(gift.usd6);
+    if (fee >= usd6) return deny('nothing-to-refund');
+    return {
+      kind: 'refund',
+      to: gift.payer,
+      network: gift.network,
+      usd6: usd6 - fee,
+      feeUsd6: fee,
+      signers: [gift.payer, ...(gift.to ? [gift.to] : [])],
+    };
+  }
+  if (!validPayer(e.network, e.payer)) return deny('not-payer');
   const paid = receipts.find((r) => r.kind === 'provision');
   if (
     paid?.usd6 === undefined ||
@@ -96,9 +141,15 @@ export function decidePlanCancel(
   )
     return deny('no-payment');
   const usd6 = usd6FromWire(paid.usd6);
-  const fee = feeUsd6 < 0n ? 0n : feeUsd6;
   if (fee >= usd6) return deny('nothing-to-refund');
-  return { kind: 'refund', to: e.payer, network: paid.network, usd6: usd6 - fee, feeUsd6: fee };
+  return {
+    kind: 'refund',
+    to: e.payer,
+    network: paid.network,
+    usd6: usd6 - fee,
+    feeUsd6: fee,
+    signers: [e.payer],
+  };
 }
 
 /** The plan's one cancel receipt (logical key per entitlement; sha256 of the key, never the capability). */
@@ -166,12 +217,17 @@ async function cancelLocked(
   if (deps.paidOperations.entries().some(([, operation]) => operation.targetKey === key))
     throw fail('replay', { reason: 'topped-up' });
   const receipts = await deps.stores.receipts.forEntitlement(sha256Hex(key));
-  const verdict = decidePlanCancel(e, receipts, deps.env.GIFT_RECLAIM_FEE_USD6);
+  const gift = e.kind === 'gift' ? await giftOf(deps, key) : undefined;
+  const verdict = decidePlanCancel(e, receipts, deps.env.GIFT_RECLAIM_FEE_USD6, gift);
   if (verdict.kind === 'deny')
     throw fail(CANCEL_DENY_CODES[verdict.reason], { reason: verdict.reason });
-  if (nativeNetwork !== undefined ? e.network !== nativeNetwork : !e.network?.startsWith('eip155:'))
+  if (
+    nativeNetwork !== undefined
+      ? verdict.network !== nativeNetwork
+      : !verdict.network.startsWith('eip155:')
+  )
     throw fail('unauthorized', { reason: 'not-payer' });
-  if (verdict.to.toLowerCase() !== signer.toLowerCase())
+  if (!verdict.signers.some((s) => s.toLowerCase() === signer.toLowerCase()))
     throw fail('unauthorized', { reason: 'not-payer' });
   const iccid = openFromServer(deps.sealKey, e.iccidEnc as SealedBox, utf8(key));
   // the vendor is the authority on "unused": installed or in use ⇒ 409 and nothing is written

@@ -34,7 +34,7 @@ import { useLang } from '../i18n/lang';
 import { api, ApiError } from '../lib/api';
 import { config, contractUrl, explorerName, networkName } from '../lib/env';
 import { clockIst, dayLabel, formatMb, money, moneyUsdc } from '../lib/format';
-import { useEnsureChain, useHydrated, useWallet } from '../lib/hooks';
+import { useClock, useEnsureChain, useHydrated, useWallet } from '../lib/hooks';
 import { buildProof, type Proof, type ProofInput } from '../lib/proof';
 import {
   approveCall,
@@ -235,7 +235,6 @@ export function CampaignForm() {
   /** The API's advertised minimum per claim, fetched with the catalogue to prefill the price (0n: unknown). */
   const [floor, setFloor] = useState(0n);
   /** Once the sponsor types a budget, cap × price stops overwriting it. */
-  const [budgetTyped, setBudgetTyped] = useState(false);
   const datesHint = useId();
   const catalogRound = useRef(0);
   const fundingRound = useRef(0);
@@ -428,13 +427,15 @@ export function CampaignForm() {
       live = false;
     };
   }, [wallet, listIds, resumeId, pauseState, refundState]);
-  const nowMs = Date.now();
+  // a minute clock: the campaign rows' Live / Paused / Expired state and the refund windows read it
+  const nowMs = useClock(60_000);
   const stateOf = (c: CampaignOnChain) =>
     nowMs >= c.expiresAt ? 'Expired' : c.paused ? 'Paused' : 'Live';
 
   /** Budget follows claims cap × price until the sponsor types one. */
+  // the budget is never typed: it is paid-per-claim × claims cap, recomputed whenever either (or the package) changes
   const autoBudget = (d: Draft): Draft => {
-    if (budgetTyped || !/^\d{1,9}$/.test(d.maxClaims.trim())) return d;
+    if (!/^\d{1,9}$/.test(d.maxClaims.trim())) return d;
     try {
       return { ...d, budgetUsd: usdText(usd6(d.priceUsd) * BigInt(d.maxClaims.trim())) };
     } catch {
@@ -467,7 +468,6 @@ export function CampaignForm() {
       disabled={running || Boolean(resume)}
       onChange={(e) => {
         const value = e.target.value;
-        if (key === 'budgetUsd') setBudgetTyped(true);
         setDraft((d) => {
           const next = { ...d, [key]: value };
           return key === 'priceUsd' || key === 'maxClaims' ? autoBudget(next) : next;
@@ -728,7 +728,6 @@ export function CampaignForm() {
     }
     setResume(undefined);
     setPermanent(false);
-    setBudgetTyped(false);
     setDraft(initial);
     void loadCatalog(initial.country);
     setError(undefined);
@@ -841,8 +840,6 @@ export function CampaignForm() {
       const price = usd6(draft.priceUsd);
       const total = price * BigInt(draft.maxClaims.trim());
       totalLine = `${draft.maxClaims.trim()} claims × ${money(price)} = ${moneyUsdc(total)}`;
-      if (budgetAmount !== undefined && budgetAmount !== total)
-        totalLine += ` · budget ${budgetText}`;
     }
   } catch {
     // a half-typed price: no line until it reads as an amount
@@ -1155,7 +1152,15 @@ export function CampaignForm() {
                 {field('priceUsd', 'Paid per claim (USDC)', priceHint)}
                 {field('maxClaims', 'Claims cap')}
                 {field('perHour', 'Claims per hour', undefined, undefined, undefined, perHourError)}
-                {field('budgetUsd', 'Budget (USDC)')}
+                <Field
+                  label="Budget (USDC)"
+                  hint="Paid per claim × claims cap"
+                  value={draft.budgetUsd}
+                  readOnly
+                  disabled={running || Boolean(resume)}
+                  mono
+                  data-testid="campaign-budgetUsd"
+                />
               </div>
               {totalLine ? (
                 <p className="note" data-testid="campaign-total">

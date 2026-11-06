@@ -169,9 +169,11 @@ describe('Hedera campaign funding readiness', () => {
     expect(screen.getByTestId('campaign-total').textContent).toBe(
       '10 claims × $1.20 = $12.00 USDC',
     );
-    fireEvent.change(screen.getByTestId('campaign-budgetUsd'), { target: { value: '20' } });
+    // the budget is derived, never typed: it follows the cap (and the price, and the package)
+    expect(screen.getByTestId<HTMLInputElement>('campaign-budgetUsd').readOnly).toBe(true);
     fireEvent.change(screen.getByTestId('campaign-maxClaims'), { target: { value: '5' } });
-    expect(screen.getByTestId<HTMLInputElement>('campaign-budgetUsd').value).toBe('20');
+    expect(screen.getByTestId<HTMLInputElement>('campaign-budgetUsd').value).toBe('6.00');
+    expect(screen.getByTestId('campaign-total').textContent).toBe('5 claims × $1.20 = $6.00 USDC');
     // the hourly limit may not exceed the cap: the field says so and the create button waits
     fireEvent.change(screen.getByTestId('campaign-perHour'), { target: { value: '1000' } });
     expect(screen.getByTestId('campaign-perHour').getAttribute('aria-invalid')).toBe('true');

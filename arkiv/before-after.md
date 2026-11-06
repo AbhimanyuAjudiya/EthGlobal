@@ -31,6 +31,14 @@ Honestly small so far. `git diff --stat v0-prekickoff..HEAD` over the Arkiv code
   with the same code;
 - this `arkiv/` folder (Fri 6 Nov), including the `AND` query check against the node.
 
-As of Fri 6 Nov 05:22 IST the writer has **no entity created after kickoff** (every row the query returns has
-`createdAtMs` before 21:00 IST Thu). The first in-window entity comes with the first in-window claim, gift or top-up on
-the live API; its key goes here and into `docs/SWARM.md`.
+First in-window entities (Fri 6 Nov, live API, same code):
+
+| When (IST) | Entity | What happened |
+|---|---|---|
+| Fri 6 Nov 05:22 | `recharge.entitlement.v1` [`0x3166df93…bd25`](https://rabdi.explorer.arkiv.network/entity/0x3166df93b01eba1d6ff30e00dd3d36e7b0ec461754846c33ebcd63ba6080bd25) | a 300 MB plan bought over x402 (Base Sepolia) by the top-up agent's key; expiry = plan expiry (Fri 13 Nov 05:22) |
+| Fri 6 Nov 05:34 | `recharge.entitlement.v1` [`0xea35cfb2…74fe`](https://rabdi.explorer.arkiv.network/entity/0xea35cfb2d96d838e5795468d1c7db6f91b547badb43e518f4af3f87394cb74fe) | a 300 MB plan bought in the browser with RainbowKit (Base Sepolia); the plan page shows "Plan written to Arkiv" |
+| Fri 6 Nov 05:51 / 05:54 | both entities | updated when eSIM Access allocated the profiles (`pending-profile` → `ready`) |
+| Fri 6 Nov 06:14 | `0x3166df93…bd25` | updated by the agent's autonomous Hedera top-up (`0.0.9185802@1793925870.465901542`): 300 → 400 MB, and the entity's expiry moved to Fri 13 Nov 06:14 — the plan clock extended on Arkiv |
+
+The Arkiv **code** is unchanged since the tag; what is new is live traffic through it: the first paid plans, the first
+profile allocations and the first top-up that extends an entity's expiry.

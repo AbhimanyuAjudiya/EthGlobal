@@ -298,7 +298,8 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
   }, [wallet, accepts]);
 
   const price = chosen ? moneyUsdc(chosen.amount) : plans ? moneyUsdc(planUsd6) : '';
-  const shortPrice = chosen ? money(chosen.amount) : '';
+  // the 402's own amount once quoted; until then the plan's list price, never an empty "Buy 1 GB · "
+  const shortPrice = money(chosen ? chosen.amount : planUsd6);
   const title = entitlementKey
     ? t('pay.topup', { mb: formatMb(mb), price: shortPrice })
     : t('pay.buy', { mb: formatMb(mb), price: shortPrice });

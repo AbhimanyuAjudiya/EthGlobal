@@ -26,7 +26,8 @@ import { fail } from '../errors.js';
 import { signedBy } from '../signatures.js';
 import { consume } from './challenge.js';
 import { payRefund, reclaimSessionKey, reserveRefund } from './reclaim.js';
-import { errName } from './record.js';
+import { errName, flushReceiptOutbox } from './record.js';
+import { refundRecovery } from './refund-recovery.js';
 
 import type { Deps } from '../deps.js';
 
@@ -125,9 +126,12 @@ async function cancelLocked(
   key: string,
   signer: string,
 ): Promise<{ status: 200 | 202; body: PlanCancelResponse }> {
+  await flushReceiptOutbox(deps);
   const found = await deps.stores.entitlements.getByKey(key);
   if (!found) throw fail('not_found'); // unknown and expired alike (RT-O-01)
   const e = found.payload;
+  if (deps.paidOperations.entries().some(([, operation]) => operation.targetKey === key))
+    throw fail('replay', { reason: 'topped-up' });
   const receipts = await deps.stores.receipts.forEntitlement(sha256Hex(key));
   const verdict = decidePlanCancel(e, receipts, deps.env.GIFT_RECLAIM_FEE_USD6);
   if (verdict.kind === 'deny')
@@ -206,7 +210,11 @@ async function cancelLocked(
     status: paid ? 200 : 202,
     body: {
       cancelledAt,
-      refund: { network: verdict.network, usd6, ...(paid ? { tx: paid.tx } : {}) },
+      refund: {
+        network: verdict.network,
+        usd6,
+        ...(paid ? { tx: paid.tx } : { recovery: refundRecovery(deps, pending.key) }),
+      },
       receipt: {
         arkivKey: paid?.receiptKey ?? pending.key,
         ...(paid?.hcs ? { hcs: paid.hcs } : {}),

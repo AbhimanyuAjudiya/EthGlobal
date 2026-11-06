@@ -19,6 +19,7 @@ const fallsBack = (error: unknown): boolean =>
   error instanceof AdapterError && (error.code === 'unavailable' || error.code === 'rate_limited');
 
 export class FallbackReseller implements Reseller {
+  readonly #orders = new Map<string, Promise<EsimProfile>>();
   constructor(
     readonly primary: Reseller,
     readonly fallback: Reseller,
@@ -38,11 +39,29 @@ export class FallbackReseller implements Reseller {
     }
   }
 
-  async order(planId: string, opts: { idempotencyKey: string }): Promise<EsimProfile> {
+  order(planId: string, opts: { idempotencyKey: string }): Promise<EsimProfile> {
+    const existing = this.#orders.get(opts.idempotencyKey);
+    if (existing) return existing;
+    const pending = this.#order(planId, opts);
+    this.#orders.set(opts.idempotencyKey, pending);
+    pending.catch(() => this.#orders.delete(opts.idempotencyKey));
+    return pending;
+  }
+
+  async #order(planId: string, opts: { idempotencyKey: string }): Promise<EsimProfile> {
+    // Inventory records consumedBy before returning. Check that durable allocation first on
+    // every process restart so recovery never swaps an already-issued ICCID for a new primary order.
+    const allocated = await this.fallback.recoverOrder?.(opts.idempotencyKey);
+    if (allocated) return allocated;
     try {
       return await this.primary.order(planId, opts);
     } catch (error) {
       if (!fallsBack(error)) throw error;
+      if (
+        error instanceof AdapterError &&
+        (error.details?.orderMayExist === true || error.details?.reason === 'pending_profile')
+      )
+        throw error;
       this.logger?.warn(
         `reseller: ${this.primary.name} unavailable, ordering from ${this.fallback.name}`,
       );
@@ -50,10 +69,21 @@ export class FallbackReseller implements Reseller {
     }
   }
 
+  async canTopUp(iccid: string): Promise<boolean> {
+    if (this.fallback.canTopUp) {
+      try {
+        return await this.fallback.canTopUp(iccid);
+      } catch (error) {
+        if (!(error instanceof AdapterError) || error.code !== 'not_found') throw error;
+      }
+    }
+    return this.primary.canTopUp?.(iccid) ?? true;
+  }
+
   topUp(
     iccid: string,
     mb: number,
-    opts: { idempotencyKey: string },
+    opts: { idempotencyKey: string; totalMb?: number },
   ): Promise<{ orderId: string; totalMb: number }> {
     return this.primary.topUp(iccid, mb, opts);
   }

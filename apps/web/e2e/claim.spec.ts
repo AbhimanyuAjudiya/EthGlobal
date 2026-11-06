@@ -1,4 +1,5 @@
-import type { PlansResponse } from '@ethglobal/protocol/schemas';
+import type { MeResponse, PlansResponse } from '@ethglobal/protocol/schemas';
+import { formatMb } from '@ethglobal/protocol/units';
 
 import { API_URL } from './env';
 import { apiGet, claimFreeBundle, expect, test } from './fixtures';
@@ -7,10 +8,12 @@ test.describe('claim: / → /verify → /plan', () => {
   test('landing renders both paths and the live coupon count', async ({ page }) => {
     const plans = await apiGet<PlansResponse>(page, '/plans');
     await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Your India trip. Connected.' })).toBeVisible();
     await expect(
-      page.getByRole('heading', { name: 'Landing in Mumbai without data?' }),
+      page.getByRole('link', {
+        name: `Prove I'm human → ${formatMb(plans.campaign!.bundleMb.orb)}`,
+      }),
     ).toBeVisible();
-    await expect(page.getByRole('link', { name: /Prove I.m human → 1\sGB/ })).toBeVisible();
     await expect(page.getByRole('link', { name: /I.ll pay · 1\sGB for \$4\.00/ })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Enter a coupon PIN' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Open my plan' })).toBeVisible();
@@ -29,7 +32,9 @@ test.describe('claim: / → /verify → /plan', () => {
       'rub here · यहाँ रगड़ें',
     );
     await expect(page.locator('#landing-coupon .coupon__wordmark')).toHaveCount(0);
-    await expect(page.locator('#landing-coupon .coupon__value')).toHaveText('1');
+    await expect(page.locator('#landing-coupon .coupon__value')).toHaveText(
+      formatMb(campaign!.bundleMb.orb).split(/\s/)[0]!,
+    );
     await expect(page.getByTestId('preflight')).toContainText(/eSIM/);
     // no AddToHomeScreen on launch, never "Connect Wallet" as the only CTA
     await expect(page.getByTestId('add-to-home-screen')).toHaveCount(0);
@@ -74,8 +79,10 @@ test.describe('claim: / → /verify → /plan', () => {
   }) => {
     const key = await claimFreeBundle(page);
     expect(key).toMatch(/^ent:/);
+    const me = await apiGet<MeResponse>(page, `/me/${encodeURIComponent(key)}`);
+    const amount = formatMb(me.mbTotal).split(/\s/)[0]!;
     const coupon = page.locator('#plan-coupon');
-    await expect(coupon.locator('.coupon__value')).toHaveText('1');
+    await expect(coupon.locator('.coupon__value')).toHaveText(amount);
     // the lock-screen line: "1 GB · from <sponsor> · because you're human"
     await expect(coupon.locator('.coupon__line').first()).toContainText(
       /from .+ · because you.re human/,
@@ -88,11 +95,11 @@ test.describe('claim: / → /verify → /plan', () => {
     await expect(page.getByTestId('arkiv-key')).toHaveText(/\S{8,}/, { useInnerText: false });
     await expect(page.getByRole('meter', { name: 'Data left' })).toHaveAttribute(
       'aria-valuenow',
-      '1000',
+      String(me.mbTotal),
     );
     // second visit: the odometer does not run again
     await page.reload();
-    await expect(coupon.locator('.coupon__value')).toHaveText('1');
+    await expect(coupon.locator('.coupon__value')).toHaveText(amount);
     const values = await page.evaluate(async () => {
       const seen: string[] = [];
       for (let i = 0; i < 10; i += 1) {
@@ -101,7 +108,7 @@ test.describe('claim: / → /verify → /plan', () => {
       }
       return seen;
     });
-    expect(new Set(values)).toEqual(new Set(['1']));
+    expect(new Set(values)).toEqual(new Set([amount]));
   });
 
   test('second simulated proof with the same nullifier → "This World ID claimed its bundle…" state', async ({

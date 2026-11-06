@@ -24,6 +24,7 @@ import { QrCode } from './QrCode';
 import { AppHeader, Caution, Screen, TabBar } from './Shell';
 import { useLang } from '../i18n/lang';
 import { api, ApiError } from '../lib/api';
+import { recoverActivation } from '../lib/deliver';
 import { arkivEntityUrl } from '../lib/env';
 import { clockIst, dayLabel, formatMb, money, moneyUsdc, soldPlan } from '../lib/format';
 import { useClock, usePlans } from '../lib/hooks';
@@ -150,6 +151,7 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
   const [receipts, setReceipts] = useState<ReceiptPublic[]>([]);
   const [firstView, setFirstView] = useState(false);
   const [owned, setOwned] = useState<boolean | undefined>();
+  const [cancelled, setCancelled] = useState(false);
   const [hasLpa, setHasLpa] = useState<boolean | undefined>();
 
   useEffect(() => {
@@ -177,7 +179,28 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
 
   // a pending profile re-reads /me every 15 s until it is ready or gone (a 404 / 410 / offline load ends it too),
   // skipping while the tab is hidden and reading at once when it is shown again
-  const pending = live && me?.status === 'pending-profile';
+  useEffect(() => {
+    if (!owned || hasLpa || !me || !['pending-profile', 'ready'].includes(me.status)) return;
+    let alive = true;
+    const recover = () => {
+      if (document.visibilityState !== 'visible') return;
+      void recoverActivation(entitlementKey)
+        .then((found) => {
+          if (alive && found) setHasLpa(true);
+        })
+        .catch(() => undefined);
+    };
+    recover();
+    const timer = setInterval(recover, PENDING_POLL_MS);
+    document.addEventListener('visibilitychange', recover);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', recover);
+    };
+  }, [owned, hasLpa, me, entitlementKey]);
+  const pending =
+    live && (me?.status === 'pending-profile' || me?.refund?.recovery === 'automatic');
   useEffect(() => {
     if (!pending) return;
     let alive = true;
@@ -244,6 +267,7 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
 
   const m = load.me;
   const expired = m.expiresAt <= now;
+  const terminal = expired || cancelled || Boolean(m.cancelledAt);
   const lines = receiptLines(receipts.find((r) => r.kind === 'claim') ?? receipts[0], facts);
   const latest = receipts[0];
   const sponsor = m.sponsorName;
@@ -254,7 +278,7 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
   const arkivUrl = arkivEntityUrl(m.arkivKey);
 
   return (
-    <Screen>
+    <Screen wide className="plan-screen">
       <AppHeader />
       {m.degraded ? (
         <p className="banner" role="status" data-testid="degraded-banner">
@@ -280,113 +304,162 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
           </Button>
         </section>
       ) : null}
-      <section className="plan__hero">
-        <Coupon
-          mb={expired ? 0 : firstView ? odometer.value : m.mbTotal}
-          {...(sponsor ? { sponsor } : {})}
-          {...(from.reason ? { reason: from.reason } : {})}
-          lang={uiLang}
-          {...(expired ? { status: t('plan.expired', { when: dayLabel(m.expiresAt, lang) }) } : {})}
-          {...(m.status === 'pending-profile' ? { status: t('plan.pendingProfile') } : {})}
-          id="plan-coupon"
-        />
-      </section>
-      {facts ? (
-        <IssuingRows
-          facts={{
-            ...(from.verified ? { verified: from.verified } : {}),
-            ...(tx ? { tx } : {}),
-            ...(facts.network ? { network: facts.network } : {}),
-            paidBySponsor: Boolean(facts.claimTx),
-            arkivKey: m.arkivKey,
-            ...(facts.hcs ? { hcs: facts.hcs } : {}),
-          }}
-        />
-      ) : null}
-      <ProofPanel proof={facts?.proof} />
-      <MbMeter
-        remainingMb={m.remainingMb}
-        totalMb={m.mbTotal}
-        usageAsOf={m.usageAsOf}
-        {...(m.usageSource === 'simulated' ||
-        (process.env.NEXT_PUBLIC_MODE === 'local' &&
-          m.usageSource === 'none' &&
-          plans?.simulated.usage)
-          ? { source: t('plan.simulated') }
-          : {})}
-        lang={uiLang}
-        quietWhenFull
-        fillOnce={firstView}
-        className="plan__meter"
-      />
-      <p className="plan__expiry" data-testid="plan-expiry">
-        <Countdown
-          until={m.expiresAt}
-          lead=""
-          ended={t('plan.ended')}
-          template={(left, at) => t('plan.expiresIn', { left, at })}
-          units={uiStrings[lang].units}
-          locale={dateLocale(lang)}
-        />
-      </p>
-      <Caution k="esim.expiry" />
-      {foreign ? null : hasLpa === false && m.status === 'ready' ? (
-        // the activation code was opened in another browser (it never travels): install from there
-        <p className="note" role="note" lang={lang} data-testid="install-elsewhere">
-          {t('install.noLpa')}
-        </p>
-      ) : (
-        <div className="action-dock">
-          <Link
-            href="/install"
-            className="ui-button ui-button--block"
-            data-variant="primary"
-            prefetch={false}
-          >
-            {t('plan.install')}
-          </Link>
-          <p className="note">{t('plan.later')}</p>
-        </div>
-      )}
-      <details className="disclosure">
-        <summary>{t('plan.whyExpires')}</summary>
-        <p>{t('plan.whyBody')}</p>
-        <p className="mono-key" data-hash title={m.arkivKey} data-testid="arkiv-key" lang="en">
-          {arkivUrl ? (
-            <a href={arkivUrl} target="_blank" rel="noreferrer">
-              {m.arkivKey}
-            </a>
+      <div className="plan-overview">
+        <section className="plan__hero">
+          <Coupon
+            mb={terminal ? 0 : firstView ? odometer.value : m.mbTotal}
+            {...(sponsor ? { sponsor } : {})}
+            {...(from.reason ? { reason: from.reason } : {})}
+            lang={uiLang}
+            {...(expired
+              ? { status: t('plan.expired', { when: dayLabel(m.expiresAt, lang) }) }
+              : {})}
+            {...(m.status === 'pending-profile' ? { status: t('plan.pendingProfile') } : {})}
+            {...(cancelled || m.cancelledAt ? { status: t('plan.cancelledState') } : {})}
+            id="plan-coupon"
+          />
+        </section>
+        <section className="plan-summary" aria-labelledby="plan-summary-title">
+          <p className="eyebrow" lang={lang}>
+            {t('flow.coverage')}
+          </p>
+          <h1 id="plan-summary-title" className="screen__title" lang={lang}>
+            {t('plan.summary')}
+          </h1>
+          <MbMeter
+            remainingMb={m.remainingMb}
+            totalMb={m.mbTotal}
+            usageAsOf={m.usageAsOf}
+            {...(m.usageSource === 'simulated' ||
+            (process.env.NEXT_PUBLIC_MODE === 'local' &&
+              m.usageSource === 'none' &&
+              plans?.simulated.usage)
+              ? { source: t('plan.simulated') }
+              : {})}
+            lang={uiLang}
+            quietWhenFull
+            fillOnce={firstView}
+            className="plan__meter"
+          />
+          <p className="plan__expiry" data-testid="plan-expiry">
+            <Countdown
+              until={m.expiresAt}
+              lead=""
+              ended={t('plan.ended')}
+              template={(left, at) => t('plan.expiresIn', { left, at })}
+              units={uiStrings[lang].units}
+              locale={dateLocale(lang)}
+            />
+          </p>
+          {cancelled || m.cancelledAt ? (
+            <p className="banner" role="status">
+              {t('plan.cancelledState')}
+            </p>
           ) : (
-            m.arkivKey
+            <Caution k="esim.expiry" />
           )}
-        </p>
-      </details>
-      {foreign ? null : <OtherDevice entitlementKey={entitlementKey} />}
-      <Receipt
-        heading={
-          latest
-            ? `${latest.mb && latest.mb !== m.mbTotal ? `+${formatMb(latest.mb)}` : t('plan.bundle')} · ${dayLabel(latest.at, lang)} ${clockIst(latest.at)} · ${t('receipts.final')}`
-            : t('plan.bundle')
-        }
-        you={lines.you}
-        sponsor={lines.sponsor}
-        networkFee="$0.00"
-        lang={uiLang}
-      />
-      <div className="plan__actions">
-        <Link
-          href={`/pay?key=${k}`}
-          className="ui-button ui-button--block"
-          data-variant="secondary"
-          prefetch={false}
-        >
-          {t('plan.add', { price })}
-        </Link>
-        <AddToHomeScreen ready={ready} />
-        <NotificationAsk ready={ready} />
+          {foreign ||
+          terminal ||
+          INSTALLED.has(m.status) ||
+          m.status === 'pending-profile' ? null : hasLpa === false && m.status === 'ready' ? (
+            // the activation code was opened in another browser (it never travels): install from there
+            <p className="note" role="note" lang={lang} data-testid="install-elsewhere">
+              {t('install.noLpa')}
+            </p>
+          ) : (
+            <div className="action-dock">
+              <Link
+                href="/install"
+                className="ui-button ui-button--block"
+                data-variant="primary"
+                prefetch={false}
+              >
+                {t('plan.install')}
+              </Link>
+              <p className="note">{t('plan.later')}</p>
+            </div>
+          )}
+          {!terminal ? (
+            <Link
+              href={`/pay?key=${k}`}
+              className="ui-button ui-button--block"
+              data-variant="secondary"
+              prefetch={false}
+            >
+              {t('plan.add', { price })}
+            </Link>
+          ) : null}
+        </section>
       </div>
-      <PlanActions entitlementKey={entitlementKey} me={m} />
-      <TabBar active="plan" />
+      <div className="plan-support">
+        <details className="disclosure plan-details">
+          <summary lang={lang}>{t('plan.details')}</summary>
+          <div className="plan-details__body">
+            {facts ? (
+              <IssuingRows
+                facts={{
+                  ...(from.verified ? { verified: from.verified } : {}),
+                  ...(tx ? { tx } : {}),
+                  ...(facts.network ? { network: facts.network } : {}),
+                  paidBySponsor: Boolean(facts.claimTx),
+                  arkivKey: m.arkivKey,
+                  ...(facts.hcs ? { hcs: facts.hcs } : {}),
+                }}
+              />
+            ) : null}
+            <ProofPanel proof={facts?.proof} />
+            <details className="disclosure">
+              <summary>{t('plan.whyExpires')}</summary>
+              <p>{t('plan.whyBody')}</p>
+              <p
+                className="mono-key"
+                data-hash
+                title={m.arkivKey}
+                data-testid="arkiv-key"
+                lang="en"
+              >
+                {arkivUrl ? (
+                  <a href={arkivUrl} target="_blank" rel="noreferrer">
+                    {m.arkivKey}
+                  </a>
+                ) : (
+                  m.arkivKey
+                )}
+              </p>
+            </details>
+            {foreign ? null : <OtherDevice entitlementKey={entitlementKey} />}
+            <Receipt
+              heading={
+                latest
+                  ? `${latest.mb && latest.mb !== m.mbTotal ? `+${formatMb(latest.mb)}` : t('plan.bundle')} · ${dayLabel(latest.at, lang)} ${clockIst(latest.at)} · ${t('receipts.final')}`
+                  : t('plan.bundle')
+              }
+              you={lines.you}
+              sponsor={lines.sponsor}
+              networkFee="$0.00"
+              lang={uiLang}
+            />
+          </div>
+        </details>
+        <section className="plan-manage" aria-labelledby="plan-manage-title">
+          <h2 id="plan-manage-title" className="section-title" lang={lang}>
+            {t('plan.manage')}
+          </h2>
+          <div className="plan__actions">
+            <AddToHomeScreen ready={ready} />
+            <NotificationAsk ready={ready} />
+          </div>
+          <PlanActions
+            entitlementKey={entitlementKey}
+            me={m}
+            onCancelled={() => {
+              setCancelled(true);
+              void readPlan(entitlementKey, true).then(setLoad);
+            }}
+          />
+        </section>
+      </div>
+      <TabBar active="plan" canTopUp={!terminal} />
     </Screen>
   );
 }

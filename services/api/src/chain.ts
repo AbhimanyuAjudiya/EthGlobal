@@ -56,6 +56,8 @@ export interface DataDropClient {
   currentHourBucket(): Promise<number>;
   /** Resolves after `CHAIN_CONFIRMATIONS`; a revert throws `ChainRevert`, anything else `ChainUnavailable`. */
   claim(id: Hex, claimKey: Hex): Promise<{ tx: Hex }>;
+  /** Recovery after a claim mined but the response/intent update was interrupted. */
+  claimTransaction?(id: Hex, claimKey: Hex): Promise<Hex | undefined>;
   pause(id: Hex, paused: boolean): Promise<{ tx: Hex }>;
 }
 
@@ -209,6 +211,21 @@ export function createDataDropClient(opts: DataDropClientOptions): DataDropClien
       };
     },
     claimed: (id, claimKey) => read<boolean>('claimed', [id, claimKey]),
+    async claimTransaction(id, claimKey) {
+      try {
+        const logs = await publicClient.getContractEvents({
+          address,
+          abi: DATADROP_ABI,
+          eventName: 'Claimed',
+          args: { id, claimKey },
+          fromBlock: 0n,
+          toBlock: 'latest',
+        });
+        return logs.at(-1)?.transactionHash ?? undefined;
+      } catch (error) {
+        throw new ChainUnavailable('claim recovery event read failed', { cause: error });
+      }
+    },
     claimsInHour: async (id, bucket) =>
       Number(await read<number>('claimsInHour', [id, BigInt(bucket)])),
     currentHourBucket: async () => Number(await read<bigint>('currentHourBucket', [])),

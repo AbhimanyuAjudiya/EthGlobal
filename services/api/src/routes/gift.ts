@@ -29,6 +29,8 @@ import {
   seedCard,
   verifyGiftClaimSigner,
 } from '../flows/gift.js';
+import { paidRecovery } from '../flows/payments.js';
+import { assertConfiguredCapacity } from '../flows/plan.js';
 import { reclaim } from '../flows/reclaim.js';
 import { octroi } from '../middleware/octroi.js';
 import { assertPlanMb, validateJson } from '../middleware/validate.js';
@@ -46,6 +48,18 @@ export function registerGift(app: Hono<AppEnv>, deps: Deps): void {
     validateJson(giftRequestSchema),
     x402,
     createMiddleware<AppEnv>(async (c, next) => {
+      if (
+        c.get('payment') &&
+        !/^[A-Za-z0-9_-]{32,128}$/.test(c.req.header('idempotency-key') ?? '')
+      )
+        throw fail('invalid_request', {
+          detail: 'paid gifts require a stable, random Idempotency-Key',
+        });
+      return next();
+    }),
+    paidRecovery,
+    createMiddleware<AppEnv>(async (c, next) => {
+      if (c.get('paidOperation')) return next();
       const body = inputOf<GiftRequest>(c);
       const card = seedCardCampaign(c);
       if (card !== undefined)
@@ -60,6 +74,11 @@ export function registerGift(app: Hono<AppEnv>, deps: Deps): void {
         );
       // a paid gift is one PLAN_MB plan (seed cards above are campaign-funded and keep their size)
       assertPlanMb(body.mb);
+      await assertConfiguredCapacity(deps, body.mb);
+      if (!deps.accepts.some((a) => a.network.startsWith('eip155:')))
+        throw fail('invalid_request', {
+          detail: 'gifts require an EVM payment network with signed reclaim support',
+        });
       // the name resolves BEFORE any 402: nobody pays for a gift to nobody (T-43)
       c.set('input', { ...body, resolved: await resolveName(deps, body.name) } satisfies Resolved);
       return next();
@@ -69,6 +88,7 @@ export function registerGift(app: Hono<AppEnv>, deps: Deps): void {
       mb: inputOf<Resolved>(c).mb,
       requireSessionKey: false,
       description: 'Recharge gift',
+      evmOnly: true,
     })),
     async (c) => {
       const decision = settledDecision(c);
@@ -97,6 +117,7 @@ export function registerGift(app: Hono<AppEnv>, deps: Deps): void {
 
   app.post('/gift/claim', validateJson(giftClaimRequestSchema), async (c) => {
     const body = inputOf<GiftClaimRequest>(c);
+    const recoveryKey = c.req.header('idempotency-key');
     const sessionPubKey = body.sessionPubKey.toLowerCase() as Hex;
     await consume(deps, body.challenge as Challenge, '/gift/claim', sessionPubKey);
     const nonce = body.challenge.nonce as Hex;
@@ -107,19 +128,24 @@ export function registerGift(app: Hono<AppEnv>, deps: Deps): void {
         sessionPubKey,
         redeem: false,
         pin: body.pin,
+        ...(recoveryKey === undefined ? {} : { recoveryKey }),
       });
       return c.json(result.body, result.status);
     }
     const escrow = await escrowOf(deps, body.giftId as Hex);
     if (!escrow) throw fail('expired', { detail: 'gift not claimable' });
-    if (escrow.payload.state === 'claimed') throw fail('already_claimed');
     await verifyGiftClaimSigner(deps, escrow.payload, {
       giftId: body.giftId as Hex,
       recipient: body.recipient,
       signature: body.signature,
       nonce,
     });
-    const result = await claimEscrow(deps, escrow, { nonce, sessionPubKey, redeem: false });
+    const result = await claimEscrow(deps, escrow, {
+      nonce,
+      sessionPubKey,
+      redeem: false,
+      ...(recoveryKey === undefined ? {} : { recoveryKey }),
+    });
     return c.json(result.body, result.status);
   });
 
@@ -149,15 +175,16 @@ export function registerGift(app: Hono<AppEnv>, deps: Deps): void {
 
   app.post('/card/redeem', validateJson(cardRedeemRequestSchema), async (c) => {
     const body = inputOf<CardRedeemRequest>(c);
+    const recoveryKey = c.req.header('idempotency-key');
     const sessionPubKey = body.sessionPubKey.toLowerCase() as Hex;
     await consume(deps, body.challenge as Challenge, '/card/redeem', sessionPubKey);
     const escrow = await escrowByPin(deps, body.pin);
-    if (escrow.payload.state === 'claimed') throw fail('expired', { detail: 'already redeemed' });
     const result = await claimEscrow(deps, escrow, {
       nonce: body.challenge.nonce as Hex,
       sessionPubKey,
       redeem: true,
       pin: body.pin,
+      ...(recoveryKey === undefined ? {} : { recoveryKey }),
     });
     return c.json(result.body, result.status);
   });

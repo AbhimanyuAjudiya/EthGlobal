@@ -74,12 +74,9 @@ export class LedgerReads implements AgentReads {
     return this.#receipts.spentUsd6(sha256Hex(key), 'agent-topup', dayBucket(now));
   }
 
-  async watchKeys(owner: string, limit: number): Promise<string[]> {
-    const all = await this.#policies.all();
-    return all
-      .filter((p) => p.payload.owner.toLowerCase() === owner.toLowerCase())
-      .map((p) => p.payload.entitlementKey)
-      .slice(0, limit);
+  /** Policies expose hashes only; a wallet address cannot discover private entitlement capabilities. */
+  async watchKeys(_owner?: string, _limit?: number): Promise<string[]> {
+    return [];
   }
 
   async latestTopupTx(key: string, sinceMs: number): Promise<string | undefined> {

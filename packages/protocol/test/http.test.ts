@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { HttpError, httpJson } from '../src/http.js';
+import { HttpError, httpJson, safeHttpUrl } from '../src/http.js';
 
 interface Call {
   url: string;
@@ -26,6 +26,17 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 describe('httpJson', () => {
+  it('keeps capability paths, userinfo, and query secrets out of error messages', () => {
+    const url =
+      'https://user:password@api.test/agent/policy/private-key/pass/start?token=secret#fragment';
+    const err = new HttpError(503, undefined, url);
+    expect(err.message).toBe(
+      'HTTP status 503 from https://api.test/agent/policy/[redacted]/pass/start',
+    );
+    expect(err.url).toBe(url);
+    expect(safeHttpUrl('https://api.test/me/paid%3Asecret')).toBe('https://api.test/me/[redacted]');
+    expect(safeHttpUrl('not a url')).toBe('[invalid URL]');
+  });
   it('GETs JSON, validates with the schema and returns status + headers', async () => {
     const { fn, calls } = fakeFetch(() => json({ ok: true, mode: 'local' }));
     const res = await httpJson('https://api.test/healthz', {

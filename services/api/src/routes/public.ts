@@ -1,5 +1,5 @@
 /** GET /healthz, GET /plans, POST /challenge, POST /world/rp-context, GET /metrics.json. */
-import { challenge as issueChallenge } from '@ethglobal/octroi';
+import { challenge as issueChallenge, MAX_CAMPAIGN_MS } from '@ethglobal/octroi';
 import {
   ENTITLEMENT_CACHE_S,
   GIFT_CLAIM_WINDOW_S,
@@ -115,6 +115,10 @@ async function buildPlans(deps: Deps, asked?: Hex): Promise<PlansResponse> {
       sizesMb: [PLAN_MB],
     },
     gift: { sizesMb: GIFT_SIZES_MB, claimWindowS: GIFT_CLAIM_WINDOW_S },
+    sponsor: {
+      minPricePerClaimUsd6: usd6ToWire(deps.env.COST_USD6_PER_CLAIM),
+      maxCampaignDurationMs: MAX_CAMPAIGN_MS,
+    },
     simulated: { usage: deps.env.MODE === 'local', personhood: deps.env.MODE === 'local' },
   };
 }

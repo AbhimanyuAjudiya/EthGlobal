@@ -5,7 +5,7 @@
   "ignore": [
     "**/node_modules/**",
     "**/out/**",
-    "**/lib/**",
+    "packages/contracts/lib/**",
     "**/.next/**",
     "**/.next-*/**",
     "**/dist/**",

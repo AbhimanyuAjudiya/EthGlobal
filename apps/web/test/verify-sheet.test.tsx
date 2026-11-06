@@ -6,6 +6,7 @@ import type { EntitledResponse, PlansResponse } from '@ethglobal/protocol/schema
 
 import { SLOW_CLAIM_MS, VerifySheet } from '../components/VerifySheet';
 import { Wallets } from '../components/Wallets';
+import { LangProvider } from '../i18n/lang';
 import { ApiError } from '../lib/api';
 
 import type * as ApiModule from '../lib/api';
@@ -34,7 +35,7 @@ const mocks = vi.hoisted(() => {
     push: vi.fn(),
     challenge: vi.fn(),
     rpContext: vi.fn(),
-    claim: vi.fn(),
+    claim: vi.fn<(body: { sessionPubKey: string }, recoveryToken?: string) => Promise<unknown>>(),
     deliver: vi.fn(),
     poll: vi.fn(),
   };
@@ -122,6 +123,7 @@ describe('VerifySheet — a slow or lost claim answer (RT-W-13)', () => {
       PENDING,
       CHALLENGE.nonce,
       expect.objectContaining({ you: '$0.00', sponsor: 'Mumbai Welcome' }),
+      expect.stringMatching(/^0x[0-9a-f]{64}$/),
     );
   });
 
@@ -135,6 +137,24 @@ describe('VerifySheet — a slow or lost claim answer (RT-W-13)', () => {
     expect(screen.getByRole('link', { name: 'Check my plans' }).getAttribute('href')).toBe('/plan');
     expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it('explicit recovery proves again with the original private session and recovery token', async () => {
+    const { button } = await mount();
+    mocks.claim
+      .mockRejectedValueOnce(new ApiError(0, 'network', 'lost response'))
+      .mockResolvedValueOnce({ status: 202, data: PENDING });
+    mocks.deliver.mockResolvedValue(PENDING.entitlementKey);
+    await click(button);
+    await click(await screen.findByRole('button', { name: 'Verify again to recover' }));
+    await vi.waitFor(() =>
+      expect(mocks.push).toHaveBeenCalledWith(`/plan/${PENDING.entitlementKey}`),
+    );
+    expect(mocks.claim.mock.calls[1]![0].sessionPubKey).toBe(
+      mocks.claim.mock.calls[0]![0].sessionPubKey,
+    );
+    expect(mocks.claim.mock.calls[1]![1]).toBe(mocks.claim.mock.calls[0]![1]);
+    expect(mocks.challenge).toHaveBeenCalledTimes(2);
   });
 
   it('past 10 s the Checking line says what is running and that it takes a while', async () => {
@@ -189,4 +209,85 @@ describe('VerifySheet — World App on the same phone is one tap', () => {
     );
     expect(screen.queryByRole('button', { name: 'Show QR instead' })).toBeNull();
   });
+});
+
+describe('verification retry and cancellation', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+  it.each([false, true])(
+    'ignores World completion after Cancel on desktop/mobile (%s)',
+    async (coarse) => {
+      vi.stubEnv('NEXT_PUBLIC_MODE', 'live');
+      vi.stubGlobal('matchMedia', (q: string) => ({
+        matches: coarse && q === '(pointer: coarse)',
+      }));
+      mocks.challenge.mockResolvedValue(CHALLENGE);
+      mocks.rpContext.mockResolvedValue({});
+      let finish!: (value: { success: true; result: unknown }) => void;
+      mocks.poll.mockReturnValue(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+      render(<VerifySheet />, { wrapper: Wallets });
+      await click(await screen.findByRole('button', { name: 'Open World App' }));
+      await screen.findByText(/^Waiting for World App/);
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      await act(async () => {
+        finish({ success: true, result: { proof: 'late' } });
+      });
+      expect(mocks.claim).not.toHaveBeenCalled();
+      expect(mocks.push).not.toHaveBeenCalled();
+    },
+  );
+  it('prepares a fresh challenge after a consumed invalid proof', async () => {
+    const { button } = await mount();
+    mocks.claim
+      .mockRejectedValueOnce(new ApiError(400, 'invalid_proof', 'invalid'))
+      .mockResolvedValueOnce({ status: 202, data: PENDING });
+    mocks.deliver.mockResolvedValue(PENDING.entitlementKey);
+    await click(button);
+    await click(await screen.findByRole('button', { name: 'Simulated World ID' }));
+    await vi.waitFor(() => expect(mocks.claim).toHaveBeenCalledTimes(2));
+    expect(mocks.challenge).toHaveBeenCalledTimes(2);
+    expect(mocks.claim.mock.calls[0]![0].sessionPubKey).toBe(
+      mocks.claim.mock.calls[1]![0].sessionPubKey,
+    );
+  });
+});
+
+it('keeps the claim session stable when language changes during delivery', async () => {
+  vi.stubEnv('NEXT_PUBLIC_MODE', 'local');
+  localStorage.removeItem('recharge.lang');
+  mocks.challenge.mockResolvedValue(CHALLENGE);
+  mocks.rpContext.mockResolvedValue({});
+  let finish!: (value: unknown) => void;
+  mocks.claim.mockReturnValue(
+    new Promise((resolve) => {
+      finish = resolve;
+    }),
+  );
+  mocks.deliver.mockResolvedValue(PENDING.entitlementKey);
+  render(
+    <LangProvider>
+      <Wallets>
+        <VerifySheet />
+      </Wallets>
+    </LangProvider>,
+  );
+  await click(await screen.findByRole('button', { name: 'Simulated World ID' }));
+  await vi.waitFor(() => expect(mocks.claim).toHaveBeenCalled());
+  const original = mocks.claim.mock.calls.at(-1)![0].sessionPubKey;
+  fireEvent.click(screen.getAllByRole('button', { name: 'हिं' })[0]!);
+  await act(async () => {
+    finish({ status: 202, data: PENDING });
+  });
+  expect(mocks.challenge).toHaveBeenCalledTimes(1);
+  expect(mocks.deliver.mock.calls.at(-1)![3]).toBe(original);
+  localStorage.removeItem('recharge.lang');
+  vi.unstubAllEnvs();
+  vi.clearAllMocks();
 });

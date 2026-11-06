@@ -39,6 +39,13 @@ export function idempotency(now: () => number) {
     const key = c.req.header(IDEMPOTENCY_KEY_HEADER);
     if (c.req.method !== 'POST' || key === undefined) return next();
     if (!KEY.test(key)) throw fail('invalid_request', { header: IDEMPOTENCY_KEY_HEADER });
+    // These routes bind a private retry token to the original holder in durable delivery state. Every
+    // retry authenticates a fresh challenge/signature, whose changing body must not hit this generic cache.
+    if (
+      (c.req.path === '/claim' || c.req.path === '/card/redeem' || c.req.path === '/gift/claim') &&
+      /^[A-Za-z0-9_-]{32,128}$/.test(key)
+    )
+      return next();
     const raw = await c.req.text();
     const bodyHash = sha256Hex(raw);
     const client = `${c.req.path}\n${key}\n${c.get('clientIp')}`;

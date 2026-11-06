@@ -10,8 +10,6 @@ export interface DeviceInfo {
   version?: [number, number];
   /** iOS 17.4+ opens the eSIM universal link; Android installs by code; other: unknown. */
   universalLink: boolean;
-  /** true / false when the UA allows a claim, undefined when a browser cannot tell. */
-  esimReady?: boolean;
   label: string;
 }
 
@@ -27,8 +25,6 @@ export function parseDevice(ua: string): DeviceInfo {
       os: 'ios',
       version,
       universalLink,
-      // eSIM since iPhone XS / iOS 12; every iOS 17 device is an XS or later
-      esimReady: version[0] >= 12,
       label: `iPhone · iOS ${version[0]}${version[1] ? `.${version[1]}` : ''}`,
     };
   }
@@ -38,16 +34,6 @@ export function parseDevice(ua: string): DeviceInfo {
     return { os: 'android', version, universalLink: false, label: `Android ${version[0]}` };
   }
   return { os: 'other', universalLink: false, label: 'This browser' };
-}
-
-/** The pre-flight line under the first button. */
-export function preflightLine(device: DeviceInfo): {
-  key: 'preflight.ready' | 'preflight.unknown';
-  label: string;
-} {
-  return device.esimReady
-    ? { key: 'preflight.ready', label: device.label }
-    : { key: 'preflight.unknown', label: device.label };
 }
 
 /** Home Screen app: `display-mode: standalone` or iOS's navigator.standalone. */

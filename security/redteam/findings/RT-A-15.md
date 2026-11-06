@@ -75,6 +75,7 @@ that found it.
 Pending (`status: fixed`): re-run the two cases above and one real `createEntity` on rabdi, then set `verified_at`.
 
 ## Verification (orchestrator, 2026-11-05 16:12 IST, live rabdi)
+
 With 85f3f69 built, the real `ArkivLedger` path wrote and read on rabdi: `put` → entity
 `0xb9429fbd706f46a55d16788d9446f147f9d65b9ef005b7f463bae9caadb2abb1` (8.8 s), `get` found it (0.37 s), `update` kept the key
 and reset the lifetime (14.9 s), `query` by `kind` returned the row (0.68 s). Recorded reads: `fixtures/arkiv/live-get.json`

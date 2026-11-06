@@ -6,9 +6,9 @@
  *   `amount` equals the price the agent computed from /plans (never copied from the 402), and that amount is
  *   ≤ AGENT_MAX_USD6_PER_STEP; payers are tried in preference order (Hedera first when configured), entries in any
  *   order — never "the first entry".
- * - Once a payload is signed it is the only payload for this trigger: on a network error or 5xx the ledger is re-read
- *   (mbTotal grew ⇒ it settled; the tx comes from the receipts), otherwise the **same** payload is resent until
- *   `validBefore − 10 s`. No second signature is ever produced inside one buy.
+ * - Once a payload is signed it is durably retained. Only the response to that exact authorization can confirm
+ *   completion; unrelated volume/receipt changes cannot. Retries and restarts resend the same payload, including
+ *   after its validity window to recover a payment the API may already have settled.
  */
 import { randomUUID } from 'node:crypto';
 
@@ -34,7 +34,7 @@ import {
   type PaymentSigner,
 } from '@ethglobal/protocol/x402';
 
-import { logEvent, type Log } from './log.js';
+import { logEvent, safeError, type Log } from './log.js';
 import { PayerRefusal, type Payer } from './payers/types.js';
 
 import type { AllowedTerms } from './config.js';
@@ -73,7 +73,7 @@ export type BuyOutcome =
   | {
       ok: false;
       reason: SkipReason;
-      /** true once a payload exists: the trigger stays blocked until `validBefore`. */
+      /** true once a payload exists: keep it until the API confirms completion. */
       signed: boolean;
       validBefore?: number;
       detail?: Record<string, unknown>;
@@ -87,8 +87,10 @@ export interface BuyRequest {
   expectedUsd6: bigint;
   expiresAt: number;
   mbTotalBefore: number;
-  /** Persist "signed until validBefore" BEFORE the payload leaves the process (crash safety, AG3.3). */
-  onSigned?: (validBeforeMs: number) => Promise<void>;
+  /** Persist the authorization BEFORE it leaves the process (crash safety, AG3.3). */
+  onSigned?: (validBeforeMs: number, payload: PaymentPayload) => Promise<void>;
+  /** Reconcile the exact authorization persisted before an earlier send; never sign a replacement. */
+  resume?: { payload: PaymentPayload; validBeforeMs: number };
 }
 
 export interface BuyerDeps {
@@ -143,7 +145,7 @@ export class TermsGuard implements PaymentSigner {
       allowList: AllowedTerms[];
       expectedUsd6: bigint;
       maxUsd6PerStep: bigint;
-      onSigned?: (validBeforeMs: number) => Promise<void>;
+      onSigned?: (validBeforeMs: number, payload: PaymentPayload) => Promise<void>;
     },
   ) {}
 
@@ -187,14 +189,21 @@ export class TermsGuard implements PaymentSigner {
   ): Promise<PaymentPayload> {
     if (this.signatures > 0) throw new Error('TermsGuard signs at most once (T-57)');
     if (this.chosen?.req !== req) throw new Error('sign() for an entry choose() did not pick');
-    const payload = await this.chosen.payer.sign(req, ctx);
+    const signed = await this.chosen.payer.sign(req, ctx);
+    // Resource metadata can contain the entitlement capability URL. Neither the EVM
+    // signature nor the Hedera transaction signs it, so keep only the payment wire fields.
+    const payload: PaymentPayload = {
+      x402Version: 2,
+      accepted: signed.accepted,
+      payload: signed.payload,
+    };
     this.signatures += 1;
     this.validBeforeMs = isEvmExact(payload.payload)
       ? Number(payload.payload.authorization.validBefore) * 1000
       : ctx.now + Math.min(req.maxTimeoutSeconds, HEDERA_MAX_TIMEOUT_S, PAYMENT_VALIDITY_S) * 1000;
     // the signed marker is durable (and the claim confirmed ours, RT-G-01) before `paid` is set: if onSigned throws,
     // nothing was paid and the payload never leaves the process
-    await this.opts.onSigned?.(this.validBeforeMs);
+    await this.opts.onSigned?.(this.validBeforeMs, payload);
     this.paid = payload;
     return payload;
   }
@@ -240,14 +249,13 @@ export class Buyer {
 
   async buy(r: BuyRequest): Promise<BuyOutcome> {
     const { deps } = this;
-    if (r.expectedUsd6 > deps.maxUsd6PerStep) {
+    if (!r.resume && r.expectedUsd6 > deps.maxUsd6PerStep) {
       // /plans itself lies (price × 10): caught before any request is made
       return this.#skip('over-max-per-step', false, {
         field: 'max-per-step',
         expected: r.expectedUsd6.toString(),
       });
     }
-    const startedAt = deps.now();
     const url = `${deps.apiUrl}/esim/topup?key=${encodeURIComponent(r.key)}&mb=${r.mb}`;
     const headers: Record<string, string> = {
       accept: 'application/json',
@@ -266,14 +274,19 @@ export class Buyer {
     let result: FetchWithPaymentResult | undefined;
     let failure: unknown;
     try {
-      result = await fetchWithPayment({
-        fetch: deps.fetch,
-        url,
-        init: { method: 'GET', headers },
-        signer: guard,
-        now: deps.now,
-        ...(deps.timeoutMs === undefined ? {} : { timeoutMs: deps.timeoutMs }),
-      });
+      if (r.resume) {
+        guard.paid = r.resume.payload;
+        guard.validBeforeMs = r.resume.validBeforeMs;
+        result = { response: await this.#resend(url, headers, r.resume.payload) };
+      } else
+        result = await fetchWithPayment({
+          fetch: deps.fetch,
+          url,
+          init: { method: 'GET', headers },
+          signer: guard,
+          now: deps.now,
+          ...(deps.timeoutMs === undefined ? {} : { timeoutMs: deps.timeoutMs }),
+        });
     } catch (error) {
       failure = error;
     }
@@ -286,7 +299,7 @@ export class Buyer {
       }
       if (failure !== undefined)
         return this.#skip('network-error', false, {
-          message: failure instanceof Error ? failure.message : 'unknown failure',
+          message: safeError(failure),
         });
       if (result?.required !== undefined) {
         return this.#skip('no-acceptable-terms', false, {
@@ -307,23 +320,11 @@ export class Buyer {
     const validBefore = guard.validBeforeMs!;
     let response = result?.response;
     let attempts = 1;
+    let recovered = r.resume !== undefined;
     const maxAttempts = deps.maxAttempts ?? 5;
     while (response === undefined || response.status >= 500) {
-      // T-57: a dropped 200 may still have settled — ask the ledger before anything else
-      const after = await deps.reads.entitlement(r.key).catch(() => null);
-      if (after !== null && after.mbTotal >= r.mbTotalBefore + r.mb) {
-        const tx =
-          (await deps.reads.latestTopupTx(r.key, startedAt).catch(() => undefined)) ?? 'unknown';
-        logEvent(deps.log, 'info', 'agent.buy', { recovered: true, tx });
-        return {
-          ok: true,
-          tx,
-          network: paid.accepted.network,
-          usd6: BigInt(paid.accepted.amount),
-          mb: r.mb,
-          recovered: true,
-        };
-      }
+      // Volume/receipts may belong to a concurrent human purchase. Only a response to
+      // this exact authorization establishes that OUR payment and fulfillment completed.
       if (attempts >= maxAttempts || deps.now() >= validBefore - RESEND_MARGIN_MS) {
         return this.#skip(
           'network-error',
@@ -334,11 +335,16 @@ export class Buyer {
       }
       await (deps.sleep ?? defaultSleep)(Math.min(1_000 * 2 ** (attempts - 1), 8_000));
       attempts += 1;
+      recovered = true;
       response = await this.#resend(url, headers, paid).catch(() => undefined);
     }
 
     const settlement = settlementOf(response) ?? (await this.#bodySettlement(response));
-    if (response.status === 200 && settlement?.success === true) {
+    if (
+      response.status === 200 &&
+      settlement?.success === true &&
+      settlement.network === paid.accepted.network
+    ) {
       logEvent(deps.log, 'info', 'agent.buy', {
         tx: settlement.transaction,
         network: settlement.network,
@@ -349,7 +355,7 @@ export class Buyer {
         network: settlement.network,
         usd6: BigInt(paid.accepted.amount),
         mb: r.mb,
-        recovered: false,
+        recovered,
       };
     }
     if (

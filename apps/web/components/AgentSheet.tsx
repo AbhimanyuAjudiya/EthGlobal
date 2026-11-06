@@ -61,23 +61,37 @@ export function AgentSheet() {
   const [status, setStatus] = useState<'idle' | 'signing' | 'saving' | 'saved' | 'error'>('idle');
   const [message, setMessage] = useState<string | undefined>();
   const [proof, setProof] = useState<Proof>();
+  const [loadError, setLoadError] = useState<ReturnType<typeof errorKey>>();
+  const [loadRound, setLoadRound] = useState(0);
 
   useEffect(() => {
+    let alive = true;
     void (async () => {
       const k = await store.latest();
+      if (!alive) return;
+      setLoadError(undefined);
       setKey(k ?? null);
       if (!k) return;
       const m = await api.me(k).catch(() => undefined);
-      const existing = await api.agentPolicy(k).catch(() => undefined);
+      const existing = await api.agentPolicy(k).catch((error: unknown) => {
+        if (error instanceof ApiError && error.code === 'not_found') return undefined;
+        throw error;
+      });
+      if (!alive) return;
       setView(existing);
       setPolicy(existing?.policy ?? defaultPolicy(m));
       // live reads the agent's history from Arkiv only (ArkivHistory); the API-fed list stays for the local e2e
       if (process.env.NEXT_PUBLIC_MODE === 'local') {
         const receipts = await api.receipts(k).catch(() => []);
-        setRows(receipts.filter((r) => r.kind === 'agent-topup'));
+        if (alive) setRows(receipts.filter((r) => r.kind === 'agent-topup'));
       }
-    })();
-  }, []);
+    })().catch((error: unknown) => {
+      if (alive) setLoadError(errorKey(error instanceof ApiError ? error.code : 'network'));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [loadRound]);
 
   // World ID Agent Pass (docs/WORLD_AGENT_PASS.md): while the agent waits for the human, re-read the policy
   const passState = view?.pass?.state;
@@ -96,7 +110,6 @@ export function AgentSheet() {
 
   const save = useCallback(
     async (next: TopUpPolicyWire) => {
-      setPolicy(next);
       if (!wallet || !key) return;
       setStatus('signing');
       setMessage(undefined);
@@ -168,169 +181,194 @@ export function AgentSheet() {
     plans?.paid.accepts[0]?.network;
   // the step the policy buys, priced like the API prices it (octroi decide: priceUsd6(mb, stepMb, perStep))
   const buyMb = policy?.stepMb ?? STEP_MB;
-  const sentence = policy?.paused
-    ? t('agent.sentencePaused')
-    : t('agent.sentence', {
-        mb: formatMb(buyMb),
-        price: money(priceUsd6(buyMb, plans?.paid.stepMb ?? STEP_MB, usd6FromWire(step))),
-        network: netName(agentNetwork),
-        cap: money(capUsd6),
-      });
+  const sentence = !policy
+    ? t('agent.loading')
+    : view && policy.paused
+      ? t('agent.sentencePaused')
+      : t(view ? 'agent.sentence' : 'agent.sentenceDraft', {
+          mb: formatMb(buyMb),
+          threshold: formatMb(policy?.thresholdMb ?? Math.floor(PLAN_MB * 0.2)),
+          price: money(priceUsd6(buyMb, plans?.paid.stepMb ?? STEP_MB, usd6FromWire(step))),
+          network: netName(agentNetwork),
+          cap: money(capUsd6),
+        });
 
   return (
-    <Screen money>
+    <Screen money wide className="agent-screen">
       <AppHeader />
-      <section className="sheet agent" aria-labelledby="agent-title">
-        <h1 id="agent-title" className="sheet__title" lang={lang}>
-          {t('agent.title')}
-        </h1>
-        <p className="agent__sentence" data-testid="agent-sentence" lang={lang}>
-          {sentence}
-        </p>
-        {policy ? (
-          <>
-            {/* one row of three equal segments: "$4 · $8 · $20", the "/ day" said once (no orphan chip) */}
-            <p className="segmented__legend" id="agent-cap-legend">
-              {t('agent.capLegend')}
-            </p>
-            <div
-              className="segmented segmented--even"
-              role="radiogroup"
-              aria-labelledby="agent-cap-legend"
-              data-testid="agent-cap"
-              style={{ '--segments': CAPS_USD.length } as CSSProperties}
-            >
-              {CAPS_USD.map((usd) => (
-                <button
-                  key={usd}
-                  type="button"
-                  role="radio"
-                  aria-label={t('agent.capAria', { cap: `$${usd}` })}
-                  aria-checked={capUsd6 === BigInt(usd * USD6)}
-                  disabled={status === 'signing' || status === 'saving' || !wallet}
-                  onClick={() =>
-                    void save({ ...policy, stepMb: sold.mb, maxUsd6PerDay: String(usd * USD6) })
-                  }
-                >
-                  {`$${usd}`}
-                </button>
-              ))}
-            </div>
-            {/* the one wallet control is the header's; saving without a wallet opens its modal from here */}
-            {wallet ? (
-              <Button
-                variant="secondary"
-                disabled={status === 'signing' || status === 'saving'}
-                onClick={() => void save({ ...policy, stepMb: sold.mb, paused: !policy.paused })}
-                aria-pressed={policy.paused}
-              >
-                {policy.paused ? t('agent.resume') : t('agent.pause')}
-              </Button>
-            ) : (
-              <Button variant="secondary" disabled={!openConnectModal} onClick={openConnectModal}>
-                {t('agent.connectToSave')}
-              </Button>
-            )}
-          </>
-        ) : (
-          <div className="skeleton skeleton--line" aria-hidden="true" />
-        )}
-        <p className="note" role="status" data-testid="agent-status" lang={lang}>
-          {status === 'signing'
-            ? t('agent.save')
-            : status === 'saved' && view
-              ? t('agent.saved', { address: `${view.owner.slice(0, 6)}…${view.owner.slice(-4)}` })
-              : (message ?? ' ')}
-        </p>
-        <ProofPanel proof={proof} />
-        {view && capUsd6 > 0n ? (
-          <p className="note" lang={lang}>
-            {spent >= capUsd6
-              ? t('agent.capReached', {
-                  cap: money(capUsd6),
-                  mb: formatMb(sold.mb),
-                  price: money(sold.usd6),
-                })
-              : t('agent.spent', { spent: money(spent), cap: money(capUsd6) })}
+      <div className="agent-layout">
+        <section className="sheet agent" aria-labelledby="agent-title">
+          <h1 id="agent-title" className="sheet__title" lang={lang}>
+            {t('agent.title')}
+          </h1>
+          <p className="agent__sentence" data-testid="agent-sentence" lang={lang}>
+            {loadError ? t(loadError) : sentence}
           </p>
-        ) : null}
-        {view?.pass && view.pass.state !== 'none' ? (
-          <div
-            className="agent__pass"
-            data-testid="agent-pass"
-            data-state={view.pass.state}
-            lang={lang}
-          >
-            {view.pass.state === 'pending' ? (
-              <>
-                <p className="note">{t('agent.passPending', { code: view.pass.userCode ?? '' })}</p>
-                <QrCode
-                  url={view.pass.verificationUriComplete ?? view.pass.verificationUri ?? ''}
-                  label={t('agent.passQr')}
-                  sizeMm={40}
-                />
-                <p className="mono-key" data-testid="agent-pass-code">
-                  {view.pass.userCode}
-                </p>
-                <a
-                  className="note"
-                  href={view.pass.verificationUriComplete ?? view.pass.verificationUri}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {t('agent.passOpen')}
-                </a>
-              </>
-            ) : view.pass.state === 'armed' ? (
-              <p className="note">
-                {t('agent.passArmed', { until: clockIst(view.pass.passUntil ?? 0) })}
+          <p className="note" lang={lang}>
+            {t('agent.enrollmentNote')}
+          </p>
+          {loadError ? (
+            <Button variant="secondary" onClick={() => setLoadRound((n) => n + 1)}>
+              {t('verify.retry')}
+            </Button>
+          ) : null}
+          {policy ? (
+            <>
+              {/* one row of three equal segments: "$4 · $8 · $20", the "/ day" said once (no orphan chip) */}
+              <p className="segmented__legend" id="agent-cap-legend">
+                {t('agent.capLegend')}
               </p>
-            ) : view.pass.state === 'denied' ? (
-              <p className="note">{t('agent.passDenied', { reason: view.pass.reason ?? '' })}</p>
-            ) : (
-              <p className="note">{t('agent.passExpired')}</p>
-            )}
-          </div>
-        ) : null}
-      </section>
-      {process.env.NEXT_PUBLIC_MODE === 'local' ? (
-        <section className="agent__rows" aria-label="Agent top-ups">
-          {rows.length === 0 ? (
-            <p className="ghost-row" lang={lang}>
-              {t('agent.empty')}
-            </p>
+              <div
+                className="segmented segmented--even"
+                role="radiogroup"
+                aria-labelledby="agent-cap-legend"
+                data-testid="agent-cap"
+                style={{ '--segments': CAPS_USD.length } as CSSProperties}
+              >
+                {CAPS_USD.map((usd) => (
+                  <button
+                    key={usd}
+                    type="button"
+                    role="radio"
+                    aria-label={t('agent.capAria', { cap: `$${usd}` })}
+                    aria-checked={capUsd6 === BigInt(usd * USD6)}
+                    disabled={status === 'signing' || status === 'saving' || !wallet}
+                    onClick={() => {
+                      const next = {
+                        ...policy,
+                        stepMb: sold.mb,
+                        maxUsd6PerDay: String(usd * USD6),
+                      };
+                      if (view) void save(next);
+                      else setPolicy(next);
+                    }}
+                  >
+                    {`$${usd}`}
+                  </button>
+                ))}
+              </div>
+              {/* the one wallet control is the header's; saving without a wallet opens its modal from here */}
+              {wallet ? (
+                <Button
+                  variant="secondary"
+                  disabled={status === 'signing' || status === 'saving'}
+                  onClick={() =>
+                    void save({ ...policy, stepMb: sold.mb, paused: view ? !policy.paused : false })
+                  }
+                  {...(view ? { 'aria-pressed': policy.paused } : {})}
+                >
+                  {!view ? t('agent.enable') : policy.paused ? t('agent.resume') : t('agent.pause')}
+                </Button>
+              ) : (
+                <Button variant="secondary" disabled={!openConnectModal} onClick={openConnectModal}>
+                  {t('agent.connectToSave')}
+                </Button>
+              )}
+            </>
           ) : (
-            <ul className="ledger-rows">
-              {rows.map((r) => {
-                const template = explorerTemplate(r.network);
-                return (
-                  <li key={`${r.tx}-${r.at}`} data-testid="agent-row">
-                    <span>{clockIst(r.at)}</span>
-                    <span>{r.mb ? `+${formatMb(r.mb)}` : ''}</span>
-                    <span>{r.usd6 ? money(r.usd6) : ''}</span>
-                    <span className="mono-key" data-hash title={r.uaid}>
-                      {r.uaid ? `agent ${r.uaid.slice(0, 18)}…` : 'agent'}
-                    </span>
-                    {r.tx ? (
-                      <Hash
-                        value={r.tx}
-                        kind="transaction hash"
-                        {...(template
-                          ? {
-                              explorerHref: template.replace('{hash}', r.tx),
-                              explorerName: 'HashScan',
-                            }
-                          : {})}
-                      />
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
+            <div className="skeleton skeleton--line" aria-hidden="true" />
           )}
+          <p className="note" role="status" data-testid="agent-status" lang={lang}>
+            {status === 'signing'
+              ? t('agent.save')
+              : status === 'saved' && view
+                ? t('agent.saved', { address: `${view.owner.slice(0, 6)}…${view.owner.slice(-4)}` })
+                : (message ?? ' ')}
+          </p>
+          <ProofPanel proof={proof} />
+          {view && capUsd6 > 0n ? (
+            <p className="note" lang={lang}>
+              {spent >= capUsd6
+                ? t('agent.capReached', {
+                    cap: money(capUsd6),
+                    mb: formatMb(sold.mb),
+                    price: money(sold.usd6),
+                  })
+                : t('agent.spent', { spent: money(spent), cap: money(capUsd6) })}
+            </p>
+          ) : null}
+          {view?.pass && view.pass.state !== 'none' ? (
+            <div
+              className="agent__pass"
+              data-testid="agent-pass"
+              data-state={view.pass.state}
+              lang={lang}
+            >
+              {view.pass.state === 'pending' ? (
+                <>
+                  <p className="note">
+                    {t('agent.passPending', { code: view.pass.userCode ?? '' })}
+                  </p>
+                  <QrCode
+                    url={view.pass.verificationUriComplete ?? view.pass.verificationUri ?? ''}
+                    label={t('agent.passQr')}
+                    sizeMm={40}
+                  />
+                  <p className="mono-key" data-testid="agent-pass-code">
+                    {view.pass.userCode}
+                  </p>
+                  <a
+                    className="note"
+                    href={view.pass.verificationUriComplete ?? view.pass.verificationUri}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {t('agent.passOpen')}
+                  </a>
+                </>
+              ) : view.pass.state === 'armed' ? (
+                <p className="note">
+                  {t('agent.passArmed', { until: clockIst(view.pass.passUntil ?? 0) })}
+                </p>
+              ) : view.pass.state === 'denied' ? (
+                <p className="note">{t('agent.passDenied', { reason: view.pass.reason ?? '' })}</p>
+              ) : (
+                <p className="note">{t('agent.passExpired')}</p>
+              )}
+            </div>
+          ) : null}
         </section>
-      ) : null}
-      {key ? <ArkivHistory planKey={key} policy={policy} /> : null}
+        <div className="agent-history">
+          {process.env.NEXT_PUBLIC_MODE === 'local' ? (
+            <section className="agent__rows" aria-label="Agent top-ups">
+              {rows.length === 0 ? (
+                <p className="ghost-row" lang={lang}>
+                  {t('agent.empty')}
+                </p>
+              ) : (
+                <ul className="ledger-rows">
+                  {rows.map((r) => {
+                    const template = explorerTemplate(r.network);
+                    return (
+                      <li key={`${r.tx}-${r.at}`} data-testid="agent-row">
+                        <span>{clockIst(r.at)}</span>
+                        <span>{r.mb ? `+${formatMb(r.mb)}` : ''}</span>
+                        <span>{r.usd6 ? money(r.usd6) : ''}</span>
+                        <span className="mono-key" data-hash title={r.uaid}>
+                          {r.uaid ? `agent ${r.uaid.slice(0, 18)}…` : 'agent'}
+                        </span>
+                        {r.tx ? (
+                          <Hash
+                            value={r.tx}
+                            kind="transaction hash"
+                            {...(template
+                              ? {
+                                  explorerHref: template.replace('{hash}', r.tx),
+                                  explorerName: 'HashScan',
+                                }
+                              : {})}
+                          />
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          ) : null}
+          {key ? <ArkivHistory planKey={key} policy={view ? policy : undefined} /> : null}
+        </div>
+      </div>
       {/* the agent is its own screen, not the Add-data tab (RT design review: wrong active tab) */}
       <TabBar />
     </Screen>
@@ -474,9 +512,9 @@ function ArkivHistory({
         <details className="disclosure">
           <summary lang={lang}>{t('agent.historyHow')}</summary>
           <p lang={lang}>{t('agent.historyHowBody', { rpc: config.arkivRpc })}</p>
-          <p className="mono-key" lang="en" data-testid="arkiv-query">
+          <pre className="mono-key" lang="en" data-testid="arkiv-query">
             {JSON.stringify(topUpsRequest(hash))}
-          </p>
+          </pre>
         </details>
       ) : null}
     </section>

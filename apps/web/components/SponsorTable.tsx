@@ -108,42 +108,70 @@ export function SponsorTable({ id }: { id: string }) {
   const [actionTitle, setActionTitle] = useState<string | undefined>();
   const [proof, setProof] = useState<Proof>();
 
+  const loginIdentity = useRef<string | undefined>(undefined);
+  const identity = `${id}:${wallet?.address.toLowerCase() ?? ''}`;
   const load = useCallback(
     async (auth = login) => {
       if (!auth) return;
+      const requestedIdentity = identity;
       try {
         const next = await api.sponsor(id, auth);
+        if (loginIdentity.current !== requestedIdentity) return;
         setView(next);
         if (next.auditKey) setAuditKey(next.auditKey);
       } catch (e) {
+        if (loginIdentity.current !== requestedIdentity) return;
+        if (e instanceof ApiError && e.status === 401) setLogin(undefined);
         setError(e instanceof ApiError ? `${e.code}: ${e.message}` : String(e));
       }
     },
-    [id, login],
+    [id, login, identity],
   );
 
-  // one SponsorLogin per connected address: the switch to DataDrop's chain hands back a new wallet object
   const signingIn = useRef<string | undefined>(undefined);
+  const signIn = useCallback(async () => {
+    if (!wallet || signingIn.current === identity) return;
+    signingIn.current = identity;
+    setError(undefined);
+    const requestedIdentity = identity;
+    try {
+      const sponsor = await ensureChain(wallet, config.chainId);
+      const auth = await sponsorLogin(sponsor, id as Hex);
+      if (loginIdentity.current !== requestedIdentity) return;
+      setLogin(auth);
+      await load(auth);
+    } catch (e) {
+      if (loginIdentity.current === requestedIdentity)
+        setError(
+          isUserRejection(e)
+            ? 'Sign in with the sponsor wallet to see this campaign.'
+            : e instanceof Error
+              ? e.message
+              : String(e),
+        );
+    } finally {
+      if (signingIn.current === requestedIdentity) signingIn.current = undefined;
+    }
+  }, [wallet, ensureChain, id, load, identity]);
   useEffect(() => {
-    if (!wallet || login || signingIn.current === wallet.address) return;
-    signingIn.current = wallet.address;
-    ensureChain(wallet, config.chainId)
-      .then((sponsor) => sponsorLogin(sponsor, id as Hex))
-      .then(
-        (auth) => {
-          setLogin(auth);
-          void load(auth);
-        },
-        (e: unknown) =>
-          setError(
-            isUserRejection(e)
-              ? 'Sign in with the sponsor wallet to see this campaign.'
-              : e instanceof Error
-                ? e.message
-                : String(e),
-          ),
-      );
-  }, [wallet, ensureChain, login, id, load]);
+    if (loginIdentity.current === identity) return;
+    loginIdentity.current = identity;
+    setLogin(undefined);
+    setView(undefined);
+    setError(undefined);
+    void signIn();
+  }, [identity, signIn]);
+  useEffect(() => {
+    if (!login) return;
+    const timer = setTimeout(
+      () => {
+        setLogin(undefined);
+        setError('Your sponsor sign-in expired. Sign in again to refresh this campaign.');
+      },
+      Math.max(1, login.issuedAt + 55 * 60_000 - Date.now()),
+    );
+    return () => clearTimeout(timer);
+  }, [login]);
 
   const runTx = useCallback(
     async (title: string, tx: { to: `0x${string}`; data: `0x${string}` }, label: StringKey) => {
@@ -214,6 +242,7 @@ export function SponsorTable({ id }: { id: string }) {
         {wallet ? null : (
           <Button onClick={() => openConnectModal?.()}>Connect the sponsor wallet</Button>
         )}
+        {wallet && error ? <Button onClick={() => void signIn()}>Sign in again</Button> : null}
         {error ? (
           <p className="quiet-rows">
             <Link href="/sponsor" prefetch={false}>
@@ -289,94 +318,102 @@ export function SponsorTable({ id }: { id: string }) {
         </p>
         <ClaimsPerHour claims={view.claims} cap={campaign.claimsPerHour} now={now} />
       </section>
+      {!login ? <Button onClick={() => void signIn()}>Sign in again</Button> : null}
+      {error ? <p role="status">{error}</p> : null}
       <CampaignAnalytics id={id} login={login} />
       <section className="pane" aria-labelledby="tiers-title">
         <h2 id="tiers-title" className="pane__title">
           Claims by credential level
         </h2>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th scope="col">Level</th>
-              <th scope="col" className="num">
-                Claims
-              </th>
-              <th scope="col" className="num">
-                MB issued
-              </th>
-              <th scope="col" className="num">
-                Cost (USDC)
-              </th>
-              <th scope="col" className="num">
-                Avg MB
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {byTier.map((r) => (
-              <tr key={r.tier}>
-                <td>{r.tier === 'orb' ? 'Orb' : r.tier === 'document' ? 'Document' : 'Device'}</td>
-                <td className="num">{r.claims}</td>
-                <td className="num">{enIN.format(r.mb)}</td>
-                <td className="num">{money(r.cost)}</td>
-                <td className="num">{r.avg}</td>
+        <div className="table-scroll" tabIndex={0}>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th scope="col">Level</th>
+                <th scope="col" className="num">
+                  Claims
+                </th>
+                <th scope="col" className="num">
+                  MB issued
+                </th>
+                <th scope="col" className="num">
+                  Cost (USDC)
+                </th>
+                <th scope="col" className="num">
+                  Avg MB
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {byTier.map((r) => (
+                <tr key={r.tier}>
+                  <td>
+                    {r.tier === 'orb' ? 'Orb' : r.tier === 'document' ? 'Document' : 'Device'}
+                  </td>
+                  <td className="num">{r.claims}</td>
+                  <td className="num">{enIN.format(r.mb)}</td>
+                  <td className="num">{money(r.cost)}</td>
+                  <td className="num">{r.avg}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
       <section className="pane" aria-labelledby="expiring-title">
         <h2 id="expiring-title" className="pane__title">
           Expiring quotas · {soon} plans expire in 24 h
         </h2>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th scope="col">Arkiv key</th>
-              <th scope="col" className="num">
-                MB left
-              </th>
-              <th scope="col">Expires</th>
-              <th scope="col">Tier</th>
-            </tr>
-          </thead>
-          <tbody>
-            {view.expiring.length === 0 ? (
-              <tr className="ghost">
-                <td colSpan={4}>No plan expires yet.</td>
+        <div className="table-scroll" tabIndex={0}>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th scope="col">Arkiv key</th>
+                <th scope="col" className="num">
+                  MB left
+                </th>
+                <th scope="col">Expires</th>
+                <th scope="col">Tier</th>
               </tr>
-            ) : (
-              view.expiring.map((e) => {
-                const entity = arkivEntityUrl(e.arkivKey);
-                return (
-                  <tr key={e.arkivKey}>
-                    <td className="mono-key" data-hash title={e.arkivKey}>
-                      {entity ? (
-                        <a href={entity} target="_blank" rel="noreferrer">
-                          {e.arkivKey.slice(0, 14)}…
-                        </a>
-                      ) : (
-                        `${e.arkivKey.slice(0, 14)}…`
-                      )}
-                    </td>
-                    <td className="num">{formatMb(e.remainingMb)}</td>
-                    <td>
-                      expires {dayLabel(e.expiresAt)} {clockIst(e.expiresAt)}
-                    </td>
-                    <td>{e.tier}</td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {view.expiring.length === 0 ? (
+                <tr className="ghost">
+                  <td colSpan={4}>No plan expires yet.</td>
+                </tr>
+              ) : (
+                view.expiring.map((e) => {
+                  const entity = arkivEntityUrl(e.arkivKey);
+                  return (
+                    <tr key={e.arkivKey}>
+                      <td className="mono-key" data-hash title={e.arkivKey}>
+                        {entity ? (
+                          <a href={entity} target="_blank" rel="noreferrer">
+                            {e.arkivKey.slice(0, 14)}…
+                          </a>
+                        ) : (
+                          `${e.arkivKey.slice(0, 14)}…`
+                        )}
+                      </td>
+                      <td className="num">{formatMb(e.remainingMb)}</td>
+                      <td>
+                        expires {dayLabel(e.expiresAt)} {clockIst(e.expiresAt)}
+                      </td>
+                      <td>{e.tier}</td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
       <section className="pane" aria-labelledby="claims-title">
         <h2 id="claims-title" className="pane__title">
           Claims
         </h2>
         <div className="table-scroll">
-          <table className="data-table" data-testid="claims-table">
+          <table className="data-table mobile-records" data-testid="claims-table">
             <thead>
               <tr>
                 <th scope="col">Time</th>
@@ -400,16 +437,20 @@ export function SponsorTable({ id }: { id: string }) {
               ) : (
                 view.claims.map((c) => (
                   <tr key={`${c.campaignClaimKey}-${c.at}`} data-testid="claim-row">
-                    <td>
+                    <td data-label="Time">
                       {dayLabel(c.at)} {clockIst(c.at)}
                     </td>
-                    <td>
+                    <td data-label="Claim key">
                       <Hash value={c.campaignClaimKey} kind="claim key" />
                     </td>
-                    <td>{c.tier}</td>
-                    <td className="num">{c.mb}</td>
-                    <td className="num">{money(c.usd6)}</td>
-                    <td>
+                    <td data-label="Level">{c.tier}</td>
+                    <td className="num" data-label="Data (MB)">
+                      {c.mb}
+                    </td>
+                    <td className="num" data-label="Cost">
+                      {money(c.usd6)}
+                    </td>
+                    <td data-label="Transaction">
                       {c.tx ? (
                         <Hash
                           value={c.tx}
@@ -421,7 +462,7 @@ export function SponsorTable({ id }: { id: string }) {
                         '—'
                       )}
                     </td>
-                    <td>{c.status}</td>
+                    <td data-label="Status">{c.status}</td>
                   </tr>
                 ))
               )}

@@ -15,6 +15,7 @@ export {
   campaignClaimKey,
   entitlementIndex,
   freeEntitlementKey,
+  giftEntitlementKey,
   holderHash,
   INDEX_PREFIX,
   MIN_SECRET_BYTES,

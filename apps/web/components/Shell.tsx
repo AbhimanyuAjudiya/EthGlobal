@@ -274,7 +274,13 @@ export function AppHeader({ right }: { right?: ReactNode }) {
 }
 
 /** Four labelled tabs, shown only once a bundle exists on this device; `active` omitted on a screen none owns. */
-export function TabBar({ active }: { active?: 'plan' | 'add' | 'gift' | 'receipts' }) {
+export function TabBar({
+  active,
+  canTopUp = true,
+}: {
+  active?: 'plan' | 'add' | 'gift' | 'receipts';
+  canTopUp?: boolean;
+}) {
   const [key, setKey] = useState<string | undefined>();
   useEffect(() => {
     void plans.latest().then(setKey);
@@ -289,16 +295,18 @@ export function TabBar({ active }: { active?: 'plan' | 'add' | 'gift' | 'receipt
   ] as const;
   return (
     <nav className="tab-bar" aria-label="Recharge">
-      {tabs.map((tab) => (
-        <Link
-          key={tab.id}
-          href={tab.href}
-          prefetch={false}
-          aria-current={tab.id === active ? 'page' : undefined}
-        >
-          <T k={tab.label} />
-        </Link>
-      ))}
+      {tabs
+        .filter((tab) => canTopUp || tab.id !== 'add')
+        .map((tab) => (
+          <Link
+            key={tab.id}
+            href={tab.href}
+            prefetch={false}
+            aria-current={tab.id === active ? 'page' : undefined}
+          >
+            <T k={tab.label} />
+          </Link>
+        ))}
     </nav>
   );
 }

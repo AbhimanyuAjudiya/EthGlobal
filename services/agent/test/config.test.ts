@@ -15,6 +15,7 @@ const base = { AGENT_API_URL: 'http://127.0.0.1:8787/', AGENT_PAYTO_ALLOWLIST: A
 const live = {
   ...base,
   MODE: 'live',
+  AGENT_WATCH_KEYS: 'private-capability',
   AGENT_LEDGER_WRITER: '0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38',
   HCS_TOPIC_ID: '0.0.7001',
   ARKIV_RPC_URL: 'https://rpc.rabdi.db-chain.testnet.arkiv.network',
@@ -99,6 +100,7 @@ describe('config', () => {
   });
 
   it('live refuses public Anvil keys, missing RPC, missing HCS topic, Arkiv or the Hedera wallet', () => {
+    expect(() => loadConfig({ ...live, AGENT_WATCH_KEYS: '' })).toThrow(/AGENT_WATCH_KEYS/);
     expect(() =>
       loadConfig({
         ...live,

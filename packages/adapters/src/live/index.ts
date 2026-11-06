@@ -11,7 +11,7 @@ import {
   type Chain,
   type PublicClient,
 } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
+import { nonceManager, privateKeyToAccount } from 'viem/accounts';
 import { mainnet, sepolia } from 'viem/chains';
 
 import { createViemRelayer } from '@ethglobal/eip3009';
@@ -142,9 +142,30 @@ export function createLiveAdapters(config: LiveConfig, deps: LiveDeps = {}): Liv
     createWalletClient({
       chain,
       transport: transport(config.chain.rpcUrl),
-      account: privateKeyToAccount(key),
+      account: privateKeyToAccount(key, { nonceManager }),
     });
   const usdc = config.chain.usdc;
+  const evmPayments = new Map(
+    config.payments.evmNetworks.map((payment) => {
+      const paymentChain = evmChain(payment.id, payment.rpcUrl);
+      const paymentPublic = createPublicClient({
+        chain: paymentChain,
+        transport: transport(payment.rpcUrl),
+      }) as PublicClient;
+      return [
+        payment.network,
+        {
+          ...payment,
+          publicClient: paymentPublic,
+          walletClient: createWalletClient({
+            chain: paymentChain,
+            transport: transport(payment.rpcUrl),
+            account: privateKeyToAccount(config.treasury.evmKey.reveal(), { nonceManager }),
+          }),
+        },
+      ] as const;
+    }),
+  );
 
   // ── payments: one rail per advertised network
   const rails: Record<string, PaymentRail> = {};
@@ -180,7 +201,10 @@ export function createLiveAdapters(config: LiveConfig, deps: LiveDeps = {}): Liv
         : {
             evmReceipts: {
               receipt: async (hash) => {
-                const r = await publicClient.getTransactionReceipt({ hash }).catch(() => null);
+                const r = await evmPayments
+                  .get(network)!
+                  .publicClient.getTransactionReceipt({ hash })
+                  .catch(() => null);
                 return r ? r.status : null;
               },
             },
@@ -236,6 +260,14 @@ export function createLiveAdapters(config: LiveConfig, deps: LiveDeps = {}): Liv
       network: config.chain.network,
     });
   }
+  for (const payment of evmPayments.values()) {
+    treasuries[payment.network] = new EvmTreasury({
+      walletClient: payment.walletClient,
+      publicClient: payment.publicClient,
+      token: payment.usdc,
+      network: payment.network,
+    });
+  }
   if (config.treasury.hedera) {
     const network = `hedera:${hederaNetwork}` as const;
     treasuries[network] = new HederaTreasury({
@@ -245,6 +277,8 @@ export function createLiveAdapters(config: LiveConfig, deps: LiveDeps = {}): Liv
       }),
       tokenId: USDC_ASSET[network],
       network,
+      mirrorUrl: config.hedera.mirrorUrl,
+      ...fetchOpt,
     });
   }
 

@@ -16,6 +16,7 @@ import {
   cliArgs,
   E2E_DIR,
   ROOT,
+  start,
   startApi,
   startChain,
   startWeb,
@@ -64,10 +65,11 @@ try {
   if (flags.agent) {
     const keys = JSON.parse(readFileSync(join(E2E_DIR, 'keys.json'), 'utf8')) as { paid: string };
     const a = anvilAddresses();
-    spawn(join(ROOT, 'services/agent/node_modules/.bin/tsx'), ['src/index.ts'], {
+    start('agent', join(ROOT, 'services/agent/node_modules/.bin/tsx'), ['src/index.ts'], {
       cwd: join(ROOT, 'services/agent'),
       env: {
-        ...env,
+        API_URL: api.apiUrl,
+        RPC_URL: chain.rpcUrl,
         MODE: 'local',
         AGENT_API_URL: api.apiUrl,
         AGENT_EVM_RPC_URL: chain.rpcUrl,
@@ -75,7 +77,6 @@ try {
         AGENT_PAYTO_ALLOWLIST: `eip155:31337|${a.usdc}|${a.payout}`,
         AGENT_STATE_DIR: join(ROOT, '.agent'),
       },
-      stdio: 'inherit',
     });
     console.log('agent  looping on the seeded paid key (journal: .agent/journal.jsonl)');
   }

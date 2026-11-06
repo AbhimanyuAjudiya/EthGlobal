@@ -6,6 +6,20 @@ import type { z } from 'zod';
 
 export type HttpErrorReason = 'status' | 'schema' | 'timeout' | 'network';
 
+/** Logs may include errors: strip credentials/query strings and capability-bearing path components. */
+export function safeHttpUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    const path = url.pathname.replace(
+      /(\/(?:me|plan|install|receipts|agent\/(?:policy|pass))\/)[^/]+/gi,
+      '$1[redacted]',
+    );
+    return `${url.origin}${path}`;
+  } catch {
+    return '[invalid URL]';
+  }
+}
+
 /** `status` is 0 for timeouts and network failures; `reason` says which failure it was. */
 export class HttpError extends Error {
   override readonly name = 'HttpError';
@@ -17,7 +31,7 @@ export class HttpError extends Error {
     readonly reason: HttpErrorReason = 'status',
     options?: { cause?: unknown },
   ) {
-    super(`HTTP ${reason}${status ? ` ${status}` : ''} from ${url}`, options);
+    super(`HTTP ${reason}${status ? ` ${status}` : ''} from ${safeHttpUrl(url)}`, options);
   }
 }
 

@@ -302,12 +302,17 @@ export function InstallSteps() {
 
   const mb = me?.mbTotal ?? PLAN_MB;
   return (
-    <Screen>
+    <Screen wide className="install-screen">
       <AppHeader />
-      <h1 className="install__title" lang={lang}>
-        {t('install.title')}
-      </h1>
-      <StatusPill status={me?.status} />
+      <header className="flow-heading">
+        <p className="eyebrow" lang={lang}>
+          {t('flow.coverage')}
+        </p>
+        <h1 className="install__title" lang={lang}>
+          {t('install.title')}
+        </h1>
+        <StatusPill status={me?.status} />
+      </header>
       {lpa === undefined || !device ? (
         <div className="skeleton skeleton--line" aria-hidden="true" />
       ) : removed ? (

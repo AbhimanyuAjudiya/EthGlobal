@@ -139,7 +139,7 @@ test.describe('i18n: Hindi / Marathi rendering', () => {
             !text ||
             !el ||
             el.closest(
-              'script,style,[aria-hidden="true"],.lang-switch,[data-hash],.demo-wallet,.testnet-strip',
+              'script,style,pre,code,[aria-hidden="true"],.lang-switch,[data-hash],.demo-wallet,.testnet-strip',
             )
           )
             continue;
@@ -147,7 +147,8 @@ test.describe('i18n: Hindi / Marathi rendering', () => {
           if (/[ऀ-ॿ]/.test(text) && tag !== lang && tag !== 'hi' && tag !== 'mr')
             wrongLang.push(`${tag}: ${text.slice(0, 40)}`);
           if (/[०-९]/.test(text)) devanagariDigits.push(text.slice(0, 40));
-          if (re.test(text)) rawIds.push(text.slice(0, 40));
+          // RPC hostnames can contain a translation prefix (e.g. "rpc.example"). URLs are data.
+          if (re.test(text.replace(/https?:\/\/[^\s]+/g, ''))) rawIds.push(text.slice(0, 40));
           // two or more English words with no Devanagari: a string the locale left untranslated
           if (
             !/[ऀ-ॿ]/.test(text) &&

@@ -73,6 +73,38 @@ afterEach(async () => {
 });
 
 describe('the landing is the hub', () => {
+  it('describes the actual sponsor bundle independently of the paid 1 GB offer', async () => {
+    const plans = plansWith(true);
+    plans.campaign!.bundleMb.orb = 300;
+    plans.campaign!.bundleMb.document = 300;
+    mocks.plans.mockResolvedValue(plans);
+    render(<ClaimPaths />, { wrapper: Wallets });
+    await screen.findByRole('link', { name: /^Prove I.m human → 300\sMB$/ });
+    expect(document.querySelector('.landing__sub')?.textContent).toMatch(/your first 300\sMB/);
+    expect(screen.getByRole('region', { name: 'How it works' }).textContent).toContain(
+      'your first bundle',
+    );
+    expect(screen.getByLabelText('Your paid data plan').textContent).toMatch(/1\sGB/);
+  });
+  it('shows the paid data, validity and price from the current offer apart from the sponsor coupon', async () => {
+    const plans = plansWith(true);
+    plans.paid.validityDays = 14;
+    plans.paid.priceUsd6PerStep = '500000';
+    mocks.plans.mockResolvedValue(plans);
+    render(<ClaimPaths />, { wrapper: Wallets });
+    await screen.findByRole('link', { name: CLAIM });
+    const offer = screen.getByLabelText('Your paid data plan');
+    expect(offer.textContent).toContain('14 days');
+    expect(offer.textContent).toContain('$5.00');
+    expect(offer.textContent).toContain('USDC');
+    expect(document.querySelector('#landing-coupon')?.textContent).not.toContain('14 days');
+    expect(
+      screen
+        .getByRole('link', { name: 'Check phone compatibility and coverage' })
+        .getAttribute('href'),
+    ).toBe('#compatibility');
+  });
+
   it('"Everything Recharge does" links every flow, each with one sentence', async () => {
     mocks.plans.mockResolvedValue(plansWith(true));
     render(<ClaimPaths />, { wrapper: Wallets });

@@ -167,6 +167,11 @@ export class FakeUsdc3009 {
     const client = {
       getChainId: () => this.#read(() => this.#opts.chainId),
       getBlockNumber: () => this.#read(() => this.blockNumber),
+      getBlock: ({ blockNumber }: { blockNumber: bigint }) =>
+        this.#read(() => ({
+          number: blockNumber,
+          timestamp: BigInt(Math.floor(this.#opts.now() / 1000)) - (this.blockNumber - blockNumber),
+        })),
       readContract: ({ functionName, args }: { functionName: string; args?: readonly unknown[] }) =>
         this.#read(() => {
           switch (functionName) {

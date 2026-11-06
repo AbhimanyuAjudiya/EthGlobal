@@ -375,7 +375,7 @@ describe('T-73 b: mayRegisterPolicy (A-35)', () => {
     );
   });
 
-  it('paid ⇒ the payer; an existing policy ⇒ its owner; no holderHash ⇒ first registration', () => {
+  it('paid ⇒ the payer; an existing policy ⇒ its owner; unbound legacy plans cannot be claimed', () => {
     const paid = entitlement({ key: KEY, kind: 'paid', payer: OWNER });
     expect(
       mayRegisterPolicy({ entitlement: paid, existing: null, owner: OWNER.toUpperCase() }),
@@ -391,7 +391,7 @@ describe('T-73 b: mayRegisterPolicy (A-35)', () => {
     );
     expect(
       mayRegisterPolicy({ entitlement: entitlement({ key: KEY }), existing: null, owner: OTHER }),
-    ).toBe('ok');
+    ).toBe('holder-proof-required');
   });
 });
 

@@ -265,6 +265,32 @@ describe('RemoteFacilitator (A-18, A-20, A-30; T-42)', () => {
     ).rejects.toMatchObject({ code: 'unavailable' });
   });
 
+  it('Hedera duplicate submissions do not hide the original successful consensus record', async () => {
+    const original = fixtureFetch('facilitator/hedera/settle-pending.json', { strictBody: true });
+    let reads = 0;
+    const id = '0.0.7162784-1793707200-123456789';
+    const fetcher: typeof fetch = async (input, init) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes('/api/v1/transactions/')) {
+        reads++;
+        return Response.json({
+          transactions: [
+            { transaction_id: id, result: 'DUPLICATE_TRANSACTION' },
+            ...(reads > 1 ? [{ transaction_id: id, result: 'SUCCESS' }] : []),
+          ],
+        });
+      }
+      return original(input, init);
+    };
+    await expect(
+      blocky('settle-pending', { fetch: fetcher }).settle(
+        hedera.paymentPayload,
+        hedera.paymentRequirements,
+      ),
+    ).resolves.toMatchObject({ success: true });
+    expect(reads).toBe(2);
+  });
+
   it.each([
     ['settle-no-tx', 'invalid_response'],
     ['settle-foreign-network', 'network_mismatch'],

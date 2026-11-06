@@ -74,6 +74,7 @@ describe('verify RT-G-04: the pinned owner must be someone only the user control
     AGENT_API_URL: 'http://127.0.0.1:8787/',
     AGENT_PAYTO_ALLOWLIST: ALLOW,
     MODE: 'live',
+    AGENT_WATCH_KEYS: 'private-capability',
     AGENT_LEDGER_WRITER: '0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38',
     HCS_TOPIC_ID: '0.0.7001',
     ARKIV_RPC_URL: 'https://rpc.rabdi.db-chain.testnet.arkiv.network',

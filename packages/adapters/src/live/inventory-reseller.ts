@@ -136,6 +136,17 @@ export class InventoryReseller implements Reseller {
     });
   }
 
+  async recoverOrder(idempotencyKey: string): Promise<EsimProfile | null> {
+    const entry = this.#read().find((e) => e.consumedBy === idempotencyKey);
+    return entry ? this.#profile(entry) : null;
+  }
+
+  async canTopUp(iccid: string): Promise<boolean> {
+    const issued = this.#read().some((entry) => entry.iccid === iccid && entry.consumedBy);
+    if (!issued) throw new AdapterError('reseller', 'not_found', 'unknown ICCID');
+    return false;
+  }
+
   #profile(e: InventoryEntry): EsimProfile {
     return {
       iccid: assertIccid(e.iccid),

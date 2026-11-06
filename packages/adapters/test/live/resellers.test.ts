@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { bytesToHex, hmacSha256, sha256Hex, utf8 } from '@ethglobal/crypto';
 
-import { MockReseller } from '../../src/index.js';
+import { AdapterError, MockReseller } from '../../src/index.js';
 import {
   EsimAccessReseller,
   ESIMACCESS_WEBHOOK_IPS,
@@ -336,7 +336,16 @@ describe('EsimAccessReseller (A-27; T-34, T-39, T-40, T-82, T-83)', () => {
   it('status mapping and constructor guards', () => {
     expect(esimStatus({ smdpStatus: 'RELEASED', esimStatus: 'GOT_RESOURCE' })).toBe('ready');
     expect(esimStatus({ smdpStatus: 'ENABLED' })).toBe('installed');
-    expect(esimStatus({ esimStatus: 'USED_UP' })).toBe('expired');
+    expect(esimStatus({ esimStatus: 'USED_UP' })).toBe('active');
+    for (const smdpStatus of ['DOWNLOAD', 'DOWNLOADED', 'INSTALLATION', 'ENABLED', 'DISABLED'])
+      expect(esimStatus({ smdpStatus, esimStatus: 'GOT_RESOURCE' })).toBe('installed');
+    for (const esimState of ['UNUSED_EXPIRED', 'USED_EXPIRED', 'CANCEL', 'REVOKE'])
+      expect(esimStatus({ smdpStatus: 'RELEASED', esimStatus: esimState })).toBe('expired');
+    expect(
+      esimStatus({ smdpStatus: 'RELEASED', esimStatus: 'GOT_RESOURCE', eid: '89000001' }),
+    ).toBe('installed');
+    for (const esimState of ['SUSPENDED', 'CREATE', 'GETTING_RESOURCE', 'NEW_UNKNOWN_STATE'])
+      expect(() => esimStatus({ smdpStatus: 'RELEASED', esimStatus: esimState })).toThrow();
     expect(esimStatus({ smdpStatus: 'DELETED' })).toBe('expired');
     expect(esimStatus({ smdpStatus: 'RELEASED', esimStatus: 'CANCEL' })).toBe('expired');
     expect(
@@ -419,6 +428,10 @@ describe('InventoryReseller (T-41, L9)', () => {
     await expect(reseller.order('P-IN-1G-7D', { idempotencyKey: 'a' })).resolves.toEqual(a);
     // a fresh process (crash after consume) never re-issues a consumed profile
     const restarted = new InventoryReseller({ file, sealKey: key, now: () => T0 });
+    await expect(restarted.canTopUp(a.iccid)).resolves.toBe(false);
+    await expect(restarted.canTopUp('8991000000000000003')).rejects.toMatchObject({
+      code: 'not_found',
+    });
     await expect(restarted.order('P-IN-1G-7D', { idempotencyKey: 'c' })).rejects.toMatchObject({
       code: 'unavailable',
     });
@@ -455,6 +468,58 @@ describe('InventoryReseller (T-41, L9)', () => {
 });
 
 describe('FallbackReseller', () => {
+  it('an accepted primary order with a pending profile never consumes a fallback profile', async () => {
+    const fallback = new MockReseller();
+    const primary = esim('query-pending').reseller;
+    await expect(
+      new FallbackReseller(primary, fallback).order('P-IN-1G-7D', {
+        idempotencyKey: 'pending-key',
+      }),
+    ).rejects.toMatchObject({ code: 'unavailable', details: { orderMayExist: true } });
+    expect(fallback.orders()).toHaveLength(0);
+  });
+
+  it('a primary transport failure has an unknown order outcome and cannot allocate fallback stock', async () => {
+    const fallback = new MockReseller();
+    const primary = esim('plans', {
+      fetch: async () => {
+        throw new TypeError('connection reset');
+      },
+    }).reseller;
+    await expect(
+      new FallbackReseller(primary, fallback).order('P-IN-1G-7D', {
+        idempotencyKey: 'unknown-order',
+      }),
+    ).rejects.toMatchObject({ details: { orderMayExist: true } });
+    expect(fallback.orders()).toHaveLength(0);
+  });
+
+  it('a fallback allocation stays pinned after the primary recovers and the process restarts', async () => {
+    const key = new Uint8Array(32).fill(7);
+    const entries = loadFixture<{ entries: InventoryEntry[] }>('inventory.example.json').entries;
+    const file = join(mkdtempSync(join(tmpdir(), 'fallback-')), 'inventory.enc');
+    writeFileSync(file, sealInventory(entries, key));
+    const primary = new MockReseller();
+    vi.spyOn(primary, 'order').mockRejectedValueOnce(
+      new AdapterError('reseller', 'unavailable', 'out of stock'),
+    );
+    const inventory = () => new InventoryReseller({ file, sealKey: key, now: () => T0 });
+    const first = await new FallbackReseller(primary, inventory()).order('P-IN-1G-7D', {
+      idempotencyKey: 'same-order',
+    });
+    const primaryOrder = vi.spyOn(primary, 'order');
+    primaryOrder.mockClear();
+    await expect(
+      new FallbackReseller(primary, inventory()).order('P-IN-1G-7D', {
+        idempotencyKey: 'same-order',
+      }),
+    ).resolves.toEqual(first);
+    expect(primaryOrder).not.toHaveBeenCalled();
+    const restarted = new FallbackReseller(primary, inventory());
+    await expect(restarted.canTopUp(first.iccid)).resolves.toBe(false);
+    await expect(restarted.canTopUp('89852240000000000099')).resolves.toBe(true);
+  });
+
   it('order falls back when the primary is unavailable; usage/topUp/webhooks never do', async () => {
     const primary = new MockReseller({ failNextOrder: true });
     const fallback = new MockReseller();
@@ -462,6 +527,8 @@ describe('FallbackReseller', () => {
     const chain = new FallbackReseller(primary, fallback, { warn });
     expect(chain.name).toBe('mock');
     const profile = await chain.order('in-1gb-7d', { idempotencyKey: 'k' });
+    expect(fallback.orders()).toHaveLength(1);
+    await expect(chain.order('in-1gb-7d', { idempotencyKey: 'k' })).resolves.toEqual(profile);
     expect(fallback.orders()).toHaveLength(1);
     expect(warn).toHaveBeenCalled();
     await expect(chain.usage(profile.iccid)).rejects.toMatchObject({ code: 'not_found' }); // primary never issued it

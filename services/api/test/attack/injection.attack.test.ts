@@ -18,7 +18,7 @@ describe('attack: injection strings (AP21)', () => {
     const res = await h.json(
       '/gift',
       { name: 'bob.eth', mb: 1000, message: `${CANARY} {{7*7}}` },
-      await h.payFor(quote),
+      { ...(await h.payFor(quote)), 'idempotency-key': '6412f083-c1f0-488a-a4ca-c9af927bf099' },
     );
     expect(res.status).toBe(201);
     const [escrow] = await h.adapters.ledger.query({ annotations: { type: 'gift' } });

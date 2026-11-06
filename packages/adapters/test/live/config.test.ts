@@ -5,6 +5,8 @@ import { inspect } from 'node:util';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import type { PaymentPayload, PaymentRequirements } from '@ethglobal/protocol/schemas';
+
 import { EsimAccessReseller } from '../../src/live/esimaccess-reseller.js';
 import { FallbackReseller } from '../../src/live/fallback-reseller.js';
 import {
@@ -17,7 +19,13 @@ import {
 import { RemoteFacilitator } from '../../src/live/remote-facilitator.js';
 import { SelfRunFacilitator } from '../../src/live/self-run-facilitator.js';
 import { SwarmBlobStore } from '../../src/live/swarm-blobs.js';
-import { anvilKeys, loadFixture, T0, fixtureFetch } from '../../src/testing/index.js';
+import {
+  anvilKeys,
+  loadFixture,
+  T0,
+  fixtureFetch,
+  type Recording,
+} from '../../src/testing/index.js';
 
 import type { InventoryEntry } from '../../src/live/inventory-reseller.js';
 
@@ -233,6 +241,102 @@ describe('liveConfigSchema (L15)', () => {
 });
 
 describe('createLiveAdapters', () => {
+  it('a pending Base settlement is confirmed on Base even when CHAIN selects Hedera EVM', async () => {
+    const file = 'facilitator/x402org/settle-pending.json';
+    const body = loadFixture<Recording>(file).exchanges.find((e) =>
+      e.request.url.endsWith('/settle'),
+    )!.request.body as {
+      paymentPayload: PaymentPayload;
+      paymentRequirements: PaymentRequirements;
+    };
+    const facilitator = fixtureFetch(file, { strictBody: true });
+    const rpcUrls: string[] = [];
+    const fetchFn: typeof fetch = async (input, init) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.startsWith('https://x402.org/')) return facilitator(input, init);
+      rpcUrls.push(url);
+      const rpc = JSON.parse(init?.body as string) as {
+        id: number;
+        method: string;
+        params: string[];
+      };
+      expect(rpc.method).toBe('eth_getTransactionReceipt');
+      return Response.json({
+        jsonrpc: '2.0',
+        id: rpc.id,
+        result: {
+          blockHash: `0x${'1'.repeat(64)}`,
+          blockNumber: '0x1',
+          transactionHash: rpc.params[0],
+          transactionIndex: '0x0',
+          status: '0x1',
+          cumulativeGasUsed: '0x5208',
+          gasUsed: '0x5208',
+          effectiveGasPrice: '0x1',
+          logs: [],
+          logsBloom: `0x${'0'.repeat(512)}`,
+          type: '0x2',
+          from: body.paymentRequirements.payTo,
+          to: body.paymentRequirements.asset,
+          contractAddress: null,
+        },
+      });
+    };
+    const adapters = createLiveAdapters(
+      parseLiveConfig(
+        env({
+          CHAIN: '296',
+          RPC_URL: 'https://hedera-rpc.test',
+          BASE_SEPOLIA_RPC_URL: 'https://base-rpc.test',
+        }),
+      ),
+      {
+        fetch: fetchFn,
+        now: () => T0,
+        hederaClient: fakeHedera,
+        logger: { info: vi.fn(), warn: vi.fn() },
+      },
+    );
+    await expect(
+      adapters.payments.settle(body.paymentPayload, body.paymentRequirements),
+    ).resolves.toMatchObject({
+      success: true,
+      network: 'eip155:84532',
+    });
+    expect(rpcUrls).toEqual(['https://base-rpc.test/']);
+  });
+
+  it('Base refunds use their own token and RPC when the application chain is Hedera EVM', async () => {
+    const seen: { url: string; method: string; params: unknown[] }[] = [];
+    const fetchFn: typeof fetch = async (input, init) => {
+      const request = JSON.parse(init?.body as string) as {
+        id: number;
+        method: string;
+        params: unknown[];
+      };
+      seen.push({
+        url: typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,
+        method: request.method,
+        params: request.params,
+      });
+      return Response.json({ jsonrpc: '2.0', id: request.id, result: `0x${'0'.repeat(63)}7` });
+    };
+    const adapters = createLiveAdapters(
+      parseLiveConfig(
+        env({
+          CHAIN: '296',
+          RPC_URL: 'https://hedera-rpc.test',
+          BASE_SEPOLIA_RPC_URL: 'https://base-rpc.test',
+        }),
+      ),
+      { fetch: fetchFn, hederaClient: fakeHedera, logger: { info: vi.fn(), warn: vi.fn() } },
+    );
+    await expect(adapters.treasury.balanceUsd6('eip155:84532')).resolves.toBe(7n);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({ url: 'https://base-rpc.test/', method: 'eth_call' });
+    expect(seen[0]?.params[0]).toMatchObject({ to: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' });
+  });
+
   it('builds a full bundle from a valid env without touching the network', () => {
     const fetch = vi.fn();
     const warn = vi.fn();

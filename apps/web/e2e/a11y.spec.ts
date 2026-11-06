@@ -56,7 +56,7 @@ test.describe('accessibility', () => {
     await page.locator('.app-header__right > .menu-toggle:not(.wallet-toggle)').click();
     await page.getByRole('dialog').getByRole('button', { name: 'हिं' }).click();
     const title = page.locator('.landing__title');
-    await expect(title).toHaveText('बिना डेटा के मुंबई पहुँच रहे हैं?');
+    await expect(title).toHaveText('भारत की यात्रा। जुड़े रहें।');
     await expect(title).toHaveAttribute('lang', 'hi');
     await expect(page.locator('#landing-coupon')).toHaveAttribute('lang', 'hi');
     await expect(page.locator('#landing-coupon .coupon__line').first()).toContainText(

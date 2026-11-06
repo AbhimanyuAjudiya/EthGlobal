@@ -5,7 +5,7 @@ module: services/api/src/middleware/octroi.ts (rebindPending); services/api/src/
 threat: T-24 (and T-60)
 severity: High
 likelihood: M
-status: fixed
+status: verified
 found_by: orchestrator (live pre-deploy, real Orb claim 2026-11-05 18:53 IST)
 owner: builder-api
 found_at: 2026-11-05T18:53+05:30
@@ -13,10 +13,18 @@ due: 2026-11-05T22:53+05:30
 attack_test: 'services/api/test/regression/T-24-claim-rebind.test.ts::the same human from a new session: the same 202 and plan key, the LPA then seals to the new key only (red at 606f0b8: 409 replay; the live claim of 18:53 IST is the original repro)'
 regression_test: 'services/api/test/regression/T-24-claim-rebind.test.ts (4 cases: re-bind to a new session key and the LPA seals to it only; sealed ⇒ replay and the target does not move; another human on the same session key is judged on their own; ≤ 3 re-binds an hour); services/api/test/regression/T-24-verified-claim-retry.test.ts and test/claim.test.ts::same proof twice → 409 replay stay green'
 fix_commit: e4a8f87 (cherry-picked from the worktree commit d7f9360)
-verified_at:
+verified_at: 2026-11-06T04:40:01Z
 duplicate_of:
 sign_off:
 ---
+
+## Independent verification (2026-11-06)
+
+`pnpm --filter @ethglobal/api test test/regression/T-24-claim-rebind.test.ts test/regression/T-24-verified-claim-retry.test.ts`
+passed all eight tests. The rebind tests verify recovery to the same plan, decryption only with the replacement
+session key, refusal after sealing, isolation from another human, and the per-entitlement rebind limit. Review
+confirmed that rebind consumes a fresh challenge, checks the same personhood nullifier, and uses the same entitlement
+mutex as pending-profile delivery. This verification used local mocks; it did not submit a live proof or provider order.
 
 ## Repro
 

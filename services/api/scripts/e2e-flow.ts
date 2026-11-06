@@ -55,6 +55,7 @@ const RPC = process.env.RPC_URL ?? 'http://127.0.0.1:8546';
 const LOG = process.env.API_LOG;
 const CHAIN_ID = 31337;
 const DAY_S = 86_400;
+const CLAIM_PRICE_USD6 = 1_200_000n;
 const deployed = loadAddresses('anvil');
 if (!deployed)
   throw new Error('deploy/addresses.anvil.json missing: run scripts/dev-chain.sh first');
@@ -172,7 +173,7 @@ await step('I-0 sponsor funds a campaign on Anvil and registers it (POST /sponso
     address: addresses.dataDrop,
     abi: DataDropAbi as Abi,
     functionName: 'createCampaign',
-    args: [campaignId, budget, 1_200_000n, 120, BigInt(now + 30 * DAY_S)],
+    args: [campaignId, budget, CLAIM_PRICE_USD6, 120, BigInt(now + 30 * DAY_S)],
   });
   check(
     (await publicClient.waitForTransactionReceipt({ hash: created })).status === 'success',
@@ -222,7 +223,7 @@ await step('I-2 rp-context (ttl 300)', async () => {
 
 const humanSeed = `e2e-${Date.now()}`;
 await step(
-  'I-3 claim: sealed LPA opens, one Claimed log, payout +500000, HCS receipt',
+  'I-3 claim: sealed LPA opens, one Claimed log, payout receives claim price, HCS receipt',
   async () => {
     const before = await balance(addresses.payout);
     const res = await call('/claim', {
@@ -246,7 +247,7 @@ await step(
     );
     check((await claimedLogs(claimed.claimTx as Hex)) === 1, 'no Claimed log');
     check(
-      (await balance(addresses.payout)) - before === 1_200_000n,
+      (await balance(addresses.payout)) - before === CLAIM_PRICE_USD6,
       'payout did not receive the claim price',
     );
     check(claimed.receipt.hcs !== undefined, 'no HCS receipt');
@@ -280,7 +281,7 @@ await step('I-6 /me twice (cached) and receipts', async () => {
 });
 
 await step(
-  'I-7/I-8/I-9 402 → EIP-3009 on MockUSDC3009 → 200 + PAYMENT-RESPONSE; resend ⇒ 402',
+  'I-7/I-8/I-9 402 → EIP-3009 → 200; exact retry returns the result without charging twice',
   async () => {
     const path = `/esim/topup?key=${encodeURIComponent(entKey)}&mb=1000`;
     const quote = await call(path);
@@ -304,7 +305,15 @@ await step(
     );
     check(paid.data.mbTotal === claimed.mbTotal + 1000, 'mbTotal +1000');
     const again = await call(path, { headers });
-    check(again.status === 402, `resend ${again.status}`);
+    check(
+      again.status === 200 && again.headers.get('idempotent-replay') === 'true',
+      `resend ${again.status}`,
+    );
+    check(
+      JSON.stringify(again.data) === JSON.stringify(paid.data),
+      'retry changed the paid result',
+    );
+    check((await balance(addresses.payout)) - before === 4_000_000n, 'retry charged twice');
   },
 );
 
@@ -354,7 +363,7 @@ await step('I-12 gift: nobody.eth 404 before 402; bob.eth 402 → pay → 201 wi
   check(quote.status === 402, `gift quote ${quote.status}`);
   const res = await call('/gift', {
     body: { name: 'bob.eth', mb: 1000 },
-    headers: await pay(quote.headers),
+    headers: { ...(await pay(quote.headers)), 'Idempotency-Key': crypto.randomUUID() },
   });
   check(res.status === 201, `gift ${res.status} ${JSON.stringify(res.data)}`);
   gift = res.data as unknown as GiftResponse;
@@ -382,7 +391,10 @@ await step('I-13 gift claim by bob’s GiftClaim signature ⇒ giftent:; again 4
   };
   const res = await send();
   check(
-    res.status === 201 && res.data.entitlementKey === `giftent:${gift.giftId}`,
+    res.status === 201 &&
+      typeof res.data.entitlementKey === 'string' &&
+      res.data.entitlementKey.startsWith('giftent:') &&
+      res.data.entitlementKey !== `giftent:${gift.giftId}`,
     `gift claim ${res.status}`,
   );
   check((await send()).status === 409, 'second claim');
@@ -447,7 +459,10 @@ await step('I-15 sponsor dashboard: claim keys only, chain counters, expiring', 
     claims.length === 2 && claims.every((r) => /^0x[0-9a-f]{64}$/.test(r.campaignClaimKey)),
     'claims list',
   );
-  check((view.data.chain as { spentUsd6: string }).spentUsd6 === '1500000', 'chain counters');
+  check(
+    (view.data.chain as { spentUsd6: string }).spentUsd6 === String(3n * CLAIM_PRICE_USD6),
+    'chain counters',
+  );
   check((view.data.expiring as unknown[]).length >= 1, 'expiring');
 });
 
@@ -469,7 +484,7 @@ await step(
     const lapsed = (
       await call('/gift', {
         body: { name: 'alice.eth', mb: 1000 },
-        headers: await pay(quote.headers),
+        headers: { ...(await pay(quote.headers)), 'Idempotency-Key': crypto.randomUUID() },
       })
     ).data as unknown as GiftResponse;
     await advance(7 * DAY_S + 1);

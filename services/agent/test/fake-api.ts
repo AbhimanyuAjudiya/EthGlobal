@@ -2,8 +2,7 @@
  * test/fake-api.ts (agent.md §6) — a Hono fixture that speaks the exact INTERFACES §7 contract for the routes the agent
  * uses (`/plans`, `/me/:key`, `/me/:key/receipts`, `/agent/policy/:key`, `/esim/topup`) with protocol's codec and the
  * octroi stores over a shared InMemoryLedger. Test-only: no business logic beyond "402, then settle, then +mb".
- * TODO(api): point at services/api — once `createApp` serves these routes, the integration test swaps
- * `createFakeApi(...).app` for the API app in one line.
+ * Includes a response cache keyed by the submitted authorization, matching the API's paid-request recovery contract.
  */
 import { Hono } from 'hono';
 
@@ -87,6 +86,7 @@ export function createFakeApi(opts: FakeApiOptions): FakeApi {
   };
   const app = api.app;
   let paidCount = 0;
+  const completed = new Map<string, { body: Record<string, unknown>; settlement: SettleResult }>();
 
   app.get('/plans', (c) =>
     c.json({
@@ -203,6 +203,12 @@ export function createFakeApi(opts: FakeApiOptions): FakeApi {
     const payload = decodePaymentPayload(signature);
     api.paid.push(payload);
     paidCount += 1;
+    const identity = canonicalJson({ accepted: payload.accepted, payload: payload.payload });
+    const previous = completed.get(identity);
+    if (previous) {
+      c.header(PAYMENT_RESPONSE_HEADER, encodePaymentResponse(previous.settlement));
+      return c.json(previous.body);
+    }
     const fault = opts.fault?.(paidCount);
     if (fault === '502')
       return c.json({ error: 'facilitator_unavailable', message: 'upstream' }, 502);
@@ -260,16 +266,18 @@ export function createFakeApi(opts: FakeApiOptions): FakeApi {
     if (expiryBought !== undefined && pol) {
       await policies.put({ ...pol.payload, lastExpiryBought: Number(expiryBought) });
     }
-    if (fault === 'drop-after-settle') throw new TypeError('fetch failed: socket hang up');
-    c.header(PAYMENT_RESPONSE_HEADER, encodePaymentResponse(settlement));
-    return c.json({
+    const body = {
       entitlementKey: key,
       mbTotal: after.payload.mbTotal,
       mbUsed: after.payload.mbUsed,
       expiresAt: after.payload.expiresAt,
       settlement,
       receipt: { arkivKey: after.entityKey },
-    });
+    };
+    completed.set(identity, { body, settlement });
+    if (fault === 'drop-after-settle') throw new TypeError('fetch failed: socket hang up');
+    c.header(PAYMENT_RESPONSE_HEADER, encodePaymentResponse(settlement));
+    return c.json(body);
   });
 
   app.onError((error) => {

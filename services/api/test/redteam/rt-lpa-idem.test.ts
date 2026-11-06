@@ -76,7 +76,7 @@ describe('attack: rt pending-profile LPA path (AP6.3)', () => {
       headers: { 'x-forwarded-for': '203.0.113.130' },
     });
     expect(((await res.json()) as { status: string }).status).toBe('ready');
-    expect(restarted.deps.pendingDelivery.has(entitlementKey)).toBe(false);
+    expect(restarted.deps.pendingDelivery.has(entitlementKey)).toBe(true);
     // without the state file the same restart would have stranded it (the pre-fix behaviour)
     const { h: volatile, body: b2 } = await pendingClaim('rt-pending-volatile');
     const fresh = await volatile.restart();

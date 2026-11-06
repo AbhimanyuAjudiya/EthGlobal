@@ -67,7 +67,7 @@ export const uiStrings: Readonly<Record<CouponLang, UiStrings>> = {
       sending: 'Sending',
       sendingSeen: 'Sending · seen by the network',
       slower: (elapsed, usual) =>
-        `Slower than usual: ${elapsed}, usually ${usual}. Speed up, or cancel with a replacement.`,
+        `Slower than usual: ${elapsed}, usually ${usual}. Check the transaction before sending another payment.`,
       speedUp: 'Speed up',
       cancelTx: 'Cancel transaction',
       confirmed: 'Confirmed',
@@ -106,7 +106,7 @@ export const uiStrings: Readonly<Record<CouponLang, UiStrings>> = {
       sending: 'भेजा जा रहा है',
       sendingSeen: 'भेजा जा रहा है · नेटवर्क ने देख लिया',
       slower: (elapsed, usual) =>
-        `सामान्य से धीमा: ${elapsed}, आमतौर पर ${usual}। तेज़ करें, या बदले लेन-देन से रद्द करें।`,
+        `सामान्य से धीमा: ${elapsed}, आमतौर पर ${usual}। दूसरा भुगतान भेजने से पहले लेन-देन की स्थिति जाँचें।`,
       speedUp: 'तेज़ करें',
       cancelTx: 'लेन-देन रद्द करें',
       confirmed: 'पुष्टि हुई',
@@ -145,7 +145,7 @@ export const uiStrings: Readonly<Record<CouponLang, UiStrings>> = {
       sending: 'पाठवत आहे',
       sendingSeen: 'पाठवत आहे · नेटवर्कने पाहिले',
       slower: (elapsed, usual) =>
-        `नेहमीपेक्षा हळू: ${elapsed}, साधारण ${usual}. वेग वाढवा, किंवा बदली व्यवहाराने रद्द करा.`,
+        `नेहमीपेक्षा हळू: ${elapsed}, साधारण ${usual}. दुसरे पेमेंट पाठवण्यापूर्वी व्यवहाराची स्थिती तपासा.`,
       speedUp: 'वेग वाढवा',
       cancelTx: 'व्यवहार रद्द करा',
       confirmed: 'पुष्टी झाली',

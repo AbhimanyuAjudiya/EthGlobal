@@ -98,7 +98,12 @@ export const myCampaigns = {
   },
   add(entry: { id: string; name: string }) {
     try {
-      localStorage.setItem(LIST, JSON.stringify([entry, ...myCampaigns.list()].slice(0, 20)));
+      localStorage.setItem(
+        LIST,
+        JSON.stringify(
+          [entry, ...myCampaigns.list().filter((c) => c.id !== entry.id)].slice(0, 20),
+        ),
+      );
     } catch {
       // per-viewer convenience only
     }

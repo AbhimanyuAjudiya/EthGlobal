@@ -1,4 +1,4 @@
-import type { AgentPolicyView } from '@ethglobal/protocol/schemas';
+import type { AgentPolicyView, MeResponse } from '@ethglobal/protocol/schemas';
 
 import { apiGet, claimFreeBundle, expect, test } from './fixtures';
 
@@ -9,11 +9,15 @@ test('agent: policy sheet persists via signed PUT; sentence updates; receipts ro
   await page.goto('/agent');
   const sentence = page.getByTestId('agent-sentence');
   await expect(sentence).toHaveText(
-    /^When your plan drops below 20 % or expires, your agent buys 1\sGB for \$4\.00 on .+, up to \$8\.00 a day\.$/,
+    /^Set up 1\sGB top-ups for \$4\.00 on .+ when your plan drops below \d+\sMB or nears expiry, up to \$8\.00 a day\.$/,
   );
+  const current = await apiGet<MeResponse>(page, `/me/${encodeURIComponent(key)}`);
+  await expect(sentence).toContainText(`below ${Math.floor(current.mbTotal * 0.2)} MB`);
   // every cap buys at least one 1 GB top-up: $4 · $8 · $20
   await expect(page.getByTestId('agent-cap').getByRole('radio')).toHaveText(['$4', '$8', '$20']);
   await page.getByTestId('agent-cap').getByRole('radio', { name: '≤ $20 / day' }).click();
+  await expect(page.getByRole('button', { name: 'Pause' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Save and enable policy' }).click();
   await expect(page.getByTestId('agent-status')).toHaveText(
     /^Saved · signed by 0x[0-9a-fA-F]{4}…[0-9a-fA-F]{4}$/,
   );

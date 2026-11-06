@@ -48,13 +48,13 @@ the facade does not misbehave, the tooling does, and ledger-only would drop USDC
 ## Fix (proposed; the owner decides, THREAT-MODEL T-09 and §6.1 rule 4 change wording either way)
 
 A. Hedera-only wrapper in `script/Deploy.s.sol` (`contract DeployHedera is Deploy`): before `run()`, `vm.etch` a 15-line
-   stand-in at `0x167` (`associateToken` → 22) and at the facade (`decimals` → 6, `isAssociated` → true), local run only;
-   broadcast with `--skip-simulation` (forge then takes each tx's gas from the relay's `eth_estimateGas`, which runs the real
-   HTS). `Deploy`, its tests and the broadcast folder (`broadcast/Deploy.s.sol/296`, so `deploy:txs` still works) stay as
-   they are. Runbook adds the post-broadcast `cast call … isHtsAssociated` and `decimals()` checks as the live T-09/T-08 gate.
+stand-in at `0x167` (`associateToken` → 22) and at the facade (`decimals` → 6, `isAssociated` → true), local run only;
+broadcast with `--skip-simulation` (forge then takes each tx's gas from the relay's `eth_estimateGas`, which runs the real
+HTS). `Deploy`, its tests and the broadcast folder (`broadcast/Deploy.s.sol/296`, so `deploy:txs` still works) stay as
+they are. Runbook adds the post-broadcast `cast call … isHtsAssociated` and `decimals()` checks as the live T-09/T-08 gate.
 B. Move the HTS steps out of the script: on 296 the script deploys (owner = deployer) and calls `transferOwnership`;
-   `associateHts` runs as `cast send … --account deployer` (relay-estimated gas), then the same `cast call` gate, then
-   `acceptOwnership`. Touches Deploy.s.sol, Deploy.t.sol (3 cases), T09_HtsAssociation.t.sol, RT_Deploy.t.sol (2), runbook.
+`associateHts` runs as `cast send … --account deployer` (relay-estimated gas), then the same `cast call` gate, then
+`acceptOwnership`. Touches Deploy.s.sol, Deploy.t.sol (3 cases), T09_HtsAssociation.t.sol, RT_Deploy.t.sol (2), runbook.
 C. `LEDGER_ONLY=true` — documented but rejected above; needs a DISCLOSURE.md line.
 
 Regression test to add (builder, with A or B): a fork-free test that etches `0xef0100…0167` at the facade and `0xfe` at
@@ -84,6 +84,7 @@ JSON (CREATE, `associateHts`, `transferOwnership`); plain `Deploy` still fails a
 as running against stand-ins on 296, with the two `cast call`s as the live T-08/T-09 gate.
 
 ## Verification (orchestrator, 2026-11-05 15:05 IST, live Hedera testnet)
+
 `CHAIN=296 forge script script/Deploy.s.sol:DeployHedera --rpc-url hedera_testnet --broadcast --skip-simulation --account hedera-api`
 deployed DataDrop `0x2d4d52989545FF0d0CD91D77A33f14063f57c9E6` (tx `0x234ec50e…`), `associateHts` (tx `0x5b8ce6cd…`) and
 `transferOwnership` (tx `0x43c85694…`) in one run; the relay-estimated gas was enough for the HTS call. Post-broadcast gates:

@@ -44,11 +44,11 @@ describe('FileLock', () => {
     await writeFile(dead, lockBody(DEAD_PID, 'gone', Date.now()));
     expect(pidAlive(DEAD_PID)).toBe(false);
     expect(pidAlive(process.pid)).toBe(true);
-    expect(await new FileLock(dead, fast).acquire()).toBe(true);
+    expect(await new FileLock(dead).acquire()).toBe(true);
 
     const aged = join(dir, 'aged.lock');
     await writeFile(aged, lockBody(process.pid, 'wedged', Date.now() - LOCK_STALE_MS));
-    expect(await new FileLock(aged, fast).acquire()).toBe(true);
+    expect(await new FileLock(aged).acquire()).toBe(true);
   });
 
   it('an empty lock (create in progress) blocks until it is old by mtime', async () => {
@@ -57,7 +57,7 @@ describe('FileLock', () => {
     expect(await new FileLock(path, fast).acquire()).toBe(false);
     const old = new Date(Date.now() - LOCK_STALE_MS - 1_000);
     await utimes(path, old, old);
-    expect(await new FileLock(path, fast).acquire()).toBe(true);
+    expect(await new FileLock(path).acquire()).toBe(true);
   });
 
   it('release of a lock that is no longer ours restores it instead of deleting it', async () => {

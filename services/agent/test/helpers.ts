@@ -311,6 +311,6 @@ export async function expectTriggerBlocked(h: Harness): Promise<void> {
   const { tick } = await import('../src/tick.js');
   const signed = h.signatures();
   h.clock.advance(5_000);
-  expect((await tick(h.agent.deps, KEY)).skipped).toBe('trigger-in-flight');
+  expect((await tick(h.agent.deps, KEY)).bought).toBeUndefined();
   expect(h.signatures()).toBe(signed);
 }

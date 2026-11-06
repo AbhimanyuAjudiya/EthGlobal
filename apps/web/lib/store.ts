@@ -1,6 +1,6 @@
 /**
  * IndexedDB (one object store, key → value): entitlement keys, the opened LPA per key, pending tx hashes,
- * the agent-policy draft and the last /me snapshot for offline. Never the session secret (T-60). Falls back to
+ * the agent-policy draft and the last /me snapshot for offline. Pending session keys are encrypted, never raw. Falls back to
  * an in-memory map where IndexedDB is unavailable (private mode, jsdom), so every screen still renders.
  */
 import type { MeResponse } from '@ethglobal/protocol/schemas';
@@ -33,14 +33,18 @@ function run<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest)
     (db) =>
       new Promise<T>((resolve, reject) => {
         if (!db) return reject(new Error('no indexeddb'));
-        const req = fn(db.transaction(STORE, mode).objectStore(STORE));
-        req.onsuccess = () => resolve(req.result as T);
+        const tx = db.transaction(STORE, mode);
+        const req = fn(tx.objectStore(STORE));
+        tx.oncomplete = () => resolve(req.result as T);
+        tx.onabort = () => reject(tx.error ?? new Error('indexeddb transaction aborted'));
+        tx.onerror = () => reject(tx.error ?? new Error('indexeddb transaction failed'));
         req.onerror = () => reject(req.error ?? new Error('indexeddb'));
       }),
   );
 }
 
 export async function get<T>(key: string): Promise<T | undefined> {
+  if (memory.has(key)) return memory.get(key) as T;
   try {
     return await run<T | undefined>('readonly', (s) => s.get(key));
   } catch {
@@ -51,12 +55,14 @@ export async function get<T>(key: string): Promise<T | undefined> {
 export async function set(key: string, value: unknown): Promise<void> {
   try {
     await run('readwrite', (s) => s.put(value, key));
+    memory.delete(key);
   } catch {
     memory.set(key, value);
   }
 }
 
 export async function del(key: string): Promise<void> {
+  memory.delete(key);
   try {
     await run('readwrite', (s) => s.delete(key));
   } catch {
@@ -80,12 +86,20 @@ export async function dump(): Promise<Record<string, unknown>> {
 /** Every stored key (IndexedDB or the in-memory fallback). */
 async function allKeys(): Promise<string[]> {
   try {
-    return (await run<IDBValidKey[]>('readonly', (s) => s.getAllKeys())).filter(
+    const stored = (await run<IDBValidKey[]>('readonly', (s) => s.getAllKeys())).filter(
       (k): k is string => typeof k === 'string',
     );
+    return [...new Set([...stored, ...memory.keys()])];
   } catch {
     return [...memory.keys()];
   }
+}
+
+/** Independently keyed operations avoid a shared read/modify/write journal losing another tab's work. */
+export async function entries<T>(prefix: string): Promise<Awaited<T>[]> {
+  const keys = (await allKeys()).filter((key) => key.startsWith(prefix));
+  const values = await Promise.all(keys.map((key) => get<T>(key)));
+  return values.filter((value): value is Awaited<T> => value !== undefined);
 }
 
 const KEYS = 'entitlementKeys';
@@ -126,9 +140,10 @@ export const plans = {
    * One opened LPA at a time (THREAT-MODEL §8, T-76, RT-W-01): saving a new one deletes every other `lpa:*`.
    * The LPA is a bearer secret; an older plan's code is gone once a newer one arrives on this device.
    */
-  async saveLpa(key: string, lpa: string): Promise<void> {
-    for (const k of await allKeys()) if (k.startsWith(LPA) && k !== `${LPA}${key}`) await del(k);
+  async saveLpa(key: string, lpa: string): Promise<boolean> {
     await set(`${LPA}${key}`, lpa);
+    for (const k of await allKeys()) if (k.startsWith(LPA) && k !== `${LPA}${key}`) await del(k);
+    return !memory.has(`${LPA}${key}`);
   },
   /** The eSIM is installed: the activation code has done its job and leaves this device (T-76, RT-W-01). */
   forgetLpa: (key: string) => del(`${LPA}${key}`),
@@ -169,7 +184,11 @@ export interface PendingTx {
 
 export const pending = {
   list: async (): Promise<PendingTx[]> => (await get<PendingTx[]>('pending')) ?? [],
-  add: async (tx: PendingTx) => set('pending', [tx, ...(await pending.list())].slice(0, 20)),
+  add: async (tx: PendingTx) =>
+    set(
+      'pending',
+      [tx, ...(await pending.list()).filter((old) => old.hash !== tx.hash)].slice(0, 20),
+    ),
   remove: async (hash: string) =>
     set(
       'pending',

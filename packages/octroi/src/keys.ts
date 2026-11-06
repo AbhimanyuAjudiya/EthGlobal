@@ -116,6 +116,12 @@ export function paidEntitlementKey(
   return keys.entitlementPaid(payer, tag);
 }
 
+/** A gift ID is public. Its plan capability must additionally require the server secret. */
+export function giftEntitlementKey(secret: Uint8Array, giftId: Hex): string {
+  assertSecret(secret);
+  return keys.entitlementGift(hmacKey(secret, 'gift-entitlement', hex32Bytes(giftId, 'giftId')));
+}
+
 const dayBytes = (day: number): Uint8Array => {
   const out = new Uint8Array(4);
   new DataView(out.buffer).setUint32(0, day);

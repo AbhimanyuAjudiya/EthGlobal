@@ -100,6 +100,22 @@
                       "type": "string",
                       "enum": ["local", "live"]
                     },
+                    "sponsor": {
+                      "type": "object",
+                      "properties": {
+                        "minPricePerClaimUsd6": {
+                          "type": "string",
+                          "pattern": "^\\d{1,30}$"
+                        },
+                        "maxCampaignDurationMs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": ["minPricePerClaimUsd6"],
+                      "additionalProperties": false
+                    },
                     "campaign": {
                       "anyOf": [
                         {
@@ -566,6 +582,16 @@
       "post": {
         "summary": "Free welcome bundle for a verified human",
         "operationId": "postClaim",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -2597,6 +2623,165 @@
               }
             }
           },
+          "202": {
+            "description": "202",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entitlementKey": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": ["free", "paid", "gift", "card"]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["pending-profile", "ready", "installed", "active"]
+                    },
+                    "tier": {
+                      "type": "string",
+                      "enum": ["orb", "document", "device", "none"]
+                    },
+                    "mbTotal": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1000000
+                    },
+                    "expiresAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "validityDays": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "sealedLpa": {
+                      "type": "object",
+                      "properties": {
+                        "v": {
+                          "type": "number",
+                          "const": 1
+                        },
+                        "epk": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]{64}$"
+                        },
+                        "nonce": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]{48}$"
+                        },
+                        "ct": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]*$"
+                        }
+                      },
+                      "required": ["v", "epk", "nonce", "ct"],
+                      "additionalProperties": false
+                    },
+                    "claimTx": {
+                      "type": "string"
+                    },
+                    "settlement": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "success": {
+                              "type": "boolean",
+                              "const": true
+                            },
+                            "transaction": {
+                              "type": "string",
+                              "minLength": 10,
+                              "maxLength": 128
+                            },
+                            "network": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                            },
+                            "payer": {
+                              "type": "string",
+                              "maxLength": 64
+                            }
+                          },
+                          "required": ["success", "transaction", "network", "payer"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "success": {
+                              "type": "boolean",
+                              "const": false
+                            },
+                            "errorReason": {
+                              "type": "string",
+                              "maxLength": 80
+                            },
+                            "network": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                            },
+                            "transaction": {
+                              "type": "string",
+                              "maxLength": 128
+                            },
+                            "payer": {
+                              "type": "string",
+                              "maxLength": 64
+                            }
+                          },
+                          "required": ["success", "errorReason", "network"],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "receipt": {
+                      "type": "object",
+                      "properties": {
+                        "arkivKey": {
+                          "type": "string"
+                        },
+                        "hcs": {
+                          "type": "object",
+                          "properties": {
+                            "topic": {
+                              "type": "string"
+                            },
+                            "sequence": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": ["topic", "sequence"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": ["arkivKey"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "entitlementKey",
+                    "kind",
+                    "status",
+                    "tier",
+                    "mbTotal",
+                    "expiresAt",
+                    "validityDays",
+                    "receipt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
           "401": {
             "description": "401",
             "content": {
@@ -3230,6 +3415,165 @@
               }
             }
           },
+          "202": {
+            "description": "202",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entitlementKey": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": ["free", "paid", "gift", "card"]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["pending-profile", "ready", "installed", "active"]
+                    },
+                    "tier": {
+                      "type": "string",
+                      "enum": ["orb", "document", "device", "none"]
+                    },
+                    "mbTotal": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 1000000
+                    },
+                    "expiresAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "validityDays": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "sealedLpa": {
+                      "type": "object",
+                      "properties": {
+                        "v": {
+                          "type": "number",
+                          "const": 1
+                        },
+                        "epk": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]{64}$"
+                        },
+                        "nonce": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]{48}$"
+                        },
+                        "ct": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]*$"
+                        }
+                      },
+                      "required": ["v", "epk", "nonce", "ct"],
+                      "additionalProperties": false
+                    },
+                    "claimTx": {
+                      "type": "string"
+                    },
+                    "settlement": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "success": {
+                              "type": "boolean",
+                              "const": true
+                            },
+                            "transaction": {
+                              "type": "string",
+                              "minLength": 10,
+                              "maxLength": 128
+                            },
+                            "network": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                            },
+                            "payer": {
+                              "type": "string",
+                              "maxLength": 64
+                            }
+                          },
+                          "required": ["success", "transaction", "network", "payer"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "success": {
+                              "type": "boolean",
+                              "const": false
+                            },
+                            "errorReason": {
+                              "type": "string",
+                              "maxLength": 80
+                            },
+                            "network": {
+                              "type": "string",
+                              "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                            },
+                            "transaction": {
+                              "type": "string",
+                              "maxLength": 128
+                            },
+                            "payer": {
+                              "type": "string",
+                              "maxLength": 64
+                            }
+                          },
+                          "required": ["success", "errorReason", "network"],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "receipt": {
+                      "type": "object",
+                      "properties": {
+                        "arkivKey": {
+                          "type": "string"
+                        },
+                        "hcs": {
+                          "type": "object",
+                          "properties": {
+                            "topic": {
+                              "type": "string"
+                            },
+                            "sequence": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": ["topic", "sequence"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": ["arkivKey"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "entitlementKey",
+                    "kind",
+                    "status",
+                    "tier",
+                    "mbTotal",
+                    "expiresAt",
+                    "validityDays",
+                    "receipt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
           "401": {
             "description": "401",
             "content": {
@@ -3526,6 +3870,10 @@
                         },
                         "tx": {
                           "type": "string"
+                        },
+                        "recovery": {
+                          "type": "string",
+                          "enum": ["automatic", "manual"]
                         }
                       },
                       "required": ["network", "usd6"],
@@ -3689,6 +4037,210 @@
         }
       }
     },
+    "/me/{key}/delivery": {
+      "post": {
+        "summary": "Recover encrypted activation for the original session (capability and session public key)",
+        "operationId": "postMeKeyDelivery",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sessionPubKey": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{64}$"
+                  }
+                },
+                "required": ["sessionPubKey"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "pending-profile"
+                        }
+                      },
+                      "required": ["status"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "ready"
+                        },
+                        "nonce": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]{64}$"
+                        },
+                        "sealedLpa": {
+                          "type": "object",
+                          "properties": {
+                            "v": {
+                              "type": "number",
+                              "const": 1
+                            },
+                            "epk": {
+                              "type": "string",
+                              "pattern": "^0x[0-9a-fA-F]{64}$"
+                            },
+                            "nonce": {
+                              "type": "string",
+                              "pattern": "^0x[0-9a-fA-F]{48}$"
+                            },
+                            "ct": {
+                              "type": "string",
+                              "pattern": "^0x[0-9a-fA-F]*$"
+                            }
+                          },
+                          "required": ["v", "epk", "nonce", "ct"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": ["status", "nonce", "sealedLpa"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "202",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "pending-profile"
+                        }
+                      },
+                      "required": ["status"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "const": "ready"
+                        },
+                        "nonce": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]{64}$"
+                        },
+                        "sealedLpa": {
+                          "type": "object",
+                          "properties": {
+                            "v": {
+                              "type": "number",
+                              "const": 1
+                            },
+                            "epk": {
+                              "type": "string",
+                              "pattern": "^0x[0-9a-fA-F]{64}$"
+                            },
+                            "nonce": {
+                              "type": "string",
+                              "pattern": "^0x[0-9a-fA-F]{48}$"
+                            },
+                            "ct": {
+                              "type": "string",
+                              "pattern": "^0x[0-9a-fA-F]*$"
+                            }
+                          },
+                          "required": ["v", "epk", "nonce", "ct"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": ["status", "nonce", "sealedLpa"],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "404",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/plan/cancel": {
       "post": {
         "summary": "Cancel an unused paid plan (EIP-712 CancelPlan by its payer): 200 refunded minus the reclaim fee, 202 refund pending",
@@ -3793,6 +4345,10 @@
                         },
                         "tx": {
                           "type": "string"
+                        },
+                        "recovery": {
+                          "type": "string",
+                          "enum": ["automatic", "manual"]
                         }
                       },
                       "required": ["network", "usd6"],
@@ -3855,6 +4411,10 @@
                         },
                         "tx": {
                           "type": "string"
+                        },
+                        "recovery": {
+                          "type": "string",
+                          "enum": ["automatic", "manual"]
                         }
                       },
                       "required": ["network", "usd6"],
@@ -3990,6 +4550,192 @@
           },
           "429": {
             "description": "429",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "503",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sponsor/validate": {
+      "post": {
+        "summary": "Validate campaign metadata and provider capacity before wallet funding",
+        "operationId": "postSponsorValidate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "campaign": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{64}$"
+                      },
+                      "sponsor": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{40}$"
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64,
+                        "pattern": "^[\\x20-\\x7Eऀ-ॿ]+$"
+                      },
+                      "bundleMb": {
+                        "type": "object",
+                        "properties": {
+                          "orb": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1000
+                          },
+                          "document": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1000
+                          },
+                          "device": {
+                            "type": "number",
+                            "const": 0
+                          }
+                        },
+                        "required": ["orb", "document", "device"]
+                      },
+                      "pricePerClaimUsd6": {
+                        "type": "string",
+                        "pattern": "^\\d{1,30}$"
+                      },
+                      "maxClaims": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "claimsPerHour": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "validityDays": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 30
+                      },
+                      "wholesaleUsd6PerGb": {
+                        "type": "string",
+                        "pattern": "^\\d{1,30}$"
+                      },
+                      "idResaleUsd6": {
+                        "type": "string",
+                        "pattern": "^\\d{1,30}$"
+                      },
+                      "planId": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "network": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                      },
+                      "contract": {
+                        "type": "string",
+                        "pattern": "^0x[0-9a-fA-F]{40}$"
+                      },
+                      "expiresAt": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "sponsor",
+                      "name",
+                      "bundleMb",
+                      "pricePerClaimUsd6",
+                      "maxClaims",
+                      "claimsPerHour",
+                      "validityDays",
+                      "wholesaleUsd6PerGb",
+                      "idResaleUsd6",
+                      "planId",
+                      "network",
+                      "contract",
+                      "expiresAt"
+                    ]
+                  }
+                },
+                "required": ["campaign"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "valid": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": ["valid"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "400",
             "content": {
               "application/json": {
                 "schema": {

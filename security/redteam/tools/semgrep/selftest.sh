@@ -110,8 +110,33 @@ export const req = { maxAmountRequired: '10000' };
 export const net = 'base-sepolia';
 // ruleid: recharge-x402-v1-primitive
 export const hed = 'hedera:296';
+// ruleid: recharge-x402-v1-primitive
+export const hedMain = 'hedera:295';
+// ruleid: recharge-x402-v1-primitive
+export const hedPreview = 'hedera:297';
+// ok: recharge-x402-v1-primitive
+export const hedEvmMain = 'eip155:295';
+// ok: recharge-x402-v1-primitive
+export const hedEvmTest = 'eip155:296';
+// ok: recharge-x402-v1-primitive
+export const hedEvmPreview = 'eip155:297';
 // ok: recharge-x402-v1-primitive
 export const ok = ['PAYMENT-SIGNATURE', 'eip155:84532', 'hedera:testnet'];
+EOF
+
+# Negative-input assertions and static scanners in tests are not application implementations.
+# Matching unsafe cases above remain in src/ and must still fire.
+w apps/web/test/static-rules.test.ts <<'EOF'
+// ok: recharge-no-dangerous-html
+export const forbiddenApi = 'dangerouslySetInnerHTML';
+// ok: recharge-x402-v1-primitive
+export const rejectedNetwork = 'hedera:296';
+EOF
+w services/api/test/support/ports.ts <<'EOF'
+// ok: recharge-math-random-for-secrets
+export const testPort = () => 20000 + Math.floor(Math.random() * 1000);
+// ok: recharge-arkiv-legacy-primitive
+export const rejectedChain = 'Kaolin';
 EOF
 
 w packages/adapters/src/live/world.ts <<'EOF'

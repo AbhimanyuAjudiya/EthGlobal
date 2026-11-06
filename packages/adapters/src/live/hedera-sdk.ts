@@ -4,8 +4,17 @@
  * from the very same @hiero-ledger/sdk@2.90.1 that @x402/hedera pins (`pnpm why @hiero-ledger/sdk` shows one).
  * Never @hashgraph/sdk. Keys via PrivateKey.fromStringECDSA (fromString/generate are deprecated).
  */
-import { AccountBalanceQuery, TopicMessageSubmitTransaction } from '@hiero-ledger/sdk';
+import { AccountBalanceQuery, TopicMessageSubmitTransaction, Transaction } from '@hiero-ledger/sdk';
 import { AccountId, Client, PrivateKey, TokenId, TransferTransaction } from '@x402/hedera';
+
+import { AdapterError } from '../errors.js';
+
+export interface TokenTransferInput {
+  tokenId: string;
+  to: string;
+  amount: bigint;
+  memo: string;
+}
 
 /** The Hedera surface HcsLog and HederaTreasury need, in plain data (tests use a fake). */
 export interface HederaClientLike {
@@ -13,11 +22,13 @@ export interface HederaClientLike {
     topic: string,
     message: string,
   ): Promise<{ sequence: number; consensusAt: number; txId: string }>;
-  transferToken(input: {
-    tokenId: string;
-    to: string;
-    amount: bigint;
-    memo: string;
+  transferToken(input: TokenTransferInput): Promise<{ txId: string }>;
+  prepareTokenTransfer?(
+    input: TokenTransferInput,
+  ): Promise<{ txId: string; signedTransaction: string; expiresAt?: number }>;
+  submitTokenTransfer?(input: {
+    txId: string;
+    signedTransaction: string;
   }): Promise<{ txId: string }>;
   tokenBalance(tokenId: string): Promise<bigint>;
 }
@@ -51,9 +62,43 @@ export function buildTokenTransfer(input: {
 export function createHederaClient(opts: HederaSdkOptions): HederaClientLike {
   const operator = AccountId.fromString(opts.accountId);
   const key = PrivateKey.fromStringECDSA(opts.privateKey);
-  const client = (
-    opts.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet()
-  ).setOperator(operator, key);
+  const client = (opts.network === 'mainnet' ? Client.forMainnet() : Client.forTestnet())
+    .setOperator(operator, key)
+    .setDefaultRegenerateTransactionId(false);
+  const prepareTokenTransfer = async ({ tokenId, to, amount, memo }: TokenTransferInput) => {
+    const transaction = buildTokenTransfer({ tokenId, from: opts.accountId, to, amount, memo })
+      .setRegenerateTransactionId(false)
+      .freezeWith(client);
+    await transaction.sign(key);
+    const id = transaction.transactionId!;
+    const expiresAt =
+      id.validStart!.toDate().getTime() + transaction.transactionValidDuration * 1000;
+    return {
+      txId: id.toString(),
+      signedTransaction: Buffer.from(transaction.toBytes()).toString('base64'),
+      expiresAt,
+    };
+  };
+  const submitTokenTransfer = async (input: { txId: string; signedTransaction: string }) => {
+    const transaction = Transaction.fromBytes(Buffer.from(input.signedTransaction, 'base64'));
+    if (
+      !(transaction instanceof TransferTransaction) ||
+      transaction.transactionId?.toString() !== input.txId
+    )
+      throw new AdapterError('treasury', 'invalid_request', 'invalid prepared native refund');
+    try {
+      const response = await transaction.execute(client);
+      await response.getReceipt(client);
+      return { txId: input.txId };
+    } catch {
+      // Unknown receipt / duplicate / expired retry: the durable ID must be
+      // reconciled through the mirror. Never generate another transaction ID.
+      throw new AdapterError('treasury', 'unavailable', 'Hedera refund confirmation pending', {
+        tx: input.txId,
+        reason: 'refund_pending',
+      });
+    }
+  };
   return {
     async submitTopicMessage(topic, message) {
       const response = await buildTopicMessage(topic, message).execute(client);
@@ -65,12 +110,11 @@ export function createHederaClient(opts: HederaSdkOptions): HederaClientLike {
         txId: response.transactionId.toString(),
       };
     },
-    async transferToken({ tokenId, to, amount, memo }) {
-      const tx = buildTokenTransfer({ tokenId, from: opts.accountId, to, amount, memo });
-      const response = await tx.execute(client);
-      await response.getReceipt(client); // throws ReceiptStatusError (e.g. TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)
-      return { txId: response.transactionId.toString() };
+    async transferToken(input) {
+      return submitTokenTransfer(await prepareTokenTransfer(input));
     },
+    prepareTokenTransfer,
+    submitTokenTransfer,
     async tokenBalance(tokenId) {
       const balance = await new AccountBalanceQuery().setAccountId(operator).execute(client);
       return BigInt(balance.tokens?.get(TokenId.fromString(tokenId))?.toString() ?? '0');

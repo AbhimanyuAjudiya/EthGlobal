@@ -1,3 +1,5 @@
+import { getEventListeners } from 'node:events';
+
 import { describe, expect, it } from 'vitest';
 
 import { InMemoryLedger, MockConsensusLog } from '@ethglobal/adapters';
@@ -48,6 +50,39 @@ async function cliEnv() {
 }
 
 describe('loop and CLI', () => {
+  it('normal sleeps remove abort listeners across a long-running schedule', async () => {
+    const h = await harness();
+    const controller = new AbortController();
+    let passes = 0;
+    await runLoop({
+      deps: h.agent.deps,
+      tickMs: 0,
+      log: h.log,
+      signal: controller.signal,
+      keys: async () => {
+        expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0);
+        if (++passes === 25) controller.abort();
+        return [];
+      },
+    });
+    expect(passes).toBe(25);
+    expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0);
+  });
+
+  it('a capability-bearing exception never reaches the operational log', async () => {
+    const h = await harness();
+    await runPass(h.agent.deps, [KEY], async () => {
+      throw Object.assign(new Error(`GET http://api.test/me/${KEY}?token=secret`), {
+        name: 'HttpError',
+        status: 503,
+        url: `http://api.test/me/${KEY}`,
+        body: { key: KEY },
+      });
+    });
+    expect(JSON.stringify(h.log.lines)).not.toContain(KEY);
+    expect(JSON.stringify(h.log.lines)).not.toContain('token=secret');
+    expect(JSON.stringify(h.log.lines)).toContain('HttpError');
+  });
   it('--once exits 0 after one pass (local mode: API reads, Anvil #4 EVM payer, HCS mock)', async () => {
     const c = await cliEnv();
     await seed(c.ledger, c.clock.now, { mbUsed: 900 });
@@ -121,7 +156,7 @@ describe('loop and CLI', () => {
     };
     const pass = await runPass(h.agent.deps, ['a', 'b', 'c'], flaky);
     expect(pass.results.map((r) => r.key)).toEqual(['a', 'c']);
-    expect(pass.errors).toEqual([{ key: 'b', error: 'ledger_unavailable' }]);
+    expect(pass.errors).toEqual([{ key: 'b', error: 'Error' }]);
   });
 
   it('runLoop: one pass per interval with ±10 % jitter, survives a failing key source', async () => {
@@ -149,7 +184,7 @@ describe('loop and CLI', () => {
     expect(sleeps.every((ms) => ms >= 4_500 && ms <= 5_500)).toBe(true);
     expect(jitter(60_000, () => 0)).toBe(54_000);
     expect(jitter(60_000, () => 0.5)).toBe(60_000);
-    expect(h.log.lines.some((l) => l.obj.error === 'keys failed')).toBe(true);
+    expect(h.log.lines.some((l) => l.obj.error === 'Error')).toBe(true);
   });
 
   it('flags override env: --once, --dry-run, --key (repeatable)', () => {

@@ -32,7 +32,13 @@ import { z } from 'zod';
 
 import { Secret } from '@ethglobal/adapters/live';
 import { HttpError, httpJson } from '@ethglobal/protocol/http';
-import type { AgentPassPoll, AgentPassStart, AgentPassView } from '@ethglobal/protocol/schemas';
+import type {
+  AgentPassPoll,
+  AgentPassStart,
+  AgentPassView,
+  AgentPolicyWire,
+} from '@ethglobal/protocol/schemas';
+import { canonicalJson } from '@ethglobal/protocol/typed-data';
 
 import { fail } from './errors.js';
 
@@ -51,6 +57,12 @@ const START_REUSE_MS = 30_000;
 const DEFAULT_INTERVAL_S = 5;
 /** Everything else in a token error is "stop polling" (oidc guide, poll response table). */
 const KEEP_POLLING = new Set(['authorization_pending', 'slow_down']);
+
+/** Bind approvals to the exact owner and spending limits, even if a later revoke checkpoint fails. */
+export const policyVersion = (p: AgentPolicyWire): string =>
+  createHash('sha256')
+    .update(canonicalJson({ owner: p.owner.toLowerCase(), policy: p.policy }))
+    .digest('hex');
 
 export interface AgentPassConfig {
   issuer: string;
@@ -315,6 +327,7 @@ export async function verifyIdToken(
 // ── The pass itself: durable attempts, grants, consumed tokens and approver bindings per policy key ─────────
 
 interface Attempt {
+  policyVersion?: string;
   deviceCode: string;
   nonce: string;
   userCode: string;
@@ -327,6 +340,7 @@ interface Attempt {
   outcome?: { state: 'denied' | 'expired'; reason: string; at: number };
 }
 interface Grant {
+  policyVersion?: string;
   iss: string;
   sub: string;
   acr: string;
@@ -368,11 +382,12 @@ export class AgentPass {
   }
 
   /** Starts (or, within 30 s, repeats) the device attempt for `key`; the device code stays here. */
-  async start(key: string): Promise<AgentPassStart> {
+  async start(key: string, version?: string): Promise<AgentPassStart> {
     const now = this.opts.now();
     const current = this.#attempts.get(key);
     if (
       current !== undefined &&
+      current.policyVersion === version &&
       current.outcome === undefined &&
       current.expiresAt > now &&
       now - current.startedAt < START_REUSE_MS
@@ -397,6 +412,7 @@ export class AgentPass {
       throw fail('idp_unavailable');
     }
     const attempt: Attempt = {
+      ...(version === undefined ? {} : { policyVersion: version }),
       deviceCode: d.device_code,
       nonce,
       userCode: d.user_code,
@@ -429,14 +445,17 @@ export class AgentPass {
   }
 
   /** One poll of the token endpoint; the state the caller must act on. */
-  async poll(key: string): Promise<AgentPassPoll> {
+  async poll(key: string, version?: string): Promise<AgentPassPoll> {
     const now = this.opts.now();
     const a = this.#attempts.get(key);
     if (a === undefined) {
       const grant = this.#grants.get(key);
-      if (grant !== undefined) return { state: 'approved', passUntil: grant.until };
+      if (grant !== undefined && (version === undefined || grant.policyVersion === version))
+        return { state: 'approved', passUntil: grant.until };
       throw fail('not_found', { detail: 'no pass attempt for this policy' });
     }
+    if (version !== undefined && a.policyVersion !== version)
+      throw fail('not_found', { detail: 'approval belongs to an older policy' });
     if (a.outcome !== undefined) return { state: a.outcome.state, reason: a.outcome.reason };
     if (now >= a.expiresAt) return this.#end(key, a, 'expired', 'expired_token');
     let answer: { idToken: string } | { error: string };
@@ -479,6 +498,9 @@ export class AgentPass {
       nowS: Math.floor(now / 1000),
     });
     if (!verified.ok) return this.#invalid(key, a, verified.reason);
+    // A revoke/replacement while the token/JWKS request was in flight invalidates that attempt too.
+    if (this.#attempts.get(key)?.nonce !== a.nonce)
+      throw fail('replay', { detail: 'pass attempt was revoked or replaced' });
     const { claims } = verified;
     // one use: a token (its jti, else its hash) consumed once is never accepted again
     const consumedId = claims.jti ?? createHash('sha256').update(answer.idToken).digest('hex');
@@ -493,7 +515,14 @@ export class AgentPass {
     this.#approvers.set(key, { iss: claims.iss, sub: claims.sub });
     this.#grants.set(
       key,
-      { iss: claims.iss, sub: claims.sub, acr: claims.acr, authTime: claims.auth_time, until },
+      {
+        iss: claims.iss,
+        sub: claims.sub,
+        acr: claims.acr,
+        authTime: claims.auth_time,
+        until,
+        ...(a.policyVersion === undefined ? {} : { policyVersion: a.policyVersion }),
+      },
       until,
     );
     this.#attempts.delete(key);
@@ -529,21 +558,25 @@ export class AgentPass {
   }
 
   /** The protected action's check: an unexpired grant for the policy. */
-  armed(key: string): boolean {
-    return this.#grants.get(key) !== undefined;
+  armed(key: string, version?: string): boolean {
+    const grant = this.#grants.get(key);
+    return grant !== undefined && (version === undefined || grant.policyVersion === version);
   }
 
   /** A changed policy needs a new approval (step-up guide: "Changes require new approval"). */
   revoke(key: string): void {
     this.#grants.delete(key);
+    this.#attempts.delete(key);
   }
 
-  view(key: string): AgentPassView {
+  view(key: string, version?: string): AgentPassView {
     const flag = this.simulated ? { simulated: true } : {};
     const grant = this.#grants.get(key);
-    if (grant !== undefined) return { state: 'armed', passUntil: grant.until, ...flag };
+    if (grant !== undefined && (version === undefined || grant.policyVersion === version))
+      return { state: 'armed', passUntil: grant.until, ...flag };
     const a = this.#attempts.get(key);
-    if (a === undefined) return { state: 'none', ...flag };
+    if (a === undefined || (version !== undefined && a.policyVersion !== version))
+      return { state: 'none', ...flag };
     if (a.outcome !== undefined)
       return { state: a.outcome.state, reason: a.outcome.reason, ...flag };
     if (this.opts.now() >= a.expiresAt)

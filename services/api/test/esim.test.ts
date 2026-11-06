@@ -52,12 +52,14 @@ describe('GET /esim/topup', () => {
     expect(hcsMessages(h).map((m) => m.t)).toEqual(['claim', 'settle']);
   });
 
-  it('payment nonce reused → 402 invalid_payment; mb=199 → 400', async () => {
+  it('exact payment retry → saved result without added data; mb=199 → 400', async () => {
     const h = await harness();
     const { key } = await provisioned(h);
     const { pay, path } = await topUp(h, key);
     const again = await h.get(path, pay);
-    expect([again.status, await errorOf(again)]).toEqual([402, 'invalid_payment']);
+    expect(again.status).toBe(200);
+    expect(await again.json()).toMatchObject({ mbTotal: 1300 });
+    expect((await h.deps.stores.entitlements.getByKey(key))?.payload.mbTotal).toBe(1300);
     expect((await h.get(`/esim/topup?key=${encodeURIComponent(key)}&mb=199`)).status).toBe(400);
   });
 

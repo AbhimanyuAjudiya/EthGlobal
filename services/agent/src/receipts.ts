@@ -9,7 +9,7 @@ import { sha256Hex } from '@ethglobal/crypto';
 import { encodeHcsMessage } from '@ethglobal/protocol/schemas';
 import { usd6ToWire } from '@ethglobal/protocol/units';
 
-import { logEvent, type Log } from './log.js';
+import { logEvent, safeError, type Log } from './log.js';
 
 export interface TopUpReceipt {
   key: string;
@@ -81,7 +81,7 @@ export class ReceiptWriter {
       logEvent(this.opts.log, 'warn', 'degraded', {
         what: 'hcs-submit',
         topic: this.opts.topic,
-        error: error instanceof Error ? error.message : String(error),
+        error: safeError(error),
       });
       return undefined;
     }

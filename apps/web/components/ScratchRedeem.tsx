@@ -18,7 +18,7 @@ import { api, ApiError } from '../lib/api';
 import { planHref } from '../lib/deliver';
 import { dayLabel, formatMb } from '../lib/format';
 import { buildProof, type Proof } from '../lib/proof';
-import { redeemPin } from '../lib/redeem';
+import { hasPendingCardRedemption, redeemPin } from '../lib/redeem';
 
 /**
  * `/card/[serial]` (and `/card`): preview (GET is read-only, T-47) → type the PIN from under the latex →
@@ -45,11 +45,18 @@ export function ScratchRedeem({ serial }: { serial?: string }) {
 
   const mb = preview?.mb ?? PLAN_MB;
   const closed = preview && preview.state !== 'open';
+  const recovery = preview?.state === 'claimed';
+  const canEnter = !closed || recovery;
 
-  const check = () => {
+  const check = async () => {
     const digits = pin.replace(/\s+/g, '');
     if (!isValidPin(digits)) {
       setPinError(t('card.pinInvalid'));
+      setChecked(undefined);
+      return;
+    }
+    if (recovery && !(await hasPendingCardRedemption(digits))) {
+      setPinError(t('card.noRecovery'));
       setChecked(undefined);
       return;
     }
@@ -83,83 +90,103 @@ export function ScratchRedeem({ serial }: { serial?: string }) {
   };
 
   return (
-    <Screen>
+    <Screen wide className="card-screen">
       <AppHeader />
-      {serial && preview === undefined ? (
-        <div className="skeleton skeleton--coupon" aria-label="Loading the card" />
-      ) : serial && preview === null ? (
-        <p className="note" role="status" lang={lang}>
-          {t('card.notFound')}
-        </p>
-      ) : checked ? (
-        <ScratchCard
-          {...coupon}
-          pin={checked}
-          revealed={revealed}
-          onReveal={() => setRevealed(true)}
-        />
-      ) : (
-        <Coupon
-          {...coupon}
-          {...(closed ? { status: t(`card.state.${preview.state}`) } : { sealed: true })}
-        />
-      )}
-      {preview ? (
-        <p className="card__state" data-testid="card-state" data-state={preview.state} lang={lang}>
-          {formatMb(preview.mb)} · {t(`card.state.${preview.state}`)}
-        </p>
-      ) : null}
-      {closed ? (
-        // a redeemed or expired card is not a dead end: the plan it became, or data to buy
-        <p className="quiet-rows" lang={lang}>
-          <Link href="/plan" prefetch={false}>
-            {t('landing.open')}
-          </Link>
-          <Link href="/pay" prefetch={false}>
-            {t('hub.buy')}
-          </Link>
-        </p>
-      ) : null}
-      {!closed ? (
-        <form
-          className="pin-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            check();
-          }}
-        >
-          <PinField
-            label={t('card.pin')}
-            value={pin}
-            onChange={setPin}
-            error={pinError}
-            testId="card-pin"
-          />
-          <Button type="submit" variant="secondary">
-            {t('card.check')}
-          </Button>
-        </form>
-      ) : null}
-      {!closed ? <Caution k="warn.thisBrowser" /> : null}
-      {checked && !revealed ? (
-        <p className="note" lang={lang}>
-          {t('card.scratch')}
-        </p>
-      ) : null}
-      {checked ? (
-        <Button
-          block
-          disabled={!revealed || working}
-          onClick={() => void redeem()}
-          data-testid="card-redeem"
-        >
-          {t('card.redeem', { mb: formatMb(mb) })}
-        </Button>
-      ) : null}
-      <p className="note" role="status" lang={lang}>
-        {status ?? ' '}
-      </p>
-      <ProofPanel proof={proof} />
+      <div className="card-layout">
+        <div className="card-object">
+          {serial && preview === undefined ? (
+            <div className="skeleton skeleton--coupon" aria-label="Loading the card" />
+          ) : serial && preview === null ? (
+            <p className="note" role="status" lang={lang}>
+              {t('card.notFound')}
+            </p>
+          ) : checked ? (
+            <ScratchCard
+              {...coupon}
+              pin={checked}
+              revealed={revealed}
+              onReveal={() => setRevealed(true)}
+            />
+          ) : (
+            <Coupon
+              {...coupon}
+              {...(closed ? { status: t(`card.state.${preview.state}`) } : { sealed: true })}
+            />
+          )}
+          {preview ? (
+            <p
+              className="card__state"
+              data-testid="card-state"
+              data-state={preview.state}
+              lang={lang}
+            >
+              {formatMb(preview.mb)} · {t(`card.state.${preview.state}`)}
+            </p>
+          ) : null}
+        </div>
+        <section className="card-entry" aria-labelledby="card-title">
+          <p className="eyebrow" lang={lang}>
+            {t('hub.card')}
+          </p>
+          <h1 id="card-title" className="screen__title" lang={lang}>
+            {t('card.heading')}
+          </h1>
+          <p className="flow-heading__intro" lang={lang}>
+            {t(recovery ? 'card.recoverIntro' : 'card.intro')}
+          </p>
+          {closed ? (
+            // a redeemed or expired card is not a dead end: the plan it became, or data to buy
+            <p className="quiet-rows" lang={lang}>
+              <Link href="/plan" prefetch={false}>
+                {t('landing.open')}
+              </Link>
+              <Link href="/pay" prefetch={false}>
+                {t('hub.buy')}
+              </Link>
+            </p>
+          ) : null}
+          {canEnter ? (
+            <form
+              className="pin-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void check();
+              }}
+            >
+              <PinField
+                label={t('card.pin')}
+                value={pin}
+                onChange={setPin}
+                error={pinError}
+                testId="card-pin"
+              />
+              <Button type="submit" variant="secondary">
+                {t('card.check')}
+              </Button>
+            </form>
+          ) : null}
+          {canEnter ? <Caution k="warn.thisBrowser" /> : null}
+          {checked && !revealed ? (
+            <p className="note" lang={lang}>
+              {t('card.scratch')}
+            </p>
+          ) : null}
+          {checked ? (
+            <Button
+              block
+              disabled={!revealed || working}
+              onClick={() => void redeem()}
+              data-testid="card-redeem"
+            >
+              {recovery ? t('card.recover') : t('card.redeem', { mb: formatMb(mb) })}
+            </Button>
+          ) : null}
+          <p className="note" role="status" lang={lang}>
+            {status ?? ' '}
+          </p>
+          <ProofPanel proof={proof} />
+        </section>
+      </div>
     </Screen>
   );
 }

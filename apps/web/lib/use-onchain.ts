@@ -42,14 +42,24 @@ export async function followTransaction(opts: {
   reader: PublicClient | undefined;
   dispatch: (event: ActionEvent) => void;
   signal?: { cancelled: boolean };
-}): Promise<'finalized' | 'failed'> {
+}): Promise<'finalized' | 'failed' | 'pending'> {
   const { hash, network, reader, dispatch } = opts;
   await pending.add({ hash, network, label: opts.label, at: Date.now() });
+  let terminal = false;
+  const unresolved = () => {
+    dispatch({
+      type: 'uncertain',
+      reason:
+        'The transaction is still being checked. Its hash is saved on this device; check it again before sending another transaction.',
+    });
+    return 'pending' as const;
+  };
   try {
     if (network.startsWith('hedera:') || !reader || !/^0x[0-9a-fA-F]{64}$/.test(hash)) {
       dispatch({ type: 'seen' });
       dispatch({ type: 'confirmed', confirmations: 1 });
       dispatch({ type: 'finalized' });
+      terminal = true;
       return 'finalized';
     }
     const h = hash as `0x${string}`;
@@ -68,25 +78,27 @@ export async function followTransaction(opts: {
             // nosemgrep: recharge-usdc-18-decimals — the gas fee is native ETH (18 dp), not a USDC amount
             feeCharged: `${formatEther(receipt.gasUsed * receipt.effectiveGasPrice)} ETH`,
           });
+          terminal = true;
           return 'failed';
         }
         dispatch({ type: 'confirmed', confirmations: 1 });
         const tag = network === 'eip155:31337' ? 'latest' : 'safe';
         for (let j = 0; j < 240 && !opts.signal?.cancelled; j += 1) {
           const block = await reader.getBlock({ blockTag: tag }).catch(() => undefined);
-          if (block && block.number !== null && block.number > receipt.blockNumber) {
+          if (block && block.number !== null && block.number >= receipt.blockNumber) {
             dispatch({ type: 'finalized' });
+            terminal = true;
             return 'finalized';
           }
           await sleep(250);
         }
-        return 'failed';
+        return unresolved();
       }
       await sleep(250);
     }
-    return 'failed';
+    return unresolved();
   } finally {
-    await pending.remove(hash);
+    if (terminal) await pending.remove(hash);
   }
 }
 

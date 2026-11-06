@@ -9,6 +9,7 @@ import { httpJson, HttpError } from '@ethglobal/protocol/http';
 import type { ChallengePath, Hex } from '@ethglobal/protocol/ids';
 import {
   agentPolicyViewSchema,
+  deliveryResponseSchema,
   cardPreviewSchema,
   challengeSchema,
   entitledResponseSchema,
@@ -143,25 +144,54 @@ export const api = {
         schema: rpContextSchema,
       })
     ).data,
-  claim: (body: {
-    proof: unknown;
-    campaignId: Hex;
-    challenge: ChallengeWire;
-    sessionPubKey: Hex;
-  }) => call('/claim', { body, schema: entitledResponseSchema, timeoutMs: ENTITLE_TIMEOUT_MS }),
+  claim: (
+    body: {
+      proof: unknown;
+      campaignId: Hex;
+      challenge: ChallengeWire;
+      sessionPubKey: Hex;
+    },
+    recoveryToken?: string,
+  ) =>
+    call('/claim', {
+      body,
+      ...(recoveryToken ? { headers: { 'Idempotency-Key': recoveryToken } } : {}),
+      schema: entitledResponseSchema,
+      timeoutMs: ENTITLE_TIMEOUT_MS,
+    }),
   me: async (key: string, refresh = false) =>
     (await call(`/me/${enc(key)}${refresh ? '?refresh=1' : ''}`, { schema: meResponseSchema }))
       .data,
+  delivery: async (key: string, sessionPubKey: Hex) =>
+    (
+      await call(`/me/${enc(key)}/delivery`, {
+        body: { sessionPubKey },
+        schema: deliveryResponseSchema,
+      })
+    ).data,
   receipts: async (key: string) =>
     (await call(`/me/${enc(key)}/receipts`, { schema: receiptsResponseSchema })).data.receipts,
   card: async (serial: string) =>
     (await call(`/card/${enc(serial)}`, { schema: cardPreviewSchema })).data,
-  redeemCard: (body: { pin: string; challenge: ChallengeWire; sessionPubKey: Hex }) =>
-    call('/card/redeem', { body, schema: entitledResponseSchema, timeoutMs: ENTITLE_TIMEOUT_MS }),
+  redeemCard: (
+    body: { pin: string; challenge: ChallengeWire; sessionPubKey: Hex },
+    recoveryToken?: string,
+  ) =>
+    call('/card/redeem', {
+      body,
+      ...(recoveryToken ? { headers: { 'Idempotency-Key': recoveryToken } } : {}),
+      schema: entitledResponseSchema,
+      timeoutMs: ENTITLE_TIMEOUT_MS,
+    }),
   /** The quote: 402 = the name resolves and the price is known; 404 name_unresolved before any 402 (T-43). */
   giftQuote: (name: string, mb: number) => call('/gift', { body: { name, mb }, accept: [402] }),
-  giftClaim: (body: Record<string, unknown>) =>
-    call('/gift/claim', { body, schema: entitledResponseSchema, timeoutMs: ENTITLE_TIMEOUT_MS }),
+  giftClaim: (body: Record<string, unknown>, recoveryToken?: string) =>
+    call('/gift/claim', {
+      body,
+      ...(recoveryToken ? { headers: { 'Idempotency-Key': recoveryToken } } : {}),
+      schema: entitledResponseSchema,
+      timeoutMs: ENTITLE_TIMEOUT_MS,
+    }),
   giftReclaim: (body: Record<string, unknown>) =>
     call('/gift/reclaim', { body, schema: giftReclaimResponseSchema }),
   /** 200 refunded, 202 cancelled with the refund pending (`refund.tx` absent). */
@@ -171,6 +201,14 @@ export const api = {
     (await call(`/agent/policy/${enc(key)}`, { schema: agentPolicyViewSchema })).data,
   putAgentPolicy: async (body: AgentPolicyPut) =>
     (await call('/agent/policy', { method: 'PUT', body, schema: agentPolicyViewSchema })).data,
+  validateSponsor: async (campaign: unknown): Promise<void> => {
+    const response = await call<{ valid?: boolean }>('/sponsor/validate', {
+      method: 'POST',
+      body: { campaign },
+    });
+    if (response.data?.valid !== true)
+      throw new ApiError(502, 'internal_error', 'Sponsor validation did not complete.');
+  },
   registerSponsor: async (body: unknown) =>
     (await call<{ id: string; auditKey: string }>('/sponsor', { body })).data,
   sponsor: async (id: string, login: { sponsor: string; issuedAt: number; signature: Hex }) =>

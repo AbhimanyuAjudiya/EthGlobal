@@ -4,12 +4,10 @@
  * the activation code is copied, and the settings intent is offered as an unverified secondary link.
  */
 
-/** `LPA:1$<SM-DP+ address>$<matching id>` with the optional `$<OID>$<confirmation flag>` (GSMA SGP.22 4.1). */
-export const LPA_PATTERN =
-  /^LPA:1\$[A-Za-z0-9](?:[A-Za-z0-9.-]{0,252})\$[A-Za-z0-9_.\-+/=]{1,255}(?:\$[0-9.]{0,64}(?:\$1)?)?$/;
+import { LPA_PATTERN, lpaSchema } from '@ethglobal/protocol/schemas';
 
-export const isLpa = (value: unknown): value is string =>
-  typeof value === 'string' && LPA_PATTERN.test(value);
+export { LPA_PATTERN };
+export const isLpa = (value: unknown): value is string => lpaSchema.safeParse(value).success;
 
 /** Host lower-case exactly as Apple documents it; carddata is URL-encoded (`$` → %24). */
 export const IOS_ESIM_SETUP = 'https://esimsetup.apple.com/esim_qrcode_provisioning';

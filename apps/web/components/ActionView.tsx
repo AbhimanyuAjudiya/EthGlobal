@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { OnchainAction, type CouponLang, type ReviewRow } from '@ethglobal/ui/components';
 
 import { explorerName, explorerTemplate } from '../lib/env';
@@ -102,14 +104,20 @@ export function ActionView(p: ActionViewProps) {
       );
     case 'failed':
       return (
-        <OnchainAction
-          {...common}
-          state="failed"
-          reason={p.row.reason ?? 'the payment was not accepted'}
-          {...(p.row.feeCharged ? { feeCharged: p.row.feeCharged } : {})}
-          {...(p.row.hash ? { hash: p.row.hash } : {})}
-          {...(p.onRetry ? { onRetry: p.onRetry } : {})}
-        />
+        <>
+          <OnchainAction
+            {...common}
+            state="failed"
+            {...(p.row.outcomeUnknown ? { outcomeUnknown: true } : {})}
+            reason={p.row.reason ?? 'the payment was not accepted'}
+            {...(p.row.feeCharged ? { feeCharged: p.row.feeCharged } : {})}
+            {...(p.row.hash ? { hash: p.row.hash } : {})}
+            {...(p.onRetry ? { onRetry: p.onRetry } : {})}
+          />
+          {p.row.outcomeUnknown && p.row.hash ? (
+            <Link href="/receipts">Check saved transactions</Link>
+          ) : null}
+        </>
       );
     case 'replaced':
       return (

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ReceiptPublic } from '@ethglobal/protocol/schemas';
 import { Hash, Receipt } from '@ethglobal/ui/components';
 
+import { PendingTransactions } from './PendingTransactions';
 import { NoPlanSteps } from './PlanView';
 import { AppHeader, Screen, TabBar } from './Shell';
 import { useLang, useNetworkName } from '../i18n/lang';
@@ -87,11 +88,15 @@ export function ReceiptList({ entitlementKey }: { entitlementKey?: string }) {
   };
 
   return (
-    <Screen>
+    <Screen wide className="receipts-screen">
       <AppHeader />
+      <PendingTransactions />
       <h1 className="screen__title" lang={lang}>
         {t('receipts.title')}
       </h1>
+      <p className="flow-heading__intro" lang={lang}>
+        {t('receipts.intro')}
+      </p>
       {foreign ? (
         <p className="note" role="note" data-testid="receipts-foreign">
           {t('receipts.foreign')}
@@ -146,7 +151,12 @@ export function ReceiptList({ entitlementKey }: { entitlementKey?: string }) {
                       ) : null}
                       {r.hcs ? (
                         <p className="mono-key" data-hash>
-                          <a href={hcsTopicUrl(r.hcs.topic)} target="_blank" rel="noreferrer">
+                          <a
+                            className="receipt-proof-link"
+                            href={hcsTopicUrl(r.hcs.topic)}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
                             HCS {r.hcs.topic} · #{r.hcs.sequence}
                           </a>
                         </p>

@@ -1,4 +1,8 @@
 /** POST /plan/cancel: an unused paid plan's payer gets the payment back (minus the reclaim fee), exactly once. */
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { AdapterError } from '@ethglobal/adapters';
@@ -25,6 +29,8 @@ import {
   topUp,
   type Harness,
 } from './support/harness.js';
+import { retryPendingOnBoot } from '../src/flows/fulfil.js';
+import { recoverRefunds } from '../src/flows/refund-recovery.js';
 
 /** A ready 1 GB plan ($4.00) paid by HUMAN_KEY. */
 async function paidPlan(h: Harness): Promise<string> {
@@ -62,6 +68,135 @@ const me = async (h: Harness, key: string) => {
 };
 
 describe('POST /plan/cancel', () => {
+  it('cannot recreate a cancelled entitlement through its retained delivery intent after ledger expiry', async () => {
+    const h = await harness();
+    const purchased = await provisionPaid(h);
+    const { entitlementKey: key } = (await purchased.res.json()) as EntitledResponse;
+    expect((await cancel(h, key)).res.status).toBe(200);
+    h.clock.advance(1_001);
+    expect(await h.deps.stores.entitlements.getByKey(key)).toBeNull();
+    expect(h.deps.pendingDelivery.has(key)).toBe(true);
+    const order = vi.spyOn(h.reseller, 'order');
+    const response = await h.json(`/me/${encodeURIComponent(key)}/delivery`, {
+      sessionPubKey: purchased.spk,
+    });
+    expect(response.status).toBe(410);
+    expect(order).not.toHaveBeenCalled();
+    expect(await h.deps.stores.entitlements.getByKey(key)).toBeNull();
+    await retryPendingOnBoot(h.deps);
+    expect(order).not.toHaveBeenCalled();
+    expect(await h.deps.stores.entitlements.getByKey(key)).toBeNull();
+  });
+  it('serializes cancellation behind an in-flight top-up and refuses the refund after that payment', async () => {
+    const h = await harness();
+    const key = await paidPlan(h);
+    let started!: () => void;
+    let release!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const wait = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const original = h.reseller.topUp.bind(h.reseller);
+    vi.spyOn(h.reseller, 'topUp').mockImplementation(async (...args) => {
+      started();
+      await wait;
+      return original(...args);
+    });
+    const topping = topUp(h, key);
+    await entered;
+    const cancelling = cancel(h, key);
+    release();
+    expect((await topping).paid.status).toBe(200);
+    expect(await reasonOf((await cancelling).res)).toEqual([409, 'topped-up']);
+    expect(h.treasury.refunds()).toHaveLength(0);
+    expect((await h.deps.stores.entitlements.getByKey(key))?.payload.mbTotal).toBe(2000);
+  });
+
+  it('retains a confirmed refund transaction when the receipt patch fails and repairs it without another payment', async () => {
+    const h = await harness();
+    const key = await paidPlan(h);
+    vi.spyOn(h.deps.stores.receipts, 'patch').mockRejectedValueOnce(new Error('ledger offline'));
+    const { res } = await cancel(h, key);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as PlanCancelResponse;
+    expect(body.refund.tx).toBe(h.treasury.refunds()[0]!.tx);
+    const refund = vi.spyOn(h.treasury, 'refund');
+    await recoverRefunds(h.deps, key);
+    expect(refund).not.toHaveBeenCalled();
+    expect(await cancelReceipts(h)).toEqual([expect.objectContaining({ tx: body.refund.tx })]);
+  });
+
+  it('saves signed refund bytes before broadcast and reconciles after restart even when the original receipt expires', async () => {
+    const file = join(mkdtempSync(join(tmpdir(), 'audit-refund-')), 'api.state');
+    const h = await harness({ env: { STATE_FILE: file } });
+    const key = await paidPlan(h);
+    const prepared = {
+      v: 1 as const,
+      kind: 'evm' as const,
+      network: 'eip155:31337',
+      tx: `0x${'cd'.repeat(32)}`,
+      signedTransaction: `0x${'ab'.repeat(128)}`,
+    };
+    let confirmed = false;
+    const prepareRefund = vi.fn(async () => prepared);
+    const submitRefund = vi.fn(async () => {
+      expect(h.deps.refundJobs.entries()[0]?.[1].prepared).toEqual(prepared);
+      throw new Error('receipt timeout after broadcast');
+    });
+    const refundStatus = vi.fn(async () =>
+      confirmed ? ('success' as const) : ('pending' as const),
+    );
+    Object.assign(h.adapters.treasury, { prepareRefund, submitRefund, refundStatus });
+    const { res } = await cancel(h, key);
+    expect(res.status).toBe(202);
+    expect(((await res.json()) as PlanCancelResponse).refund).toMatchObject({
+      recovery: 'automatic',
+    });
+    expect(readFileSync(file, 'utf8')).not.toContain(prepared.signedTransaction);
+    confirmed = true;
+    h.clock.advance(39 * DAY);
+    const restarted = await h.restart();
+    await recoverRefunds(restarted.deps, key);
+    expect(prepareRefund).toHaveBeenCalledTimes(1);
+    expect(submitRefund).toHaveBeenCalledTimes(1);
+    expect(await cancelReceipts(h)).toEqual([expect.objectContaining({ tx: prepared.tx })]);
+  });
+
+  it('stops rebroadcasting an expired signed refund but still accepts a late confirmation', async () => {
+    const h = await harness();
+    const key = await paidPlan(h);
+    const prepared = {
+      v: 1 as const,
+      kind: 'evm' as const,
+      network: 'eip155:31337',
+      tx: `0x${'de'.repeat(32)}`,
+      signedTransaction: '0x1234',
+      expiresAt: h.clock.now() + 120_000,
+    };
+    let confirmed = false;
+    const submitRefund = vi.fn(async () => {
+      throw new Error('unknown outcome');
+    });
+    Object.assign(h.adapters.treasury, {
+      prepareRefund: async () => prepared,
+      submitRefund,
+      refundStatus: async () => (confirmed ? 'success' : 'pending'),
+    });
+    expect((await cancel(h, key)).res.status).toBe(202);
+    h.clock.advance(13 * 60_000);
+    const review = await me(h, key);
+    expect(review.body.refund).toMatchObject({ recovery: 'manual' });
+    expect(submitRefund).toHaveBeenCalledTimes(1);
+    confirmed = true;
+    h.clock.advance(16_000);
+    const complete = await me(h, key);
+    expect(complete.body.refund).toMatchObject({ tx: prepared.tx });
+    expect(complete.body.refund?.recovery).toBeUndefined();
+    expect(submitRefund).toHaveBeenCalledTimes(1);
+  });
+
   it('unused paid plan: /me offers the refund; 200 refunds paid − fee once to the payer, the vendor cancels, receipt + HCS carry the tx, /me reports the cancel', async () => {
     const h = await harness({ env: { GIFT_RECLAIM_FEE_USD6: '10000' } });
     const key = await paidPlan(h);

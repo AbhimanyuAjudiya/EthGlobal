@@ -2,7 +2,8 @@
 import { randomUUID } from 'node:crypto';
 
 import { sha256Hex } from '@ethglobal/crypto';
-import { keys } from '@ethglobal/protocol/ids';
+import { RechargeError } from '@ethglobal/protocol/errors';
+import { keys, RECEIPT_TTL_S } from '@ethglobal/protocol/ids';
 import { encodeHcsMessage, type HcsMessage, type Receipt } from '@ethglobal/protocol/schemas';
 
 import type { Deps } from '../deps.js';
@@ -19,6 +20,28 @@ export type ReceiptDraft = Omit<Receipt, 'v' | 'key' | 'entitlementKeyHash' | 'a
 export interface Recorded {
   hcs: { topic: string; sequence: number } | undefined;
   receiptKey: string | undefined;
+}
+
+export interface ReceiptOutboxEntry {
+  entitlementKey: string;
+  draft: ReceiptDraft & { key: string };
+  at: number;
+  hcs?: { topic: string; sequence: number };
+  expiresAt: number;
+}
+
+/** Financial receipts are required state. A failed write remains durably queued before success is returned. */
+export async function flushReceiptOutbox(deps: Deps): Promise<void> {
+  await deps.mutex.run('receipt-outbox', async () => {
+    for (const [key, entry] of deps.receiptOutbox.entries()) {
+      try {
+        await addReceipt(deps, entry.entitlementKey, entry.draft, entry.hcs, entry.at);
+      } catch (error) {
+        if (!(error instanceof RechargeError && error.code === 'replay')) throw error;
+      }
+      deps.receiptOutbox.delete(key);
+    }
+  });
 }
 
 /** `rcpt:<network>:<tx>` when a transaction exists, else `rcpt:ledger:<uuid>` (INTERFACES §1.4). */
@@ -61,13 +84,14 @@ export async function addReceipt(
   entitlementKey: string,
   draft: ReceiptDraft,
   hcs?: Recorded['hcs'],
+  at = deps.now(),
 ): Promise<string> {
   const { key, ...rest } = draft;
   const receipt: Receipt = {
     v: 1,
     key: key ?? receiptKey(draft),
     entitlementKeyHash: sha256Hex(entitlementKey),
-    at: deps.now(),
+    at,
     ...stripUndefined(rest),
     ...(hcs ? { hcs } : {}),
   };
@@ -81,10 +105,23 @@ export async function record(
   entitlementKey: string,
   draft: ReceiptDraft,
   body: HcsBody,
+  at = deps.now(),
 ): Promise<Recorded> {
-  const hcs = await submitHcs(deps, entitlementKey, body);
+  const key = draft.key ?? receiptKey(draft);
+  const previous = await deps.stores.receipts.byKey(key);
+  if (previous) return { hcs: previous.hcs, receiptKey: key };
+  const entry: ReceiptOutboxEntry = deps.receiptOutbox.get(key) ?? {
+    entitlementKey,
+    draft: { ...draft, key },
+    at,
+    expiresAt: deps.now() + RECEIPT_TTL_S * 1000,
+  };
+  deps.receiptOutbox.set(key, entry, entry.expiresAt);
+  const hcs = entry.hcs ?? (await submitHcs(deps, entitlementKey, body));
+  if (hcs) deps.receiptOutbox.set(key, { ...entry, hcs }, entry.expiresAt);
   try {
-    return { hcs, receiptKey: await addReceipt(deps, entitlementKey, draft, hcs) };
+    await flushReceiptOutbox(deps);
+    return { hcs, receiptKey: key };
   } catch (error) {
     deps.logger.error(
       { event: 'ledger.op', op: 'receipt.add', kind: draft.kind, err: errName(error) },

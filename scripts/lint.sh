@@ -5,8 +5,10 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 fail=0
-for d in apps/* packages/* services/* scripts security; do
+for d in apps/* packages/* services/* scripts; do
   [[ -d $d ]] || continue
+  # Solidity has its own forge fmt and compiler checks; ESLint has no applicable files here.
+  [[ $d == packages/contracts ]] && continue
   pnpm exec eslint "$d" --max-warnings 0 || fail=1
 done
 # root-level files (eslint.config.ts, vitest.workspace, …)

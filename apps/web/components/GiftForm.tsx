@@ -1,7 +1,14 @@
 'use client';
 
 import { useConnectModal } from '@rainbow-me/rainbowkit';
-import { useCallback, useEffect, useState, type CSSProperties, type MouseEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+} from 'react';
 
 import { GIFT_RECLAIM_WINDOW_S, PLAN_MB } from '@ethglobal/protocol/ids';
 import type { GiftResponse } from '@ethglobal/protocol/schemas';
@@ -19,7 +26,8 @@ import { api, ApiError } from '../lib/api';
 import { dayLabel, formatMb, money, moneyUsdc, priceFor } from '../lib/format';
 import { useEnsureChain, usePlans, useWallet, WrongChainError } from '../lib/hooks';
 import {
-  DemoWalletSigner,
+  completePayment,
+  pendingPayment,
   EvmWalletSigner,
   pay,
   paymentFailureReason,
@@ -64,6 +72,8 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
   const ensureChain = useEnsureChain();
   const { openConnectModal } = useConnectModal();
   const { row, dispatch, now } = useOnchainAction();
+  const operation = useRef<Awaited<ReturnType<typeof quote>> | undefined>(undefined);
+  const [locked, setLocked] = useState(false);
   const [name, setName] = useState('');
   // the sizes a paid gift sells (/plans gift.sizesMb): one, 1 GB, so the size picker only appears for more than one
   const sizes = plans?.gift.sizesMb.length ? plans.gift.sizesMb : [PLAN_MB];
@@ -83,12 +93,15 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
 
   useEffect(() => {
     if (!wellFormed) return;
+    let alive = true;
     const timer = setTimeout(() => {
       // the API resolves the name BEFORE any 402 (T-43): 402 = resolves, 404 name_unresolved = no address
       api.giftQuote(typed, mb).then(
         (res) =>
+          alive &&
           setResolved({ name: typed, mb, result: res.status === 402 ? 'resolves' : 'error' }),
         (e: unknown) =>
+          alive &&
           setResolved({
             name: typed,
             mb,
@@ -96,7 +109,10 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
           }),
       );
     }, 350);
-    return () => clearTimeout(timer);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
   }, [typed, wellFormed, mb]);
 
   const step = plans?.paid.priceUsd6PerStep ?? '400000';
@@ -105,19 +121,33 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
   const claimBy = now + claimWindowMs;
   const reclaimUntil = claimBy + GIFT_RECLAIM_WINDOW_S * 1000;
   const shownName = name.trim().toLowerCase();
+  useEffect(() => {
+    void pendingPayment('/gift').then((q) => {
+      if (!q || typeof q.init.body !== 'string') return;
+      const body = JSON.parse(q.init.body) as { name: string; mb: number };
+      setName(body.name);
+      setMb(body.mb);
+      operation.current = q;
+      setLocked(true);
+    });
+  }, []);
 
   const send = useCallback(async () => {
     if (!wallet) return;
     dispatch({ type: 'start', at: Date.now() });
+    let paymentStarted = false;
     setProof(undefined);
     try {
-      const q = await quote('/gift', { method: 'POST', body: { name: shownName, mb } });
+      const q =
+        operation.current ??
+        (await quote('/gift', { method: 'POST', body: { name: shownName, mb } }));
+      operation.current = q;
+      setLocked(true);
       const chosen = evmOffer(q.required.accepts, wallet.network);
       if (!chosen) throw new ApiError(402, 'invalid_payment', 'no payable network');
       // the EIP-3009 domain is that entry's chain: the wallet signs there
       const payer = await ensureChain(wallet, chainIdOf(chosen.network));
-      const Signer = payer.kind === 'demo' ? DemoWalletSigner : EvmWalletSigner;
-      const signer = new Signer(
+      const signer = new EvmWalletSigner(
         payer,
         chosen.network,
         (plans?.paid.accepts ?? q.required.accepts).map((a) => ({
@@ -126,11 +156,25 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
           payTo: a.payTo,
         })),
       );
+      paymentStarted = true;
       const paid = await pay<GiftResponse>(q, signer, undefined, await chainNow(payer));
       const x402 = { accepted: paid.paid?.accepted, settlement: paid.settlement };
       if (paid.error || !paid.settlement?.success || !paid.data) {
+        if (paid.uncertain || paid.settlement?.success)
+          operation.current = { ...q, recovery: true };
+        if (!paid.uncertain && !paid.settlement?.success) {
+          operation.current = undefined;
+          setLocked(false);
+        }
         setProof(buildProof({ error: paid.error ?? new Error('settlement failed'), x402 }));
-        dispatch({ type: 'preBroadcastError', reason: paymentFailureReason(paid.error) });
+        dispatch(
+          paid.uncertain || paid.settlement?.success
+            ? {
+                type: 'uncertain',
+                reason: t('payment.recoverGift'),
+              }
+            : { type: 'preBroadcastError', reason: paymentFailureReason(paid.error) },
+        );
         return;
       }
       // the gift's pass carries its PIN: lib/proof.ts drops it from the proof
@@ -151,9 +195,10 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
         to: paid.data.to,
         mb: paid.data.mb,
         claimBy: paid.data.claimBy,
-        payer: payer.address,
+        payer: paid.settlement.payer ?? payer.address,
         usd6: chosen.amount,
       });
+      await completePayment(q);
       onSent?.();
       await followTransaction({
         hash: paid.settlement.transaction,
@@ -163,14 +208,29 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
         dispatch,
       });
     } catch (e) {
+      const recovering = operation.current?.recovery === true;
+      if (!recovering && (!paymentStarted || isUserRejection(e))) {
+        operation.current = undefined;
+        setLocked(false);
+      }
       if (!isUserRejection(e)) setProof(buildProof({ error: e }));
       dispatch(
-        e instanceof WrongChainError
+        recovering
           ? {
-              type: 'preBroadcastError',
-              reason: t('wallet.switchNeeded', { network: e.chainName }),
+              type: 'uncertain',
+              reason: t('payment.reconnect'),
             }
-          : signingFailure(e),
+          : e instanceof WrongChainError
+            ? {
+                type: 'preBroadcastError',
+                reason: t('wallet.switchNeeded', { network: e.chainName }),
+              }
+            : paymentStarted && !isUserRejection(e)
+              ? {
+                  type: 'uncertain',
+                  reason: t('payment.recover'),
+                }
+              : signingFailure(e),
       );
     }
   }, [wallet, ensureChain, dispatch, shownName, mb, plans, onSent, t]);
@@ -202,6 +262,7 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
             label={t('gift.name')}
             mono
             value={name}
+            disabled={locked || row.state === 'signing'}
             onChange={(e) => setName(e.target.value)}
             placeholder="rahul.eth"
             autoComplete="off"
@@ -236,6 +297,7 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
                   type="button"
                   role="radio"
                   aria-checked={size === mb}
+                  disabled={locked || row.state === 'signing'}
                   onClick={() => setMb(size)}
                 >
                   <span className="segmented__main">{formatMb(size)}</span>
@@ -297,7 +359,7 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
           if (connectFirst) openConnectModal?.();
           else void send();
         }}
-        onRetry={() => dispatch({ type: 'retry' })}
+        {...(gift && row.outcomeUnknown ? {} : { onRetry: () => dispatch({ type: 'retry' }) })}
         lang={lang}
       />
       {gift ? null : <ProofPanel proof={proof} />}

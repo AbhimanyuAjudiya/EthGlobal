@@ -6,12 +6,12 @@ campaign, agent policy and claim lock is an entity on the **rabdi testnet (chain
 `packages/adapters/src/live/arkiv-ledger.ts`, the mapping rules). There is no database and no cron job: a bundle is
 valid exactly as long as its entity lives.
 
-| | |
-|---|---|
-| Network | rabdi, chain id 7794095, RPC `https://rpc.rabdi.db-chain.testnet.arkiv.network/`, explorer `https://rabdi.explorer.arkiv.network` |
-| Writer (`$creator` of every entity) | [`0xC3358be9F35fDF5C8e1922be7376980C93734d3c`](https://rabdi.explorer.arkiv.network/address/0xC3358be9F35fDF5C8e1922be7376980C93734d3c) (the API's key; the agent reads with a read-only client pinned to this writer) |
-| Entity types | `recharge.<type>.v1` for `entitlement`, `campaign`, `gift`, `nonce`, `receipt`, `agentpolicy`, `claim` ([`schema.md`](schema.md)) |
-| Reads that depend on it | R1 every `/esim/*` request and `GET /me/:key`; R2 the agent's remaining-MB read on each tick; R3 the gift claim by namehash and card redeem by PIN key; plus the gift reclaim, which needs the escrow entity to be **gone** (`docs/ARKIV_FEEDBACK.md` §2) |
+|                                     |                                                                                                                                                                                                                                                           |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Network                             | rabdi, chain id 7794095, RPC `https://rpc.rabdi.db-chain.testnet.arkiv.network/`, explorer `https://rabdi.explorer.arkiv.network`                                                                                                                         |
+| Writer (`$creator` of every entity) | [`0xC3358be9F35fDF5C8e1922be7376980C93734d3c`](https://rabdi.explorer.arkiv.network/address/0xC3358be9F35fDF5C8e1922be7376980C93734d3c) (the API's key; the agent reads with a read-only client pinned to this writer)                                    |
+| Entity types                        | `recharge.<type>.v1` for `entitlement`, `campaign`, `gift`, `nonce`, `receipt`, `agentpolicy`, `claim` ([`schema.md`](schema.md))                                                                                                                         |
+| Reads that depend on it             | R1 every `/esim/*` request and `GET /me/:key`; R2 the agent's remaining-MB read on each tick; R3 the gift claim by namehash and card redeem by PIN key; plus the gift reclaim, which needs the escrow entity to be **gone** (`docs/ARKIV_FEEDBACK.md` §2) |
 
 ## Expiry semantics
 

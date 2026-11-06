@@ -122,49 +122,12 @@ export function AddToHomeScreen({ ready }: { ready: boolean }) {
   );
 }
 
-/**
- * Asked only on /plan after issue and only in the Home Screen app (iOS 16.4+ Web Push needs it), with the
- * reason stated. Outside standalone it explains why instead of asking. Never on launch.
- */
+/** Background push delivery is not configured; permission alone cannot enable alerts. */
 export function NotificationAsk({ ready }: { ready: boolean }) {
   const { t, lang } = useLang();
-  const hydrated = useHydrated();
-  const [asked, setAsked] = useState<NotificationPermission | undefined>();
-  const standalone = hydrated && isStandalone(window);
-  const permission: NotificationPermission | 'unsupported' =
-    asked ??
-    (!hydrated || typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
-
-  if (!ready) return null;
-  if (!standalone)
-    return (
-      <p className="note" lang={lang} data-testid="notification-needs-home">
-        {t('notify.needsHome')}
-      </p>
-    );
-  if (permission === 'granted')
-    return (
-      <p className="note" lang={lang}>
-        {t('notify.granted')}
-      </p>
-    );
-  if (permission === 'denied' || permission === 'unsupported')
-    return (
-      <p className="note" lang={lang}>
-        {t('notify.denied')}
-      </p>
-    );
-  return (
-    <section className="sheet-row" data-testid="notification-ask">
-      <p lang={lang}>{t('notify.reason')}</p>
-      <Button
-        variant="secondary"
-        onClick={() => {
-          void Notification.requestPermission().then(setAsked);
-        }}
-      >
-        {t('notify.button')}
-      </Button>
-    </section>
-  );
+  return ready ? (
+    <p className="note" lang={lang} data-testid="notification-unavailable">
+      {t('notify.unavailable')}
+    </p>
+  ) : null;
 }

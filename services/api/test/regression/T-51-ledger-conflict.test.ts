@@ -51,7 +51,7 @@ describe('T-51 ledger conflict is not an outage', () => {
     rail.verify = async () => ({ isValid: false, invalidReason: 'nonce_already_used' });
     rail.settle = async () => settled as Awaited<ReturnType<typeof rail.settle>>;
     const replay = await h.get(path, pay);
-    expect(replay.status).not.toBe(200); // served once (the A-33 settlement marker)
+    expect(replay.status).toBe(200); // saved response; no repeated settlement or fulfilment
     rail.verify = verify;
     expect(h.deps.health.degraded).toBe(false);
     expect((await webhook(h, iccid, 60).send()).status).toBe(204);

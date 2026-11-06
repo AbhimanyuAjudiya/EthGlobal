@@ -5,6 +5,8 @@ import { hmacKey } from '@ethglobal/crypto';
 import {
   decide,
   freeEntitlementKey,
+  holderHash,
+  sizeBundle,
   signalFor,
   type Campaign,
   type CampaignCounters,
@@ -17,7 +19,9 @@ import type { PaymentResource, PersonhoodProof } from '@ethglobal/protocol/schem
 
 import { fail } from '../errors.js';
 import { consume } from '../flows/challenge.js';
-import { pendingResponse, type Fulfilled } from '../flows/fulfil.js';
+import { deliveryMetadata, fulfil, pendingResponse, type Fulfilled } from '../flows/fulfil.js';
+import { paymentFingerprint, rememberPaid } from '../flows/payments.js';
+import { assertPlanCapacity } from '../flows/plan.js';
 
 import type { Release } from '../admission.js';
 import type { AppEnv, Ctx } from '../context.js';
@@ -31,6 +35,7 @@ export type LaneInput =
       proof: PersonhoodProof;
       challenge: Challenge;
       sessionPubKey: Hex;
+      recoveryKeyHash?: Hex;
     }
   | {
       lane: 'paid';
@@ -43,6 +48,8 @@ export type LaneInput =
        * decide() compares the echo, so an unmodified header replayed for another target is a mismatch.
        */
       bind?: Record<string, string>;
+      /** Native Hedera has no signed reclaim flow yet; do not sell nonrefundable gifts. */
+      evmOnly?: boolean;
     };
 
 /**
@@ -66,6 +73,7 @@ export const octroi = (input: (c: Ctx) => LaneInput | Promise<LaneInput>) =>
     let request: DecideRequest;
     let release: Release | undefined;
     let engine: OctroiDeps = deps.octroi;
+    const fingerprint = lane.lane === 'paid' ? await paymentFingerprint(c) : undefined;
     if (lane.lane === 'free') {
       const mark = deps.admission.mark();
       const { campaign, counters } = await campaignState(deps, lane.campaignId);
@@ -73,7 +81,62 @@ export const octroi = (input: (c: Ctx) => LaneInput | Promise<LaneInput>) =>
       // a served-but-undelivered claim is re-bound before any slot is taken: nothing is claimed (RT-A-17)
       const rebound = await rebindPending(c, deps, lane);
       if (rebound) return c.json(rebound.body, rebound.status);
-      if (campaign && counters) release = admit(deps, campaign, counters, mark);
+      const tag = proofTag(deps, lane.proof);
+      const prior = tag
+        ? deps.intents.get(claimIntentKey(deps, lane.sessionPubKey, lane.campaignId, tag))
+        : undefined;
+      if (campaign && !prior)
+        await assertPlanCapacity(
+          deps,
+          campaign.planId,
+          Math.max(
+            ...(['orb', 'document', 'device'] as const).map((tier) => sizeBundle(campaign, tier)),
+          ),
+        );
+      const claimed =
+        prior && (await deps.dataDrop.claimed(lane.campaignId, prior.decision.claimKey));
+      if (campaign && counters && !claimed) release = admit(deps, campaign, counters, mark);
+      engine = {
+        ...deps.octroi,
+        onFreeReservation: async (decision, reservation) => {
+          const tag = proofTag(deps, lane.proof);
+          if (!tag) throw fail('invalid_proof');
+          const intentKey = claimIntentKey(deps, lane.sessionPubKey, lane.campaignId, tag);
+          deps.intents.set(
+            intentKey,
+            {
+              decision,
+              reservation,
+              reserved: false,
+              campaignId: lane.campaignId,
+              nullifierTag: tag,
+              signal: signalFor(lane.challenge.nonce, lane.challenge.audience),
+              ...(lane.recoveryKeyHash === undefined
+                ? {}
+                : { recoveryKeyHash: lane.recoveryKeyHash }),
+            },
+            Math.min(
+              campaign?.expiresAt ?? decision.entitlement.expiresAt,
+              decision.entitlement.expiresAt,
+            ),
+          );
+        },
+        onFreeDecision: async () => {
+          const tag = proofTag(deps, lane.proof);
+          if (!tag) throw fail('invalid_proof');
+          const key = claimIntentKey(deps, lane.sessionPubKey, lane.campaignId, tag);
+          const intent = deps.intents.get(key);
+          if (!intent) throw fail('internal_error');
+          deps.intents.set(
+            key,
+            { ...intent, reserved: true },
+            Math.min(
+              campaign?.expiresAt ?? intent.decision.entitlement.expiresAt,
+              intent.decision.entitlement.expiresAt,
+            ),
+          );
+        },
+      };
       request = {
         resource,
         mb: 0,
@@ -86,7 +149,22 @@ export const octroi = (input: (c: Ctx) => LaneInput | Promise<LaneInput>) =>
     } else {
       engine = {
         ...deps.octroi,
-        accepts: routeAccepts(deps, boundResource(c.req.path, lane.bind)),
+        accepts: routeAccepts(deps, boundResource(c.req.path, lane.bind)).filter(
+          (offer) => !lane.evmOnly || offer.network.startsWith('eip155:'),
+        ),
+        ...(fingerprint === undefined
+          ? {}
+          : {
+              onPaidDecision: async (decision) => {
+                const targetKey = c.req.path === '/esim/topup' ? c.req.query('key') : undefined;
+                const targetEntitlement = c.get('paidTarget');
+                rememberPaid(deps, fingerprint, decision, {
+                  input: c.get('input'),
+                  ...(targetKey === undefined ? {} : { targetKey }),
+                  ...(targetEntitlement === undefined ? {} : { targetEntitlement }),
+                });
+              },
+            }),
       };
       const payment = c.get('payment');
       const spk = c.get('sessionPubKey');
@@ -100,7 +178,12 @@ export const octroi = (input: (c: Ctx) => LaneInput | Promise<LaneInput>) =>
     }
     c.set('releaseSlot', release);
     try {
-      const resumed = lane.lane === 'free' ? await resumeIntent(deps, lane) : undefined;
+      const resumed =
+        lane.lane === 'free'
+          ? await resumeIntent(deps, lane)
+          : fingerprint === undefined
+            ? undefined
+            : deps.paidOperations.get(fingerprint)?.decision;
       const decision =
         resumed ?? (await deps.metrics.timed('decide_ms', () => decide(request, engine)));
       deps.metrics.inc('decision_total', {
@@ -191,6 +274,19 @@ export function boundResource(path: string, bind: Record<string, string> = {}): 
 
 type FreeLane = Extract<LaneInput, { lane: 'free' }>;
 
+/** Preserve legacy session entries while allowing independent humans/campaigns on the same browser session. */
+export function claimIntentKey(deps: Deps, sessionPubKey: Hex, campaignId: Hex, tag: Hex): string {
+  const session = sessionPubKey.toLowerCase();
+  const scoped = `${session}:${campaignId.toLowerCase()}:${tag}`;
+  if (deps.intents.has(scoped)) return scoped;
+  const existing = deps.intents.get(session);
+  return !existing ||
+    (existing.nullifierTag === tag &&
+      existing.campaignId.toLowerCase() === campaignId.toLowerCase())
+    ? session
+    : scoped;
+}
+
 const firstResponse = (proof: PersonhoodProof) =>
   (proof as { responses?: { nullifier?: unknown; signal_hash?: unknown }[] }).responses?.[0];
 
@@ -258,15 +354,52 @@ async function rebindPending(c: Ctx, deps: Deps, lane: FreeLane): Promise<Fulfil
   );
   return deps.mutex.run(key, async () => {
     const found = await deps.stores.entitlements.getByKey(key);
-    if (found?.payload.status !== 'pending-profile' || !deps.pendingDelivery.has(key))
-      throw fail('replay');
+    const target = deps.pendingDelivery.get(key);
+    if (target?.recoveryKeyHash !== undefined) {
+      if (
+        target.recoveryKeyHash !== lane.recoveryKeyHash ||
+        target.sessionPubKey !== lane.sessionPubKey
+      )
+        throw fail('replay');
+      if (found) return deliveryMetadata(found, target.context);
+      if (!target.entitlement || !target.context) throw fail('not_found');
+      await fulfil(deps, target.entitlement, target.context);
+      const recovered = await deps.stores.entitlements.getByKey(key);
+      if (!recovered) throw fail('ledger_unavailable');
+      return deliveryMetadata(recovered, target.context);
+    }
+    if (!target || (found && found.payload.status !== 'pending-profile')) throw fail('replay');
     const limit = deps.rebinds.hit(key);
     if (!limit.ok) throw fail('rate_limited', { retryAfterS: limit.retryAfterS });
+    const rebound = {
+      ...target,
+      sessionPubKey: lane.sessionPubKey,
+      nonce: lane.challenge.nonce,
+      ...(target.entitlement
+        ? {
+            entitlement: { ...target.entitlement, holderHash: holderHash(key, lane.sessionPubKey) },
+          }
+        : {}),
+      ...(target.context
+        ? {
+            context: {
+              ...target.context,
+              sessionPubKey: lane.sessionPubKey,
+              nonce: lane.challenge.nonce,
+            },
+          }
+        : {}),
+    };
     deps.pendingDelivery.set(
       key,
-      { sessionPubKey: lane.sessionPubKey, nonce: lane.challenge.nonce },
-      found.payload.expiresAt,
+      rebound,
+      found?.payload.expiresAt ?? target.entitlement?.expiresAt,
     );
+    if (!found) {
+      if (!rebound.entitlement || !rebound.context) throw fail('not_found');
+      return fulfil(deps, rebound.entitlement, rebound.context);
+    }
+    await deps.stores.entitlements.patch(key, { holderHash: holderHash(key, lane.sessionPubKey) });
     c.get('log').info(
       { event: 'claim.rebind', campaignId: campaign.id },
       'pending delivery re-bound',
@@ -285,14 +418,17 @@ async function rebindPending(c: Ctx, deps: Deps, lane: FreeLane): Promise<Fulfil
  * falls through to the normal lane, which judges it on its own. The new challenge is consumed first (one-shot, T-20).
  */
 async function resumeIntent(deps: Deps, lane: FreeLane) {
-  const spk = lane.sessionPubKey.toLowerCase();
+  const tag = proofTag(deps, lane.proof);
+  if (!tag) return undefined;
+  const spk = claimIntentKey(deps, lane.sessionPubKey, lane.campaignId, tag);
   const intent = deps.intents.get(spk);
   // Another campaign is not this intent's resume: fall through WITHOUT touching it (RT-A-05 variant — a junk request
   // naming another campaign used to delete the victim's intent before any proof was checked). It ends by its TTL,
   // or when this human is served (entitle.ts deletes only the served human's own intent).
   if (intent?.campaignId.toLowerCase() !== lane.campaignId.toLowerCase()) return undefined;
-  const tag = proofTag(deps, lane.proof);
   if (tag === undefined || tag !== intent.nullifierTag) return undefined;
+  if (intent.recoveryKeyHash !== undefined && intent.recoveryKeyHash !== lane.recoveryKeyHash)
+    throw fail('unauthorized');
   await consume(deps, lane.challenge, '/claim', lane.sessionPubKey);
   // a fresh proof binds the new challenge; a resent first proof binds the first attempt's signal
   const fresh = signalFor(lane.challenge.nonce, lane.challenge.audience);
@@ -300,7 +436,30 @@ async function resumeIntent(deps: Deps, lane: FreeLane) {
   const sent = typeof raw === 'string' ? raw.toLowerCase() : '';
   const signal = sent === signalHash(intent.signal).toLowerCase() ? intent.signal : fresh;
   await sameHuman(deps, lane.proof, signal, intent.nullifierTag, 'intent_proof');
+  if (intent.reservation && !intent.claimTx) {
+    const { token, locks } = intent.reservation;
+    try {
+      for (const lock of locks) {
+        if (await deps.stores.claims.owned(lock.key, token)) continue;
+        if (!(await deps.stores.claims.reserve(lock.key, lock.scope, lock.expiresAt, token)))
+          throw fail('replay', { detail: 'claim reservation belongs to another attempt' });
+      }
+      deps.intents.set(spk, { ...intent, reserved: true }, intent.decision.entitlement.expiresAt);
+    } catch (error) {
+      for (const lock of locks) await deps.stores.claims.release(lock.key, token);
+      throw error;
+    }
+  }
   return intent.decision;
+}
+
+/** Roll back only this process's incomplete reservations; retain verified decisions for authenticated retry. */
+export async function recoverFreeReservations(deps: Deps): Promise<void> {
+  for (const [, intent] of deps.intents.entries()) {
+    if (intent.reserved !== false || !intent.reservation) continue;
+    for (const lock of intent.reservation.locks)
+      await deps.stores.claims.release(lock.key, intent.reservation.token);
+  }
 }
 
 const secondsToNextHour = (now: number): number =>

@@ -28,6 +28,7 @@ test.describe('/plan/[key]', () => {
     await expect(page.getByRole('link', { name: 'Install eSIM · 2 min' })).toBeVisible();
     await expect(page.getByRole('link', { name: '+1 GB · $4.00' })).toBeVisible();
     // the "why it expires" disclosure carries the Arkiv entity key
+    await page.getByText('Plan details & receipt', { exact: true }).click();
     await page.getByText('Why it expires by itself').click();
     await expect(page.getByTestId('arkiv-key')).toHaveText(me.arkivKey);
   });
@@ -52,7 +53,7 @@ test.describe('/plan/[key]', () => {
     await claimFreeBundle(page);
     await expect(page.getByTestId('add-to-home-screen')).toBeVisible();
     await expect(page.getByTestId('add-to-home-screen')).toContainText(
-      'Add Recharge to your Home Screen to get the lock-screen line when data lands or runs low',
+      'Add Recharge to your Home Screen to open your saved plan quickly.',
     );
     await page.getByRole('button', { name: 'Not now' }).click();
     await expect(page.getByTestId('add-to-home-screen')).toHaveCount(0);
@@ -61,8 +62,8 @@ test.describe('/plan/[key]', () => {
   test('NotificationAsk absent when not standalone', async ({ page }) => {
     await claimFreeBundle(page);
     await expect(page.getByTestId('notification-ask')).toHaveCount(0);
-    await expect(page.getByTestId('notification-needs-home')).toHaveText(
-      'Notifications need the Home Screen app. Add to Home Screen first.',
+    await expect(page.getByTestId('notification-unavailable')).toHaveText(
+      'Background notifications are not available yet. Open your plan to check its data and activation status.',
     );
   });
 
@@ -84,13 +85,12 @@ test.describe('/plan/[key]', () => {
         Object.defineProperty(Notification, 'permission', { get: () => 'default' });
       });
     });
-    test('NotificationAsk present (with the reason) when display-mode is standalone (emulated)', async ({
-      page,
-    }) => {
+    test('standalone does not promise unconfigured background notifications', async ({ page }) => {
       await claimFreeBundle(page);
-      const ask = page.getByTestId('notification-ask');
-      await expect(ask).toContainText('To tell you when data lands or runs low — nothing else.');
-      await expect(ask.getByRole('button', { name: 'Allow notifications' })).toBeVisible();
+      await expect(page.getByTestId('notification-unavailable')).toContainText(
+        'Background notifications are not available yet.',
+      );
+      await expect(page.getByRole('button', { name: 'Allow notifications' })).toHaveCount(0);
       // the Home Screen app does not ask to be added again
       await expect(page.getByTestId('add-to-home-screen')).toHaveCount(0);
     });

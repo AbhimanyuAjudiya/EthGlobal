@@ -1,18 +1,15 @@
+import { randomUUID } from 'node:crypto';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { anvilKeys } from '@ethglobal/adapters/testing';
-import { concat, hexToBytes, keccak256, sha256Hex, utf8 } from '@ethglobal/crypto';
-import { keys, type Hex } from '@ethglobal/protocol/ids';
+import { concat, hexToBytes, keccak256 } from '@ethglobal/crypto';
+import { buildAccepts, giftEntitlementKey } from '@ethglobal/octroi';
+import { type Hex } from '@ethglobal/protocol/ids';
 import { isValidPin } from '@ethglobal/protocol/pin';
-import {
-  isEvmExact,
-  type GiftResponse,
-  type PaymentPayload,
-  type SettleResult,
-} from '@ethglobal/protocol/schemas';
+import { isEvmExact, type GiftResponse, type PaymentPayload } from '@ethglobal/protocol/schemas';
 import {
   decodePaymentRequired,
-  decodePaymentResponse,
   encodePaymentPayload,
   PAYMENT_SIGNATURE_HEADER,
 } from '@ethglobal/protocol/x402';
@@ -28,7 +25,6 @@ import {
   HUMAN_KEY,
   redeemPin,
   STRANGER_KEY,
-  type Harness,
 } from './support/harness.js';
 
 const BOB = anvilKeys[1];
@@ -60,23 +56,6 @@ async function hederaHarness() {
       : { success: true, transaction: HEDERA_TX, network: r.network, payer: HEDERA_PAYER };
   return h;
 }
-
-/** POST /gift → 402 → the Hedera exact payload echoing the hedera:testnet entry (its `network` overridable) → POST. */
-async function payGiftOnHedera(h: Harness, network = 'hedera:testnet') {
-  const quote = await h.json('/gift', GIFT);
-  expect(quote.status).toBe(402);
-  const { accepts } = decodePaymentRequired(quote.headers.get('PAYMENT-REQUIRED')!);
-  const accepted = accepts.find((a) => a.network === 'hedera:testnet')!;
-  const payload: PaymentPayload = {
-    x402Version: 2,
-    accepted: { ...accepted, network },
-    payload: { transaction: Buffer.from('hts-transfer').toString('base64') },
-  };
-  const header = { [PAYMENT_SIGNATURE_HEADER]: encodePaymentPayload(payload) };
-  return { header, res: await h.json('/gift', GIFT, header) };
-}
-
-const escrows = (h: Harness) => h.adapters.ledger.query({ annotations: { type: 'gift' } });
 
 describe('POST /gift', () => {
   it('unresolvable name → 404 before any 402, and the resolver is asked first', async () => {
@@ -115,89 +94,61 @@ describe('POST /gift', () => {
   });
 });
 
-describe('POST /gift paid on Hedera (exact `{ transaction }`, hedera:testnet)', () => {
-  it('402 offers hedera:testnet → pay → 201: the HTS settlement in the body and PAYMENT-RESPONSE, the escrow keyed by the transaction, PIN-claimable', async () => {
+describe('POST /gift payment networks and private retries', () => {
+  it('offers only networks with signed reclaim support even when native Hedera is enabled', async () => {
     const h = await hederaHarness();
-    const { res } = await payGiftOnHedera(h);
-    expect(res.status).toBe(201);
-    const gift = (await res.json()) as GiftResponse;
-    const settlement: SettleResult = {
-      success: true,
-      transaction: HEDERA_TX,
-      network: 'hedera:testnet',
-      payer: HEDERA_PAYER,
+    const quote = await h.json('/gift', GIFT);
+    expect(quote.status).toBe(402);
+    const { accepts } = decodePaymentRequired(quote.headers.get('PAYMENT-REQUIRED')!);
+    expect(accepts.map((a) => a.network)).toEqual(['eip155:31337']);
+  });
+
+  it('rejects native Hedera payment before verification or settlement', async () => {
+    const h = await hederaHarness();
+    const verify = vi.spyOn(h.adapters.payments, 'verify');
+    const settle = vi.spyOn(h.adapters.payments, 'settle');
+    const template = buildAccepts(h.deps.octroi, 1000).find((a) => a.network === 'hedera:testnet')!;
+    const payload: PaymentPayload = {
+      x402Version: 2,
+      accepted: template,
+      payload: { transaction: Buffer.from('hts-transfer').toString('base64') },
     };
-    expect(gift.settlement).toEqual(settlement);
-    expect(decodePaymentResponse(res.headers.get('PAYMENT-RESPONSE')!)).toEqual(settlement);
-    // the Hedera twin of keccak256(payer ‖ EIP-3009 nonce): the nonce is sha256(transaction id), the payer its UTF-8
-    expect(gift.giftId).toBe(
-      keccak256(concat(utf8(HEDERA_PAYER), hexToBytes(sha256Hex(HEDERA_TX)))),
-    );
-    expect(isValidPin(gift.pin)).toBe(true);
-    expect(gift).toMatchObject({
-      serial: gift.giftId.slice(2, 10),
-      name: 'bob.eth',
-      mb: 1000,
-      claimBy: h.clock.now() + 7 * DAY,
-      receipt: { arkivKey: keys.gift(gift.giftId as Hex) },
+    const res = await h.json('/gift', GIFT, {
+      'idempotency-key': randomUUID(),
+      [PAYMENT_SIGNATURE_HEADER]: encodePaymentPayload(payload),
     });
-    const escrow = await h.deps.stores.gifts.bySerial(gift.serial);
-    expect(escrow?.payload).toMatchObject({
-      fundedBy: 'payment',
-      payer: HEDERA_PAYER,
-      network: 'hedera:testnet',
-      paidTx: HEDERA_TX,
-    });
-    const receipts = await h.deps.stores.receipts.forEntitlement(
-      sha256Hex(keys.gift(gift.giftId as Hex)),
-    );
-    expect(receipts).toMatchObject([
-      {
-        key: keys.receipt('hedera:testnet', HEDERA_TX),
-        kind: 'gift',
-        network: 'hedera:testnet',
-        tx: HEDERA_TX,
-        payer: HEDERA_PAYER,
-      },
-    ]);
-    expect(hcsMessages(h).at(-1)).toMatchObject({ t: 'gift', giftId: gift.giftId, tx: HEDERA_TX });
-    expect((await redeemPin(h, gift.pin, '/gift/claim')).status).toBe(201);
-  });
-
-  it('the same Hedera transaction presented again is refused by the settlement marker (409 replay), as a settled EVM payment is; one escrow', async () => {
-    const h = await hederaHarness();
-    const { header, res } = await payGiftOnHedera(h);
-    expect(res.status).toBe(201);
-    const settle = vi.spyOn(h.adapters.payments, 'settle');
-    const replay = await h.json('/gift', GIFT, header);
-    expect(await replay.json()).toMatchObject({
-      error: 'replay',
-      details: { detail: 'settlement' },
-    });
-    expect(replay.status).toBe(409);
-    expect(settle).toHaveBeenCalledTimes(1); // the facilitator answered the same transaction; served once (RT-O-05)
-    expect(await escrows(h)).toHaveLength(1);
-    // the EVM twin, unchanged: a re-presented EIP-3009 authorization is refused by verify (nonce_already_used)
-    const pay = await h.payFor(await h.json('/gift', GIFT));
-    expect((await h.json('/gift', GIFT, pay)).status).toBe(201);
-    const evmReplay = await h.json('/gift', GIFT, pay);
-    expect([evmReplay.status, await errorOf(evmReplay)]).toEqual([402, 'invalid_payment']);
-    expect(await escrows(h)).toHaveLength(2);
-  });
-
-  it('a Hedera payment echoing a network the 402 did not offer (hedera:mainnet) → 402 invalid_payment, never settled', async () => {
-    const h = await hederaHarness();
-    const settle = vi.spyOn(h.adapters.payments, 'settle');
-    const { res } = await payGiftOnHedera(h, 'hedera:mainnet');
     expect([res.status, await errorOf(res)]).toEqual([402, 'invalid_payment']);
+    expect(verify).not.toHaveBeenCalled();
     expect(settle).not.toHaveBeenCalled();
-    expect(await escrows(h)).toHaveLength(0);
+    expect(await h.adapters.ledger.query({ annotations: { type: 'gift' } })).toHaveLength(0);
   });
 
-  it('an EVM gift beside the Hedera kind is byte-identical: giftId = keccak256(payer ‖ EIP-3009 nonce)', async () => {
+  it('requires a private recovery token before settlement and replays the same gift without a second charge', async () => {
+    const h = await hederaHarness();
+    const pay = await h.payFor(await h.json('/gift', GIFT));
+    const settle = vi.spyOn(h.adapters.payments, 'settle');
+    expect((await h.json('/gift', GIFT, pay)).status).toBe(400);
+    expect(settle).not.toHaveBeenCalled();
+    const headers = { ...pay, 'idempotency-key': randomUUID() };
+    const first = await h.json('/gift', GIFT, headers);
+    expect(first.status).toBe(201);
+    h.clock.advance(301_000);
+    const again = await h.json('/gift', GIFT, headers);
+    expect(again.status).toBe(201);
+    expect(await again.text()).toBe(await first.text());
+    expect(settle).toHaveBeenCalledTimes(1);
+    const stolen = await h.json('/gift', GIFT, { ...pay, 'idempotency-key': randomUUID() });
+    expect(stolen.status).not.toBe(201);
+    expect(await stolen.text()).not.toContain('"pin"');
+  });
+
+  it('preserves the EVM gift id beside an enabled native Hedera rail', async () => {
     const h = await hederaHarness();
     const nonce: Hex = `0x${'5a'.repeat(32)}`;
-    const res = await h.json('/gift', GIFT, await h.payFor(await h.json('/gift', GIFT), { nonce }));
+    const res = await h.json('/gift', GIFT, {
+      ...(await h.payFor(await h.json('/gift', GIFT), { nonce })),
+      'idempotency-key': randomUUID(),
+    });
     expect(res.status).toBe(201);
     const gift = (await res.json()) as GiftResponse;
     const payer = addressOf(HUMAN_KEY);
@@ -209,13 +160,13 @@ describe('POST /gift paid on Hedera (exact `{ transaction }`, hedera:testnet)', 
 });
 
 describe('POST /gift/claim', () => {
-  it('by signature of the resolved address → 201 giftent:<id>, gift claimed, HCS gift-claim', async () => {
+  it('by signature of the resolved address → 201 with a secret gift capability, gift claimed, HCS gift-claim', async () => {
     const h = await harness();
     const gift = await buyGift(h);
     const res = await claimGiftBySignature(h, gift.giftId, BOB);
     expect(res.status).toBe(201);
     expect(((await res.json()) as { entitlementKey: string }).entitlementKey).toBe(
-      `giftent:${gift.giftId}`,
+      giftEntitlementKey(h.deps.secret, gift.giftId as Hex),
     );
     const [escrow] = await h.adapters.ledger.query({ annotations: { type: 'gift' } });
     expect(escrow?.annotations.state).toBe('claimed');

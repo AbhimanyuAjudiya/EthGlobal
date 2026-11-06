@@ -51,6 +51,9 @@ function demoWallet(role: DemoRole): () => RkWallet {
   const id = demoConnectorId(role);
   const name = `demo wallet · Anvil #${DEMO_ROLE_INDEX[role]}`;
   let provider: Promise<Eip1193> | undefined;
+  // A fresh browser has not chosen any demo role. Reporting all three as authorized lets
+  // wagmi's reconnect race the screen and silently replace the sponsor with the human wallet.
+  let connected = false;
   const getProvider = (): Promise<Eip1193> => {
     if (process.env.NEXT_PUBLIC_MODE !== 'local')
       return Promise.reject(new Error('the demo wallet exists only in MODE=local'));
@@ -76,15 +79,18 @@ function demoWallet(role: DemoRole): () => RkWallet {
         name,
         type: 'demo',
         async connect() {
-          return { accounts: (await accounts()) as never, chainId: await chain() };
+          const connectedAccounts = await accounts();
+          const chainId = await chain();
+          connected = true;
+          return { accounts: connectedAccounts as never, chainId };
         },
         async disconnect() {
-          // the route keeps no session
+          connected = false;
         },
         getAccounts: accounts,
         getChainId: chain,
         getProvider,
-        isAuthorized: () => Promise.resolve(true),
+        isAuthorized: () => Promise.resolve(connected),
         async switchChain({ chainId }) {
           const target = cfg.chains.find((c) => c.id === chainId);
           if (!target || chainId !== (await chain()))
@@ -94,7 +100,10 @@ function demoWallet(role: DemoRole): () => RkWallet {
         onAccountsChanged: (list) =>
           cfg.emitter.emit('change', { accounts: list.map((a) => getAddress(a)) }),
         onChainChanged: (id) => cfg.emitter.emit('change', { chainId: Number(id) }),
-        onDisconnect: () => cfg.emitter.emit('disconnect'),
+        onDisconnect: () => {
+          connected = false;
+          cfg.emitter.emit('disconnect');
+        },
       })),
   });
 }

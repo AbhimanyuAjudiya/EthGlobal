@@ -86,6 +86,7 @@ export type OnchainActionProps = Common &
         state: 'failed';
         /** Decoded, plain words, no trailing full stop: "the facilitator rejected the signature (expired)". */
         reason: string;
+        outcomeUnknown?: boolean;
         /** The network fee that was still charged on chain ("$0.01"); omitted when nothing left the account. */
         feeCharged?: string;
         hash?: string;
@@ -171,11 +172,11 @@ export function OnchainAction(props: OnchainActionProps) {
     case 'signing': {
       status = s.approveIn(props.walletName);
       body = props.simulation ? <p className="onchain-action__note">{props.simulation}</p> : null;
-      actions = (
+      actions = props.onCancel ? (
         <Button variant="quiet" onClick={props.onCancel}>
           {s.cancel}
         </Button>
-      );
+      ) : null;
       break;
     }
     case 'submitted':
@@ -199,12 +200,16 @@ export function OnchainAction(props: OnchainActionProps) {
         );
         actions = (
           <>
-            <Button variant="secondary" onClick={props.onSpeedUp}>
-              {s.speedUp}
-            </Button>
-            <Button variant="quiet" onClick={props.onCancelTx}>
-              {s.cancelTx}
-            </Button>
+            {props.onSpeedUp ? (
+              <Button variant="secondary" onClick={props.onSpeedUp}>
+                {s.speedUp}
+              </Button>
+            ) : null}
+            {props.onCancelTx ? (
+              <Button variant="quiet" onClick={props.onCancelTx}>
+                {s.cancelTx}
+              </Button>
+            ) : null}
           </>
         );
       }
@@ -252,18 +257,24 @@ export function OnchainAction(props: OnchainActionProps) {
       break;
     }
     case 'failed': {
-      status = <span className="onchain-action__failed">{s.failed}</span>;
+      status = (
+        <span className="onchain-action__failed">
+          {props.outcomeUnknown ? s.pending : s.failed}
+        </span>
+      );
       body = (
         <>
-          <p className="onchain-action__note">{s.failedNote(props.reason, props.feeCharged)}</p>
+          <p className="onchain-action__note">
+            {props.outcomeUnknown ? props.reason : s.failedNote(props.reason, props.feeCharged)}
+          </p>
           {props.hash ? <p className="onchain-action__hashline">{hashOf(props.hash)}</p> : null}
         </>
       );
-      actions = (
+      actions = props.onRetry ? (
         <Button variant="secondary" onClick={props.onRetry}>
           {s.tryAgain}
         </Button>
-      );
+      ) : null;
       break;
     }
     case 'replaced': {

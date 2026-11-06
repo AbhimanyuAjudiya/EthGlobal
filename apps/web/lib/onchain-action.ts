@@ -19,6 +19,7 @@ export interface ActionRow {
   feeCharged?: string;
   /** The signing → idle edge happened: wallet declined, inputs intact. */
   declined?: boolean;
+  outcomeUnknown?: boolean;
   replacement?: { hash: string; kind: 'speed-up' | 'cancel' };
 }
 
@@ -27,6 +28,7 @@ export type ActionEvent =
   | { type: 'signed'; hash: string; at: number }
   | { type: 'rejected' }
   | { type: 'preBroadcastError'; reason: string }
+  | { type: 'uncertain'; reason: string }
   | { type: 'seen' }
   | { type: 'confirmed'; confirmations: number }
   | { type: 'finalized' }
@@ -42,6 +44,7 @@ const target: Record<ActionEvent['type'], OnchainActionState> = {
   signed: 'submitted',
   rejected: 'idle',
   preBroadcastError: 'failed',
+  uncertain: 'failed',
   seen: 'pending',
   confirmed: 'confirmed',
   finalized: 'finalized',
@@ -72,6 +75,8 @@ export class IllegalTransition extends Error {
 const strict = process.env.NODE_ENV !== 'production';
 
 export function reducer(row: ActionRow, event: ActionEvent): ActionRow {
+  if (event.type === 'uncertain')
+    return { ...row, state: 'failed', reason: event.reason, outcomeUnknown: true };
   const to = target[event.type];
   // events name their edge: rejected/preBroadcastError leave signing, seen leaves submitted, reorg leaves
   // confirmed, retry leaves failed — on top of the state machine's own canTransition guard

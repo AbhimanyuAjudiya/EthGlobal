@@ -6,6 +6,7 @@
  */
 import { getAddress, isAddress, type Address, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
+import { base, baseSepolia } from 'viem/chains';
 import { z } from 'zod';
 
 import { NETWORKS, TESTNET_NETWORKS, usdcAssetFor } from '@ethglobal/protocol/ids';
@@ -34,6 +35,8 @@ const opt = <T extends z.ZodType>(t: T) => t.optional();
 const envShape = z.object({
   CHAIN: z.coerce.number().int().positive(),
   RPC_URL: url,
+  BASE_SEPOLIA_RPC_URL: opt(url),
+  BASE_MAINNET_RPC_URL: opt(url),
   /** Optional USDC override for the self-run facilitator / treasury (Anvil: MockUSDC3009); Base and Hedera are known. */
   USDC_ADDRESS: opt(z.string()),
   // x402
@@ -101,6 +104,8 @@ export interface LiveConfig {
     hederaUrl: string;
     hederaFeePayer: string | undefined;
     relayerKey: Secret<Hex> | undefined;
+    /** One RPC and settlement asset for each advertised EVM payment network. */
+    evmNetworks: { id: number; network: string; rpcUrl: string; usdc: Address }[];
   };
   ledger: {
     chainId: number;
@@ -161,6 +166,10 @@ function refine(env: Env, ctx: z.RefinementCtx): void {
       issue(key, `${host} is not an allowed facilitator host (A-30)`);
   }
   const evm = networks.filter((n) => n.startsWith('eip155:'));
+  for (const network of evm) {
+    if (!paymentChain(env, network))
+      issue('X402_NETWORKS', `no RPC and USDC configuration for ${network}`);
+  }
   if (env.X402_FACILITATOR === 'self') {
     if (!env.RELAYER_PRIVATE_KEY)
       issue('RELAYER_PRIVATE_KEY', 'required with X402_FACILITATOR=self');
@@ -249,6 +258,28 @@ function usdcFor(env: Env): Address | undefined {
   return known ? getAddress(known) : undefined;
 }
 
+function paymentChain(
+  env: Env,
+  network: string,
+): LiveConfig['payments']['evmNetworks'][number] | undefined {
+  if (network === `eip155:${env.CHAIN}`) {
+    const usdc = usdcFor(env);
+    return usdc ? { id: env.CHAIN, network, rpcUrl: env.RPC_URL, usdc } : undefined;
+  }
+  const known =
+    network === 'eip155:84532' ? baseSepolia : network === 'eip155:8453' ? base : undefined;
+  const asset = usdcAssetFor(network);
+  if (!known || !asset) return undefined;
+  return {
+    id: known.id,
+    network,
+    rpcUrl:
+      (known.id === baseSepolia.id ? env.BASE_SEPOLIA_RPC_URL : env.BASE_MAINNET_RPC_URL) ??
+      known.rpcUrls.default.http[0],
+    usdc: getAddress(asset),
+  };
+}
+
 /** The one Hedera network this deployment runs on; undefined when X402_NETWORKS and HEDERA_NETWORK disagree. */
 function hederaNetworkOf(env: Env): HederaSdkOptions['network'] | undefined {
   const wanted = new Set<string>(
@@ -285,6 +316,9 @@ function toConfig(env: Env): LiveConfig {
       hederaUrl: env.X402_FACILITATOR_URL_HEDERA,
       hederaFeePayer: env.X402_HEDERA_FEE_PAYER,
       relayerKey: secret(env.RELAYER_PRIVATE_KEY as Hex | undefined),
+      evmNetworks: networks
+        .filter((n) => n.startsWith('eip155:'))
+        .map((n) => paymentChain(env, n)!),
     },
     ledger: {
       chainId: env.ARKIV_CHAIN_ID,

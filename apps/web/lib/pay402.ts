@@ -5,7 +5,7 @@
  * - `EvmWalletSigner` — EIP-3009 `TransferWithAuthorization` signed by an EIP-1193 wallet; the token domain
  *   comes from accepts[].extra via `domainFromRequirements` (A-21: "USDC" on Base Sepolia, "USD Coin" on Anvil),
  *   `validBefore = now + maxTimeoutSeconds`, the nonce is the session nonce on LPA-delivering routes (T-32).
- * - `DemoWalletSigner` — the same signer over the MODE=local demo wallet (Anvil #5), labelled as such.
+ *   MODE=local uses the same signer with the labelled demo wallet (Anvil #5).
  * - Human Hedera payments (A-20) are `HashPackPaySigner` in lib/hedera-wc.ts (WalletConnect, HIP-820), loaded lazily.
  */
 import { bytesToHex, keccak256, randomBytes } from '@ethglobal/crypto';
@@ -24,6 +24,10 @@ import type {
 } from '@ethglobal/protocol/schemas';
 import {
   decodePaymentRequired,
+  decodePaymentResponse,
+  encodePaymentPayload,
+  PAYMENT_RESPONSE_HEADER,
+  PAYMENT_SIGNATURE_HEADER,
   fetchWithPayment,
   PAYMENT_REQUIRED_HEADER,
   type PaymentSigner,
@@ -31,6 +35,7 @@ import {
 
 import { ApiError, call, ENTITLE_TIMEOUT_MS, requestId, toApiError } from './api';
 import { config } from './env';
+import { get, set, del, entries } from './store';
 import { isUserRejection, type Wallet } from './wallet';
 
 import type { ActionEvent } from './onchain-action';
@@ -100,9 +105,6 @@ export class EvmWalletSigner implements PaymentSigner {
   }
 }
 
-/** MODE=local only: the same EIP-3009 signer over the demo wallet; the UI labels it "demo wallet · Anvil #5". */
-export class DemoWalletSigner extends EvmWalletSigner {}
-
 /** The exact x402 terms for the "pay on Hedera with HashPack" panel. */
 export function hederaTerms(req: PaymentRequirements) {
   return {
@@ -119,6 +121,40 @@ export interface Quote {
   required: PaymentRequired;
   url: string;
   init: RequestInit;
+  spk?: Hex;
+  recovery?: boolean;
+}
+
+interface Attempt {
+  q: Quote;
+  paid: PaymentPayload;
+  spk?: Hex;
+}
+const ATTEMPTS = 'payment-attempt:';
+const requestKey = (url: string, body?: unknown) =>
+  `${url}\n${typeof body === 'string' ? body : body === undefined ? '' : JSON.stringify(body)}`;
+const attempts = () => entries<Attempt>(ATTEMPTS);
+const recoveryQuote = (attempt: Attempt): Quote => ({
+  ...attempt.q,
+  required: { ...attempt.q.required, accepts: [attempt.paid.accepted] },
+  recovery: true,
+});
+function attemptKey(q: Quote): string {
+  const headers = new Headers(q.init.headers);
+  let token = headers.get('Idempotency-Key');
+  if (!token) {
+    token = crypto.randomUUID();
+    headers.set('Idempotency-Key', token);
+    q.init.headers = Object.fromEntries(headers);
+  }
+  return `${ATTEMPTS}${token}`;
+}
+export async function pendingPayment(path: string): Promise<Quote | undefined> {
+  const attempt = (await attempts()).find((a) => a.q.url === `${config.apiUrl}${path}`);
+  return attempt ? recoveryQuote(attempt) : undefined;
+}
+export async function completePayment(q: Quote): Promise<void> {
+  await del(attemptKey(q));
 }
 
 /** The Review state's data: one unpaid request, its 402 decoded with the protocol codec. */
@@ -126,7 +162,14 @@ export async function quote(
   path: string,
   init: { method?: 'GET' | 'POST'; body?: unknown; sessionPubKey?: Hex } = {},
 ): Promise<Quote> {
-  const headers: Record<string, string> = {};
+  const previous = (await attempts()).find(
+    (attempt) =>
+      requestKey(attempt.q.url, attempt.q.init.body) ===
+      requestKey(`${config.apiUrl}${path}`, init.body),
+  );
+  if (previous) return recoveryQuote(previous);
+  const idempotencyKey = crypto.randomUUID();
+  const headers: Record<string, string> = { 'Idempotency-Key': idempotencyKey };
   if (init.sessionPubKey) headers['X-Session-Pubkey'] = init.sessionPubKey;
   const res = await call(path, {
     method: init.method ?? 'GET',
@@ -138,6 +181,7 @@ export async function quote(
   if (res.status !== 402 || header === null) throw toApiError(res.status, res.data, res.headers);
   return {
     required: decodePaymentRequired(header),
+    ...(init.sessionPubKey ? { spk: init.sessionPubKey } : {}),
     url: `${config.apiUrl}${path}`,
     init: {
       method: init.method ?? 'GET',
@@ -145,6 +189,7 @@ export async function quote(
         'content-type': 'application/json',
         accept: 'application/json',
         'X-Request-Id': requestId(),
+        'Idempotency-Key': idempotencyKey,
       },
       ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
     },
@@ -157,6 +202,7 @@ export interface PaidResult<T> {
   settlement?: SettleResult;
   error?: ApiError;
   paid?: PaymentPayload;
+  uncertain?: boolean;
 }
 
 /** Runs fetchWithPayment once for a quoted request and returns the parsed body or the decoded failure. */
@@ -165,39 +211,102 @@ export async function pay<T>(
   signer: PaymentSigner,
   sessionPubKey?: Hex,
   now: number = Date.now(),
+  fetcher: typeof fetch = globalThis.fetch,
 ): Promise<PaidResult<T>> {
-  const skew = now - Date.now();
-  const result = await fetchWithPayment({
-    fetch: globalThis.fetch,
-    url: q.url,
-    init: q.init,
-    signer,
-    now: () => Date.now() + skew,
-    keccak256,
-    ...(sessionPubKey ? { sessionPubKey } : {}),
-    // the settled request runs the facilitator's receipt wait and the reseller order before it answers (RT-W-13)
-    timeoutMs: ENTITLE_TIMEOUT_MS,
-  });
-  const text = await result.response.text();
-  const body: unknown = text ? JSON.parse(text) : undefined;
-  const out: PaidResult<T> = {
-    status: result.response.status,
-    ...(result.settlement ? { settlement: result.settlement } : {}),
-    ...(result.paid ? { paid: result.paid } : {}),
-  };
-  if (result.response.status >= 400) {
-    // a second 402 carries the facilitator's reason in PAYMENT-REQUIRED.error; the body is errorBodySchema
-    const again = result.response.headers.get(PAYMENT_REQUIRED_HEADER);
-    const reason = again ? safeError(again) : undefined;
-    const error = toApiError(result.response.status, body, result.response.headers);
+  const id = attemptKey(q);
+  let attempt = await get<Attempt>(id);
+  const recovering = Boolean(attempt);
+  let result: { response: Response; settlement?: SettleResult; paid?: PaymentPayload };
+  try {
+    if (attempt) {
+      // Replay the SAME signed authorization. Never ask the wallet for a new nonce after an uncertain send.
+      const headers = new Headers(attempt.q.init.headers);
+      headers.set(PAYMENT_SIGNATURE_HEADER, encodePaymentPayload(attempt.paid));
+      if (attempt.spk) headers.set('X-Session-Pubkey', attempt.spk);
+      const response = await fetcher(attempt.q.url, {
+        ...attempt.q.init,
+        headers,
+        signal: AbortSignal.timeout(ENTITLE_TIMEOUT_MS),
+      });
+      const header = response.headers.get(PAYMENT_RESPONSE_HEADER);
+      result = {
+        response,
+        paid: attempt.paid,
+        ...(header ? { settlement: decodePaymentResponse(header) } : {}),
+      };
+    } else {
+      const skew = now - Date.now();
+      result = await fetchWithPayment({
+        fetch: fetcher,
+        url: q.url,
+        init: q.init,
+        signer: {
+          choose: (offers) =>
+            signer.choose(
+              offers.filter((offer) =>
+                q.required.accepts.some(
+                  (reviewed) =>
+                    reviewed.network === offer.network &&
+                    reviewed.asset.toLowerCase() === offer.asset.toLowerCase() &&
+                    reviewed.payTo.toLowerCase() === offer.payTo.toLowerCase() &&
+                    reviewed.amount === offer.amount,
+                ),
+              ),
+            ),
+          sign: async (requirements, context) => {
+            const paid = await signer.sign(requirements, context);
+            attempt = {
+              q: { ...q, ...(sessionPubKey ? { spk: sessionPubKey } : {}) },
+              paid,
+              ...(sessionPubKey ? { spk: sessionPubKey } : {}),
+            };
+            await set(id, attempt);
+            return paid;
+          },
+        },
+        now: () => Date.now() + skew,
+        keccak256,
+        ...(sessionPubKey ? { sessionPubKey } : {}),
+        timeoutMs: ENTITLE_TIMEOUT_MS,
+      });
+    }
+    const text = await result.response.text();
+    const body: unknown = text ? JSON.parse(text) : undefined;
+    const out: PaidResult<T> = {
+      status: result.response.status,
+      ...(result.settlement ? { settlement: result.settlement } : {}),
+      ...(result.paid ? { paid: result.paid } : {}),
+    };
+    if (result.response.status >= 400) {
+      const again = result.response.headers.get(PAYMENT_REQUIRED_HEADER);
+      const reason = again ? safeError(again) : undefined;
+      const error = toApiError(result.response.status, body, result.response.headers);
+      const uncertain = Boolean(
+        attempt &&
+        (recovering ||
+          (result.settlement?.success ?? false) ||
+          result.response.status >= 500 ||
+          error.code === 'replay'),
+      );
+      if (!uncertain) await completePayment(q);
+      return {
+        ...out,
+        uncertain,
+        error: reason
+          ? Object.assign(error, { details: { reason, ...asObject(error.details) } })
+          : error,
+      };
+    }
+    return { ...out, data: body as T };
+  } catch (error) {
+    if (!attempt) throw error; // Nothing was signed/sent: a wallet decline remains a normal rejection.
     return {
-      ...out,
-      error: reason
-        ? Object.assign(error, { details: { reason, ...asObject(error.details) } })
-        : error,
+      status: 0,
+      paid: attempt.paid,
+      uncertain: true,
+      error: new ApiError(0, 'network', error instanceof Error ? error.message : 'network'),
     };
   }
-  return { ...out, data: body as T };
 }
 
 const asObject = (v: unknown): Record<string, unknown> =>

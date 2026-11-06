@@ -48,6 +48,7 @@ const TARGET: Record<ActionEvent['type'], OnchainActionState> = {
   signed: 'submitted',
   rejected: 'idle',
   preBroadcastError: 'failed',
+  uncertain: 'failed',
   seen: 'pending',
   confirmed: 'confirmed',
   finalized: 'finalized',

@@ -4,7 +4,10 @@ import { createApp } from './app.js';
 import { buildDeps } from './deps.js';
 import { parseEnv } from './env.js';
 import { retryPendingOnBoot } from './flows/fulfil.js';
+import { flushReceiptOutbox } from './flows/record.js';
+import { recoverRefunds } from './flows/refund-recovery.js';
 import { createLogger } from './logger.js';
+import { recoverFreeReservations } from './middleware/octroi.js';
 import { LocalClock } from './seed.js';
 
 const env = parseEnv();
@@ -16,8 +19,24 @@ const deps = await buildDeps(process.env, {
   ...(localClock ? { now: localClock.now } : {}),
 });
 const app = createApp(deps, localClock ? { localClock } : {});
+await recoverFreeReservations(deps);
 // RT-A-11: pending-profile deliveries that survived a restart are retried once now (then on /me, ≤ 1/min)
 void retryPendingOnBoot(deps);
+void flushReceiptOutbox(deps).catch(() =>
+  logger.warn({ event: 'receipt-outbox' }, 'receipt replay waits for ledger recovery'),
+);
+void recoverRefunds(deps).catch(() =>
+  logger.warn({ event: 'refund-recovery' }, 'refund replay waits for recovery'),
+);
+const refundTimer = setInterval(() => {
+  void flushReceiptOutbox(deps).catch(() =>
+    logger.warn({ event: 'receipt-outbox' }, 'receipt replay waits for ledger recovery'),
+  );
+  void recoverRefunds(deps).catch(() =>
+    logger.warn({ event: 'refund-recovery' }, 'refund replay waits for recovery'),
+  );
+}, 30_000);
+refundTimer.unref();
 // ENSv2 campaign names left `pending` by the last process continue (flows/ens.ts)
 void deps.ens?.resumeOnBoot();
 
@@ -39,6 +58,7 @@ const server = serve({ fetch: app.fetch, port: env.PORT, hostname: env.HOST }, (
 });
 
 function shutdown(signal: NodeJS.Signals): void {
+  clearInterval(refundTimer);
   logger.info({ signal }, 'shutting down');
   server.close((error) => {
     if (error) {

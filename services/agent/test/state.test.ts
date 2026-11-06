@@ -32,7 +32,7 @@ import { ApiReads, LedgerReads, paidKeyPayer, PlansCache } from '../src/reads.js
 import { tick } from '../src/tick.js';
 
 describe('agent state (.agent/)', () => {
-  it('trigger claims: exclusive, done blocks, signed blocks until validBefore, stale claims expire', async () => {
+  it('trigger claims: exclusive, done and signed block permanently; only unsigned stale claims expire', async () => {
     const s = new AgentState(await tempDir());
     expect(await s.claimTrigger('t1', T0)).toEqual({ ok: true });
     expect(await s.claimTrigger('t1', T0 + 1)).toEqual({ ok: false, reason: 'trigger-in-flight' });
@@ -42,7 +42,10 @@ describe('agent state (.agent/)', () => {
       ok: false,
       reason: 'trigger-in-flight',
     });
-    expect(await s.claimTrigger('t1', T0 + 300_000)).toEqual({ ok: true });
+    expect(await s.claimTrigger('t1', T0 + 300_000)).toEqual({
+      ok: false,
+      reason: 'trigger-in-flight',
+    });
     await s.markDone('t1', T0);
     expect(await s.claimTrigger('t1', T0 + 10 * DAY_MS)).toEqual({
       ok: false,
@@ -54,6 +57,23 @@ describe('agent state (.agent/)', () => {
     await s.claimTrigger('t3', T0);
     await s.releaseTrigger('t3'); // the claimant's own unsigned claim: released
     expect(await s.trigger('t3')).toBeUndefined();
+  });
+
+  it('two recovering processes account for one authorization once, even across a torn completion', async () => {
+    const dir = await tempDir();
+    const a = new AgentState(dir);
+    const b = new AgentState(dir);
+    const input = { key: KEY, now: T0, usd6: 400_000n };
+    const results = await Promise.all([
+      a.completePurchase('one', input),
+      b.completePurchase('one', input),
+    ]);
+    expect(results.sort()).toEqual([false, true]);
+    expect(await a.spentToday(KEY, T0)).toBe(400_000n);
+    // A crash after append but before mark-done repeats that same purchase id on recovery.
+    await a.recordPurchase({ ...input, purchaseId: 'same-purchase' });
+    await b.recordPurchase({ ...input, purchaseId: 'same-purchase' });
+    expect(await a.spentToday(KEY, T0)).toBe(800_000n);
   });
 
   it('a corrupt trigger is in flight until it is old by mtime; a corrupt state file fails safe', async () => {
@@ -142,7 +162,7 @@ describe('reads', () => {
     await tick(h.agent.deps, KEY);
     const reads = new LedgerReads(h.ledger, h.clock.now);
     expect(await reads.latestTopupTx(KEY, h.clock.now())).toMatch(/^0x/);
-    expect(await reads.watchKeys(OWNER, 10)).toEqual([KEY]);
+    expect(await reads.watchKeys(OWNER, 10)).toEqual([]);
     expect(await reads.watchKeys(OWNER, 0)).toEqual([]);
   });
 

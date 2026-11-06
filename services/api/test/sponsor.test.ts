@@ -53,6 +53,28 @@ const onChain = (h: Harness, expiresAt = T0 + 10 * DAY, pricePerClaim = 1_200_00
 };
 
 describe('POST /sponsor', () => {
+  it('preflights capacity and minimum price before any on-chain campaign or ledger write exists', async () => {
+    const h = await harness();
+    const campaign = campaignFields({
+      id: scopedCampaignId(SPONSOR, 9n),
+      sponsor: SPONSOR,
+      contract: h.dataDrop.address,
+      expiresAt: T0 + 10 * DAY,
+      planId: 'in-1gb-7d',
+      pricePerClaimUsd6: '1200000',
+      bundleMb: { orb: 1000, document: 1000, device: 0 },
+    });
+    expect((await h.json('/sponsor/validate', { campaign })).status).toBe(200);
+    expect(await h.deps.stores.campaigns.get(campaign.id as `0x${string}`)).toBeNull();
+    expect(
+      (await h.json('/sponsor/validate', { campaign: { ...campaign, planId: 'in-300mb-7d' } }))
+        .status,
+    ).toBe(400);
+    expect(
+      (await h.json('/sponsor/validate', { campaign: { ...campaign, pricePerClaimUsd6: '1' } }))
+        .status,
+    ).toBe(400);
+  });
   it('register with a valid SponsorLogin → 201 + auditKey', async () => {
     const h = await harness();
     const id = onChain(h);
@@ -91,6 +113,7 @@ describe('POST /sponsor', () => {
         id,
         sponsor: SPONSOR,
         bundleMb,
+        planId: 'in-1gb-7d',
         pricePerClaimUsd6: '1200000',
         contract: h.dataDrop.address,
         expiresAt: T0 + 10 * DAY,

@@ -13,7 +13,7 @@ import { Buyer } from './buyer.js';
 import { ConfigError, type AgentConfig } from './config.js';
 import { resolveUaid, type Hcs14Fn } from './identity.js';
 import { AgentState, Journal } from './journal.js';
-import { createLogger, type Log } from './log.js';
+import { createLogger, safeError, type Log } from './log.js';
 import { MAX_WATCHED_KEYS } from './loop.js';
 import { createNotifier, type PhrasingModel } from './notifier.js';
 import { PassClient } from './pass.js';
@@ -41,7 +41,7 @@ export interface Agent {
   deps: AgentDeps;
   uaid: string;
   payers: Payer[];
-  /** The keys one pass ticks: AGENT_WATCH_KEYS, else the policies naming AGENT_OWNER (bounded). */
+  /** Explicit private capabilities from AGENT_WATCH_KEYS. */
   keys(): Promise<string[]>;
   close(): void;
 }
@@ -82,7 +82,7 @@ async function evmPayer(
     return await payer.init();
   } catch (error) {
     log.warn(
-      { event: 'degraded', what: 'evm-payer', error: String(error) },
+      { event: 'degraded', what: 'evm-payer', error: safeError(error) },
       'agent: EVM payer unavailable',
     );
     return undefined;

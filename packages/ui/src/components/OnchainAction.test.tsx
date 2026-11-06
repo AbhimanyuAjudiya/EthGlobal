@@ -166,8 +166,8 @@ describe('OnchainAction', () => {
       />,
     );
     expect(screen.getByText(/Slower than usual: 12 s, usually 5 s/)).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Speed up' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Cancel transaction' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Speed up' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancel transaction' })).toBeNull();
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 

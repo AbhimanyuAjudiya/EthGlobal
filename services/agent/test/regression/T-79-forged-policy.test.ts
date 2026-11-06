@@ -74,7 +74,7 @@ describe('T-79 forged ledger entities (AG5)', () => {
         updatedAt: h.clock.now(),
       });
     }
-    expect(await h.agent.keys()).toEqual([KEY]);
+    expect(await h.agent.keys()).toEqual([]);
   });
 
   it('live refuses to boot without the pinned writer (AGENT_LEDGER_WRITER)', () => {

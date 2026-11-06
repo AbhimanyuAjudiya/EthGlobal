@@ -43,7 +43,7 @@ describe('RT-A-17 claim re-bind (T-24, T-60)', () => {
     const again = await h.claim({ seed: 'rt-a-17' }); // a fresh keypair: the reloaded page
     expect(again.res.status).toBe(202);
     expect(await again.res.json()).toEqual(first.body);
-    expect(h.deps.pendingDelivery.get(first.key)).toEqual({
+    expect(h.deps.pendingDelivery.get(first.key)).toMatchObject({
       sessionPubKey: again.spk,
       nonce: again.challenge.nonce,
     });
@@ -62,7 +62,7 @@ describe('RT-A-17 claim re-bind (T-24, T-60)', () => {
     const sealed = await sealedBy(h, first.key);
     const again = await h.claim({ seed: 'rt-a-17-sealed' });
     expect([again.res.status, await errorOf(again.res)]).toEqual([409, 'replay']);
-    expect(h.deps.pendingDelivery.get(first.key)).toBeUndefined();
+    expect(h.deps.pendingDelivery.get(first.key)?.sessionPubKey).toBe(first.spk);
     expect(opens(sealed, first.keys.secretKey, first.challenge.nonce, first.key)).toMatch(
       /^LPA:1\$/,
     );
@@ -74,7 +74,7 @@ describe('RT-A-17 claim re-bind (T-24, T-60)', () => {
     const first = await servedPending(h, 'rt-a-17-owner');
     const other = await h.claim({ seed: 'rt-a-17-other', keys: first.keys });
     expect(other.res.status).toBe(201);
-    expect(h.deps.pendingDelivery.get(first.key)).toEqual({
+    expect(h.deps.pendingDelivery.get(first.key)).toMatchObject({
       sessionPubKey: first.spk,
       nonce: first.challenge.nonce,
     });

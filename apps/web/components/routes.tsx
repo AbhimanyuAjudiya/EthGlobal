@@ -84,11 +84,23 @@ export function PayRoute() {
 
 export function GiftPage() {
   const [sent, setSent] = useState(0);
+  const { t, lang } = useLang();
   return (
-    <Screen money>
+    <Screen money wide className="gift-screen">
       <AppHeader />
-      <GiftForm onSent={() => setSent((n) => n + 1)} />
-      <ReclaimGift refreshKey={sent} />
+      <div className="gift-layout">
+        <GiftForm onSent={() => setSent((n) => n + 1)} />
+        <aside className="gift-context">
+          <section className="gift-guide" lang={lang}>
+            <p className="eyebrow">{t('flow.coverage')}</p>
+            <h2 className="section-title">{t('how.giftLink')}</h2>
+            <p>{t('gift.intro')}</p>
+            <p className="note">{t('how.giftBody')}</p>
+            <p className="note">{t('warn.unlocked')}</p>
+          </section>
+          <ReclaimGift refreshKey={sent} />
+        </aside>
+      </div>
       <TabBar active="gift" />
     </Screen>
   );
@@ -99,7 +111,7 @@ export function ClaimRoute() {
   const id = search.get('id') ?? undefined;
   const name = search.get('name') ?? undefined;
   return (
-    <Screen>
+    <Screen className="claim-screen">
       <AppHeader />
       <ClaimGift
         {...(id && /^0x[0-9a-f]{64}$/i.test(id) ? { giftId: id } : {})}
@@ -112,12 +124,12 @@ export function ClaimRoute() {
 /** `/verify?campaign=<id>`: the claim for that campaign (claim by ENS name, /c/<slug>); no param = the default one. */
 export function VerifyRoute() {
   const id = useSearchParams().get('campaign') ?? '';
-  return <VerifySheet {...(/^0x[0-9a-fA-F]{64}$/.test(id) ? { campaignId: id } : {})} />;
+  return <VerifySheet key={id} {...(/^0x[0-9a-fA-F]{64}$/.test(id) ? { campaignId: id } : {})} />;
 }
 
 export function ReceiptsRoute() {
   const key = useSearchParams().get('key') ?? undefined;
-  return <ReceiptList {...(key ? { entitlementKey: key } : {})} />;
+  return <ReceiptList key={key ?? 'latest'} {...(key ? { entitlementKey: key } : {})} />;
 }
 
 export function CardRoute() {
@@ -125,6 +137,7 @@ export function CardRoute() {
   const serial = param(params.serial);
   return (
     <ScratchRedeem
+      key={serial}
       {...(serial && /^[0-9a-f]{8}$/.test(serial) ? { serial } : { serial: 'invalid' })}
     />
   );

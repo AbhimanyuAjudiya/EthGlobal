@@ -13,7 +13,7 @@ import { dayBucket, type Hex } from '@ethglobal/protocol/ids';
 
 import { retryPendingOnBoot } from '../../src/flows/fulfil.js';
 import { reclaim } from '../../src/flows/reclaim.js';
-import { DurableState } from '../../src/state.js';
+import { DurableMap, DurableState } from '../../src/state.js';
 import { addressOf, signGiftReclaim } from '../support/client.js';
 import {
   buyGift,
@@ -28,6 +28,36 @@ const stateFile = () => join(mkdtempSync(join(tmpdir(), 't25-state-')), 'api.sta
 const SEAL = new Uint8Array(32).fill(5);
 
 describe('DurableState (state.ts)', () => {
+  it('rolls back a failed set, delete and expiry prune without exposing an undurable permission', () => {
+    let fail = false;
+    let now = 1;
+    const rows = {};
+    const map = new DurableMap<{ count: number }>(
+      rows,
+      () => now,
+      () => {
+        if (fail) throw new Error('disk full');
+      },
+    );
+    const input = { count: 1 };
+    map.set('paid', input);
+    map.set('short', { count: 2 }, 3);
+    input.count = 99;
+    expect(map.get('paid')).toEqual({ count: 1 });
+    const read = map.get('paid')!;
+    read.count = 100;
+    expect(map.get('paid')).toEqual({ count: 1 });
+    now = 4;
+    fail = true;
+    expect(() => map.set('new-permission', { count: 3 })).toThrow('disk full');
+    expect(map.has('new-permission')).toBe(false);
+    expect(Object.keys(rows)).toEqual(['paid', 'short']);
+    expect(() => map.delete('paid')).toThrow('disk full');
+    expect(map.get('paid')).toEqual({ count: 1 });
+    fail = false;
+    map.set('new-permission', { count: 3 });
+    expect(Object.keys(rows)).toEqual(['paid', 'new-permission']);
+  });
   it('round-trips through a sealed file; rows expire; a file it cannot open refuses to load', () => {
     const file = stateFile();
     let now = 1_000;

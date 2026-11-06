@@ -159,10 +159,8 @@ describe('attack: 402 bypass and payment tampering (AP7)', () => {
     const headers = { [PAYMENT_SIGNATURE_HEADER]: encodePaymentPayload(payload) };
     expect((await paidWith(h, key, headers)).status).toBe(200);
     const again = await paidWith(h, key, headers);
-    expect([
-      again.status,
-      ((await again.json()) as { details: { detail: string } }).details.detail,
-    ]).toEqual([402, 'nonce_already_used']);
+    expect(again.status).toBe(200);
+    expect(await again.json()).toMatchObject({ mbTotal: 1300 });
     expect(fake.usdc.transfers.map((t) => t.transactionHash)).toEqual([hash]);
     expect(
       ((await (await h.get(`/me/${encodeURIComponent(key)}`)).json()) as { mbTotal: number })

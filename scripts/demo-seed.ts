@@ -333,7 +333,10 @@ async function seed(): Promise<SeedState> {
   const gift = (
     await api.request('/gift', {
       body: giftBody,
-      headers: await payHeaders(chain, 'stranger', giftQuote.headers),
+      headers: {
+        ...(await payHeaders(chain, 'stranger', giftQuote.headers)),
+        'Idempotency-Key': crypto.randomUUID(),
+      },
       expect: [201],
     })
   ).data as unknown as GiftResponse;

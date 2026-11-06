@@ -92,6 +92,8 @@ const esimSchema = z
     ac: z.string().max(512).optional(),
     smdpStatus: z.string().max(32).optional(),
     esimStatus: z.string().max(32).optional(),
+    eid: z.string().max(64).nullish(),
+    expiredTime: z.string().max(80).nullish(),
     totalVolume: int.optional(),
     orderUsage: int.optional(),
   })
@@ -117,14 +119,27 @@ type Esim = z.infer<typeof esimSchema>;
 export function esimStatus(e: {
   smdpStatus?: string | undefined;
   esimStatus?: string | undefined;
+  eid?: string | null | undefined;
 }): ProfileStatus {
   const s = new Set([e.smdpStatus, e.esimStatus]);
-  // CANCEL: refunded by /esim/cancel (observed live 2026-11-06), the profile is dead
-  if (s.has('USED_UP') || s.has('DELETED') || s.has('USED_EXPIRED') || s.has('CANCEL'))
+  // Official status matrix: USED_UP is depleted (reloadable), not expired.
+  if (
+    ['DELETED', 'UNUSED_EXPIRED', 'USED_EXPIRED', 'CANCEL', 'REVOKE', 'REVOKED'].some((v) =>
+      s.has(v),
+    )
+  )
     return 'expired';
-  if (s.has('IN_USE')) return 'active';
-  if (s.has('ENABLED')) return 'installed';
-  return 'ready';
+  if (s.has('IN_USE') || s.has('USED_UP')) return 'active';
+  if (
+    e.eid ||
+    ['DOWNLOAD', 'DOWNLOADED', 'INSTALLATION', 'INSTALLED', 'ENABLED', 'DISABLED'].some((v) =>
+      s.has(v),
+    )
+  )
+    return 'installed';
+  if (e.smdpStatus === 'RELEASED' && e.esimStatus === 'GOT_RESOURCE') return 'ready';
+  // Missing/new/suspended vendor states must never be interpreted as proof of an unused profile.
+  throw new AdapterError('reseller', 'invalid_response', 'unrecognized or unavailable eSIM status');
 }
 
 const ERROR_CODES: Record<string, AdapterErrorCode> = {
@@ -296,7 +311,17 @@ export class EsimAccessReseller implements Reseller {
       );
       lookup = { orderNo: placed.orderNo, iccid: '' };
     } catch (error) {
-      if (!(error instanceof VendorError)) throw error;
+      if (!(error instanceof VendorError)) {
+        // A transport failure can happen after the vendor accepted the order. Only a
+        // definite vendor refusal is safe to replace with another inventory profile.
+        if (error instanceof AdapterError) {
+          throw new AdapterError(error.adapter, error.code, error.message, {
+            ...error.details,
+            orderMayExist: typeof error.details?.vendorCode !== 'string',
+          });
+        }
+        throw error;
+      }
       // 310402: this transactionId was already ordered — find that order, never place a second one.
       // [verify Wed] /esim/query by transactionId is not in the reference; confirm the field on a real duplicate.
       lookup = { orderNo: '', iccid: '', transactionId };
@@ -307,7 +332,14 @@ export class EsimAccessReseller implements Reseller {
         '/esim/query',
         { ...lookup, pager: PAGER },
         esimList,
-      );
+      ).catch((error: unknown) => {
+        if (error instanceof AdapterError)
+          throw new AdapterError(error.adapter, error.code, error.message, {
+            ...error.details,
+            orderMayExist: true,
+          });
+        throw error;
+      });
       const esim = list.find(
         (e) =>
           (lookup.orderNo ? e.orderNo === lookup.orderNo : e.transactionId === transactionId) &&
@@ -318,6 +350,7 @@ export class EsimAccessReseller implements Reseller {
         // The API keeps pending-profile and retries with the same key (the vendor dedupes by transactionId).
         throw unavailable('eSIM Access profile not ready after 30 s (pending-profile)', {
           reason: 'pending_profile',
+          orderMayExist: true,
         });
       }
       await this.#sleep(this.#opts.pollMs ?? 3_000);
@@ -371,20 +404,17 @@ export class EsimAccessReseller implements Reseller {
   ): Promise<{ orderId: string; totalMb: number }> {
     if (!Number.isSafeInteger(mb) || mb <= 0)
       throw new AdapterError('reseller', 'invalid_request', 'mb must be a positive integer');
-    const { esimTranNo, totalVolume } = await this.#esim(iccid);
+    const before = await this.#esim(iccid);
+    const { esimTranNo, totalVolume } = before;
     const transactionId = sha256Hex(`topup:${idempotencyKey}`).slice(2, 34);
     const profileMb = mbFromBytes(totalVolume ?? 0);
-    // ponytail: the profile's own volume serves 100 MB steps until the plan outgrows it (vendor top-ups start at 1 GB);
-    // a plan with no known total buys at least `mb`. Upgrade: a per-ICCID volume ledger if steps ever race the vendor.
+    // Existing vendor capacity can serve the absolute entitlement target; the API serializes targets per profile.
     if (totalMb !== undefined && totalMb <= profileMb)
       return { orderId: transactionId, totalMb: profileMb };
+    if (!this.#topUpEligible(before))
+      throw new AdapterError('reseller', 'invalid_request', 'this profile cannot be topped up');
     const need = totalMb === undefined ? mb : totalMb - profileMb;
-    // `type: "TOPUP"` with `iccid` lists the profile's compatible top-ups (live: supportTopUpType 1, 1 GB and up).
-    const { packageList: list } = await this.#call(
-      '/package/list',
-      { locationCode: '', type: 'TOPUP', slug: '', packageCode: '', iccid },
-      packageList,
-    );
+    const list = await this.#fixedTopUps(iccid);
     const pkg = [...list]
       .sort((a, b) => a.volume - b.volume)
       .find((p) => mbFromBytes(p.volume) >= need);
@@ -404,7 +434,48 @@ export class EsimAccessReseller implements Reseller {
       if (!(error instanceof VendorError)) throw error; // 310402: already applied under this transactionId
     }
     const after = await this.#esim(iccid);
-    return { orderId: transactionId, totalMb: mbFromBytes(after.totalVolume ?? 0) };
+    const confirmedMb = mbFromBytes(after.totalVolume ?? 0);
+    const requiredMb = totalMb ?? profileMb + mb;
+    if (confirmedMb < requiredMb)
+      throw unavailable('top-up capacity is not yet confirmed', {
+        reason: 'pending_topup',
+        requiredMb,
+        confirmedMb,
+      });
+    return { orderId: transactionId, totalMb: confirmedMb };
+  }
+
+  #topUpEligible(e: Esim): boolean {
+    if (!['GOT_RESOURCE', 'IN_USE', 'USED_UP'].includes(e.esimStatus ?? '')) return false;
+    if (esimStatus(e) === 'expired') return false;
+    if (e.expiredTime) {
+      const expiry = Date.parse(e.expiredTime);
+      if (!Number.isFinite(expiry))
+        throw new AdapterError('reseller', 'invalid_response', 'malformed vendor expiration');
+      if (expiry <= this.#opts.now()) return false;
+    }
+    return true;
+  }
+
+  async #fixedTopUps(iccid: string): Promise<z.infer<typeof packageSchema>[]> {
+    const { packageList: list } = await this.#call(
+      '/package/list',
+      {
+        locationCode: '',
+        type: 'TOPUP',
+        slug: '',
+        packageCode: '',
+        iccid,
+      },
+      packageList,
+    );
+    // Type 3 is a day-pass extension requiring periodNum; this product sells a fixed MB amount.
+    return list.filter((p) => p.supportTopUpType === 2 && p.durationUnit === 'DAY' && p.volume > 0);
+  }
+
+  async canTopUp(iccid: string): Promise<boolean> {
+    if (!this.#topUpEligible(await this.#esim(iccid))) return false;
+    return (await this.#fixedTopUps(iccid)).length > 0;
   }
 
   /**
@@ -415,7 +486,7 @@ export class EsimAccessReseller implements Reseller {
   async cancel(iccid: string, _opts: { idempotencyKey: string }): Promise<void> {
     const e = await this.#esim(iccid);
     if (e.esimStatus === 'CANCEL') return;
-    if (esimStatus(e) !== 'ready')
+    if (esimStatus(e) !== 'ready' || e.orderUsage !== 0 || Boolean(e.eid))
       throw new AdapterError(
         'reseller',
         'invalid_request',

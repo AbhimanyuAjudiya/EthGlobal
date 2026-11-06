@@ -39,6 +39,32 @@ const adapters = createLiveAdapters(parseLiveConfig(process.env)); // throws onc
 const feePayer = await adapters.feePayer('hedera:testnet'); // boot check against X402_HEDERA_FEE_PAYER (T-42)
 ```
 
+Every advertised EVM payment network has its own receipt reader and refund treasury. `CHAIN` uses `RPC_URL` and
+`USDC_ADDRESS` when supplied. Additional Base rails use `BASE_SEPOLIA_RPC_URL` or `BASE_MAINNET_RPC_URL` (the chain's
+public RPC by default) and that network's USDC address. This also supports Hedera EVM as the application chain with
+Base payments; a missing mapping for any other EVM network is a startup error. The refund wallet must be funded on
+each enabled network.
+
+Arkiv writes share a sequential wallet mutation queue and a nonce manager. Inventory fallback occurs only when the
+primary definitely did not accept an order. A pending profile or uncertain transport outcome is retried against the
+same provider with the same order id. A consumed inventory allocation is recovered before attempting a primary
+order, including after restart.
+
+Refund recovery uses `prepareRefund` → durable private journal → `submitRefund`. Preparation signs without
+broadcasting; the saved EVM hash or native Hedera transaction ID identifies the only transfer recovery may submit.
+Retries replay the same signed bytes, and `refundStatus` checks that exact transaction. A timeout never authorizes a
+replacement transfer. The API serializes each network and blocks new nonce preparation behind unresolved refunds.
+Legacy pending refunds without a saved transaction require operator reconciliation; account balances cannot prove
+which refund was paid. Signed refund bytes must remain private. Native Hedera transactions that expire without a
+confirmed mirror record also remain unresolved; they are never re-signed automatically.
+
+The [official eSIM Access status matrix](https://docs.esimaccess.com/) distinguishes `USED_UP` (depleted and
+reloadable) from expired states. Downloaded/disabled profiles and profiles with an EID are installed; unknown or
+suspended states cannot establish that a profile is unused. Cancellation also requires zero authoritative usage.
+Fixed-volume top-ups use compatible `supportTopUpType: 2` packages; type 3 requires day-pass parameters this product
+does not offer. A successful top-up acknowledgment is pending until the profile query confirms the requested total
+capacity. These paths are tested with local fixtures and fakes, without provider orders.
+
 ## Tests
 
 `pnpm --filter @ethglobal/adapters test` (coverage: `exec vitest run --coverage`). Live adapters run only over

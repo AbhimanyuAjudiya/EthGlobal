@@ -206,6 +206,7 @@ echo "PASS setup: anvil on $RPC_URL, contracts deployed ($(elapsed) ms)"
 # 2. the API (local mode: Anvil + mocks, self-run facilitator; no other network). HOST stays loopback (RT-P-01).
 # shellcheck disable=SC2016
 spawn_group api "$OUT/api.log" bash -c 'cd "$0" && exec "$@"' "$API" env MODE=local HOST=127.0.0.1 X402_FACILITATOR=self RESELLER=mock \
+  CORS_ORIGINS="${CORS_ORIGINS:-http://127.0.0.1:${PLAYWRIGHT_WEB_PORT:-3000},http://localhost:${PLAYWRIGHT_WEB_PORT:-3000}}" \
   ANVIL_RPC_URL="$RPC_URL" PORT="$API_PORT" LOG_LEVEL=info TRUST_PROXY=1 CAMPAIGN_ID= \
   WORLD_AGENT_PASS_CLIENT_ID=simulated WORLD_AGENT_PASS_CLIENT_SECRET="${E2E_AGENT_PASS_SECRET:-e2e-simulated}" "$TSX" src/index.ts
 API_PID=$SPAWNED

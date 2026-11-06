@@ -31,6 +31,7 @@ async function register(h: Harness, n: bigint, name = 'Mumbai Airport Wi-Fi') {
       sponsor: SPONSOR,
       name,
       bundleMb: { orb: 1000, document: 1000, device: 0 },
+      planId: 'in-1gb-7d',
       contract: h.dataDrop.address,
       expiresAt: EXPIRES,
     }),

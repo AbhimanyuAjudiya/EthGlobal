@@ -2,7 +2,7 @@
 import { AdapterError } from '../errors.js';
 
 import type { RefundInput } from '../treasury-rules.js';
-import type { Treasury } from '../types.js';
+import type { PreparedRefund, RefundStatus, Treasury } from '../types.js';
 
 export class RoutingTreasury implements Treasury {
   readonly #byNetwork: ReadonlyMap<string, Treasury>;
@@ -23,5 +23,26 @@ export class RoutingTreasury implements Treasury {
 
   async balanceUsd6(network: string): Promise<bigint> {
     return this.#for(network).balanceUsd6(network);
+  }
+
+  async prepareRefund(input: RefundInput): Promise<PreparedRefund> {
+    const treasury = this.#for(input.network);
+    if (!treasury.prepareRefund)
+      throw new AdapterError('treasury', 'unavailable', 'durable refunds unavailable on this rail');
+    return treasury.prepareRefund(input);
+  }
+
+  async submitRefund(prepared: PreparedRefund): Promise<{ tx: string }> {
+    const treasury = this.#for(prepared.network);
+    if (!treasury.submitRefund)
+      throw new AdapterError('treasury', 'unavailable', 'durable refunds unavailable on this rail');
+    return treasury.submitRefund(prepared);
+  }
+
+  async refundStatus(prepared: PreparedRefund): Promise<RefundStatus> {
+    const treasury = this.#for(prepared.network);
+    if (!treasury.refundStatus)
+      throw new AdapterError('treasury', 'unavailable', 'durable refunds unavailable on this rail');
+    return treasury.refundStatus(prepared);
   }
 }

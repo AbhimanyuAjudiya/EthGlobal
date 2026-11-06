@@ -21,7 +21,7 @@ import { config } from '../lib/env';
 import { formatMb, mmss, money, soldPlan } from '../lib/format';
 import { useClock, usePlans } from '../lib/hooks';
 import { buildProof, type Proof } from '../lib/proof';
-import { beginSession } from '../lib/session-key';
+import { finishRedemption, prepareFreeClaim } from '../lib/redeem';
 
 type Phase =
   | { kind: 'preparing' }
@@ -81,12 +81,6 @@ async function openIdkit(
   return req.pollUntilCompletion({ pollInterval: 2000, timeout: 120_000 });
 }
 
-/** The session keypair is generated here, in memory only (T-60); the challenge MAC binds it. */
-async function prepareClaim(): Promise<{ spk: Hex; challenge: ChallengeWire }> {
-  const spk = beginSession();
-  return { spk, challenge: await api.challenge('/claim', spk) };
-}
-
 const SEEN = new Set(['replay', 'already_claimed']);
 const SPONSOR = new Set(['hourly_cap', 'budget_exhausted', 'campaign_paused', 'campaign_expired']);
 
@@ -112,55 +106,69 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
   const [showQr, setShowQr] = useState(false);
   // a failed claim's proof (the API's error answer); a served claim's travels to /plan with the issued facts
   const [proof, setProof] = useState<Proof>();
-  const session = useRef<{ spk: Hex; challenge: ChallengeWire } | undefined>(undefined);
+  const session = useRef<Awaited<ReturnType<typeof prepareFreeClaim>> | undefined>(undefined);
 
+  const translate = useRef(t);
+  useEffect(() => {
+    translate.current = t;
+  }, [t]);
+  const attempt = useRef(0);
   const [round, setRound] = useState(0);
   useEffect(() => {
     let alive = true;
-    prepareClaim().then(
+    prepareFreeClaim(campaignId).then(
       (next) => {
         if (!alive) return;
         session.current = next;
         setPhase({ kind: 'ready' });
       },
-      (e: unknown) => alive && setPhase(phaseFor(e, t)),
+      (e: unknown) => alive && setPhase(phaseFor(e, translate.current)),
     );
     return () => {
       alive = false;
     };
-  }, [t, round]);
+  }, [round, campaignId]);
   const prepare = () => {
     setPhase({ kind: 'preparing' });
     setRound((n) => n + 1);
   };
-  const fail = useCallback((e: unknown) => setPhase(phaseFor(e, t)), [t]);
+  const fail = useCallback((e: unknown) => setPhase(phaseFor(e, translate.current)), []);
 
   const claim = useCallback(
-    async (proof: unknown) => {
-      const s = session.current;
+    async (proof: unknown, s = session.current) => {
       const campaign = plans?.campaign;
       if (!s || !campaign) return;
+      session.current = undefined;
       setPhase({ kind: 'checking', since: Date.now() });
       setProof(undefined);
       try {
         // the IDKit result is forwarded UNCHANGED as `proof` (A-25)
-        const res = await api.claim({
-          proof,
-          campaignId: campaign.id as Hex,
-          challenge: s.challenge,
-          sessionPubKey: s.spk,
-        });
-        const key = await deliver(res.data, s.challenge.nonce as Hex, {
-          network: campaign.network,
-          you: '$0.00',
-          sponsor: campaign.name,
-          proof: buildProof({
-            response: res.data,
-            status: res.status,
+        const res = await api.claim(
+          {
+            proof,
+            campaignId: campaign.id as Hex,
+            challenge: s.challenge,
+            sessionPubKey: s.spk,
+          },
+          s.recoveryToken,
+        );
+        const key = await deliver(
+          res.data,
+          s.challenge.nonce as Hex,
+          {
             network: campaign.network,
-            world: true,
-          }),
-        });
+            you: '$0.00',
+            sponsor: campaign.name,
+            proof: buildProof({
+              response: res.data,
+              status: res.status,
+              network: campaign.network,
+              world: true,
+            }),
+          },
+          s.spk,
+        );
+        await finishRedemption(s.operation, key, res.status === 201 && !res.data.sealedLpa);
         // 201 and 202 deliver the same way: a pending profile has no LPA yet and /plan says so (T-25)
         router.push(planHref(key));
       } catch (e) {
@@ -174,33 +182,51 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
   );
 
   const start = useCallback(async () => {
-    const s = session.current;
-    if (!s) return;
+    const ticket = ++attempt.current;
     setPhase({ kind: 'waiting', since: Date.now() });
     try {
+      let s = session.current;
+      if (!s || s.challenge.exp <= Date.now()) {
+        s = await prepareFreeClaim(campaignId);
+        session.current = s;
+      }
+      if (ticket !== attempt.current) return;
       // an expired rp_context (rp_signature_expired | timestamp_too_old) is re-fetched once
-      for (let attempt = 0; attempt < 2; attempt += 1) {
+      for (let retry = 0; retry < 2; retry += 1) {
         // the backend-signed rp_context, after the challenge and before IDKit opens (A-25)
         const rp = await api.rpContext('/claim');
+        if (ticket !== attempt.current) return;
         if (process.env.NEXT_PUBLIC_MODE === 'local') {
           // compiled out of a live build (RT-W-12): the simulator call lives in lib/local/world-sim.ts
           const { simulatedProof } = await import('../lib/local/world-sim');
-          await claim(await simulatedProof(s.challenge.signal as Hex, 'orb', simulatedSeed()));
+          const proof = await simulatedProof(s.challenge.signal as Hex, 'orb', simulatedSeed());
+          if (ticket === attempt.current) await claim(proof, s);
           return;
         }
-        const done = await openIdkit(s.challenge, rp, (uri) =>
-          setPhase({ kind: 'waiting', since: Date.now(), ...(uri ? { connectorURI: uri } : {}) }),
+        const done = await openIdkit(
+          s.challenge,
+          rp,
+          (uri) =>
+            ticket === attempt.current &&
+            setPhase({ kind: 'waiting', since: Date.now(), ...(uri ? { connectorURI: uri } : {}) }),
         );
-        if (done.success) return await claim(done.result);
+        if (ticket !== attempt.current) return;
+        if (done.success) return await claim(done.result, s);
         if (done.error === 'user_rejected') return setPhase({ kind: 'ready' });
         if (done.error === 'credential_unavailable') return setPhase({ kind: 'noCredential' });
         if (done.error !== 'rp_signature_expired' && done.error !== 'timestamp_too_old') break;
       }
       setPhase({ kind: 'failed' });
     } catch (e) {
-      fail(e);
+      if (ticket === attempt.current) fail(e);
     }
-  }, [claim, fail]);
+  }, [claim, fail, campaignId]);
+  useEffect(
+    () => () => {
+      attempt.current += 1;
+    },
+    [],
+  );
 
   const mb = plans?.campaign?.bundleMb.orb ?? PLAN_MB;
   // "pay instead" sells the paid lane's one size (1 GB · $4.00), whatever the free bundle is
@@ -321,54 +347,70 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
 
   const canStart = phase.kind === 'ready' || phase.kind === 'failed';
   return (
-    <Screen>
+    <Screen wide className="verify-screen">
       <AppHeader />
-      {plans?.campaign ? (
-        <div className="verify__coupon" aria-hidden="true">
-          <Coupon mb={mb} sponsor={plans.campaign.name} variant="notification" lang={lang} />
-        </div>
-      ) : null}
-      <section className="sheet" aria-labelledby="verify-title">
-        <h1 id="verify-title" className="sheet__kicker" lang={lang}>
-          {t('verify.title')}
-        </h1>
-        <p className="sheet__lede sheet__lede--dominant" lang={lang}>
-          {t('verify.lede')}
-        </p>
-        <div className="verify__status">{status}</div>
-        <Caution k="warn.thisBrowser" />
-        <div className="sheet__actions">
-          {canStart ? (
-            <Button block onClick={() => void start()} disabled={!plans?.campaign}>
-              {process.env.NEXT_PUBLIC_MODE === 'local' ? t('verify.simulated') : t('verify.open')}
-            </Button>
-          ) : null}
-          {phase.kind === 'waiting' && process.env.NEXT_PUBLIC_MODE !== 'local' ? (
-            <Button variant="quiet" onClick={() => setPhase({ kind: 'ready' })}>
-              {t('verify.cancel')}
-            </Button>
-          ) : null}
-          {phase.kind === 'closed' ? (
-            <Button variant="secondary" onClick={prepare}>
-              {t('verify.retry')}
-            </Button>
-          ) : null}
-          {phase.kind === 'failed' ||
-          phase.kind === 'noCredential' ||
-          phase.kind === 'sponsorFailed' ? (
-            <Link href="/pay" className="ui-button" data-variant="secondary" prefetch={false}>
-              {t('landing.payInstead', { price, mb: payMb })}
-            </Link>
-          ) : null}
-        </div>
-        {process.env.NEXT_PUBLIC_MODE === 'local' ? (
-          <p className="note" lang={lang}>
-            {t('verify.simulatedNote')}
-          </p>
+      <div className="verify-layout">
+        {plans?.campaign ? (
+          <div className="verify__coupon" aria-hidden="true">
+            <Coupon mb={mb} sponsor={plans.campaign.name} lang={lang} />
+          </div>
         ) : null}
-        <ProofPanel proof={proof} />
-        {plans ? <TierLedger plans={plans} /> : null}
-      </section>
+        <section className="sheet" aria-labelledby="verify-title">
+          <h1 id="verify-title" className="sheet__kicker" lang={lang}>
+            {t('verify.title')}
+          </h1>
+          <p className="sheet__lede sheet__lede--dominant" lang={lang}>
+            {t('verify.lede')}
+          </p>
+          <div className="verify__status">{status}</div>
+          <Caution k="warn.thisBrowser" />
+          <div className="sheet__actions">
+            {canStart ? (
+              <Button block onClick={() => void start()} disabled={!plans?.campaign}>
+                {process.env.NEXT_PUBLIC_MODE === 'local'
+                  ? t('verify.simulated')
+                  : t('verify.open')}
+              </Button>
+            ) : null}
+            {phase.kind === 'waiting' && process.env.NEXT_PUBLIC_MODE !== 'local' ? (
+              <Button
+                variant="quiet"
+                onClick={() => {
+                  attempt.current += 1;
+                  session.current = undefined;
+                  setPhase({ kind: 'ready' });
+                }}
+              >
+                {t('verify.cancel')}
+              </Button>
+            ) : null}
+            {phase.kind === 'closed' ? (
+              <Button variant="secondary" onClick={prepare}>
+                {t('verify.retry')}
+              </Button>
+            ) : null}
+            {phase.kind === 'unconfirmed' ? (
+              <Button variant="secondary" onClick={() => void start()} disabled={!plans?.campaign}>
+                {t('verify.recover')}
+              </Button>
+            ) : null}
+            {phase.kind === 'failed' ||
+            phase.kind === 'noCredential' ||
+            phase.kind === 'sponsorFailed' ? (
+              <Link href="/pay" className="ui-button" data-variant="secondary" prefetch={false}>
+                {t('landing.payInstead', { price, mb: payMb })}
+              </Link>
+            ) : null}
+          </div>
+          {process.env.NEXT_PUBLIC_MODE === 'local' ? (
+            <p className="note" lang={lang}>
+              {t('verify.simulatedNote')}
+            </p>
+          ) : null}
+          <ProofPanel proof={proof} />
+          {plans ? <TierLedger plans={plans} /> : null}
+        </section>
+      </div>
     </Screen>
   );
 }

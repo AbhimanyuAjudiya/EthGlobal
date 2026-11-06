@@ -47,8 +47,8 @@ trigger (wagmi ships a zod-4 `@base-org/account`; `@walletconnect/utils` moves t
 ```yaml
 auditConfig:
   ignoreGhsas:
-    - GHSA-mrhx-c7xc-m3w5   # zod 3 under @coinbase/cdp-sdk — stubbed out of the web bundle
-    - GHSA-qr28-fpjm-wq7f   # decode-uri-component under @walletconnect/utils — 0.5.x is ESM-only, would break WC
+    - GHSA-mrhx-c7xc-m3w5 # zod 3 under @coinbase/cdp-sdk — stubbed out of the web bundle
+    - GHSA-qr28-fpjm-wq7f # decode-uri-component under @walletconnect/utils — 0.5.x is ESM-only, would break WC
 ```
 
 The orchestrator's attempt to write this was blocked by the auto-mode classifier ([Security Weaken]); until the founder

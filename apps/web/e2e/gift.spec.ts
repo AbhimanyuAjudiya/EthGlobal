@@ -1,4 +1,4 @@
-import { distinctClient, expect, test } from './fixtures';
+import { distinctClient, expect, interruptEntitlementOnce, storedValues, test } from './fixtures';
 
 import type { Page } from '@playwright/test';
 
@@ -80,4 +80,44 @@ test.describe('/gift — a boarding pass addressed to a name', () => {
     await expect(p.locator('#plan-coupon .coupon__value')).toHaveText('1');
     await holder.close();
   });
+
+  for (const method of ['PIN', 'signature'] as const) {
+    test(`lost gift ${method} claim response recovers after reload without allocating a second plan`, async ({
+      page,
+      browser,
+    }) => {
+      const gift = await sendGift(page);
+      const holder = await browser.newContext();
+      await distinctClient(holder);
+      const recipient = await holder.newPage();
+      const issuedKey = await interruptEntitlementOnce(recipient, '/gift/claim');
+      await recipient.goto(method === 'PIN' ? '/gift/claim' : gift.claimHref);
+      const claim = async () => {
+        if (method === 'PIN') {
+          await recipient.getByTestId('gift-pin').fill(gift.pin);
+          await recipient.getByRole('button', { name: 'Claim', exact: true }).click();
+        } else {
+          await expect(recipient.getByTestId('demo-wallet')).toContainText('Anvil #9');
+          await recipient.getByTestId('claim-by-signature').click();
+        }
+      };
+      await claim();
+      await expect(
+        recipient.getByText("Can't reach Recharge. Check your connection."),
+      ).toBeVisible();
+      await recipient.reload();
+      await claim();
+      await recipient.waitForURL(/\/plan\/.+/);
+      expect(decodeURIComponent(new URL(recipient.url()).pathname.slice('/plan/'.length))).toBe(
+        issuedKey(),
+      );
+      await expect
+        .poll(
+          async () =>
+            (await storedValues(recipient)).filter((value) => value.startsWith('LPA:')).length,
+        )
+        .toBe(1);
+      await holder.close();
+    });
+  }
 });

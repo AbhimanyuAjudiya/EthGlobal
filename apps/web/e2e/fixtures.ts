@@ -34,6 +34,42 @@ export { expect };
 
 export const state = (): E2eState => JSON.parse(readFileSync(STATE_FILE, 'utf8')) as E2eState;
 
+/** Let the API finish once, then drop only its response; subsequent requests must reuse private identity. */
+export async function interruptEntitlementOnce(page: Page, path: string) {
+  let original: { key: string; sessionPubKey: string; token: string; nonce: string } | undefined;
+  await page.route(`${API_URL}${path}`, async (route) => {
+    const body = route.request().postDataJSON() as {
+      sessionPubKey: string;
+      challenge: { nonce: string };
+    };
+    const token = route.request().headers()['idempotency-key'] ?? '';
+    if (original) {
+      expect(body.sessionPubKey === original.sessionPubKey, 'original delivery session').toBe(true);
+      expect(token === original.token, 'original private recovery token').toBe(true);
+      expect(body.challenge.nonce === original.nonce, 'fresh normal authorization challenge').toBe(
+        false,
+      );
+      await route.fallback();
+      return;
+    }
+    expect(token.length).toBeGreaterThanOrEqual(32);
+    const response = await route.fetch();
+    expect([201, 202]).toContain(response.status());
+    const result = (await response.json()) as { entitlementKey: string };
+    original = {
+      key: result.entitlementKey,
+      sessionPubKey: body.sessionPubKey,
+      nonce: body.challenge.nonce,
+      token,
+    };
+    await route.abort('failed');
+  });
+  return () => {
+    if (!original) throw new Error('The initial entitlement did not complete.');
+    return original.key;
+  };
+}
+
 /** `/` → "Prove I'm human" → /verify → the local simulated World ID → /plan/<key>. Returns the key. */
 export async function claimFreeBundle(page: Page): Promise<string> {
   await page.goto('/');

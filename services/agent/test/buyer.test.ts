@@ -115,7 +115,7 @@ describe('buyer', () => {
     expect(out).toMatchObject({ ok: false, reason: 'unexpected-status', signed: true }); // 200 without any settlement
   });
 
-  it('mbTotal grew during retry → treated as success without resending', async () => {
+  it('an unrelated increase in mbTotal cannot prove this authorization settled', async () => {
     let paidSends = 0;
     const f: typeof fetch = async (_u, init) => {
       if (!new Headers(init?.headers).has('PAYMENT-SIGNATURE')) return required402();
@@ -123,13 +123,14 @@ describe('buyer', () => {
       return new Response('bad gateway', { status: 502 });
     };
     const { buy } = await buyer(f, {
+      maxAttempts: 2,
       reads: {
         entitlement: async () => ent(1100),
         latestTopupTx: async () => Promise.reject(new Error('down')),
       },
     });
-    expect(await buy()).toMatchObject({ ok: true, recovered: true, tx: 'unknown', usd6: 400_000n });
-    expect(paidSends).toBe(1);
+    expect(await buy()).toMatchObject({ ok: false, signed: true, reason: 'network-error' });
+    expect(paidSends).toBe(2);
   });
 
   it('gives up after maxAttempts with the authorization still blocking the trigger', async () => {

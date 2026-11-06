@@ -63,10 +63,11 @@ describe('ActionView — the reducer row rendered through ui OnchainAction', () 
     expect(el?.textContent).toMatch(/Sending · 0x1a2b…9f3e.* · 2 s/);
   });
 
-  it('stuck after 2 × expected: one sentence with speed up / cancel in the same row', () => {
+  it('stuck after 2 × expected: explains the delay without inert controls', () => {
     const el = view(walk(start, signed), { now: 2_000 + 2_500 });
     expect(el?.textContent).toContain('Slower than usual');
-    expect(screen.getByRole('button', { name: 'Speed up' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Speed up' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Cancel transaction' })).toBeNull();
   });
 
   it('Confirmed carries the "settling" tag; Final says "Paid · Final"', () => {
@@ -100,7 +101,7 @@ describe('ActionView — the reducer row rendered through ui OnchainAction', () 
       }),
     );
     expect(after?.textContent).toContain('except the 0.00002 ETH network fee');
-    expect(screen.getAllByRole('button', { name: 'Try again' }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
   });
 
   it('Replaced names the replacement hash', () => {
@@ -110,4 +111,15 @@ describe('ActionView — the reducer row rendered through ui OnchainAction', () 
     expect(el?.getAttribute('data-state')).toBe('replaced');
     expect(el?.textContent).toContain('Replaced');
   });
+});
+
+it('never claims that an uncertain paid request moved no funds', () => {
+  const el = view({
+    state: 'failed',
+    outcomeUnknown: true,
+    reason: 'Payment may have completed. Check again.',
+  });
+  expect(el?.textContent).toContain('Payment may have completed');
+  expect(el?.textContent).not.toContain('Nothing left your account');
+  expect(el?.textContent).not.toContain("Didn't go through");
 });

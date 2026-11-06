@@ -97,3 +97,20 @@ describe('/plan while the eSIM profile is pending ("this page updates by itself"
     expect(mocks.me).toHaveBeenCalledTimes(1);
   });
 });
+
+it.each([360, 1280])(
+  'a cancelled plan offers no install or top-up action at width %s',
+  async (width) => {
+    vi.stubGlobal('innerWidth', width);
+    mocks.me.mockResolvedValue({
+      ...me('ready'),
+      cancelledAt: Date.now(),
+      expiresAt: Date.now() - 1,
+    });
+    render(<PlanView entitlementKey={KEY} />, { wrapper: Wallets });
+    await screen.findByTestId('plan-expiry');
+    expect(screen.queryByRole('link', { name: /Add .*USDC|Add .*\$/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Install eSIM' })).toBeNull();
+    vi.unstubAllGlobals();
+  },
+);

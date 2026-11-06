@@ -197,3 +197,191 @@ describe('pay402 — the PaymentSigner implementations over the ONE loop (fetchW
     expect(paymentFailureReason(undefined)).toBe('the payment was not accepted');
   });
 });
+
+describe('signed payment recovery', () => {
+  it('retains independent recovery tokens when two operations are signed concurrently', async () => {
+    const { pay, quote, completePayment } = await import('../lib/pay402');
+    const { config } = await import('../lib/env');
+    const operation = (name: string) => ({
+      url: `${config.apiUrl}/gift`,
+      init: {
+        method: 'POST',
+        body: JSON.stringify({ name, mb: 1000 }),
+        headers: { 'Idempotency-Key': crypto.randomUUID() },
+      },
+      required: {
+        x402Version: 2 as const,
+        resource: {
+          url: `${config.apiUrl}/gift`,
+          description: 'gift',
+          mimeType: 'application/json',
+        },
+        accepts: [req()],
+      },
+    });
+    const first = operation('first.eth');
+    const second = operation('second.eth');
+    const fetcher: typeof fetch = async (_input, init) => {
+      if (new Headers(init?.headers).has(PAYMENT_SIGNATURE_HEADER))
+        throw new TypeError('Response lost');
+      return new Response('{}', {
+        status: 402,
+        headers: { 'PAYMENT-REQUIRED': encodePaymentRequired(first.required) },
+      });
+    };
+    try {
+      const results = await Promise.all(
+        [first, second].map((q) =>
+          pay(
+            q,
+            new EvmWalletSigner(wallet(), 'eip155:31337', allow),
+            undefined,
+            Date.now(),
+            fetcher,
+          ),
+        ),
+      );
+      expect(results.every((result) => result.uncertain)).toBe(true);
+      const recoveredFirst = await quote('/gift', {
+        method: 'POST',
+        body: { name: 'first.eth', mb: 1000 },
+      });
+      const recoveredSecond = await quote('/gift', {
+        method: 'POST',
+        body: { name: 'second.eth', mb: 1000 },
+      });
+      expect(new Headers(recoveredFirst.init.headers).get('Idempotency-Key')).toBe(
+        first.init.headers['Idempotency-Key'],
+      );
+      expect(new Headers(recoveredSecond.init.headers).get('Idempotency-Key')).toBe(
+        second.init.headers['Idempotency-Key'],
+      );
+      await completePayment(first);
+      expect(
+        (await quote('/gift', { method: 'POST', body: { name: 'second.eth', mb: 1000 } })).recovery,
+      ).toBe(true);
+    } finally {
+      await completePayment(first);
+      await completePayment(second);
+    }
+  });
+
+  it('replays the exact signed authorization and private idempotency key after a lost response', async () => {
+    const { pay, quote, completePayment } = await import('../lib/pay402');
+    const { config } = await import('../lib/env');
+    const q = {
+      url: `${config.apiUrl}/gift`,
+      init: {
+        method: 'POST',
+        body: JSON.stringify({ name: 'recovery.eth', mb: 1000 }),
+        headers: { 'Idempotency-Key': crypto.randomUUID() },
+      },
+      required: {
+        x402Version: 2 as const,
+        resource: {
+          url: `${config.apiUrl}/gift`,
+          description: 'gift',
+          mimeType: 'application/json',
+        },
+        accepts: [req()],
+      },
+    };
+    const signer = new EvmWalletSigner(wallet(), 'eip155:31337', allow);
+    const sign = vi.spyOn(signer, 'sign');
+    const requests: RequestInit[] = [];
+    let paidAttempts = 0;
+    const fetch = vi.fn(async (_input: unknown, init?: RequestInit) => {
+      requests.push(init!);
+      if (!new Headers(init?.headers).has(PAYMENT_SIGNATURE_HEADER))
+        return new Response('{}', {
+          status: 402,
+          headers: { 'PAYMENT-REQUIRED': encodePaymentRequired(q.required) },
+        });
+      paidAttempts++;
+      if (paidAttempts === 1) throw new TypeError('connection lost after settlement');
+      return new Response(JSON.stringify({ giftId: 'same-gift' }), {
+        status: 201,
+        headers: {
+          'PAYMENT-RESPONSE': encodePaymentResponse({
+            success: true,
+            transaction: `0x${'ab'.repeat(32)}`,
+            network: 'eip155:31337',
+            payer: account.address,
+          }),
+        },
+      });
+    });
+    vi.stubGlobal('fetch', fetch);
+    try {
+      expect((await pay(q, signer)).uncertain).toBe(true);
+      const restored = await quote('/gift', {
+        method: 'POST',
+        body: { name: 'recovery.eth', mb: 1000 },
+      });
+      const result = await pay<{ giftId: string }>(restored, signer);
+      expect(result.data?.giftId).toBe('same-gift');
+      expect(sign).toHaveBeenCalledTimes(1);
+      expect(new Headers(requests[1]!.headers).get(PAYMENT_SIGNATURE_HEADER)).toBe(
+        new Headers(requests[2]!.headers).get(PAYMENT_SIGNATURE_HEADER),
+      );
+      expect(new Headers(requests[2]!.headers).get('Idempotency-Key')).toBe(
+        new Headers(q.init.headers).get('Idempotency-Key'),
+      );
+      await completePayment(q);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+  it('preserves a successful settlement even when fulfilment returns an HTTP error', async () => {
+    const { pay, completePayment } = await import('../lib/pay402');
+    const q = {
+      url: 'http://api/paid-error',
+      init: {},
+      required: {
+        x402Version: 2 as const,
+        resource: {
+          url: 'http://api/paid-error',
+          description: 'topup',
+          mimeType: 'application/json',
+        },
+        accepts: [req()],
+      },
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: unknown, init?: RequestInit) =>
+        new Headers(init?.headers).has(PAYMENT_SIGNATURE_HEADER)
+          ? new Response(
+              JSON.stringify({
+                error: 'internal_error',
+                message: 'provider unavailable',
+                requestId: 'request-test',
+              }),
+              {
+                status: 503,
+                headers: {
+                  'PAYMENT-RESPONSE': encodePaymentResponse({
+                    success: true,
+                    transaction: `0x${'ab'.repeat(32)}`,
+                    network: 'eip155:31337',
+                    payer: account.address,
+                  }),
+                },
+              },
+            )
+          : new Response('{}', {
+              status: 402,
+              headers: { 'PAYMENT-REQUIRED': encodePaymentRequired(q.required) },
+            }),
+      ),
+    );
+    try {
+      const result = await pay(q, new EvmWalletSigner(wallet(), 'eip155:31337', allow));
+      expect(result.settlement?.success).toBe(true);
+      expect(result.uncertain).toBe(true);
+    } finally {
+      await completePayment(q);
+      vi.unstubAllGlobals();
+    }
+  });
+});

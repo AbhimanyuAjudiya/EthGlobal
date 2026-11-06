@@ -19,9 +19,17 @@ describe('attack: Idempotency-Key (AP12)', () => {
     const h = await harness();
     const quote = await gift(h, '192.0.2.1', {});
     const pay = await h.payFor(quote);
-    const a = await gift(h, '192.0.2.1', { 'idempotency-key': 'k-1', ...pay });
+    const a = await gift(h, '192.0.2.1', {
+      'idempotency-key': 'fd9fdb84-faf1-4ebe-b493-5bdafc58ded7',
+      ...pay,
+    });
     expect(a.status).toBe(201);
-    const b = await gift(h, '192.0.2.2', { 'idempotency-key': 'k-1' }, 'alice.eth');
+    const b = await gift(
+      h,
+      '192.0.2.2',
+      { 'idempotency-key': 'fd9fdb84-faf1-4ebe-b493-5bdafc58ded7' },
+      'alice.eth',
+    );
     expect(b.status).toBe(402);
     expect(await b.text()).not.toContain(((await a.json()) as { pin: string }).pin);
   });
@@ -29,14 +37,27 @@ describe('attack: Idempotency-Key (AP12)', () => {
   it('same client, same key, same body ⇒ the cached response; same key, different body ⇒ 409', async () => {
     const h = await harness();
     const pay = await h.payFor(await gift(h, '192.0.2.3', {}));
-    const first = await gift(h, '192.0.2.3', { 'idempotency-key': 'k-2', ...pay });
-    const again = await gift(h, '192.0.2.3', { 'idempotency-key': 'k-2', ...pay });
+    const first = await gift(h, '192.0.2.3', {
+      'idempotency-key': 'b178b98a-f4ad-4e7d-a3b0-652d927516e1',
+      ...pay,
+    });
+    const again = await gift(h, '192.0.2.3', {
+      'idempotency-key': 'b178b98a-f4ad-4e7d-a3b0-652d927516e1',
+      ...pay,
+    });
     expect([first.status, again.status]).toEqual([201, 201]);
     expect(await again.text()).toBe(await first.text());
     expect(again.headers.get('PAYMENT-RESPONSE')).toBe(first.headers.get('PAYMENT-RESPONSE'));
-    expect((await gift(h, '192.0.2.3', { 'idempotency-key': 'k-2' }, 'alice.eth')).status).toBe(
-      409,
-    );
+    expect(
+      (
+        await gift(
+          h,
+          '192.0.2.3',
+          { 'idempotency-key': 'b178b98a-f4ad-4e7d-a3b0-652d927516e1' },
+          'alice.eth',
+        )
+      ).status,
+    ).toBe(409);
   });
 
   it('an in-flight duplicate ⇒ 409 replay; exactly one reseller order', async () => {

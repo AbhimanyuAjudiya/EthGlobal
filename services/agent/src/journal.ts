@@ -12,13 +12,14 @@
  *   lose a line, and a purchase is filed under the UTC day it was made, so a clock step never evicts another day
  *   (RT-G-03). `latestAt` lets the caller notice a clock that went backwards.
  */
-import { appendFile, mkdir, open, readFile, stat, unlink } from 'node:fs/promises';
+import { appendFile, mkdir, open, readFile, readdir, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { z } from 'zod';
 
 import { sha256Hex } from '@ethglobal/crypto';
 import { dayBucket } from '@ethglobal/protocol/ids';
+import { paymentPayloadSchema } from '@ethglobal/protocol/schemas';
 
 import { isNodeError, newNonce, withFileLock, writeDurable, type LockOptions } from './lock.js';
 
@@ -73,6 +74,7 @@ const spendSchema = z.object({
   at: z.int().nonnegative(),
   /** the expiresAt an expiry purchase was made for (T-30, once per expiresAt) */
   expiryFor: z.int().nonnegative().optional(),
+  purchaseId: z.string().optional(),
 });
 
 /** The pre-journal `state.json` (read only, so an upgrade keeps what an older agent recorded). */
@@ -91,13 +93,26 @@ export interface OwnRecord {
   latestAt?: number;
 }
 
+export const pendingPaymentSchema = z.object({
+  ent: z.string(),
+  mb: z.int().positive(),
+  reason: z.enum(['threshold', 'expiry']),
+  expectedUsd6: z.string().regex(/^\d{1,30}$/),
+  expiresAt: z.int().nonnegative(),
+  mbTotalBefore: z.int().nonnegative(),
+  signedAt: z.int().nonnegative(),
+  payload: paymentPayloadSchema,
+});
+export type PendingPayment = z.infer<typeof pendingPaymentSchema>;
+
 const triggerSchema = z.object({
   state: z.enum(['claimed', 'signed', 'done']),
   at: z.int().nonnegative(),
-  /** ms; after it the signed authorization can no longer settle, so a fresh signature is safe (EIP-3009 / Hedera validity). */
+  /** Authorization deadline in ms. Passing it does not prove the payment did not settle earlier. */
   validBefore: z.int().nonnegative().optional(),
   /** The claimant's nonce (pid + UUID): only it may mark the trigger signed or release it. */
   by: z.string().max(80).optional(),
+  payment: pendingPaymentSchema.optional(),
 });
 export type TriggerRecord = z.infer<typeof triggerSchema>;
 
@@ -148,10 +163,15 @@ export class AgentState {
     let spentToday = 0n;
     let lastExpiryBought: number | undefined;
     let latestAt: number | undefined;
+    const purchases = new Set<string>();
     for (const raw of jsonLines(text ?? '')) {
       const line = spendSchema.safeParse(raw);
       if (!line.success) continue;
       const p = line.data;
+      if (p.purchaseId !== undefined) {
+        if (purchases.has(p.purchaseId)) continue;
+        purchases.add(p.purchaseId);
+      }
       latestAt = Math.max(latestAt ?? 0, p.at);
       if (p.ent !== ent) continue;
       if (p.day === day) spentToday += BigInt(p.usd6);
@@ -189,6 +209,7 @@ export class AgentState {
     now: number;
     usd6: bigint;
     expiryFor?: number;
+    purchaseId?: string;
   }): Promise<void> {
     await mkdir(this.dir, { recursive: true });
     const line = JSON.stringify({
@@ -198,6 +219,7 @@ export class AgentState {
       usd6: input.usd6.toString(),
       at: input.now,
       ...(input.expiryFor === undefined ? {} : { expiryFor: input.expiryFor }),
+      ...(input.purchaseId === undefined ? {} : { purchaseId: input.purchaseId }),
     } satisfies z.infer<typeof spendSchema>);
     const handle = await open(this.#spent, 'a', 0o600);
     try {
@@ -227,6 +249,30 @@ export class AgentState {
     return found.kind === 'record' ? found.record : undefined;
   }
 
+  /** An unresolved authorization must be reconciled before signing any other trigger for this plan. */
+  async pending(
+    key: string,
+  ): Promise<{ trigger: string; payment: PendingPayment; validBefore: number } | undefined> {
+    const files = await readdir(this.#triggers).catch((error: unknown) => {
+      if (isNodeError(error, 'ENOENT')) return [];
+      throw error;
+    });
+    const ent = sha256Hex(key);
+    for (const file of files.filter((f) => /^[a-f0-9]{64}\.json$/.test(f))) {
+      const existing = await this.#existing(join(this.#triggers, file));
+      if (existing.kind !== 'record' || existing.record.state !== 'signed') continue;
+      const { payment, validBefore } = existing.record;
+      if (payment?.ent !== ent || validBefore === undefined) continue;
+      const trigger =
+        payment.reason === 'expiry'
+          ? `${key}:expiry:${payment.expiresAt}`
+          : `${key}:threshold:${payment.mbTotalBefore}`;
+      if (this.#triggerPath(trigger) !== join(this.#triggers, file)) continue;
+      return { trigger, payment, validBefore };
+    }
+    return undefined;
+  }
+
   /** Runs `fn` under the trigger's lock; `undefined` when the lock is busy past LOCK_WAIT_MS. */
   async #underLock<T>(
     triggerKey: string,
@@ -250,7 +296,9 @@ export class AgentState {
         return this.#wallNow() - existing.mtimeMs >= STALE_CLAIM_MS;
       case 'record': {
         const r = existing.record;
-        if (r.state === 'signed') return r.validBefore !== undefined && now >= r.validBefore;
+        // Expiration proves only that it cannot settle in the future, not that it did not
+        // already settle before a dropped response or failed fulfillment.
+        if (r.state === 'signed') return false;
         return r.state === 'claimed' && now - r.at >= STALE_CLAIM_MS;
       }
     }
@@ -258,7 +306,7 @@ export class AgentState {
 
   /**
    * Exclusive claim before signing: under the trigger lock, read the record and take it only if it is missing or
-   * provably dead (a 'signed' record whose authorization has expired, a stale 'claimed', an unreadable one older than
+   * provably dead (a stale unsigned 'claimed' record, or an unreadable one older than
    * STALE_CLAIM_MS). The claim is durable and the lock confirmed still ours before `ok` is returned.
    */
   async claimTrigger(triggerKey: string, now: number): Promise<ClaimResult> {
@@ -277,7 +325,12 @@ export class AgentState {
    * The signed marker, fsynced BEFORE the payload leaves (crash safety, AG3.3). Throws ClaimLostError — and so stops
    * the send — unless this instance still holds a 'claimed' record for the trigger under the lock.
    */
-  async markSigned(triggerKey: string, now: number, validBefore: number): Promise<void> {
+  async markSigned(
+    triggerKey: string,
+    now: number,
+    validBefore: number,
+    payment?: PendingPayment,
+  ): Promise<void> {
     const result = await this.#underLock(triggerKey, async (path, held) => {
       const existing = await this.#existing(path);
       const mine =
@@ -285,7 +338,13 @@ export class AgentState {
         existing.record.state === 'claimed' &&
         existing.record.by === this.#id;
       if (!mine) return false;
-      const record: TriggerRecord = { state: 'signed', at: now, validBefore, by: this.#id };
+      const record: TriggerRecord = {
+        state: 'signed',
+        at: now,
+        validBefore,
+        by: this.#id,
+        ...(payment ? { payment: pendingPaymentSchema.parse(payment) } : {}),
+      };
       await writeDurable(path, JSON.stringify(record));
       return held();
     });
@@ -298,6 +357,25 @@ export class AgentState {
       writeDurable(path, JSON.stringify({ state: 'done', at: now } satisfies TriggerRecord)),
     );
     if (result === undefined) throw new Error('trigger lock busy: could not mark done');
+  }
+
+  /** Append spend before marking done; purchaseId makes a crash between the two writes harmless. */
+  async completePurchase(
+    triggerKey: string,
+    input: { key: string; now: number; usd6: bigint; expiryFor?: number },
+  ): Promise<boolean> {
+    const result = await this.#underLock(triggerKey, async (path) => {
+      const existing = await this.#existing(path);
+      if (existing.kind === 'record' && existing.record.state === 'done') return false;
+      await this.recordPurchase({ ...input, purchaseId: sha256Hex(triggerKey) });
+      await writeDurable(
+        path,
+        JSON.stringify({ state: 'done', at: input.now } satisfies TriggerRecord),
+      );
+      return true;
+    });
+    if (result === undefined) throw new Error('trigger lock busy: could not record purchase');
+    return result.value;
   }
 
   /** No signature was produced: the trigger may be retried on the next tick. Only the claimant releases its claim. */

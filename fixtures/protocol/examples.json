@@ -503,6 +503,12 @@
         "sequence": 42
       }
     },
+    "deliveryRequestSchema": {
+      "sessionPubKey": "0xabababababababababababababababababababababababababababababababab"
+    },
+    "deliveryResponseSchema": {
+      "status": "pending-profile"
+    },
     "entitledResponseSchema": {
       "entitlementKey": "ent:v1:0xe1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1",
       "kind": "free",

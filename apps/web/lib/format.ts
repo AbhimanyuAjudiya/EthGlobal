@@ -4,13 +4,7 @@
  */
 import { PLAN_MB } from '@ethglobal/protocol/ids';
 import type { PlansResponse } from '@ethglobal/protocol/schemas';
-import {
-  DEFAULT_TIME_ZONE,
-  formatExpiry,
-  formatMb,
-  formatUsd6,
-  usd6FromWire,
-} from '@ethglobal/protocol/units';
+import { DEFAULT_TIME_ZONE, formatMb, formatUsd6, usd6FromWire } from '@ethglobal/protocol/units';
 
 export { formatMb };
 
@@ -52,18 +46,6 @@ export function soldPlan(
   const mb = (lane === 'gift' ? plans?.gift.sizesMb : plans?.paid.sizesMb)?.[0] ?? PLAN_MB;
   return { mb, usd6: priceFor(mb, plans?.paid.priceUsd6PerStep ?? '400000') };
 }
-
-export function viewerTimeZone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || DEFAULT_TIME_ZONE;
-  } catch {
-    return DEFAULT_TIME_ZONE;
-  }
-}
-
-/** "Expires in 6 d 22 h · Sun 15 Nov 09:12 IST", always from the entity's expiresAt. */
-export const expiryLine = (expiresAt: number, now: number): string =>
-  formatExpiry(expiresAt, now, DEFAULT_TIME_ZONE);
 
 /** "Sun 15 Nov" in IST; "रवि 15 नव॰" for hi/mr (Latin numerals, RT-W-08). */
 export function dayLabel(ms: number, lang = 'en'): string {

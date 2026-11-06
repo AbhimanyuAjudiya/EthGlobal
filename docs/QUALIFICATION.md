@@ -24,7 +24,27 @@ Live checks run from this machine: `GET api.recharge.ajudiya.com/healthz` → `{
 | Extra: Hedera Agent Kit / MCP | `@hashgraph/hedera-agent-kit@4.2.0`, `AgentMode.AUTONOMOUS` (`payers/hedera.ts:8-20`) | ✅ | — |
 | Continuity eligibility for this track | Devrel question unanswered (`DISCLOSURE.md:206`); settlement tx is pre-kickoff | ⚠️ | Ask Hedera booth; an in-window settlement (row 2) removes the doubt |
 
-## 2. World — World ID Agent Pass ($5,000)
+## 2. World — IDKit and Agent Pass
+
+**Update, 6 Nov:** the [official World prize page](https://ethglobal.com/events/mumbai/prizes/world)
+lists separate IDKit and Agent Pass prizes, each with a Continuity category. Recharge's IDKit claim
+flow does not depend on Agent Pass portal access. For an accepted Continuity entry, the relevant
+IDKit category is **[Cont] Best Use of IDKit ($2,500; up to two $1,250 awards)**.
+
+IDKit protects a scarce sponsor-funded data allocation: the backend verifies the credential and
+binds it to the claim challenge before checking campaign eligibility and duplicate claims.
+`apps/web/components/VerifySheet.tsx` uses `@worldcoin/idkit-core`, a backend-signed RP context,
+and the document-legacy preset. `packages/adapters/src/live/world-personhood.ts` submits the
+original result to `/api/v4/verify/{rp_id}` and checks action, environment and signal binding.
+The campaign's accepted credential tier determines whether that person qualifies.
+
+Submission evidence still needed: a recorded successful verification plus a cancellation,
+unavailable credential or rejection path; explain why the chosen credential is sufficient;
+include integration feedback. Existing automated tests are not a recording of live verification.
+
+### Agent Pass: external registration blocker
+
+The Continuity Agent Pass pool is **$2,500**; the separate from-scratch pool is **$5,000**.
 
 | Requirement | Evidence | Status | Smallest fix |
 |---|---|---|---|
@@ -34,11 +54,15 @@ Live checks run from this machine: `GET api.recharge.ajudiya.com/healthz` → `{
 | Secure backend validation | RS256 only `world-agent-pass.ts:293`, `auth_time` `:310`, replay `:485`, atomic arm `:492`; secrets server-side (§4 table) | ✅ | — |
 | Integration debrief | `WORLD_AGENT_PASS.md` §7 items 11 (time to first success: ~50 min to the simulator run, no real-IdP success: `invalid_login`, `account_not_eligible`) and 12 (one improvement: self-serve sandbox client registration) | ✅ (2026-11-06) | — |
 
-**What the "mocked proofs" note changes:** the sandbox no longer needs the TestFlight sandbox World App or hour-long
-identity issuance (`WORLD_AGENT_PASS.md:51-53`, §7 item 7) — fake identities complete the flow. It does **not** remove
-client registration: the API is the confidential OIDC client and needs a portal client id + secret. **To turn it on:**
-get a client registered (`client_secret_post`, any https redirect URI) — the founder's sign-in returned
-`account_not_eligible`, so try another Google account or ask the World booth — then on the VPS set
+**Portal status, 6 Nov:** both production and sandbox returned `account_not_eligible`, as reported
+by the founder. The supplied Discord exchange contains no confirmation of access being granted.
+A read-only server check also confirms that the Agent Pass client id and secret are absent.
+The prize page's mocked-proof note does not establish that client registration is optional, nor
+that Recharge's local simulator qualifies as the official integration. Keep the local simulator
+labelled and do not treat mock identities as production approval.
+
+**To turn it on:** obtain a registered client from World (`client_secret_post` with the portal's
+required HTTPS redirect URI), then on the VPS set
 `WORLD_AGENT_PASS_ISSUER=https://sandbox.auth.world.org` (if sandbox), `WORLD_AGENT_PASS_CLIENT_ID`,
 `WORLD_AGENT_PASS_CLIENT_SECRET`, restart the API (§6 step 4). No code change; live refuses only `simulated` and non-https issuers.
 
@@ -84,7 +108,7 @@ Sources fetched 2026-11-06 (paraphrased, not verbatim): `/events/mumbai/info/det
 | **Standard track consequence:** pre-event projects may still enter but are **not eligible for partner prizes or the Finalist category** (`info/details`, `/rules`) | Same — so on the standard track Hedera, World, ENS and Arkiv prizes are all out | ❌ | Get onto an approved Continuity track, or accept no partner/finalist prizes |
 | **Continuity tracks** ("Extend Open Source" / "Ship a Feature"): build on an existing codebase (open-source, or a private/commercial product); must document pre-existing work and add substantial new in-window features; new parts must stay open source (`info/start`, `/rules`) | Declared Continuity (`README.md:10,211-215`, `DISCLOSURE.md:1-21`); staff confirmation TBD (`DISCLOSURE.md:205`); in-window per-sponsor diff TBD (`CHANGELOG.md:138-143`); repo private | ⚠️ | Ask the desk "are we accepted into a Continuity track, which one?"; fill the diff table; make the repo public |
 | Continuity purpose / how to join | Not stated on reachable pages (X post unreachable) | ⚠️ | unverified — ask the ETHGlobal desk |
-| Partner-prize eligibility for Continuity varies by event and partner (`info/details`, `/rules`) | Only Arkiv publishes Continuity prizes (Existing Projects $4k + Swarm $500); Hedera/World/ENS silent; devrel questions TBD `DISCLOSURE.md:206-209` | ⚠️ | Ask Hedera, World, ENS booths in writing |
+| Partner-prize eligibility for Continuity varies by event and partner (`info/details`, `/rules`) | Arkiv publishes Existing Projects prizes; World explicitly lists Continuity prizes for both IDKit and Agent Pass. See the current partner pages for the other categories. | ⚠️ | Confirm the entry's Continuity status and each selected category's requirements |
 | Disclose pre-existing work to ETHGlobal **in writing** and in the submission (repo history, video, description); undisclosed prior work or misrepresentation → DQ, prize revocation, ban (`/rules`) | Written disclosure in repo `DISCLOSURE.md`; tag time stated honestly in both `DISCLOSURE.md:40` and `README.md:229` (commit `380ff32` 20:20:57 IST, tag object 21:16 IST) | ⚠️ | Send `DISCLOSURE.md` to ETHGlobal staff in writing; paste its summary block in the submission description |
 | Version control throughout; single big-commit repos presumed ineligible (`/rules`) | Full dated history, per-step commits (`git log`) | ✅ | — |
 | Separate new vs reused work; proof of hackathon work (repo/Figma) (`info/details`) | `DISCLOSURE.md`, `CHANGELOG.md` in-window section mostly TBD (`:113-125`) | ⚠️ | Fill in-window CHANGELOG lines + diff table |
@@ -105,6 +129,6 @@ Sources fetched 2026-11-06 (paraphrased, not verbatim): `/events/mumbai/info/det
 5. Run `recharge-agent --once` on live (Hedera) → in-window settlement + `agent-topup` HCS message; paste ids in README `:105-110` ($6.5k).
 6. Record one 2-4 min video with a HashScan tab (Hedera hard requirement, $6.5k).
 7. Ask Hedera, World (and ENS) booths whether Continuity entries are eligible (`DISCLOSURE.md:206-209`).
-8. Get an Agent Pass client (other Google account / World booth), set 3 env vars, restart, demo approve + deny live; add "time to first success" + "one improvement" to `WORLD_AGENT_PASS.md` §7 ($5k).
+8. Prepare IDKit success/alternative-path evidence and feedback for the World Continuity category. Agent Pass remains a separate optional submission until World grants a client and the official flow can be demonstrated; do not represent the local simulator as live integration.
 9. Create `arkiv/` (schema, friction, reach, why-arkiv, how-you-use-arkiv, swarm); README Arkiv: writer address, one runnable query, pre-vs-in-window diff ($4.5k).
 10. ~~Fix `README.md:213` tag time; set `openapi.json` `servers` to the live API URL~~ done 2026-11-06 (`servers` = `https://api.recharge.ajudiya.com` in `MODE=live`, `services/api/src/app.ts`; live after the next redeploy).

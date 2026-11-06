@@ -17,6 +17,8 @@ import {
   challengeSchema,
   claimRequestSchema,
   entitledResponseSchema,
+  deliveryRequestSchema,
+  deliveryResponseSchema,
   errorBodySchema,
   giftClaimRequestSchema,
   giftReclaimRequestSchema,
@@ -97,6 +99,7 @@ export const OPERATIONS: readonly Operation[] = [
     path: '/claim',
     summary: 'Free welcome bundle for a verified human',
     body: claimRequestSchema,
+    headers: ['Idempotency-Key'],
     responses: {
       201: entitledResponseSchema,
       202: entitledResponseSchema,
@@ -148,6 +151,7 @@ export const OPERATIONS: readonly Operation[] = [
     headers: ['Idempotency-Key'],
     responses: {
       201: entitledResponseSchema,
+      202: entitledResponseSchema,
       401: errorBodySchema,
       409: errorBodySchema,
       410: errorBodySchema,
@@ -183,6 +187,7 @@ export const OPERATIONS: readonly Operation[] = [
     headers: ['Idempotency-Key'],
     responses: {
       201: entitledResponseSchema,
+      202: entitledResponseSchema,
       401: errorBodySchema,
       410: errorBodySchema,
       429: errorBodySchema,
@@ -211,6 +216,20 @@ export const OPERATIONS: readonly Operation[] = [
   },
   {
     method: 'post',
+    path: '/me/{key}/delivery',
+    summary:
+      'Recover encrypted activation for the original session (capability and session public key)',
+    params: ['key'],
+    body: deliveryRequestSchema,
+    responses: {
+      200: deliveryResponseSchema,
+      202: deliveryResponseSchema,
+      401: errorBodySchema,
+      404: errorBodySchema,
+    },
+  },
+  {
+    method: 'post',
     path: '/plan/cancel',
     summary:
       'Cancel an unused paid plan (EIP-712 CancelPlan by its payer): 200 refunded minus the reclaim fee, 202 refund pending',
@@ -224,6 +243,17 @@ export const OPERATIONS: readonly Operation[] = [
       409: errorBodySchema,
       410: errorBodySchema,
       429: errorBodySchema,
+      503: errorBodySchema,
+    },
+  },
+  {
+    method: 'post',
+    path: '/sponsor/validate',
+    summary: 'Validate campaign metadata and provider capacity before wallet funding',
+    body: sponsorRegisterSchema.pick({ campaign: true }),
+    responses: {
+      200: z.object({ valid: z.literal(true) }),
+      400: errorBodySchema,
       503: errorBodySchema,
     },
   },

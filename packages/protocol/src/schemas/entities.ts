@@ -32,6 +32,8 @@ export const entitlementSchema = z
     campaignId: hex32Schema.optional(),
     planId: z.string().max(64),
     mbTotal: mbSchema,
+    /** Payment digests already applied to the balance; written atomically with each increment. */
+    appliedTopUps: z.array(hex32Schema).optional(),
     mbUsed: mbSchema,
     usageAsOf: msSchema,
     usageSource: usageSourceSchema,
@@ -132,7 +134,7 @@ export const giftSchema = z.object({
   message: safeTextSchema(80).optional(),
   createdAt: msSchema,
   claimBy: msSchema,
-  /** Entitlement key once claimed. */
+  /** One-way entitlement index once claimed; never the bearer capability. */
   claimedKey: z.string().optional(),
 });
 export type Gift = z.infer<typeof giftSchema>;
@@ -165,6 +167,8 @@ export const claimSchema = z.object({
   key: z.string().startsWith('claim:').max(80),
   /** 'once': a once-only API marker — a gift's LPA delivered, an audit key shown (A-42, RT-A-04/06). */
   scope: z.enum(['free-live', 'free-campaign', 'settlement', 'once']),
+  /** Opaque attempt token; permits rollback of only this attempt's incomplete reservations. */
+  reservation: hex32Schema.optional(),
   expiresAt: msSchema,
 });
 export type ClaimLock = z.infer<typeof claimSchema>;

@@ -220,6 +220,10 @@ export function loadConfig(env: Record<string, string | undefined>): AgentConfig
     problems.push('LLM_PROVIDER=anthropic needs AGENT_LLM_MODEL and ANTHROPIC_API_KEY');
   }
   if (live) {
+    if (parseWatchKeys(e.AGENT_WATCH_KEYS).length === 0)
+      problems.push(
+        'AGENT_WATCH_KEYS is required in live: entitlement capabilities are private and cannot be discovered from the public ledger',
+      );
     if (allowList.length === 0)
       problems.push('AGENT_PAYTO_ALLOWLIST must not be empty in live (T-56)');
     if (!e.AGENT_LEDGER_WRITER) problems.push('AGENT_LEDGER_WRITER is required in live (T-79)');

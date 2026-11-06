@@ -237,6 +237,10 @@ export interface Reseller {
   plans(country: 'IN'): Promise<EsimPlan[]>;
   /** One profile per order. A second call with the same idempotencyKey returns the same profile, never a second one (T-40). */
   order(planId: string, opts: { idempotencyKey: string }): Promise<EsimProfile>;
+  /** Read an existing durable allocation without creating an order (inventory fallback recovery). */
+  recoverOrder?(idempotencyKey: string): Promise<EsimProfile | null>;
+  /** Pre-payment capability check. False means this issued profile can never be topped up; not_found means unknown ICCID. */
+  canTopUp?(iccid: string): Promise<boolean>;
   /**
    * Adds `mb` to a plan. `totalMb` is the plan's total after this top-up: vendors sell top-ups in 1 GB+ packages and
    * Recharge in 100 MB steps, so a reseller that knows it buys vendor volume only once the plan outgrows the profile.
@@ -279,6 +283,20 @@ export interface BlobStore {
   put(bytes: Uint8Array, contentType: string): Promise<{ ref: string }>;
   get(ref: string): Promise<Uint8Array | null>;
 }
+/** Persist privately before broadcast. Recovery must replay these bytes, never prepare a replacement. */
+export interface PreparedRefund {
+  v: 1;
+  kind: 'evm' | 'hedera';
+  network: string;
+  /** EVM transaction hash, or native Hedera transaction ID. */
+  tx: string;
+  /** Signed EVM hex or signed native Hedera base64; grants the ability to broadcast this transfer. */
+  signedTransaction: string;
+  /** Actual signed native transaction validity end (milliseconds). Expiry is not proof of nonpayment. */
+  expiresAt?: number;
+}
+export type RefundStatus = 'pending' | 'success' | 'failed';
+
 /** Outbound USDC from the separate refund wallet — gift reclaims and plan cancels. Bounded by TREASURY_MAX_USD6_PER_DAY in the API (A-31). */
 export interface Treasury {
   refund(input: {
@@ -287,6 +305,16 @@ export interface Treasury {
     usd6: bigint;
     memo: string;
   }): Promise<{ tx: string }>;
+  /** No broadcast. Caller serializes preparation per network and durably saves the result first. */
+  prepareRefund?(input: {
+    network: string;
+    to: string;
+    usd6: bigint;
+    memo: string;
+  }): Promise<PreparedRefund>;
+  /** Broadcast/rebroadcast the SAME signed transaction and wait for confirmation. */
+  submitRefund?(prepared: PreparedRefund): Promise<{ tx: string }>;
+  refundStatus?(prepared: PreparedRefund): Promise<RefundStatus>;
   balanceUsd6(network: string): Promise<bigint>;
 }
 

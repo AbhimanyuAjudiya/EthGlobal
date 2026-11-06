@@ -13,6 +13,7 @@ import { InMemoryLedger, type Ledger } from '@ethglobal/adapters';
 import { fakeClock } from '@ethglobal/adapters/testing';
 import { keys } from '@ethglobal/protocol/ids';
 
+import { entitlementIndex } from '../../src/keys.js';
 import { CAS_ATTEMPTS } from '../../src/store/common.js';
 import { EntitlementStore, GiftStore } from '../../src/store/index.js';
 import { entitlement, gift, GIFT_ID, ledgerWith } from '../helpers.js';
@@ -61,7 +62,7 @@ describe('verify RT-O-06: compare-and-swap retry limit driven to exhaustion', ()
     // the next claimer, uncontended, gets the gift
     await new GiftStore(base, clock.now).markClaimed(GIFT_ID, 'giftent:next');
     expect((await new GiftStore(base, clock.now).bySerial(gift().serial))?.payload.claimedKey).toBe(
-      'giftent:next',
+      entitlementIndex('giftent:next'),
     );
   });
 
@@ -103,7 +104,7 @@ describe('verify RT-O-06: compare-and-swap retry limit driven to exhaustion', ()
         }
       }
       const stored = (await new GiftStore(base, clock.now).bySerial(gift().serial))?.payload;
-      if (won.length === 1) expect(stored?.claimedKey).toBe(won[0]);
+      if (won.length === 1) expect(stored?.claimedKey).toBe(entitlementIndex(won[0]!));
       else expect(stored?.state).toBe('open');
     }
   });

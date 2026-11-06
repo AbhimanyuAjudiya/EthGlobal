@@ -7,6 +7,8 @@ import { INDEX_PREFIX, type Entitlement } from '@ethglobal/octroi';
 import type { Hex } from '@ethglobal/protocol/ids';
 import {
   planCancelRequestSchema,
+  deliveryRequestSchema,
+  type DeliveryRequest,
   type MeResponse,
   type PlanCancelRequest,
   type ReceiptPublic,
@@ -17,7 +19,9 @@ import { inputOf, type AppEnv } from '../context.js';
 import { fail } from '../errors.js';
 import { patchUsage } from './webhooks.js';
 import { aborted, cancelPlan, cancelReceiptKey, decidePlanCancel } from '../flows/cancel.js';
-import { retryPending } from '../flows/fulfil.js';
+import { activationBox, assertDeliveryUsable, fulfil, retryPending } from '../flows/fulfil.js';
+import { flushReceiptOutbox } from '../flows/record.js';
+import { recoverRefunds, refundRecovery } from '../flows/refund-recovery.js';
 import { validateJson } from '../middleware/validate.js';
 
 import type { Deps } from '../deps.js';
@@ -30,9 +34,44 @@ const isCapability = (key: string): boolean => KEY.test(key) && !key.startsWith(
 const STALE_OK = new Set<Entitlement['status']>(['ready', 'installed', 'active']);
 
 export function registerMe(app: Hono<AppEnv>, deps: Deps): void {
+  app.post('/me/:key/delivery', validateJson(deliveryRequestSchema), async (c) => {
+    const key = c.req.param('key');
+    if (!isCapability(key)) throw fail('not_found');
+    const { sessionPubKey } = inputOf<DeliveryRequest>(c);
+    const delivery = deps.pendingDelivery.get(key);
+    if (delivery?.sessionPubKey.toLowerCase() !== sessionPubKey.toLowerCase())
+      throw fail('unauthorized');
+    let found = await deps.stores.entitlements.getByKey(key);
+    const original = found?.payload ?? delivery.entitlement;
+    if (original) await assertDeliveryUsable(deps, original);
+    if (!found && delivery.entitlement && delivery.context) {
+      if (deps.health.degraded) throw fail('ledger_unavailable');
+      await deps.mutex.run(key, () => fulfil(deps, delivery.entitlement!, delivery.context!));
+      found = await deps.stores.entitlements.getByKey(key);
+    }
+    if (!found) throw fail('not_found');
+    let entitlement = found.payload;
+    if (entitlement.status === 'pending-profile') {
+      if (deps.health.degraded) throw fail('ledger_unavailable');
+      entitlement = await retryPending(deps, entitlement);
+    }
+    const target = deps.pendingDelivery.get(key);
+    if (target?.sessionPubKey.toLowerCase() !== sessionPubKey.toLowerCase())
+      throw fail('unauthorized');
+    if (entitlement.status === 'pending-profile') return c.json({ status: 'pending-profile' }, 202);
+    return c.json({
+      status: 'ready',
+      nonce: target.nonce,
+      sealedLpa: await activationBox(deps, entitlement),
+    });
+  });
+
   app.get('/me/:key', async (c) => {
     const key = c.req.param('key');
     if (!isCapability(key)) throw fail('not_found');
+    await recoverRefunds(deps, key);
+    // The vendor is already cancelled when a refund job exists, even if the entitlement expiry patch failed.
+    if (deps.refundJobs.has(cancelReceiptKey(key))) return c.json(await cancelledMe(deps, key));
     const refresh = c.req.query('refresh') === '1';
     if (!refresh) {
       const cached = deps.cache.fresh(key);
@@ -65,7 +104,8 @@ export function registerMe(app: Hono<AppEnv>, deps: Deps): void {
 
   app.get('/me/:key/receipts', async (c) => {
     const key = c.req.param('key');
-    if (!KEY.test(key)) throw fail('not_found');
+    if (!isCapability(key)) throw fail('not_found');
+    await flushReceiptOutbox(deps);
     const receipts = await deps.stores.receipts.forEntitlement(sha256Hex(key));
     // never the key or its hash; a free claim's payer field is the sponsor-side pseudonym and stays off /me (AP4.3)
     const publicReceipts: ReceiptPublic[] = receipts.map(
@@ -84,6 +124,8 @@ export function registerMe(app: Hono<AppEnv>, deps: Deps): void {
 /** Paid and ready: what POST /plan/cancel would refund now and to whom (the ledger half of its eligibility). */
 async function refundable(deps: Deps, e: Entitlement): Promise<MeResponse['refundable']> {
   if (e.kind !== 'paid' || e.status !== 'ready') return undefined;
+  if (deps.paidOperations.entries().some(([, operation]) => operation.targetKey === e.key))
+    return undefined;
   const receipts = await deps.stores.receipts.forEntitlement(sha256Hex(e.key)).catch(() => null);
   if (!receipts) return undefined; // the offer waits for the next read; the cancel itself re-checks everything
   const v = decidePlanCancel(e, receipts, deps.env.GIFT_RECLAIM_FEE_USD6);
@@ -101,6 +143,7 @@ async function refundable(deps: Deps, e: Entitlement): Promise<MeResponse['refun
 async function cancelledMe(deps: Deps, key: string): Promise<MeResponse> {
   const r = await deps.stores.receipts.byKey(cancelReceiptKey(key));
   if (r?.network === undefined || r.usd6 === undefined || aborted(r)) throw fail('not_found');
+  const cancelledAt = deps.refundJobs.get(cancelReceiptKey(key))?.createdAt ?? r.at;
   return {
     entitlementKey: key,
     kind: 'paid',
@@ -109,16 +152,22 @@ async function cancelledMe(deps: Deps, key: string): Promise<MeResponse> {
     mbTotal: r.mb ?? 0,
     mbUsed: 0,
     remainingMb: 0,
-    usageAsOf: r.at,
+    usageAsOf: cancelledAt,
     usageSource: 'none',
-    expiresAt: r.at,
+    expiresAt: cancelledAt,
     arkivKey: r.key,
     ledgerReadAt: deps.now(),
     cached: false,
     degraded: deps.health.degraded,
     network: r.network,
-    cancelledAt: r.at,
-    refund: { network: r.network, usd6: r.usd6, ...(r.tx === undefined ? {} : { tx: r.tx }) },
+    cancelledAt,
+    refund: {
+      network: r.network,
+      usd6: r.usd6,
+      ...(r.tx === undefined
+        ? { recovery: refundRecovery(deps, cancelReceiptKey(key)) }
+        : { tx: r.tx }),
+    },
   };
 }
 

@@ -13,6 +13,8 @@ environment) and §13. The machine-readable contract is `openapi.json` (OpenAPI 
 
 ## Routes
 
+`POST /sponsor/validate` accepts `{campaign}` before funding and checks metadata, deployment, lifetime, price and provider capacity without writing state. A successful response is `{valid: true}`.
+
 | Method & path                                                                          | Success                                                                                   | Errors (all `errorBodySchema` + `X-Request-Id`)                                            |
 | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `GET /healthz`                                                                         | 200 `{ ok, mode, chainId, attestor, degraded }`                                           | 503 `chain_unreachable`                                                                    |
@@ -29,6 +31,7 @@ environment) and §13. The machine-readable contract is `openapi.json` (OpenAPI 
 | `POST /card/redeem`                                                                    | 201 `entitledResponseSchema`                                                              | 400 (Verhoeff), 401 (unknown card or wrong PIN, one body), 410 (redeemed), 429 (10/min/IP) |
 | `POST /webhooks/reseller/:provider`                                                    | 204                                                                                       | 400, 401, 404 (other provider), 409 (replay), 413 (256 KiB), 503; never 500                |
 | `GET /me/:key` (`?refresh=1`)                                                          | 200 `meResponseSchema`                                                                    | 404 unknown, 410 expired, 503                                                              |
+| `POST /me/:key/delivery`                                                               | 200 `{status: "ready", nonce, sealedLpa}`; 202 `{status: "pending-profile"}`              | 400, 401, 404, 503                                                                         |
 | `GET /me/:key/receipts`                                                                | 200 `receiptsResponseSchema`                                                              | 404                                                                                        |
 | `POST /sponsor`                                                                        | 201 `{ id, auditKey }` (first registration only)                                          | 400 (incl. price < $1.20/claim), 401, 404 (no on-chain campaign), 409 `campaign_exists`    |
 | `GET /sponsor/:id`                                                                     | 200 `sponsorViewSchema` (`auditKey` on the first read only)                               | 401                                                                                        |
@@ -66,10 +69,7 @@ replay, a CAS retry — and is **not** counted (`src/cache.ts`; `test/regression
 **Durable state (RT-A-11).** What must survive a restart lives in two places. On the ledger: the treasury day total
 (Σ today's `gift-reclaim` receipts, `ReceiptStore.spentUsd6ForDay`), and the once-only markers (`claim:` HMAC keys,
 scope `'once'`, A-42) for "gift LPA delivered", "campaign registered" and "audit key shown". In `STATE_FILE` (a JSON
-file sealed to `SERVER_SEAL_KEY`, replaced atomically, mode 0600; `src/state.ts`): the pending-profile delivery
-targets and the T-24 intents, which hold capability keys and so never go on the world-readable ledger. Boot retries
-every pending delivery once (`retryPendingOnBoot`), then `/me` retries ≤ 1/min. Without `STATE_FILE` (local mode,
-whose ledger is in memory anyway) both are memory only.
+file sealed to `SERVER_SEAL_KEY`, fsynced and replaced atomically, mode 0600; `src/state.ts`): verified claim reservations, paid operation responses, delivery bindings, receipt outbox entries and signed refund transactions. Failed checkpoints roll back memory too. Capability keys, PINs and signed refund bytes never go on the public ledger. Boot retries pending deliveries and refund confirmations. Without `STATE_FILE` (local mode only), this recovery state is memory only.
 
 **Local seed hooks (T-85).** `X-Seed-Validity-S` (on `/claim`), `X-Seed-Claim-Window-S` (on `/gift`) and
 `X-Seed-Card-Campaign` (on `/gift`; it mints a campaign-funded card without payment) are read only inside
@@ -108,7 +108,7 @@ are the THREAT-MODEL §5.12 regression files.
 1. **OpenAPI uses zod 4's `z.toJSONSchema`** (draft 2020-12, which is OpenAPI 3.1's dialect) over the protocol
    schemas, not `@hono/zod-openapi`. It produces the same single source of truth without a new dependency (the
    `minimumReleaseAge` gate).
-2. **Receipts.** HCS is submitted first and the receipt is written with its `hcs` reference. A reclaim writes a pending
+2. **Receipts.** A durable outbox entry preserves the original accounting timestamp before HCS or receipt writes. Failed writes are repaired before caps, cancellation and policy balances are evaluated. HCS remains optional; financial receipts remain queued until persisted. A reclaim writes a pending
    `gift-reclaim` receipt keyed `rcpt:ledger:gift-reclaim:<giftId>` (the logical key makes it a cross-process lock)
    BEFORE the refund, then patches that same receipt with the refund tx and HCS reference (`ReceiptStore.patch`,
    A-38). The treasury daily cap is summed from the ledger under one in-process lock (`spentUsd6ForDay`).
@@ -118,10 +118,9 @@ are the THREAT-MODEL §5.12 regression files.
 4. **The `/gift/reclaim` challenge** is requested with `sessionPubKey = payer address left-padded to 32 bytes`,
    because the reclaim body has no session key.
 5. **Gift claims write their `gift-claim`/`card-redeem` receipt before delivery (T-71 a).** If that write fails, the
-   claim answers 503 and no LPA leaves the server. A later reclaim then refunds legitimately, since nothing was
-   delivered.
+   claim answers 503 and no LPA leaves the server. A fresh authenticated claim resumes the same claimed escrow; a delayed activation is recovered through the delivery route.
 6. **T-24 recovery.** When a human's chain step fails after verification (RPC down, or a `HourlyCap` /
-   `CampaignPaused` / `BudgetExhausted` revert), the serve-free decision is kept for 65 min (durable state) under the
+   `CampaignPaused` / `BudgetExhausted` revert), the serve-free decision is kept through the original plan/campaign lifetime (durable state) under the
    session key that the challenge MAC binds, tagged with `HMAC(secret, 'intent' ‖ nullifier)`. A retry with a fresh
    challenge from that session completes without spending a second World proof — but only with a proof of the SAME
    human that the verifier accepts (fresh, or `already_verified`), bound to the new challenge or the first one
@@ -134,32 +133,19 @@ are the THREAT-MODEL §5.12 regression files.
    - **Fixed upstream (octroi A-35…A-40):** T-15 (a front-run payment is served exactly once,
      `test/attack/x402.attack.test.ts`), T-71 e (`RECEIPT_TTL_S` = 38 d: a day-31 reclaim refunds), T-73 b (the
      first PUT of a free entitlement's agent policy needs the claiming session's `sessionPubKey`).
-   - **Finding (AP6.3):** a pending-profile LPA retried by `/me` or at boot is sealed to the original session key and
-     stored as a blob reference, but no route delivers it yet.
-   - **Recorded:** a payment is not bound to `?key=` on top-ups (AP7.8, Low; it is bound to the route, RT-A-08).
-     AP7.15 (Hedera payloads) is covered by the adapters' facilitator tests; local mode advertises a Hedera kind only
-     with `X402_NETWORKS=…,hedera:testnet`, `PAYOUT_HEDERA_ACCOUNT` and `X402_HEDERA_FEE_PAYER` (the pin stands in
-     for the mock facilitator's `/supported`; `test/gift.test.ts` buys a gift that way with the rail stubbed).
+   - **Delayed activation recovery:** `POST /me/:key/delivery` accepts `{sessionPubKey}` matching the original persisted delivery target. It returns only the sealed box and its original nonce; the browser needs the original private X25519 key to decrypt it. Bindings survive successful provisioning and restarts. `hk:` ledger indexes are rejected.
 9. **Payments are bound to their route (RT-A-08).** Each paid route's accepts carry `extra.resource` = its path
    (`/esim/provision`, `/esim/topup`, `/gift`); the payer echoes `accepted`, and `decide()` compares the echo, so a
    header signed against one route's 402 is refused on another. EIP-3009 signs only the authorization, so this
    stops the replay of an unmodified captured header, not a thief who edits the JSON (Low residual, as AP7.8).
-10. **Sponsor scopes (RT-A-04).** The `SponsorLogin` bearer reads the dashboard. Registration is one-time: an id that
+10. **Sponsor scopes (RT-A-04).** The campaign-scoped `SponsorLogin` session authorizes dashboard reads and initial registration. Registration is one-time: an id that
     is already registered is 409 `campaign_exists`, whoever signs, so a captured bearer neither rewrites a campaign
     nor mints its audit key again. The audit key is shown once in the registration's 201 and once on the first
-    dashboard read, each a ledger once-marker. **Residual:** the registration itself is still authorised by a
-    `SponsorLogin` (the PWA signs that); a bearer captured BEFORE the sponsor registers could register first. A
-    `SponsorRegister{campaignId, sponsor, issuedAt, campaignHash}` typed message (protocol + `apps/web`) closes it.
-11. **Concurrency controls (RT-A-01/02/12/13).** Top-ups patch with the function form (`mbTotal + mb` per CAS
-    attempt). The per-ICCID daily cap and the free-claim admission are synchronous reservations (`Admission`:
-    `limit − used − inFlight − commitsSince(read)`). The self-run relayer has viem's nonce manager and one
-    `SerialQueue`; `/facilitator/*` refuses amounts below one step and limits each payer to 10/min. Idempotency-Key
-    holds one in-flight request per (route, key, client IP). Rate limits bucket IPv6 by /64 (RT-A-10).
-12. **Gifts are paid on any advertised network (mainnet is Hedera-only).** `POST /gift` takes the Hedera exact
-    scheme like `/esim/topup` does: `paymentNonce()` (`middleware/x402.ts`, the one definition for both routes) is
-    the EIP-3009 nonce of an EVM payment and `sha256(settlement.transaction)` of a Hedera one; the nonce only names
-    the escrow (`giftId = keccak256(payer ‖ nonce)`, the payer as address bytes on EVM and as UTF-8 `0.0.x` on
-    Hedera; EVM giftIds are unchanged). Once-only per transaction is octroi's settlement marker (RT-O-05) on both
-    rails. The gift's escrow, receipt (`rcpt:hedera:testnet:<tx id>`), HCS message and `PAYMENT-RESPONSE` carry the
-    HTS settlement exactly as a top-up's do. A Hedera-paid gift is claimed like any other but is not reclaimable
-    (`GiftReclaim.payer` is an EVM address, T-71 f).
+    dashboard read, each a ledger once-marker. This session does not authorize card minting, which requires the separately signed `SponsorCards` operation. The login does not bind initial metadata; a holder of that session can exercise its intended first-registration permission. A metadata-bound `SponsorRegister` signature would be additional scope hardening, rather than the current authentication contract.
+11. **Concurrency controls.** Top-ups and cancellation share the entitlement mutex. Each top-up journals a stable physical target, records its applied operation id under CAS, and uses the latest volume. A profile that cannot be topped up is refused before quoting or settlement. Policy changes, Agent Pass start/poll, and paid top-up checks share a policy mutex; approvals also bind the exact policy contents, so a stale approval cannot authorize new limits even if a revoke checkpoint fails.
+12. **Gift payment and recovery.** New gifts offer only EVM payment rails with signed reclaim support. Paid requests require a stable random `Idempotency-Key` (at least 32 URL-safe characters; UUIDv4 is supported), persisted by the buyer before sending. Exact signed retries with that private token resume the original escrow/PIN after authorization expiry, without charging again. A public transaction or signature alone never recovers a gift PIN. Historical native Hedera gifts still need operator-assisted reclaim; new native gift purchases are blocked before settlement.
+
+    Free claims and gift/card redemption also accept a private random `Idempotency-Key`. Save it together with the original session key before claiming. A fresh challenge and valid World proof, PIN or recipient signature, the same session public key, and that original private token recover plan metadata after a lost response. `/delivery` then returns the original nonce and ciphertext. The public session key alone never recovers a capability. Legacy completed claims without a token cannot add this recovery binding afterward.
+
+13. **Refund recovery.** A recoverable treasury prepares signed transaction bytes without broadcasting. The API saves them before submission and retries only those exact bytes, with one pending nonce per network. Boot, a 30-second worker and `/me` reads reconcile confirmed transactions and repair their receipts. Pending jobs have no expiry. A confirmed `refund.tx` means refunded; otherwise `refund.recovery` is `automatic` or `manual`. Legacy unknown outcomes require explicit operator reconciliation and are never blindly resent.
+14. **Package capacity.** Paid allocations and cards cannot exceed the configured provider package. Free campaigns validate their own package and effective tier sizes. `/plans.sponsor` publishes the minimum per-claim price and maximum campaign lifetime for pre-funding validation.

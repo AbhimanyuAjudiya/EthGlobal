@@ -1,4 +1,5 @@
 import type { MeResponse } from '@ethglobal/protocol/schemas';
+import { formatMb } from '@ethglobal/protocol/units';
 
 import { API_URL } from './env';
 import { apiGet, claimFreeBundle, expect, storedValues, test } from './fixtures';
@@ -8,6 +9,7 @@ test.describe('/pay — the 402 round-trip with the demo wallet', () => {
     page,
   }) => {
     const key = await claimFreeBundle(page);
+    const before = await apiGet<MeResponse>(page, `/me/${encodeURIComponent(key)}`);
     await page.goto(`/pay?key=${encodeURIComponent(key)}`);
     const sheet = page.locator('.onchain-action');
     await expect(sheet.getByRole('heading', { name: '+1 GB · $4.00' })).toBeVisible();
@@ -25,7 +27,7 @@ test.describe('/pay — the 402 round-trip with the demo wallet', () => {
     await expect(sheet).toContainText(/This approval expires in [45]:\d{2}/);
     await expect(page.getByRole('meter', { name: 'Data left' })).toHaveAttribute(
       'aria-valuemax',
-      '1000',
+      String(before.mbTotal),
     );
 
     let settledAt = 0;
@@ -43,20 +45,29 @@ test.describe('/pay — the 402 round-trip with the demo wallet', () => {
     );
     await expect(sheet).toHaveAttribute('data-state', 'finalized', { timeout: 20_000 });
     await expect(sheet).toContainText('Paid · Final');
-    await expect(sheet).toContainText('+1 GB · settled · 2 GB total');
+    await expect(sheet).toContainText(`+1 GB · settled · ${formatMb(before.mbTotal + 1000)} total`);
     await expect(page.getByRole('meter', { name: 'Data left' })).toHaveAttribute(
       'aria-valuemax',
-      '2000',
+      String(before.mbTotal + 1000),
     );
 
     const me = await apiGet<MeResponse>(page, `/me/${encodeURIComponent(key)}?refresh=1`);
-    expect(me.mbTotal).toBe(2000);
+    expect(me.mbTotal).toBe(before.mbTotal + 1000);
+    const expectedExpiry = new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).format(me.expiresAt);
+    await expect(sheet).toContainText(`Valid with your plan until`);
+    await expect(sheet).toContainText(expectedExpiry);
   });
 
   test('wrong-amount payment (forced via test hook) → Failed with decoded reason and the fee note', async ({
     page,
   }) => {
     const key = await claimFreeBundle(page);
+    const before = await apiGet<MeResponse>(page, `/me/${encodeURIComponent(key)}`);
     await page.addInitScript(() => {
       (globalThis as { __RECHARGE_TEST__?: unknown }).__RECHARGE_TEST__ = { tamperAmount: true };
     });
@@ -70,7 +81,7 @@ test.describe('/pay — the 402 round-trip with the demo wallet', () => {
     await expect(sheet.getByRole('button', { name: 'Try again' })).toBeVisible();
     // the failure did not touch the plan
     const me = await apiGet<MeResponse>(page, `/me/${encodeURIComponent(key)}`);
-    expect(me.mbTotal).toBe(1000);
+    expect(me.mbTotal).toBe(before.mbTotal);
     await expect(page.getByText(/Something went wrong/)).toHaveCount(0);
   });
 

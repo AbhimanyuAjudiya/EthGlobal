@@ -11,7 +11,10 @@ import {
 
 import { MockPaymentRail } from '../../src/index.js';
 import { RoutingPaymentRail } from '../../src/live/routing-rail.js';
-import { SelfRunFacilitator } from '../../src/live/self-run-facilitator.js';
+import {
+  PAYMENT_RECOVERY_MAX_AGE_S,
+  SelfRunFacilitator,
+} from '../../src/live/self-run-facilitator.js';
 import {
   anvilAccounts,
   anvilKeys,
@@ -207,6 +210,74 @@ describe('SelfRunFacilitator (T-13, T-15, T-16, T-17, A-21)', () => {
       errorReason: 'nonce_already_used',
     });
   });
+
+  it('recovers an expired payment days after execution without submitting it again', async () => {
+    const { rail, requirements, pay, token, clock } = setup();
+    const payload = await pay();
+    const first = await rail.settle(payload, requirements);
+    expect(first.success).toBe(true);
+    // Move well beyond both the twenty-block fast path and the authorization lifetime.
+    clock.advance(7 * 86_400_000);
+    token.blockNumber += 7n * 86_400n;
+    const restarted = new SelfRunFacilitator({
+      publicClient: token.publicClient(),
+      relayer: token.relayer(RELAYER),
+      token: TEST_USDC,
+      chainId: 31337,
+      network: 'eip155:31337',
+      now: clock.now,
+    });
+    await expect(restarted.verify(payload, requirements)).resolves.toMatchObject({
+      isValid: false,
+      invalidReason: 'nonce_already_used',
+    });
+    await expect(restarted.settle(payload, requirements)).resolves.toEqual(first);
+    expect(token.sent).toHaveLength(1);
+    expect(token.balanceOf(PAYOUT)).toBe(1_000_000n);
+  });
+
+  it('does not execute an expired unused authorization while recovering old payments', async () => {
+    const { rail, requirements, pay, token, clock } = setup();
+    const payload = await pay();
+    clock.advance(3_600_000);
+    await expect(rail.settle(payload, requirements)).resolves.toMatchObject({
+      success: false,
+      errorReason: 'expired',
+    });
+    expect(token.sent).toHaveLength(0);
+  });
+
+  it.each([false, true])(
+    'never recovers an old payment after consumption markers may expire (far-future expiry=%s)',
+    async (farFuture) => {
+      const { rail, requirements, pay, token, clock } = setup();
+      const payload = await pay(
+        farFuture ? { validBefore: String(Math.floor(clock.now() / 1000) + 365 * 86_400) } : {},
+      );
+      expect((await rail.settle(payload, requirements)).success).toBe(true);
+      // Exactly the safety boundary must fail even if the latest twenty blocks contain the payment.
+      clock.advance(PAYMENT_RECOVERY_MAX_AGE_S * 1000);
+      const currentClient = token.publicClient();
+      const originalTimestamp = BigInt(Math.floor(clock.now() / 1000) - PAYMENT_RECOVERY_MAX_AGE_S);
+      const publicClient = {
+        ...currentClient,
+        getBlock: async () => ({ timestamp: originalTimestamp }),
+      } as typeof currentClient;
+      const restarted = new SelfRunFacilitator({
+        publicClient,
+        relayer: token.relayer(RELAYER),
+        token: TEST_USDC,
+        chainId: 31337,
+        network: 'eip155:31337',
+        now: clock.now,
+      });
+      await expect(restarted.settle(payload, requirements)).resolves.toMatchObject({
+        success: false,
+        errorReason: 'nonce_already_used',
+      });
+      expect(token.sent).toHaveLength(1);
+    },
+  );
 
   it('a front-run between our verify and our send ⇒ success with the front-runner tx (simulation reverted)', async () => {
     const { rail, requirements, pay, token } = setup();

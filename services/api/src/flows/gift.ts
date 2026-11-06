@@ -17,7 +17,12 @@ import {
   sha256Hex,
   utf8,
 } from '@ethglobal/crypto';
-import type { Entitlement } from '@ethglobal/octroi';
+import {
+  entitlementIndex,
+  giftEntitlementKey,
+  holderHash,
+  type Entitlement,
+} from '@ethglobal/octroi';
 import type { Found } from '@ethglobal/octroi/store';
 import { RechargeError } from '@ethglobal/protocol/errors';
 import {
@@ -39,7 +44,8 @@ import { GIFT_CLAIM_TYPES, rechargeDomain } from '@ethglobal/protocol/typed-data
 import { fail } from '../errors.js';
 import { signedBy } from '../signatures.js';
 import { claimOnChain } from './entitle.js';
-import { fulfil } from './fulfil.js';
+import { deliveryMetadata, deliveryRecoveryHash, fulfil } from './fulfil.js';
+import { assertConfiguredCapacity } from './plan.js';
 import { addReceipt, record } from './record.js';
 
 import type { Deps } from '../deps.js';
@@ -89,9 +95,11 @@ export async function createGift(
       hexToBytes(paid.nonce),
     ),
   );
-  const pin = generatePin(randomBytes);
-  const claimBy = now + input.claimWindowMs;
-  const gift: Gift = {
+  const purchases = deps.state.map<{ gift: Gift; pin: string }>('gift-purchases');
+  const resumed = purchases.get(giftId);
+  const pin = resumed?.pin ?? generatePin(randomBytes);
+  const claimBy = resumed?.gift.claimBy ?? now + input.claimWindowMs;
+  const gift: Gift = resumed?.gift ?? {
     v: 1,
     giftId,
     kind: 'gift',
@@ -112,7 +120,8 @@ export async function createGift(
     createdAt: now,
     claimBy,
   };
-  await deps.stores.gifts.create(gift);
+  purchases.set(giftId, { gift, pin }, claimBy);
+  if (!(await escrowOf(deps, giftId))) await deps.stores.gifts.create(gift);
   const recorded = await record(
     deps,
     keys.gift(giftId),
@@ -238,22 +247,40 @@ export const giftDeliveredKey = (deps: Pick<Deps, 'secret'>, giftId: Hex): strin
  * Claim or redeem one escrow: per-giftId mutex → markClaimed (idempotent for our key) → campaign-funded cards claim
  * on DataDrop → the gift-claim/card-redeem receipt (durable, BEFORE delivery; a failure here is a 503 and no LPA) →
  * the once-only delivery marker → fulfil() → HCS. A gift whose entitlement exists, or whose LPA was already handed
- * out (even if that entitlement has since expired, RT-A-06), answers 409 (gift) / 410 (card) on every route.
+ * out (even if that entitlement has since expired, RT-A-06), refuses a different holder. An authenticated retry
+ * with its original private recovery token and session receives only metadata, then recovers ciphertext via /delivery.
  */
 export async function claimEscrow(
   deps: Deps,
   escrow: Found<Gift>,
-  ctx: { nonce: Hex; sessionPubKey: Hex; redeem: boolean; pin?: string },
+  ctx: { nonce: Hex; sessionPubKey: Hex; redeem: boolean; pin?: string; recoveryKey?: string },
 ): Promise<{ status: 201 | 202; body: EntitledResponse }> {
   const gift = escrow.payload;
   const giftId = gift.giftId as Hex;
-  const key = keys.entitlementGift(giftId);
+  const key = giftEntitlementKey(deps.secret, giftId);
   const delivered = giftDeliveredKey(deps, giftId);
+  const recoveryKeyHash = deliveryRecoveryHash(deps, ctx.recoveryKey);
   const refuse = () => fail(ctx.redeem ? 'expired' : 'already_claimed');
   return deps.mutex.run(`gift:${giftId.toLowerCase()}`, async () => {
-    if (gift.state === 'claimed' && gift.claimedKey !== key) throw refuse();
-    if (await deps.stores.entitlements.getByKey(key)) throw refuse();
-    if (await deps.stores.claims.held(delivered)) throw refuse();
+    if (gift.state === 'claimed' && gift.claimedKey !== entitlementIndex(key)) throw refuse();
+    const existing = await deps.stores.entitlements.getByKey(key);
+    const delivery = deps.pendingDelivery.get(key);
+    const sameHolder =
+      delivery?.recoveryKeyHash !== undefined &&
+      recoveryKeyHash === delivery.recoveryKeyHash &&
+      delivery.sessionPubKey === ctx.sessionPubKey;
+    if (existing) {
+      if (!sameHolder) throw refuse();
+      return deliveryMetadata(existing, delivery?.context);
+    }
+    if (await deps.stores.claims.held(delivered)) {
+      if (!delivery?.entitlement || !delivery.context || !sameHolder) throw refuse();
+      await fulfil(deps, delivery.entitlement, delivery.context);
+      const recovered = await deps.stores.entitlements.getByKey(key);
+      if (!recovered) throw fail('ledger_unavailable');
+      return deliveryMetadata(recovered, delivery.context);
+    }
+    await assertConfiguredCapacity(deps, gift.mb);
     try {
       await deps.stores.gifts.markClaimed(giftId, key);
     } catch (error) {
@@ -276,6 +303,13 @@ export async function claimEscrow(
       // a retry after a failed delivery finds the claim already on-chain and does not claim twice
       if (!(await deps.dataDrop.claimed(campaignId, claimKey)))
         claimTx = await claimOnChain(deps, campaignId, claimKey);
+      else {
+        claimTx = await deps.dataDrop.claimTransaction?.(campaignId, claimKey);
+        if (!claimTx)
+          throw fail('chain_unavailable', {
+            detail: 'claimed card transaction is not yet available',
+          });
+      }
     }
     const now = deps.now();
     const entitlement: Entitlement = {
@@ -292,6 +326,7 @@ export async function claimEscrow(
       usageSource: 'none',
       createdAt: now,
       expiresAt: now + gift.validityDays * DAY_MS,
+      holderHash: holderHash(key, ctx.sessionPubKey),
     };
     const kind = ctx.redeem ? ('card-redeem' as const) : ('gift-claim' as const);
     // durable intent: the receipt that blocks a reclaim exists before any data is delivered (T-71 a)
@@ -307,16 +342,34 @@ export async function claimEscrow(
     });
     // one delivery per gift, ever (T-31): taken create-if-absent before the LPA can exist; fail closed — a fulfil
     // that fails after this point leaves the gift delivered-or-pending, never deliverable twice
-    const until = Math.max(gift.claimBy, entitlement.expiresAt);
-    if (!(await deps.stores.claims.reserve(delivered, 'once', until))) throw refuse();
-    const result = await fulfil(deps, entitlement, {
+    const context = {
       nonce: ctx.nonce,
       sessionPubKey: ctx.sessionPubKey,
+      ...(recoveryKeyHash === undefined ? {} : { recoveryKeyHash }),
       ...(claimTx === undefined ? {} : { claimTx }),
       hcs: ctx.redeem
-        ? { t: 'card-redeem', giftId, claimKey: claimKey ?? sha256Hex(key), tx: claimTx ?? '' }
-        : { t: 'gift-claim', giftId },
-    });
+        ? {
+            t: 'card-redeem' as const,
+            giftId,
+            claimKey: claimKey ?? sha256Hex(key),
+            tx: claimTx ?? '',
+          }
+        : { t: 'gift-claim' as const, giftId },
+    };
+    deps.pendingDelivery.set(
+      key,
+      {
+        sessionPubKey: ctx.sessionPubKey,
+        nonce: ctx.nonce,
+        entitlement,
+        context,
+        ...(recoveryKeyHash === undefined ? {} : { recoveryKeyHash }),
+      },
+      entitlement.expiresAt,
+    );
+    const until = Math.max(gift.claimBy, entitlement.expiresAt);
+    if (!(await deps.stores.claims.reserve(delivered, 'once', until))) throw refuse();
+    const result = await fulfil(deps, entitlement, context);
     return result;
   });
 }

@@ -60,6 +60,7 @@ describe('verify RT-O-01: a ledger-read hk: index is never a capability (API)', 
     const h = await harness();
     const { key } = await provisioned(h, 'verify-o01-receipts');
     const res = await h.get(`/me/${encodeURIComponent(indexOf(key))}/receipts`);
-    expect(((await res.json()) as { receipts: unknown[] }).receipts).toHaveLength(0);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ error: 'not_found' });
   });
 });

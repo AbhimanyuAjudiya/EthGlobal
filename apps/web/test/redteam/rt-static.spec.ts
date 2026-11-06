@@ -41,7 +41,7 @@ test.describe('W1.3 no HTML-parsing sinks in the product', () => {
     const files = [
       ...productSources(),
       ...walk(
-        path.join(ROOT, 'packages/ui/components'),
+        path.join(ROOT, 'packages/ui/src/components'),
         (f) => /\.tsx?$/.test(f) && !f.includes('.test.'),
       ),
     ];
@@ -120,6 +120,11 @@ test.describe('W10 client bundle (local build on disk)', () => {
       'NEXT_PUBLIC_EXPLORER_EVM',
       'NEXT_PUBLIC_EXPLORER_HEDERA',
       'NEXT_PUBLIC_ARKIV_EXPLORER',
+      'NEXT_PUBLIC_ARKIV_RPC',
+      'NEXT_PUBLIC_ARKIV_WRITER',
+      'NEXT_PUBLIC_ENS_RPC_URL',
+      'NEXT_PUBLIC_ENS_PARENT',
+      'NEXT_PUBLIC_ENS_USER_REGISTRY',
       'NEXT_PUBLIC_DATADROP_ADDRESS',
       'NEXT_PUBLIC_CHAIN_ID',
       'NEXT_PUBLIC_ATTACH_MEDIAN_S',

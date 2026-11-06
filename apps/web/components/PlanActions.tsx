@@ -37,7 +37,15 @@ const REASONS: Readonly<Record<string, StringKey>> = {
 
 const short = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`;
 
-export function PlanActions({ entitlementKey, me }: { entitlementKey: string; me: MeResponse }) {
+export function PlanActions({
+  entitlementKey,
+  me,
+  onCancelled,
+}: {
+  entitlementKey: string;
+  me: MeResponse;
+  onCancelled?: () => void;
+}) {
   const now = useClock(60_000);
   const [refunded, setRefunded] = useState<PlanRefund | undefined>();
   const refund = refunded ?? me.refund;
@@ -52,6 +60,7 @@ export function PlanActions({ entitlementKey, me }: { entitlementKey: string; me
           offer={me.refundable}
           onCancelled={(r) => {
             setRefunded(r);
+            onCancelled?.();
             // the profile is cancelled: its activation code is useless now and leaves this device
             void plans.forgetLpa(entitlementKey);
           }}
@@ -261,7 +270,7 @@ function CancelPlan({
   );
 }
 
-/** The final state: refunded (with the refund transaction) or pending (the operator sends it). */
+/** A transaction means confirmed; an unknown legacy result needs an explicit human review. */
 function Cancelled({ refund }: { refund: PlanRefund }) {
   const { t, lang } = useLang();
   const amount = money(refund.usd6);
@@ -270,7 +279,11 @@ function Cancelled({ refund }: { refund: PlanRefund }) {
   return (
     <section className="sheet-row" role="status" data-testid="plan-cancelled">
       <p lang={lang}>
-        {refund.tx ? t('plan.cancelled', { amount }) : t('plan.refundPending', { amount })}
+        {refund.tx
+          ? t('plan.cancelled', { amount })
+          : refund.recovery === 'manual'
+            ? t('plan.refundManual')
+            : t('plan.refundPending', { amount })}
       </p>
       {refund.tx ? (
         <Hash
@@ -282,7 +295,7 @@ function Cancelled({ refund }: { refund: PlanRefund }) {
         />
       ) : (
         <p className="note" lang={lang}>
-          {t('plan.refundSupport')}
+          {t(refund.recovery === 'automatic' ? 'plan.refundAutomatic' : 'plan.refundSupport')}
         </p>
       )}
     </section>

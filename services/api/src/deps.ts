@@ -22,7 +22,7 @@ import {
 } from '@ethglobal/adapters/live';
 import { hexToBytes, keccak256 } from '@ethglobal/crypto';
 import { createViemRelayer, type Relayer } from '@ethglobal/eip3009';
-import type { Decision, OctroiDeps } from '@ethglobal/octroi';
+import type { Decision, Entitlement, OctroiDeps } from '@ethglobal/octroi';
 import {
   AgentPolicyStore,
   CampaignStore,
@@ -55,6 +55,11 @@ import { Metrics } from './metrics.js';
 import { DurableState, type DurableMap } from './state.js';
 import { createAgentPass, type AgentPass } from './world-agent-pass.js';
 
+import type { FulfilContext } from './flows/fulfil.js';
+import type { PaidOperation, TopUpIntent } from './flows/payments.js';
+import type { ReceiptOutboxEntry } from './flows/record.js';
+import type { RefundJob } from './flows/refund-recovery.js';
+
 export type ServeFreeDecision = Extract<Decision, { kind: 'serve-free' }>;
 
 export interface Stores {
@@ -72,16 +77,29 @@ export interface Stores {
 export interface PendingDelivery {
   sessionPubKey: Hex;
   nonce: Hex;
+  /** Private redemption retry credential; the public session key alone is never enough to recover a capability. */
+  recoveryKeyHash?: Hex;
+  /** Persisted before an order starts, so boot can create/resume even after a crash between writes. */
+  entitlement?: Entitlement;
+  context?: FulfilContext;
 }
 
 /** A verified-but-unserved free claim (T-24), bound to the human's nullifier (RT-A-05). */
 export interface ClaimIntent {
   decision: ServeFreeDecision;
+  recoveryKeyHash?: Hex;
   campaignId: string;
   /** HMAC(secret, 'intent' ‖ nullifier): a resume needs a proof of the same human. */
   nullifierTag: Hex;
   /** The first attempt's challenge signal: a retry may resend that proof instead of proving again. */
   signal: Hex;
+  claimTx?: Hex;
+  reserved?: boolean;
+  reservation?: {
+    token: Hex;
+    keys: string[];
+    locks: { key: string; scope: 'free-live' | 'free-campaign'; expiresAt: number }[];
+  };
 }
 
 export interface RpSigner {
@@ -120,6 +138,10 @@ export interface Deps {
   state: DurableState;
   /** Pending-profile retries by entitlement key (durable, RT-A-11; AP6.3). */
   pendingDelivery: DurableMap<PendingDelivery>;
+  paidOperations: DurableMap<PaidOperation>;
+  topUpIntents: DurableMap<TopUpIntent>;
+  receiptOutbox: DurableMap<ReceiptOutboxEntry>;
+  refundJobs: DurableMap<RefundJob>;
   /** Polls of reseller.usage per ICCID hash (≤ 1/min, shared by ?refresh=1 and webhooks). */
   usagePolls: WindowLimiter;
   /** Order retries for pending-profile entitlements (≤ 1/min per key). */
@@ -129,7 +151,7 @@ export interface Deps {
   /**
    * Verified-but-unserved free claims (T-24, AP5.3): the decision of a human whose chain step failed after
    * verify, keyed by the session key the challenge MAC binds; a retry from that session with a proof of the same
-   * human completes it (durable, RT-A-11; expires with INTENT_TTL_MS).
+   * human completes it (durable, RT-A-11; retained through the original entitlement/campaign lifetime).
    */
   intents: DurableMap<ClaimIntent>;
   /** World ID Agent Pass (docs/WORLD_AGENT_PASS.md); undefined = off (no WORLD_AGENT_PASS_CLIENT_ID). */
@@ -247,6 +269,10 @@ export async function buildDeps(
     nonceCache,
     state,
     pendingDelivery: state.map<PendingDelivery>('pending-delivery'),
+    paidOperations: state.map<PaidOperation>('paid-operations'),
+    topUpIntents: state.map<TopUpIntent>('topup-intents'),
+    receiptOutbox: state.map<ReceiptOutboxEntry>('receipt-outbox'),
+    refundJobs: state.map<RefundJob>('refund-jobs'),
     usagePolls: new WindowLimiter(1, 60_000, now),
     orderRetries: new WindowLimiter(1, 60_000, now),
     rebinds: new WindowLimiter(3, 3_600_000, now),

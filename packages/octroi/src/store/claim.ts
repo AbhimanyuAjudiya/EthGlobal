@@ -5,6 +5,7 @@
  */
 import type { Ledger } from '@ethglobal/adapters';
 import { RechargeError } from '@ethglobal/protocol/errors';
+import type { Hex } from '@ethglobal/protocol/ids';
 import { claimSchema, type ClaimLock } from '@ethglobal/protocol/schemas';
 
 import { lifetimeUntil, Repo, type Codec } from './common.js';
@@ -20,7 +21,10 @@ const claimCodec: Codec<ClaimLock> = {
 export class ClaimStore {
   readonly #repo: Repo<ClaimLock>;
 
-  constructor(ledger: Ledger, now: () => number) {
+  constructor(
+    ledger: Ledger,
+    private readonly now: () => number,
+  ) {
     this.#repo = new Repo(ledger, now, claimCodec);
   }
 
@@ -29,14 +33,37 @@ export class ClaimStore {
     return this.#repo.exists(key);
   }
 
+  async owned(key: string, reservation: Hex): Promise<boolean> {
+    const found = await this.#repo.byKey(key);
+    return found?.payload.reservation === reservation && found.payload.expiresAt > this.now();
+  }
+
   /** Take the lock until `expiresAt`: true if this call took it, false if a live holder exists. */
-  async reserve(key: string, scope: ClaimLock['scope'], expiresAt: number): Promise<boolean> {
+  async reserve(
+    key: string,
+    scope: ClaimLock['scope'],
+    expiresAt: number,
+    reservation?: Hex,
+  ): Promise<boolean> {
     try {
-      await this.#repo.create({ v: 1, key, scope, expiresAt });
+      await this.#repo.create({
+        v: 1,
+        key,
+        scope,
+        expiresAt,
+        ...(reservation ? { reservation } : {}),
+      });
       return true;
     } catch (error) {
       if (error instanceof RechargeError && error.code === 'replay') return false;
       throw error;
     }
+  }
+
+  /** Expire only a reservation owned by this incomplete attempt; CAS never releases a newer holder. */
+  async release(key: string, reservation: Hex): Promise<void> {
+    const found = await this.#repo.byKey(key);
+    if (found?.payload.reservation !== reservation) return;
+    await this.#repo.replace(found, { ...found.payload, expiresAt: this.now() }, 1);
   }
 }

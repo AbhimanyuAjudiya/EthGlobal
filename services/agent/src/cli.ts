@@ -46,7 +46,14 @@ export async function main(
   const log: Log = opts.log ?? createLogger(env.LOG_LEVEL ?? 'info');
   let config: AgentConfig;
   try {
-    config = applyFlags(loadConfig(env), parseCliArgs(argv));
+    const flags = parseCliArgs(argv);
+    config = applyFlags(
+      loadConfig({
+        ...env,
+        ...(flags.keys.length > 0 ? { AGENT_WATCH_KEYS: flags.keys.join(',') } : {}),
+      }),
+      flags,
+    );
   } catch (error) {
     log.error(
       { event: 'agent.tick', error: error instanceof Error ? error.message : String(error) },
@@ -63,6 +70,7 @@ export async function main(
         uaid: agent.uaid,
         payers: agent.payers.map((p) => p.network),
         dryRun: config.dryRun,
+        watchedKeys: config.watchKeys.length,
       },
       'agent: started',
     );
@@ -72,16 +80,23 @@ export async function main(
     }
     const controller = new AbortController();
     const stop = () => controller.abort();
-    opts.signal?.addEventListener('abort', stop);
+    opts.signal?.addEventListener('abort', stop, { once: true });
+    if (opts.signal?.aborted) stop();
     process.once('SIGINT', stop);
     process.once('SIGTERM', stop);
-    await runLoop({
-      deps: agent.deps,
-      keys: () => agent.keys(),
-      tickMs: config.tickMs,
-      log,
-      signal: controller.signal,
-    });
+    try {
+      await runLoop({
+        deps: agent.deps,
+        keys: () => agent.keys(),
+        tickMs: config.tickMs,
+        log,
+        signal: controller.signal,
+      });
+    } finally {
+      opts.signal?.removeEventListener('abort', stop);
+      process.off('SIGINT', stop);
+      process.off('SIGTERM', stop);
+    }
     return 0;
   } finally {
     agent.close();

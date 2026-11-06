@@ -122,9 +122,18 @@ test.describe('W5 storage after a claim (T-60, T-61)', () => {
     expect(lpas.length, 'exactly one opened LPA before install').toBe(1);
     const lpa = /LPA:1\$[^"\s]+/.exec(lpas[0] ?? '')?.[0] ?? '';
     expect(lpa).toMatch(/^LPA:1\$local\.test\$/);
-    // localStorage: only the documented per-viewer keys
+    // Local preferences and RainbowKit's package-version marker; no activation or authorization data.
     for (const k of Object.keys(dump.local))
-      expect(k).toMatch(/^recharge\.(lang|a2hs\.dismissed|sim\.seed|sponsor\.campaigns|proof)$/);
+      expect(k).toMatch(
+        /^(recharge\.(lang|a2hs\.dismissed|sim\.seed|sponsor\.campaigns|proof)|rk-version|wagmi\.store)$/,
+      );
+    if (dump.local['rk-version']) expect(dump.local['rk-version']).toMatch(/^\d+\.\d+\.\d+/);
+    if (dump.local['wagmi.store']) {
+      const walletState = JSON.parse(dump.local['wagmi.store']) as {
+        state: Record<string, unknown>;
+      };
+      expect(Object.keys(walletState.state).sort()).toEqual(['chainId', 'connections', 'current']);
+    }
     expect(Object.keys(dump.session)).toEqual([]);
     const everything = [...Object.values(dump.local), ...dump.idb, ...dump.caches].join('\n');
     expect(everything).not.toMatch(/secret|secretKey|"sk"/i);

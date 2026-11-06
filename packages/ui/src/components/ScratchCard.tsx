@@ -219,6 +219,11 @@ export function ScratchCard({
   const [own, setOwn] = useState<'covered' | 'scratched' | 'button'>('covered');
   const isRevealed = revealed ?? own !== 'covered';
   const announced = useRef(false);
+  useEffect(() => {
+    if (revealed === false) {
+      announced.current = false;
+    }
+  }, [revealed, pin]);
 
   const reveal = useCallback(
     (via: 'scratched' | 'button') => {

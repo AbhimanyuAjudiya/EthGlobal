@@ -6,6 +6,7 @@ import { hmacKey } from '@ethglobal/crypto';
 import type { Hex } from '@ethglobal/protocol/ids';
 import type { Gift } from '@ethglobal/protocol/schemas';
 
+import { entitlementIndex } from '../../src/keys.js';
 import { GiftStore } from '../../src/store/index.js';
 import { gift, GIFT_ID, SECRET, T0 } from '../helpers.js';
 
@@ -80,7 +81,7 @@ describe('GiftStore', () => {
     await store.markClaimed(GIFT_ID, 'giftent:a');
     await store.markClaimed(GIFT_ID, 'giftent:a');
     expect(await store.bySerial(GIFT_ID.slice(2, 10))).toMatchObject({
-      payload: { state: 'claimed', claimedKey: 'giftent:a' },
+      payload: { state: 'claimed', claimedKey: entitlementIndex('giftent:a') },
     });
     await expect(store.markClaimed(GIFT_ID, 'giftent:b')).rejects.toMatchObject({
       code: 'already_claimed',

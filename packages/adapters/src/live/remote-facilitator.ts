@@ -315,9 +315,18 @@ export class RemoteFacilitator implements PaymentRail {
         return { status: 404, data: undefined };
       throw error;
     });
-    const first = found.status === 404 ? undefined : found.data?.transactions[0];
-    if (!first) return 'pending';
-    return first.result === 'SUCCESS' ? 'success' : 'failed';
+    const transactions = found.status === 404 ? [] : (found.data?.transactions ?? []);
+    // The mirror can return duplicate submissions before the original consensus
+    // record. A duplicate alone does not establish whether the transfer succeeded.
+    if (transactions.some((entry) => entry.result === 'SUCCESS')) return 'success';
+    const unsettled = new Set([
+      'DUPLICATE_TRANSACTION',
+      'UNKNOWN',
+      'BUSY',
+      'INVALID_NODE_ACCOUNT',
+      'INVALID_PAYER_SIGNATURE',
+    ]);
+    return transactions.some((entry) => !unsettled.has(entry.result)) ? 'failed' : 'pending';
   }
 }
 

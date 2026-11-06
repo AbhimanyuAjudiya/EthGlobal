@@ -11,7 +11,8 @@ describe('device', () => {
     expect(parseDevice(ios('17_4')).universalLink).toBe(true);
     expect(parseDevice(ios('18_1')).universalLink).toBe(true);
     expect(parseDevice(ios('17_4')).label).toBe('iPhone · iOS 17.4');
-    expect(parseDevice(ios('18_0')).esimReady).toBe(true);
+    expect(parseDevice(ios('18_0'))).not.toHaveProperty('esimReady');
+    expect(parseDevice(ios('12_0'))).not.toHaveProperty('esimReady');
   });
 
   it('Android installs by code only; desktop is unknown', () => {
@@ -19,7 +20,7 @@ describe('device', () => {
       'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36',
     );
     expect(a).toMatchObject({ os: 'android', universalLink: false, label: 'Android 14' });
-    expect(a.esimReady).toBeUndefined();
+    expect(a).not.toHaveProperty('esimReady');
     expect(parseDevice('Mozilla/5.0 (X11; Linux x86_64) Chrome/131').os).toBe('other');
   });
 

@@ -1,9 +1,10 @@
-import type { Campaign, Decision } from '@ethglobal/octroi';
+import type { Campaign, Decision, Entitlement } from '@ethglobal/octroi';
 import type { Hex } from '@ethglobal/protocol/ids';
 import type { PaymentPayload } from '@ethglobal/protocol/schemas';
 
 import type { Release } from './admission.js';
 import type { Deps } from './deps.js';
+import type { PaidOperation } from './flows/payments.js';
 import type { Logger } from './logger.js';
 import type { Context } from 'hono';
 
@@ -17,6 +18,9 @@ export interface Vars {
   input: unknown;
   /** Decoded once by x402() (brief §8 bug 1). */
   payment: PaymentPayload | undefined;
+  /** Already settled, durably bound operation: mutable admission checks cannot charge or strand it again. */
+  paidOperation: PaidOperation | undefined;
+  paidTarget: Entitlement | undefined;
   sessionPubKey: Hex | undefined;
   /** Set by octroi(). */
   decision: Decision | undefined;

@@ -28,7 +28,8 @@ import { fail } from '../errors.js';
 import { signedBy } from '../signatures.js';
 import { consume } from './challenge.js';
 import { escrowOf } from './gift.js';
-import { addReceipt, errName, submitHcs, type ReceiptDraft, type Recorded } from './record.js';
+import { addReceipt, flushReceiptOutbox, type ReceiptDraft, type Recorded } from './record.js';
+import { journalRefund, type RefundJob } from './refund-recovery.js';
 
 import type { Deps } from '../deps.js';
 
@@ -67,6 +68,7 @@ export async function reclaim(deps: Deps, req: GiftReclaimRequest): Promise<Gift
   if (!ok) throw fail('unauthorized', { detail: 'bad GiftReclaim signature' });
 
   return deps.mutex.run(`reclaim:${giftId}`, async () => {
+    await flushReceiptOutbox(deps);
     const ent = keys.gift(giftId);
     let escrow: Gift | null = null;
     let receipts: Receipt[] = [];
@@ -177,28 +179,13 @@ export async function payRefund(
   ent: string,
   pending: Pending,
   refund: { network: string; to: string; usd6: bigint; memo: string },
-  hcsBody: (tx: string) => Parameters<typeof submitHcs>[2],
+  hcsBody: (tx: string) => RefundJob['hcsBody'],
 ): Promise<{ tx: string; hcs: Recorded['hcs']; receiptKey: string | undefined } | undefined> {
-  let tx: string;
-  try {
-    ({ tx } = await deps.adapters.treasury.refund(refund));
-  } catch (error) {
-    deps.logger.error(
-      { event: 'settle', op: pending.kind, err: errName(error) },
-      'treasury refund failed; pending receipt kept',
-    );
-    return undefined;
-  }
-  const hcs = await submitHcs(deps, ent, hcsBody(tx));
-  const receiptKey = await deps.stores.receipts
-    .patch(pending.key, { tx, ...(hcs ? { hcs } : {}) })
-    .then((r) => r.key)
-    .catch((error: unknown) => {
-      deps.logger.error(
-        { event: 'ledger.op', op: 'receipt.patch', kind: pending.kind, err: errName(error) },
-        'refund receipt write failed',
-      );
-      return undefined;
-    });
-  return { tx, hcs, receiptKey };
+  return journalRefund(deps, {
+    entitlementKey: ent,
+    receiptKey: pending.key,
+    kind: pending.kind,
+    input: { ...refund, usd6: usd6ToWire(refund.usd6) },
+    hcsBody: hcsBody(''),
+  });
 }

@@ -30,10 +30,9 @@ function Preflight() {
   const { t, lang } = useLang();
   const hydrated = useHydrated();
   const device = hydrated ? parseDevice(navigator.userAgent) : undefined;
+  // A user-agent identifies software, never the hardware variant or carrier lock.
   const line = device
-    ? device.esimReady
-      ? t('preflight.ready', { device: device.label })
-      : t('preflight.unknown')
+    ? `${device.os === 'other' ? '' : `${device.label} · `}${t('preflight.unknown')}`
     : undefined;
   return (
     <p className="preflight" data-testid="preflight" lang={lang}>
@@ -154,6 +153,7 @@ function Everything({ price, mb }: { price: string; mb: string }) {
 }
 
 const ESIM_FACTS: readonly (readonly [StringKey, StringKey])[] = [
+  ['esim.coverageTerm', 'esim.coverage'],
   ['esim.dataTerm', 'esim.data'],
   ['esim.simTerm', 'esim.sim'],
   ['esim.appsTerm', 'esim.apps'],
@@ -167,7 +167,12 @@ const ESIM_FACTS: readonly (readonly [StringKey, StringKey])[] = [
 function EsimFacts() {
   const { t, lang } = useLang();
   return (
-    <section className="landing__section" aria-labelledby="esim-title" lang={lang}>
+    <section
+      id="compatibility"
+      className="landing__section"
+      aria-labelledby="esim-title"
+      lang={lang}
+    >
       <h2 id="esim-title" className="landing__h2">
         {t('esim.title')}
       </h2>
@@ -232,15 +237,38 @@ export function ClaimPaths() {
       <AppHeader />
       <div className="landing__grid">
         <section className="landing__copy">
+          <p className="eyebrow" lang={lang}>
+            {t('landing.eyebrow')}
+          </p>
           <h1 className="landing__title" lang={lang}>
             {t('landing.title')}
           </h1>
           <p className="landing__sub" lang={lang}>
             {t('landing.sub', { mb: formatMb(freeMb) })}
           </p>
+          <dl className="offer-facts" aria-label={t('landing.paidPlan')} lang={lang}>
+            <div>
+              <dt>{t('offer.data')}</dt>
+              <dd>{planMb}</dd>
+            </div>
+            <div>
+              <dt>{t('offer.validity')}</dt>
+              <dd>{t('offer.days', { days: plans?.paid.validityDays ?? 7 })}</dd>
+            </div>
+            <div>
+              <dt>{t('offer.price')}</dt>
+              <dd>
+                {planPrice}
+                <small> USDC</small>
+              </dd>
+            </div>
+          </dl>
         </section>
         {/* no validity line: /plans does not carry the campaign's validity, and a guess is fake specificity */}
         <section className="landing__coupon" aria-live="polite">
+          <p className="eyebrow" lang={lang}>
+            {t('landing.sponsored')}
+          </p>
           {pending ? (
             <div className="skeleton skeleton--coupon" aria-label="Loading the sponsor bundle" />
           ) : (
@@ -295,6 +323,9 @@ export function ClaimPaths() {
             ) : null}
           </div>
           <Preflight />
+          <a className="compatibility-link" href="#compatibility" lang={lang}>
+            {t('landing.compatibility')}
+          </a>
           <nav className="quiet-rows" aria-label="More ways in">
             <Link href="/card" prefetch={false}>
               <span lang={lang}>{t('landing.pin')}</span>
@@ -305,8 +336,8 @@ export function ClaimPaths() {
           </nav>
         </section>
       </div>
-      <HowItWorks price={planPrice} mb={planMb} />
       <EsimFacts />
+      <HowItWorks price={planPrice} mb={planMb} />
       <Everything price={planPrice} mb={planMb} />
     </main>
   );

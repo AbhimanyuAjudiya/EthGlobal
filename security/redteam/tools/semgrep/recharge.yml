@@ -38,6 +38,8 @@ rules:
     languages: [typescript, javascript]
     paths:
       include: ["**/apps/web/**", "**/packages/ui/**"]
+      # Test assertions name forbidden APIs; application sources remain covered.
+      exclude: ["**/test/**", "**/e2e/**", "*.test.ts", "*.test.tsx", "*.spec.ts", "*.spec.tsx"]
     # a plain TS pattern does not match a JSX attribute name; the regex does (selftest proves it)
     pattern-regex: \bdangerouslySetInnerHTML\b
 
@@ -63,7 +65,7 @@ rules:
           "**/services/**",
           "**/apps/web/lib/**",
         ]
-      exclude: ["*.test.ts", "*.spec.ts"]
+      exclude: ["**/test/**", "**/e2e/**", "*.test.ts", "*.test.tsx", "*.spec.ts", "*.spec.tsx"]
     pattern: Math.random()
 
   - id: recharge-webhook-must-read-raw-body
@@ -199,8 +201,19 @@ rules:
     paths:
       include: ["**/apps/**", "**/packages/**", "**/services/**", "**/scripts/**"]
       # deploy/addresses.<slug>.json records the deploy chain as eip155:<id> (INTERFACES §6.3), not an x402 network — user-approved exclusion 2026-11-05
-      exclude: ["**/test/attack/**", "**/fixtures/hostile/**", "**/deploy/addresses.*.json"]
-    pattern-regex: (\bmaxAmountRequired\s*\??:|\.maxAmountRequired\b|['"]maxAmountRequired['"]|['"`][Xx]-[Pp][Aa][Yy][Mm][Ee][Nn][Tt](-[Rr]esponse|-RESPONSE)?['"`]|['"`]base-sepolia['"`]|['"`](hedera|eip155):29[5-7]['"`]|from\s+['"`]x402(-hono|-fetch|-express|-next|-axios)?['"`])
+      exclude:
+        [
+          "**/test/**",
+          "**/e2e/**",
+          "*.test.ts",
+          "*.test.tsx",
+          "*.spec.ts",
+          "*.spec.tsx",
+          "**/fixtures/hostile/**",
+          "**/deploy/addresses.*.json",
+        ]
+    # Hedera EVM uses eip155:295/296/297; native Hedera uses named CAIP networks.
+    pattern-regex: (\bmaxAmountRequired\s*\??:|\.maxAmountRequired\b|['"]maxAmountRequired['"]|['"`][Xx]-[Pp][Aa][Yy][Mm][Ee][Nn][Tt](-[Rr]esponse|-RESPONSE)?['"`]|['"`]base-sepolia['"`]|['"`]hedera:29[5-7]['"`]|from\s+['"`]x402(-hono|-fetch|-express|-next|-axios)?['"`])
 
   - id: recharge-world-id-legacy-primitive
     message: "T-38/T-80: World ID legacy v2 primitive. IDKit 4.6 requires a backend-signed rp_context and the cloud verifier is POST /api/v4/verify/{rp_id} with the IDKit result unchanged; the response's environment must equal 'production' in live (docs/vendor/API-FACTS.md §4). The v2 endpoint and the ISuccessResult shape do not carry environment and are being retired."
@@ -217,7 +230,7 @@ rules:
     languages: [generic]
     paths:
       include: ["**/packages/adapters/src/**", "**/services/**", "**/scripts/**"]
-      exclude: ["**/test/attack/**"]
+      exclude: ["**/test/**", "**/e2e/**", "*.test.ts", "*.test.tsx", "*.spec.ts", "*.spec.tsx"]
     # The code that REFUSES Kaolin must be able to name it (AUD-03): a comparison against the refusal constant, its import,
     # a comment line, and a string literal stating that it "is retired" are not uses. Anything else that names Kaolin or its
     # chain id (with or without numeric separators), golem-base-sdk, BTL or permissionlessExtension still fires.

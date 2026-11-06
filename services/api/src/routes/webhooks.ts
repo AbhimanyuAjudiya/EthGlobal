@@ -31,7 +31,12 @@ export function registerWebhooks(app: Hono<AppEnv>, deps: Deps): void {
     deps.metrics.inc('webhook_total', { verdict: verdict.ok ? 'ok' : verdict.reason });
     if (!verdict.ok) {
       c.get('log').warn(
-        { event: 'webhook', provider: reseller.name, verdict: verdict.reason, ip: c.get('clientIp') },
+        {
+          event: 'webhook',
+          provider: reseller.name,
+          verdict: verdict.reason,
+          ip: c.get('clientIp'),
+        },
         'webhook refused',
       );
       throw fail(verdict.reason === 'replay' ? 'replay' : 'unauthorized', {
@@ -91,22 +96,30 @@ async function applyEvent(c: Ctx, deps: Deps, event: UsageEvent): Promise<void> 
 export async function patchUsage(
   deps: Deps,
   key: string,
-  currentMb: number,
-  totalMb: number,
+  _currentMb: number,
+  _totalMb: number,
   usage: Usage,
   source: 'webhook' | 'poll',
 ): Promise<void> {
-  if (usage.usedMb < currentMb) {
-    deps.logger.warn({ event: 'webhook', reason: 'usage_decrease' }, 'usage decrease ignored');
-    return;
-  }
-  const status =
-    usage.status === 'installed' || usage.status === 'active' ? usage.status : undefined;
-  await deps.stores.entitlements.patch(key, {
-    mbUsed: Math.min(usage.usedMb, totalMb),
-    usageAsOf: usage.asOf,
-    usageSource: source,
-    ...(status === undefined ? {} : { status }),
+  await deps.stores.entitlements.patch(key, (current) => {
+    // Re-evaluate on every CAS attempt: a poll can overlap a top-up or a newer usage report.
+    if (
+      usage.usedMb < current.mbUsed ||
+      (current.usageSource !== 'none' && usage.asOf < current.usageAsOf)
+    )
+      return {};
+    const status =
+      current.status === 'active' || usage.status === 'active'
+        ? 'active'
+        : current.status === 'installed' || usage.status === 'installed'
+          ? 'installed'
+          : undefined;
+    return {
+      mbUsed: Math.min(usage.usedMb, current.mbTotal),
+      usageAsOf: usage.asOf,
+      usageSource: source,
+      ...(status === undefined ? {} : { status }),
+    };
   });
   deps.cache.invalidate(key);
 }

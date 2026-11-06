@@ -74,6 +74,10 @@ export class MemoryDataDrop implements DataDropClient {
     return this.#get(id)?.claims.has(claimKey.toLowerCase()) ?? false;
   }
 
+  async claimTransaction(id: Hex, claimKey: Hex): Promise<Hex | undefined> {
+    return this.claimedEvents.find((event) => event.id === id && event.claimKey === claimKey)?.tx;
+  }
+
   async claimsInHour(id: Hex, bucket: number): Promise<number> {
     return this.#get(id)?.perHour.get(bucket) ?? 0;
   }

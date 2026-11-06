@@ -133,6 +133,15 @@ export const rpContextSchema = z.object({
 });
 export type RpContext = z.infer<typeof rpContextSchema>;
 
+/** Retry delivery of ciphertext sealed to the original browser session; never returns a raw LPA. */
+export const deliveryRequestSchema = z.object({ sessionPubKey: hex32Schema }).strict();
+export type DeliveryRequest = z.infer<typeof deliveryRequestSchema>;
+export const deliveryResponseSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('pending-profile') }),
+  z.object({ status: z.literal('ready'), nonce: hex32Schema, sealedLpa: sealedBoxSchema }),
+]);
+export type DeliveryResponse = z.infer<typeof deliveryResponseSchema>;
+
 // ── Challenges and claims
 
 const challengePathSchema = z.enum(CHALLENGE_PATHS);
@@ -263,11 +272,12 @@ export const planCancelRequestSchema = z.object({
   /** EIP-712 CancelPlan { entitlementKey, payer, nonce: challenge.nonce, issuedAt } by the payer. */
   signature: hexSchema,
 });
-/** The cancel refund; no `tx` = pending (the treasury did not answer; the operator completes it, never twice). */
+/** The cancel refund; no `tx` = pending. Recovery distinguishes a saved signed transaction from an unknown outcome. */
 export const planRefundSchema = z.object({
   network: caipNetworkSchema,
   usd6: digitsSchema,
   tx: z.string().optional(),
+  recovery: z.enum(['automatic', 'manual']).optional(),
 });
 /** 200 = refunded; 202 = cancelled at the vendor, refund pending. */
 export const planCancelResponseSchema = z.object({
@@ -315,6 +325,9 @@ const bundleMbSchema = z.object({ orb: mbSchema, document: mbSchema, device: z.l
 export const plansQuerySchema = z.object({ campaign: hex32Schema.optional() });
 export const plansResponseSchema = z.object({
   mode: z.enum(['local', 'live']),
+  sponsor: z
+    .object({ minPricePerClaimUsd6: digitsSchema, maxCampaignDurationMs: msSchema.optional() })
+    .optional(),
   campaign: z
     .object({
       id: hex32Schema,

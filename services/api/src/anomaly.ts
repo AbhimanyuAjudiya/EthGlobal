@@ -12,7 +12,7 @@ const THRESHOLD = 0.8;
  */
 export class AnomalyGuard {
   readonly #claims = new Map<string, number[]>();
-  readonly #paused = new Set<string>();
+  readonly #pausing = new Set<string>();
 
   constructor(
     private readonly dataDrop: DataDropClient,
@@ -27,22 +27,25 @@ export class AnomalyGuard {
     const recent = (this.#claims.get(id) ?? []).filter((t) => now - t < WINDOW_MS);
     recent.push(now);
     this.#claims.set(id, recent);
-    if (this.#paused.has(id) || recent.length < Math.ceil(THRESHOLD * claimsPerHour)) return false;
-    this.#paused.add(id);
+    if (this.#pausing.has(id) || recent.length < Math.ceil(THRESHOLD * claimsPerHour)) return false;
+    this.#pausing.add(id);
     this.logger.warn(
       { event: 'anomaly', campaignId: id, claims: recent.length, claimsPerHour },
       'anomaly: pausing campaign',
     );
     try {
+      if ((await this.dataDrop.campaign(campaignId)).paused) return false;
       await this.dataDrop.pause(campaignId, true);
+      this.#claims.delete(id);
       return true;
     } catch (error) {
-      this.#paused.delete(id);
       this.logger.error(
         { event: 'anomaly', campaignId: id, err: errName(error) },
         'anomaly: pause failed',
       );
       return false;
+    } finally {
+      this.#pausing.delete(id);
     }
   }
 }

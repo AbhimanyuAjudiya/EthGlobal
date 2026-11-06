@@ -617,6 +617,7 @@ const esim: Record<string, unknown[]> = {
       },
       null,
     ),
+    byIccid(1, { orderUsage: 100_000_000, totalVolume: 2 * GB }),
   ],
 };
 for (const [name, exchanges] of Object.entries(esim))

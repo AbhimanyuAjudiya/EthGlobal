@@ -89,4 +89,19 @@ describe('PlanActions', () => {
     expect(screen.getByText('Plan cancelled · refund of $0.39 pending')).toBeTruthy();
     expect(screen.getByText(/contact support/)).toBeTruthy();
   });
+  it('an unknown refund outcome asks for review without claiming it was refunded', () => {
+    view(
+      me({
+        cancelledAt: 1,
+        expiresAt: 1,
+        refund: { network: 'eip155:84532', usd6: '390000', recovery: 'manual' },
+      }),
+    );
+    expect(
+      screen.getByText(
+        'Refund needs review. Your eSIM is cancelled; contact support with the receipt.',
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/refunded$/)).toBeNull();
+  });
 });

@@ -5,7 +5,7 @@
  * (reserve) and the paid lane's settlement marker (servedOnce); reseller, chain and HCS are the API's.
  */
 import type { Ledger, PaymentRail, Personhood, PersonhoodResult } from '@ethglobal/adapters';
-import { utf8 } from '@ethglobal/crypto';
+import { randomBytes, bytesToHex, utf8 } from '@ethglobal/crypto';
 import {
   AUDIENCE,
   dayBucket,
@@ -112,6 +112,19 @@ export interface OctroiDeps {
    * self-pruning cache per ledger instance so concurrent calls still share it.
    */
   nonceCache?: Set<string>;
+  /** Persist validated settled work before its replay marker; the API resumes only the same bound operation. */
+  onPaidDecision?: (decision: Extract<Decision, { kind: 'serve-paid' }>) => Promise<void>;
+  /** Journal an incomplete reservation before writes, so a restart can release only this attempt's locks. */
+  onFreeReservation?: (
+    decision: Extract<Decision, { kind: 'serve-free' }>,
+    reservation: {
+      token: Hex;
+      keys: string[];
+      locks: { key: string; scope: 'free-live' | 'free-campaign'; expiresAt: number }[];
+    },
+  ) => Promise<void>;
+  /** Atomically promote the journaled reservation to resumable work after all locks were acquired. */
+  onFreeDecision?: (decision: Extract<Decision, { kind: 'serve-free' }>) => Promise<void>;
 }
 
 export interface DecideRequest {
@@ -329,20 +342,47 @@ async function reserve(
   campaign: Campaign,
   entitlementExpiresAt: number,
   now: number,
+  decision: Extract<Decision, { kind: 'serve-free' }>,
 ): Promise<Deny | null> {
   const claims = new ClaimStore(deps.ledger, deps.now);
   // the record outlives the campaign (A-44); freeInputInvalid refused a campaign the ledger cannot outlive
   const recordUntil = campaign.expiresAt + CLAIM_RECORD_GRACE_MS;
+  const reservation = bytesToHex(randomBytes(32));
+  const acquired: string[] = [];
+  let committed = false;
   try {
     const today = dayBucket(now);
+    await deps.onFreeReservation?.(decision, {
+      token: reservation,
+      keys: [k.locks.live(today), k.locks.live(today + 1), k.locks.campaign],
+      locks: [
+        { key: k.locks.live(today), scope: 'free-live', expiresAt: entitlementExpiresAt },
+        { key: k.locks.live(today + 1), scope: 'free-live', expiresAt: entitlementExpiresAt },
+        { key: k.locks.campaign, scope: 'free-campaign', expiresAt: recordUntil },
+      ],
+    });
     for (const day of [today, today + 1]) {
-      if (!(await claims.reserve(k.locks.live(day), 'free-live', entitlementExpiresAt)))
+      const key = k.locks.live(day);
+      if (!(await claims.reserve(key, 'free-live', entitlementExpiresAt, reservation)))
         return deny('replay', 'claim_lock');
+      acquired.push(key);
     }
-    const record = await claims.reserve(k.locks.campaign, 'free-campaign', recordUntil);
-    return record ? null : deny('replay', 'claim_lock');
+    const record = await claims.reserve(
+      k.locks.campaign,
+      'free-campaign',
+      recordUntil,
+      reservation,
+    );
+    if (!record) return deny('replay', 'claim_lock');
+    acquired.push(k.locks.campaign);
+    await deps.onFreeDecision?.(decision);
+    committed = true;
+    return null;
   } catch {
     return deny('ledger-unavailable', 'claim_lock');
+  } finally {
+    if (!committed)
+      await Promise.allSettled(acquired.map((key) => claims.release(key, reservation)));
   }
 }
 
@@ -410,9 +450,6 @@ async function freeLane(
   if (replay) return replay;
   if (!(await actionAllows(campaign, k.claimKey))) return deny('invalid-proof', 'action');
   const expiresAt = now + campaign.validityDays * DAY_MS;
-  const reserved = await reserve(deps, k, campaign, expiresAt, now);
-  if (reserved) return reserved;
-
   const entitlement: Entitlement = {
     v: 1,
     key: k.key,
@@ -431,7 +468,7 @@ async function freeLane(
     createdAt: now,
     expiresAt,
   };
-  return {
+  const decision: Extract<Decision, { kind: 'serve-free' }> = {
     kind: 'serve-free',
     entitlement,
     claimKey: k.claimKey,
@@ -439,6 +476,8 @@ async function freeLane(
     tier,
     mb,
   };
+  const reserved = await reserve(deps, k, campaign, expiresAt, now, decision);
+  return reserved ?? decision;
 }
 
 // ───────────────────────────── paid lane ─────────────────────────────
@@ -586,9 +625,6 @@ async function paidLane(
   const settled = await settle(deps, payment, offered);
   if ('kind' in settled) return settled;
   const now = deps.now();
-  const twice = await servedOnce(deps, settled, now);
-  if (twice) return twice;
-
   const { s } = settled;
   const nonce = isEvmExact(payment.payload)
     ? payment.payload.authorization.nonce
@@ -609,7 +645,21 @@ async function paidLane(
     createdAt: now,
     expiresAt: now + deps.validityDays * DAY_MS,
   };
-  return { kind: 'serve-paid', entitlement, settlement: s, requirements: offered };
+  const decision: Extract<Decision, { kind: 'serve-paid' }> = {
+    kind: 'serve-paid',
+    entitlement,
+    settlement: s,
+    requirements: offered,
+  };
+  if (deps.onPaidDecision) {
+    try {
+      await deps.onPaidDecision(decision);
+    } catch {
+      return deny('ledger-unavailable', 'paid-recovery');
+    }
+  }
+  const twice = await servedOnce(deps, settled, now);
+  return twice ?? decision;
 }
 
 // ───────────────────────────── entry point ─────────────────────────────

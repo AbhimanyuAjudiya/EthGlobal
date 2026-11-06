@@ -4,6 +4,7 @@ import { RechargeError } from '@ethglobal/protocol/errors';
 import { ANN, keys, type Hex } from '@ethglobal/protocol/ids';
 import { giftSchema, type Gift } from '@ethglobal/protocol/schemas';
 
+import { entitlementIndex } from '../keys.js';
 import { lifetimeUntil, lower, Repo, type Codec, type Found } from './common.js';
 
 const giftCodec: Codec<Gift> = {
@@ -30,7 +31,9 @@ export class GiftStore {
   }
 
   create(g: Gift): Promise<LedgerPutResult> {
-    return this.#repo.create(g);
+    return this.#repo.create(
+      g.claimedKey === undefined ? g : { ...g, claimedKey: entitlementIndex(g.claimedKey) },
+    );
   }
 
   /** Open escrows for an ENS namehash (the third load-bearing read, DECISION §2(4)). */
@@ -66,15 +69,19 @@ export class GiftStore {
    * others re-read the claimed row and get already_claimed.
    */
   async markClaimed(giftId: Hex, entitlementKey: string): Promise<void> {
+    const index = entitlementIndex(entitlementKey);
     await this.#repo.mutate(
       keys.gift(giftId),
       (existing) => {
         const { payload } = existing;
         if (payload.state === 'claimed') {
-          if (payload.claimedKey === entitlementKey) return { payload };
+          if (payload.claimedKey !== undefined && entitlementIndex(payload.claimedKey) === index)
+            return {
+              payload: payload.claimedKey === index ? payload : { ...payload, claimedKey: index },
+            };
           throw new RechargeError('already_claimed', `gift ${giftId} already claimed`);
         }
-        return { payload: { ...payload, state: 'claimed', claimedKey: entitlementKey } };
+        return { payload: { ...payload, state: 'claimed', claimedKey: index } };
       },
       () => new RechargeError('not_found', `no live gift ${giftId}`),
     );

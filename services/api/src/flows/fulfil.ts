@@ -1,11 +1,12 @@
 /**
  * fulfil(): the one path from a decided entitlement to a delivered eSIM (brief §4.2): durable intent first
  * (`pending-profile`), order with the entitlement key as idempotency key, seal the LPA to the buyer's session key,
- * store only the blob reference, receipt + HCS, and return the sealed box exactly once (T-25, T-31, T-40).
+ * store only the blob reference, receipt + HCS, and retain authenticated ciphertext recovery (T-25, T-31, T-40).
  */
 import { isAdapterError, type EsimProfile } from '@ethglobal/adapters';
 import {
   hexToBytes,
+  hmacKey,
   lpaAad,
   openFromServer,
   sealLpa,
@@ -30,10 +31,20 @@ import type { Deps } from '../deps.js';
 
 const DAY_MS = 86_400_000;
 
+/** A private retry credential, independent of the public X25519 key used to address ciphertext. */
+export const deliveryRecoveryHash = (
+  deps: Pick<Deps, 'secret'>,
+  token?: string,
+): Hex | undefined =>
+  token && /^[A-Za-z0-9_-]{32,128}$/.test(token)
+    ? hmacKey(deps.secret, 'redemption-recovery', token)
+    : undefined;
+
 export interface FulfilContext {
   /** Payment nonce (paid lanes) or challenge nonce (free/gift/card): the LPA's AAD (T-32). */
   nonce: Hex;
   sessionPubKey: Hex;
+  recoveryKeyHash?: Hex;
   /** Omitted when the caller already wrote the receipt (gift claims write theirs before delivery). */
   receipt?: ReceiptDraft;
   hcs: Parameters<typeof record>[3];
@@ -68,11 +79,42 @@ export async function fulfil(
   entitlement: Entitlement,
   ctx: FulfilContext,
 ): Promise<Fulfilled> {
+  await assertDeliveryUsable(deps, entitlement);
   const { key } = entitlement;
-  const created = await deps.stores.entitlements.create({
-    ...entitlement,
-    status: 'pending-profile',
-  });
+  const target = deps.pendingDelivery.get(key);
+  if (target && (target.sessionPubKey !== ctx.sessionPubKey || target.nonce !== ctx.nonce))
+    throw fail('unauthorized', { detail: 'another delivery session owns this entitlement' });
+  // The complete recovery intent precedes every external write, including creation of the entitlement itself.
+  deps.pendingDelivery.set(
+    key,
+    {
+      sessionPubKey: ctx.sessionPubKey,
+      nonce: ctx.nonce,
+      ...(ctx.recoveryKeyHash === undefined ? {} : { recoveryKeyHash: ctx.recoveryKeyHash }),
+      entitlement,
+      context: ctx,
+    },
+    entitlement.expiresAt,
+  );
+  const existing = await deps.stores.entitlements.getByKey(key);
+  const created = existing
+    ? { key: existing.entityKey }
+    : await deps.stores.entitlements.create({ ...entitlement, status: 'pending-profile' });
+  if (existing?.payload.sealedRef) {
+    const sealed = await activationBox(deps, existing.payload);
+    const recorded = ctx.receipt
+      ? await record(deps, key, ctx.receipt, ctx.hcs)
+      : { hcs: undefined };
+    return {
+      status: 201,
+      body: entitledBody(existing.payload, existing.entityKey, {
+        sealed,
+        claimTx: ctx.claimTx,
+        settlement: ctx.settlement,
+        hcs: recorded.hcs,
+      }),
+    };
+  }
   deps.cache.seen(key, entitlement.expiresAt);
   let sealed: SealedBox | undefined;
   try {
@@ -87,11 +129,6 @@ export async function fulfil(
   } catch (error) {
     // The human never proves (or pays) twice: the entitlement stays pending and /me (or the next boot) retries the
     // same order (T-25); the delivery target is durable state, so a restart does not strand it (RT-A-11).
-    deps.pendingDelivery.set(
-      key,
-      { sessionPubKey: ctx.sessionPubKey, nonce: ctx.nonce },
-      entitlement.expiresAt,
-    );
     if (!isAdapterError(error) || error.adapter !== 'reseller') throw error;
     deps.logger.warn(
       { event: 'provision', status: 'pending-profile', err: errName(error) },
@@ -114,6 +151,25 @@ export async function fulfil(
   return { status: sealed ? 201 : 202, body };
 }
 
+/** A retained recovery intent cannot revive a terminal plan after its ledger entity disappears. */
+export async function assertDeliveryUsable(deps: Deps, entitlement: Entitlement): Promise<void> {
+  if (entitlement.expiresAt <= deps.now()) throw fail('expired');
+  if (entitlement.kind !== 'paid') return;
+  const key = `rcpt:ledger:plan-cancel:${sha256Hex(entitlement.key)}`;
+  const cancel = await deps.stores.receipts.byKey(key);
+  if (deps.refundJobs.has(key) || (cancel !== null && cancel.usd6 !== '0'))
+    throw fail('expired', { detail: 'plan cancellation has started' });
+}
+
+/** Retrieve ciphertext only; the secret session key never exists on the server. */
+export async function activationBox(deps: Deps, entitlement: Entitlement): Promise<SealedBox> {
+  if (!entitlement.sealedRef) throw fail('provisioning_pending');
+  const bytes = await deps.adapters.blobs.get(entitlement.sealedRef);
+  if (!bytes) throw fail('ledger_unavailable', { detail: 'activation blob unavailable' });
+  const { sealedBoxSchema } = await import('@ethglobal/protocol/schemas');
+  return sealedBoxSchema.parse(JSON.parse(new TextDecoder().decode(bytes)));
+}
+
 /** The entitledResponse body; `sealedLpa` only when sealed in this very request (T-31). */
 function entitledBody(
   e: Entitlement,
@@ -123,12 +179,13 @@ function entitledBody(
     claimTx: string | undefined;
     settlement: SettleResult | undefined;
     hcs: Recorded['hcs'];
+    status?: 'ready' | 'pending-profile';
   },
 ): EntitledResponse {
   return {
     entitlementKey: e.key,
     kind: e.kind,
-    status: x.sealed ? 'ready' : 'pending-profile',
+    status: x.status ?? (x.sealed ? 'ready' : 'pending-profile'),
     tier: e.tier,
     mbTotal: e.mbTotal,
     expiresAt: e.expiresAt,
@@ -137,6 +194,21 @@ function entitledBody(
     ...(x.claimTx === undefined ? {} : { claimTx: x.claimTx }),
     ...(x.settlement === undefined ? {} : { settlement: x.settlement }),
     receipt: { arkivKey, ...(x.hcs ? { hcs: x.hcs } : {}) },
+  };
+}
+
+/** Lost redemption responses recover only plan metadata; the delivery endpoint returns the original AAD nonce. */
+export function deliveryMetadata(found: Found<Entitlement>, context?: FulfilContext): Fulfilled {
+  const pending = found.payload.status === 'pending-profile';
+  return {
+    status: pending ? 202 : 201,
+    body: entitledBody(found.payload, found.entityKey, {
+      sealed: undefined,
+      claimTx: context?.claimTx,
+      settlement: context?.settlement,
+      hcs: undefined,
+      status: pending ? 'pending-profile' : 'ready',
+    }),
   };
 }
 
@@ -173,12 +245,14 @@ async function retryLocked(deps: Deps, entitlement: Entitlement): Promise<Entitl
   const delivery = deps.pendingDelivery.get(entitlement.key);
   if (!delivery || !deps.orderRetries.hit(entitlement.key).ok) return entitlement;
   try {
+    const current = await deps.stores.entitlements.getByKey(entitlement.key);
+    if (current?.payload.status !== 'pending-profile') return current?.payload ?? entitlement;
+    await assertDeliveryUsable(deps, current.payload);
     const profile = await deps.adapters.reseller.order(entitlement.planId, {
       idempotencyKey: entitlement.key,
     });
     const done = await seal(deps, entitlement.key, profile, delivery.sessionPubKey, delivery.nonce);
     const found = await deps.stores.entitlements.patch(entitlement.key, done.patch);
-    deps.pendingDelivery.delete(entitlement.key);
     deps.logger.info(
       { event: 'provision', status: 'ready', retried: true },
       'pending profile provisioned',
@@ -195,16 +269,25 @@ async function retryLocked(deps: Deps, entitlement: Entitlement): Promise<Entitl
 
 /**
  * Boot (RT-A-11): every pending-profile delivery the durable state still holds is retried once; a delivery whose
- * entitlement is gone or no longer pending is dropped. Never throws (a failed retry stays pending for /me).
+ * ready entitlement retains its holder binding for encrypted delivery recovery. Never throws.
  */
 export async function retryPendingOnBoot(deps: Deps): Promise<{ retried: number; ready: number }> {
   let retried = 0;
   let ready = 0;
-  for (const [key] of deps.pendingDelivery.entries()) {
+  for (const [key, delivery] of deps.pendingDelivery.entries()) {
     try {
       const found = await deps.stores.entitlements.getByKey(key);
+      if (!found && delivery.entitlement && delivery.context) {
+        retried++;
+        const result = await deps.mutex.run(key, () =>
+          fulfil(deps, delivery.entitlement!, delivery.context!),
+        );
+        if (result.status === 201) ready++;
+        continue;
+      }
       if (found?.payload.status !== 'pending-profile') {
-        deps.pendingDelivery.delete(key);
+        // Older state files may contain only a target for an already expired/missing plan.
+        if (!found) deps.pendingDelivery.delete(key);
         continue;
       }
       retried++;
@@ -227,23 +310,46 @@ export async function fulfilTopUp(
   existing: Entitlement,
   mb: number,
   nonce: Hex,
+  operationId: Hex = nonce,
 ): Promise<Entitlement> {
   if (existing.iccidEnc === undefined)
     throw fail('invalid_request', { detail: 'profile not provisioned yet' });
   const iccid = openFromServer(deps.sealKey, existing.iccidEnc as CryptoBox, utf8(existing.key));
-  await deps.metrics.timed(
-    'reseller_ms',
-    () =>
-      deps.adapters.reseller.topUp(iccid, mb, {
-        idempotencyKey: nonce,
-        totalMb: existing.mbTotal + mb,
-      }),
-    { op: 'topUp' },
-  );
-  const expiresAt = Math.max(existing.expiresAt, deps.now() + deps.env.VALIDITY_DAYS * DAY_MS);
+  let intent = deps.topUpIntents.get(operationId);
+  if (!intent) {
+    intent = {
+      key: existing.key,
+      mb,
+      targetMb: existing.mbTotal + mb,
+      expiresAt: Math.max(existing.expiresAt, deps.now() + deps.env.VALIDITY_DAYS * DAY_MS),
+    };
+    deps.topUpIntents.set(operationId, intent, intent.expiresAt);
+  }
+  if (intent.key !== existing.key || intent.mb !== mb) throw fail('replay');
+  const targetMb = intent.targetMb;
+  if (!intent.vendorDone) {
+    await deps.metrics.timed(
+      'reseller_ms',
+      () =>
+        deps.adapters.reseller.topUp(iccid, mb, {
+          idempotencyKey: nonce,
+          totalMb: targetMb,
+        }),
+      { op: 'topUp' },
+    );
+    intent = { ...intent, vendorDone: true };
+    deps.topUpIntents.set(operationId, intent, intent.expiresAt);
+  }
+  const expiresAt = Math.max(existing.expiresAt, intent.expiresAt);
   const found = await deps.stores.entitlements.patch(
     existing.key,
-    (current) => ({ mbTotal: current.mbTotal + mb, expiresAt }),
+    (current) =>
+      current.appliedTopUps?.includes(operationId)
+        ? {}
+        : {
+            mbTotal: current.mbTotal + mb,
+            appliedTopUps: [...(current.appliedTopUps ?? []), operationId],
+          },
     { expiresAt },
   );
   deps.cache.invalidate(existing.key);

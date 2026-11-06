@@ -42,13 +42,20 @@ export const accessLog = createMiddleware<AppEnv>(async (c, next) => {
     {
       event: 'request',
       method: c.req.method,
-      path: c.req.path,
+      path: logPath(c.req.path),
       status: c.res.status,
       durationMs: ms,
     },
     'request',
   );
 });
+
+/** Capabilities in route parameters are credentials, including their URI-encoded representation. */
+export function logPath(path: string): string {
+  return path
+    .replace(/^(\/me\/)[^/]+/, '$1[redacted]')
+    .replace(/^(\/agent\/policy\/)[^/]+/, '$1[redacted]');
+}
 
 export const securityHeaders = createMiddleware<AppEnv>(async (c, next) => {
   await next();

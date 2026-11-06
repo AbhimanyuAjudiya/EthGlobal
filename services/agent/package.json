@@ -2,7 +2,7 @@
   "name": "@ethglobal/agent",
   "version": "0.1.0",
   "private": true,
-  "description": "The Recharge top-up agent: reads the entitlement, applies the code-enforced TopUpPolicy, buys 100 MB over x402 and writes an HCS receipt carrying its HCS-14 UAID.",
+  "description": "The Recharge top-up agent: reads the entitlement, applies the code-enforced TopUpPolicy, buys 1 GB over x402 and writes an HCS receipt carrying its HCS-14 UAID.",
   "type": "module",
   "bin": {
     "recharge-agent": "./dist/index.js"

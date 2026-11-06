@@ -41,8 +41,9 @@ AGENT_EVM_RPC_URL=http://127.0.0.1:8545                 # default
 State lives in `AGENT_STATE_DIR` (default `.agent/`, git-ignored): `uaid`, `journal.jsonl` (one line per decision —
 the demo screen reads it), `spent.jsonl` (append-only own-spend journal: one line per settled purchase, filed under
 its UTC day; `lastExpiryBought` is reduced from it; a pre-journal `state.json` is still read), `triggers/` (one record
-per purchase trigger plus its short-lived `.lock`). Nothing there holds a key, a PIN, an LPA or an entitlement key in
-clear (only `sha256(key)`).
+per purchase trigger plus its short-lived `.lock`). Pending triggers retain the signed payment authorization for
+recovery, with owner-only file permissions. They contain no wallet private key, PIN, LPA or entitlement capability
+(only `sha256(key)`); resource URLs and optional x402 metadata are removed before persistence.
 
 ### Several processes on one `AGENT_STATE_DIR` (RT-G-01..03)
 
@@ -52,32 +53,37 @@ Nothing relies on in-process ordering (`src/lock.ts`, `src/journal.ts`; local PO
   re-read to confirm the nonce is ours. Busy ⇒ retry ≤ 3 s, then fail closed (`trigger-in-flight`). A lock whose pid is
   gone or that is ≥ 10 s old is broken by renaming it aside and checking the moved content is the one judged stale
   (otherwise it is linked back); a holder re-checks the lock before it reports success.
-- **Claim** (under the lock): read the record; take it only if missing or provably dead (stale `claimed`, `signed`
-  past `validBefore`; an unreadable record is in flight until it is 120 s old by mtime). Records are written
+- **Claim** (under the lock): take it only if missing or an unsigned claim is stale. Signed authorizations remain
+  pending after expiry: they may already have settled. An unreadable record is in flight until it is 120 s old by mtime. Records are written
   temp → fsync → rename → fsync(dir) and carry the claimant's nonce (`by`).
 - **Signed marker**: `markSigned` (under the lock) refuses unless this instance still holds the `claimed` record, and
   is fsynced before the payload leaves — `TermsGuard` only marks a payload paid after it returns, so a lost claim
   means the payload is never sent. `releaseTrigger` removes only our own unsigned claim.
+- **Recovery**: replay the exact stored authorization. The API's durable payment journal resumes fulfillment or
+  returns its completed response, even after authorization expiry. An unrelated increase in plan volume is never
+  proof of payment. Unresolved outcomes block new signatures; old signed records without payloads require manual
+  reconciliation instead of an automatic second charge.
 - **Own spend**: one fsynced O_APPEND line per purchase (concurrent appends never lose a line), reduced on read; a
-  purchase is never evicted by one on another day. If the newest purchase on file is more than 60 s in the future
+  purchase id deduplicates a crash between appending spend and marking the trigger done. A purchase is never evicted
+  by one on another day. If the newest purchase on file is more than 60 s in the future
   the clock stepped back and the tick skips `clock-behind`.
 
 ## Caps and where each one is enforced
 
-| Cap                                                                                         | Where                                                                                                                               | Test                                                          |
-| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `maxUsd6PerDay` (UTC day): `spent + step ≤ cap`                                             | `shouldTopUp` (octroi); `spent = max(ledger receipts, the agent's own spent.jsonl)` so receipt lag cannot buy twice — `src/tick.ts` | `tick.test.ts` 24 h loop; `regression/T-30-agent-cap.test.ts` |
-| `thresholdMb` (buy at `remaining ≤ threshold`)                                              | `shouldTopUp`                                                                                                                       | `tick.test.ts` 20 % / 21 %                                    |
-| `stepMb` (1000; a stored 100–900 step is skipped `step-not-sold`, no request)               | `topUpPolicySchema` + `shouldTopUp`; the signed amount is `priceUsd6(stepMb, 100, /plans price)`                                    | T-56 "value signed"                                           |
-| `paused`                                                                                    | `shouldTopUp` (first check)                                                                                                         | `tick.test.ts`, T-30                                          |
-| expiry once per `expiresAt`                                                                 | `shouldTopUp(lastExpiryBought)`; pinned locally **and** sent as `X-Agent-Expiry-Bought`                                             | `tick.test.ts` (O13)                                          |
-| `AGENT_PAYTO_ALLOWLIST` `(network, asset, payTo[, feePayer])`                               | `TermsGuard.choose` — `src/buyer.ts`                                                                                                | `regression/T-56-tampered-402.test.ts`                        |
-| amount = agent-computed price, exactly                                                      | `TermsGuard.termsField`                                                                                                             | T-56                                                          |
-| `AGENT_MAX_USD6_PER_STEP` (default 4000000: one 1 GB step)                                  | `Buyer.buy` (before any request) and `TermsGuard`                                                                                   | T-56                                                          |
-| EIP-712 domain = token's `readDomain()` and `USDC_EIP712_DOMAIN`                            | `EvmPayer.refusal`                                                                                                                  | `payers-evm.test.ts`, T-56                                    |
-| Hedera: fee payer pinned, `maxTimeoutSeconds ≤ 180`, built tx = exactly the agreed two legs | `HederaPayer.refusal` / `#check`                                                                                                    | `payers-hedera.test.ts`                                       |
-| wallet balance (≈ one day's cap)                                                            | both payers' `sign()` refuse when `balance < value`                                                                                 | `regression/T-44-agent-receipts.test.ts`                      |
-| one signature per trigger (retry, restart, two processes)                                   | `TermsGuard` (once per buy), `.agent/triggers/` claim under an O_EXCL lock + fsynced "signed until validBefore", `inFlight`         | `regression/T-57-retry-double-pay.test.ts`, T-30              |
+| Cap                                                                                         | Where                                                                                                                                               | Test                                                          |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `maxUsd6PerDay` (UTC day): `spent + step ≤ cap`                                             | `shouldTopUp` (octroi); `spent = max(ledger receipts, the agent's own spent.jsonl)` so receipt lag cannot buy twice — `src/tick.ts`                 | `tick.test.ts` 24 h loop; `regression/T-30-agent-cap.test.ts` |
+| `thresholdMb` (buy at `remaining ≤ threshold`)                                              | `shouldTopUp`                                                                                                                                       | `tick.test.ts` 20 % / 21 %                                    |
+| `stepMb` (1000; a stored 100–900 step is skipped `step-not-sold`, no request)               | `topUpPolicySchema` + `shouldTopUp`; the signed amount is `priceUsd6(stepMb, 100, /plans price)`                                                    | T-56 "value signed"                                           |
+| `paused`                                                                                    | `shouldTopUp` (first check)                                                                                                                         | `tick.test.ts`, T-30                                          |
+| expiry once per `expiresAt`                                                                 | `shouldTopUp(lastExpiryBought)`; pinned locally **and** sent as `X-Agent-Expiry-Bought`                                                             | `tick.test.ts` (O13)                                          |
+| `AGENT_PAYTO_ALLOWLIST` `(network, asset, payTo[, feePayer])`                               | `TermsGuard.choose` — `src/buyer.ts`                                                                                                                | `regression/T-56-tampered-402.test.ts`                        |
+| amount = agent-computed price, exactly                                                      | `TermsGuard.termsField`                                                                                                                             | T-56                                                          |
+| `AGENT_MAX_USD6_PER_STEP` (default 4000000: one 1 GB step)                                  | `Buyer.buy` (before any request) and `TermsGuard`                                                                                                   | T-56                                                          |
+| EIP-712 domain = token's `readDomain()` and `USDC_EIP712_DOMAIN`                            | `EvmPayer.refusal`                                                                                                                                  | `payers-evm.test.ts`, T-56                                    |
+| Hedera: fee payer pinned, `maxTimeoutSeconds ≤ 180`, built tx = exactly the agreed two legs | `HederaPayer.refusal` / `#check`                                                                                                                    | `payers-hedera.test.ts`                                       |
+| wallet balance (≈ one day's cap)                                                            | both payers' `sign()` refuse when `balance < value`                                                                                                 | `regression/T-44-agent-receipts.test.ts`                      |
+| one signature per trigger (retry, restart, two processes)                                   | `TermsGuard` (once per buy), `.agent/triggers/` claim under an O_EXCL lock + fsynced original authorization retained through completion, `inFlight` | `regression/T-57-retry-double-pay.test.ts`, T-30              |
 
 Prompt-injected strings in the ledger change nothing: the decision path (`tick`, `buyer`, `payers`, `loop`, `reads`)
 imports no notifier, LLM or `Inference` module (semgrep `recharge-agent-decision-path-imports-inference` is clean);
@@ -102,7 +108,7 @@ tools, and its output is cut to 140 plain characters and only shown (`regression
   to `.agent/uaid`, sent as `X-Agent-Uaid`. `nativeId = <allow-listed hedera network>:<AGENT_HEDERA_ACCOUNT_ID>`
   (`hedera:testnet` when the allow-list names no Hedera entry); in local mode `hedera:testnet:0.0.0`.
 
-HCS-14 skills are integers (A-29) and empty in v0. Human-readable capabilities: _x402 buyer of 100 MB eSIM top-ups;
+HCS-14 skills are integers (A-29) and empty in v0. Human-readable capabilities: _x402 buyer of 1 GB eSIM top-ups;
 policy-capped; Hedera USDC (testnet `0.0.429274` or mainnet `0.0.456858`, per the allow-list); HCS receipts._
 
 ## Honest mocks
@@ -131,9 +137,9 @@ policy-capped; Hedera USDC (testnet `0.0.429274` or mainnet `0.0.456858`, per th
 | `test/lock.test.ts`, `test/redteam/rt-agent.test.ts`, `test/regression/T-63-no-test-mnemonic.test.ts`                                                                                           | the O_EXCL lock (stale/dead-pid breaking, restore on lost release), claim ownership on `markSigned`/release, concurrent own-spend appends, torn lines, legacy `state.json`, `clock-behind`; red team wave 2 (two real processes racing 300 triggers / 40 purchases each, clock step, squatted policy); no test mnemonic in `src`                                      |
 | `test/integration/local-anvil.test.ts`                                                                                                                                                          | the CLI (`main(['--once'])`, real fetch over TCP, API-backed reads, Anvil #4) against a server speaking the §7 contract that settles on a fresh Anvil with the deployed `MockUSDC3009`: payout +400 000, `AuthorizationUsed` on-chain, HCS message with the UAID, `/me` shows +100 MB; zero purchases above threshold and under `--dry-run`. Skipped without Foundry. |
 
-`test/fake-api.ts` is the Hono fixture (agent brief §6). **TODO(api): point at services/api** — when
-`services/api` serves `/plans`, `/me/:key`, `/me/:key/receipts`, `/agent/policy/:key` and `/esim/topup`, swap the one
-`const app = createFakeApi(...).app` line in the integration test for the API's `createApp(...)`.
+`test/fake-api.ts` is the Hono contract fixture used by isolated agent tests. The Anvil integration test exercises
+that fixture over TCP and a local chain; it does not cover the production API middleware. Production paid recovery
+is also tested in `services/api`.
 
 ## Decisions that differ from the brief (and why)
 
@@ -152,15 +158,10 @@ policy-capped; Hedera USDC (testnet `0.0.429274` or mainnet `0.0.456858`, per th
   (`NotificationFacts` carries no per-purchase price or clock time, and adding keys would widen what an LLM sees).
 - `src/notify/` and `src/notifier.ts` hold all phrasing so the decision path stays import-clean for semgrep.
 
-## Dependencies (for the human team)
+## Dependencies
 
-`pnpm install` is blocked by `minimumReleaseAge` (T-65) for already-pinned young versions; this package was verified
-with links into `services/agent/node_modules` (scratchpad `link-agent.sh`), nothing in the repo's security config was
-changed. `package.json` declares the catalog versions; `pnpm-lock.yaml` has **no entry for `@ethglobal/agent` yet** —
-run `pnpm install` once the gate admits the lockfile. New third-party dependencies: `@hashgraph/hedera-agent-kit@4.2.0`
-(published 28 Oct, gate-compliant), `@x402/hedera@2.29.0` and `@hiero-ledger/sdk@2.90.1` (the same copies
-`@ethglobal/adapters` already uses; the Agent Kit's peer must resolve to that one SDK copy — `pnpm why @hiero-ledger/sdk`
-must show one), `pino`, and dev-only `hono`, `@hono/node-server`.
+The agent is included in the workspace lockfile. Install from the root with `pnpm install --frozen-lockfile` and
+build workspace dependencies before running it. Versions are pinned in the workspace catalog and lockfile.
 
 ## On-site checklist to run it live
 
@@ -182,8 +183,10 @@ must show one), `pino`, and dev-only `hono`, `@hono/node-server`.
    `ARKIV_PRIVATE_KEY` address (the agent needs no Arkiv key; it only reads).
 5. **Policy owner** (required live, RT-G-04): `AGENT_OWNER` = the wallet that signs this user's `PUT /agent/policy`;
    any policy owned by someone else is skipped `not-mine`. A public Anvil/Hardhat default account (anyone holds its key)
-   is refused as the owner in live. **Keys to watch**: `AGENT_WATCH_KEYS`, or every policy
-   naming `AGENT_OWNER` (bounded to 50).
+   is refused as the owner in live. **Keys to watch**: set `AGENT_WATCH_KEYS` privately to the comma-separated
+   entitlement capabilities the agent may service. Live startup rejects an empty list. Public policies contain
+   hashes only, so capabilities cannot be discovered from the ledger. Keep the environment file private; startup
+   logs only the count of watched keys.
 6. **UAID**: printed at boot and in `.agent/uaid`; copy it into the README/demo. HCS-14 registry registration is not
    done in v0 — if the team wants it, register this UAID in an HCS-14 registry on-site (standards-sdk) and set
    `AGENT_UAID` to the registered form.

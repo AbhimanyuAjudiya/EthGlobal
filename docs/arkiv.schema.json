@@ -92,6 +92,13 @@
           "minimum": 0,
           "maximum": 1000000
         },
+        "appliedTopUps": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^0x[0-9a-fA-F]{64}$"
+          }
+        },
         "mbUsed": {
           "type": "integer",
           "minimum": 0,
@@ -779,6 +786,10 @@
             "settlement",
             "once"
           ]
+        },
+        "reservation": {
+          "type": "string",
+          "pattern": "^0x[0-9a-fA-F]{64}$"
         },
         "expiresAt": {
           "type": "integer",

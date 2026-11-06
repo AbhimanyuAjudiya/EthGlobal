@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { fixtureProof } from '@ethglobal/adapters/testing';
 
 import { errorOf, harness } from './fixture.js';
-import { INTENT_TTL_MS } from '../../src/flows/entitle.js';
 
 describe('attack: hourly cap and burned proofs (AP5)', () => {
   it('a revert HourlyCap from the chain ⇒ 429 retryable, the admission slot is released, the next claim succeeds', async () => {
@@ -38,14 +37,14 @@ describe('attack: hourly cap and burned proofs (AP5)', () => {
     expect(h.dataDrop.claimedEvents).toHaveLength(1);
   });
 
-  it('…while another session key cannot redeem that human’s pending intent (401/409), and an old intent lapses', async () => {
+  it('…while another session key cannot redeem that human’s pending intent, the original session can recover beyond 65 minutes', async () => {
     const h = await harness();
     h.dataDrop.failNext.claim = true;
     const first = await h.claim({ seed: 'intent-2' });
     expect(first.res.status).toBe(503);
     const thief = await h.claim({ seed: 'intent-2' });
     expect([401, 409]).toContain(thief.res.status);
-    h.clock.advance(INTENT_TTL_MS + 1);
+    h.clock.advance(65 * 60_000 + 1);
     const ch = await h.challengeFor('/claim', first.spk);
     const late = await h.json('/claim', {
       proof: fixtureProof('orb', ch.signal as `0x${string}`, 'intent-2'),
@@ -53,7 +52,7 @@ describe('attack: hourly cap and burned proofs (AP5)', () => {
       challenge: ch,
       sessionPubKey: first.spk,
     });
-    expect(late.status).toBe(409);
-    expect(h.dataDrop.claimedEvents).toHaveLength(0);
+    expect(late.status).toBe(201);
+    expect(h.dataDrop.claimedEvents).toHaveLength(1);
   });
 });

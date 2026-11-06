@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { contentSecurityPolicy } from '../lib/csp';
-import { appChains, walletList } from '../lib/wagmi';
+import { appChains, makeWagmiConfig, walletList } from '../lib/wagmi';
 
 const ids = (projectId?: string) =>
   walletList(projectId).map((g) => ({
@@ -32,6 +32,18 @@ describe('wallet list (lib/wagmi.ts)', () => {
       group: 'Local',
       ids: ['demo-human', 'demo-sponsor', 'demo-recipient'],
     });
+  });
+
+  it('a fresh config does not authorize every demo role for automatic reconnect', async () => {
+    vi.stubEnv('NEXT_PUBLIC_MODE', 'local');
+    const config = makeWagmiConfig('');
+    const demos = config.connectors.filter((connector) => connector.id.startsWith('demo-'));
+    expect(demos).toHaveLength(3);
+    expect(await Promise.all(demos.map((connector) => connector.isAuthorized()))).toEqual([
+      false,
+      false,
+      false,
+    ]);
   });
 
   it('chains: Base Sepolia, Hedera testnet and Sepolia (ENS branding); Anvil only in MODE=local', () => {

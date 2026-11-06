@@ -3,7 +3,7 @@
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { parseAbi, type Address } from 'viem';
 
 import { keccak256 } from '@ethglobal/crypto';
@@ -40,7 +40,8 @@ import {
 } from '../lib/format';
 import { useClock, useEnsureChain, usePlans, useWallet, WrongChainError } from '../lib/hooks';
 import {
-  DemoWalletSigner,
+  completePayment,
+  pendingPayment,
   EvmWalletSigner,
   hederaTerms,
   pay,
@@ -50,7 +51,7 @@ import {
   type Quote,
 } from '../lib/pay402';
 import { buildProof, type Proof } from '../lib/proof';
-import { beginSession } from '../lib/session-key';
+import { beginSession, persistSession } from '../lib/session-key';
 import { plans as store } from '../lib/store';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
 import { chainIdOf, chainNow, isUserRejection, type Wallet } from '../lib/wallet';
@@ -77,9 +78,12 @@ async function fetchQuote(
   path: string,
   withSession: boolean,
 ): Promise<Quote & { at: number; spk?: Hex }> {
+  const previous = await pendingPayment(path);
+  if (previous) return { ...previous, recovery: true, at: Date.now() };
   const spk = withSession ? beginSession() : undefined;
+  if (spk) await persistSession(spk);
   const next = await quote(path, spk ? { sessionPubKey: spk } : {});
-  return { ...next, at: Date.now(), ...(spk ? { spk } : {}) };
+  return { ...next, at: Date.now() };
 }
 
 /** HashPack's pairing state on the Review screen. */
@@ -180,7 +184,7 @@ function ForeignPlanGate({
     api.me(entitlementKey).then(setMe, () => setMe(null));
   }, [entitlementKey]);
   return (
-    <Screen money>
+    <Screen money className="checkout-screen">
       <AppHeader />
       {me === undefined ? (
         <div className="skeleton skeleton--line" aria-hidden="true" />
@@ -235,6 +239,10 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
   // one size, from /plans (paid.sizesMb): a new plan and a top-up are each 1 GB
   const sold = useMemo(() => soldPlan(plans), [plans]);
   const { mb, usd6: planUsd6 } = sold;
+  const translate = useRef(t);
+  useEffect(() => {
+    translate.current = t;
+  }, [t]);
   const [q, setQ] = useState<(Quote & { at: number; spk?: Hex }) | undefined>();
   const [quoteError, setQuoteError] = useState<string | undefined>();
   const [network, setNetwork] = useState<string | undefined>();
@@ -269,12 +277,13 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
         );
       },
       (e: unknown) =>
-        alive && setQuoteError(t(errorKey(e instanceof ApiError ? e.code : 'network'))),
+        alive &&
+        setQuoteError(translate.current(errorKey(e instanceof ApiError ? e.code : 'network'))),
     );
     return () => {
       alive = false;
     };
-  }, [path, entitlementKey, t, quoteRound]);
+  }, [path, entitlementKey, quoteRound]);
 
   const accepts = useMemo(() => q?.required.accepts ?? [], [q]);
   const chosen = accepts.find((a) => a.network === network) ?? accepts[0];
@@ -311,12 +320,20 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
   const hederaSessionBound = sessionBound(chosen);
   const payableInstead = hederaSessionBound ? accepts.find((a) => !sessionBound(a)) : undefined;
   let blocked: string | undefined;
-  if (quoteError) blocked = quoteError;
+  if (entitlementKey && me && (me.cancelledAt !== undefined || me.expiresAt <= clock))
+    blocked = t('plan.ended');
+  else if (quoteError) blocked = quoteError;
   else if (hederaSessionBound) blocked = t('pay.hederaTopupOnly');
   else if (isHedera && hp.session?.chain !== chosen?.network) blocked = t('pay.hashpackNeeded');
   // no wallet yet: the pay button itself opens the connect modal; a wallet on another chain is switched on Pay
   else if (isHedera || !wallet) blocked = undefined;
-  else if (chosen && balance !== undefined && balance < BigInt(chosen.amount))
+  else if (
+    !q?.recovery &&
+    !row.outcomeUnknown &&
+    chosen &&
+    balance !== undefined &&
+    balance < BigInt(chosen.amount)
+  )
     blocked = t('pay.lowBalance', { balance: usdcBalance(balance), price });
   const connectFirst = !blocked && !isHedera && !wallet;
 
@@ -339,6 +356,7 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
     const session = isHedera ? hp.session : undefined;
     if (!q || !chosen || (isHedera ? !session : !wallet)) return;
     dispatch({ type: 'start', at: Date.now() });
+    let paymentStarted = false;
     const allow = (plans?.paid.accepts ?? accepts).map((a) => ({
       network: a.network,
       asset: a.asset,
@@ -354,9 +372,11 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
       } else {
         // the EIP-3009 domain is the accepts entry's chain (Base Sepolia): the wallet signs there
         payer = await ensureChain(wallet!, chainIdOf(chosen.network));
-        const Signer = payer.kind === 'demo' ? DemoWalletSigner : EvmWalletSigner;
-        signer = new Signer(payer, chosen.network, allow, { tamperAmount: await tamperAmount() });
+        signer = new EvmWalletSigner(payer, chosen.network, allow, {
+          tamperAmount: await tamperAmount(),
+        });
       }
+      paymentStarted = true;
       const paid = await pay<TopUpResponse | EntitledResponse>(
         q,
         signer,
@@ -367,7 +387,14 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
       const x402 = { accepted: paid.paid?.accepted, settlement: paid.settlement };
       if (paid.error || !paid.settlement?.success) {
         setProof(buildProof({ error: paid.error ?? new Error('settlement failed'), x402 }));
-        dispatch({ type: 'preBroadcastError', reason: paymentFailureReason(paid.error) });
+        dispatch(
+          paid.uncertain || paid.settlement?.success
+            ? {
+                type: 'uncertain',
+                reason: t('payment.recover'),
+              }
+            : { type: 'preBroadcastError', reason: paymentFailureReason(paid.error) },
+        );
         return;
       }
       const settlement = paid.settlement;
@@ -385,21 +412,28 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
                 mbTotal: body.mbTotal,
                 mbUsed: body.mbUsed,
                 remainingMb: body.mbTotal - body.mbUsed,
+                expiresAt: body.expiresAt,
               }
             : m,
         );
         setDoneKey(entitlementKey);
       } else if (q.spk) {
         const body = paid.data as EntitledResponse;
-        const key = await deliver(body, sessionNonce(q.spk, keccak256), {
-          network: settlement.network,
-          you: money(chosen.amount),
-          proof: issued,
-        });
+        const key = await deliver(
+          body,
+          sessionNonce(q.spk, keccak256),
+          {
+            network: settlement.network,
+            you: money(chosen.amount),
+            proof: issued,
+          },
+          q.spk,
+        );
         setResult(t('pay.resultNew', { mb: formatMb(mb) }));
         setReceipt(body.receipt);
         setDoneKey(key);
       }
+      await completePayment(q);
       await followTransaction({
         hash: settlement.transaction,
         network: settlement.network,
@@ -410,12 +444,22 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
     } catch (e) {
       if (!isUserRejection(e)) setProof(buildProof({ error: e }));
       dispatch(
-        e instanceof WrongChainError
+        q.recovery
           ? {
-              type: 'preBroadcastError',
-              reason: t('wallet.switchNeeded', { network: e.chainName }),
+              type: 'uncertain',
+              reason: t('payment.reconnect'),
             }
-          : signingFailure(e),
+          : e instanceof WrongChainError
+            ? {
+                type: 'preBroadcastError',
+                reason: t('wallet.switchNeeded', { network: e.chainName }),
+              }
+            : paymentStarted && !isUserRejection(e)
+              ? {
+                  type: 'uncertain',
+                  reason: t('payment.recover'),
+                }
+              : signingFailure(e),
       );
     }
   }, [
@@ -437,9 +481,11 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
   const validRow = me
     ? {
         label: t('pay.rowValid'),
-        value: t('pay.validUntil', {
-          when: `${dayLabel(me.expiresAt, lang)} ${clockIst(me.expiresAt)}`,
-        }),
+        value: doneKey
+          ? t('pay.validUntil', {
+              when: `${dayLabel(me.expiresAt, lang)} ${clockIst(me.expiresAt)}`,
+            })
+          : t('pay.topupValid', { days: plans?.paid.validityDays ?? 7 }),
       }
     : {
         label: t('pay.rowValid'),
@@ -463,121 +509,164 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
   ];
 
   return (
-    <Screen money>
+    <Screen money wide className="checkout-screen">
       <AppHeader />
-      {!entitlementKey ? (
-        <>
-          <p className="note" lang={lang}>
-            {t('pay.noPlan')}
-          </p>
-          {/* a new plan's activation code is sealed to this browser's session */}
-          <Caution k="warn.thisBrowser" />
-        </>
-      ) : null}
-      {me ? (
-        <MbMeter
-          remainingMb={me.remainingMb}
-          totalMb={me.mbTotal}
-          usageAsOf={me.usageAsOf}
-          lang={lang}
-          className="pay__meter"
-        />
-      ) : null}
-      {!entitlementKey && row.state === 'idle' ? (
-        <p className="pay__option" data-testid="pay-option" lang={lang}>
-          {t('pay.option', {
-            mb: formatMb(mb),
+      <header className="flow-heading">
+        <p className="eyebrow" lang={lang}>
+          {t('flow.steps')}
+        </p>
+        <h1 className="screen__title" lang={lang}>
+          {t(entitlementKey ? 'pay.topupHeading' : 'pay.heading')}
+        </h1>
+        <p className="flow-heading__intro" lang={lang}>
+          {t(entitlementKey ? 'pay.topupIntro' : 'pay.intro', {
             days: plans?.paid.validityDays ?? 7,
-            price: money(planUsd6),
           })}
         </p>
-      ) : null}
-      {accepts.length > 0 && row.state === 'idle' ? (
-        <div
-          className="segmented"
-          role="radiogroup"
-          aria-label={t('pay.payFrom')}
-          data-testid="pay-from"
-        >
-          {accepts.map((a) => (
-            <button
-              key={a.network}
-              type="button"
-              role="radio"
-              aria-checked={a.network === chosen?.network}
-              onClick={() => setNetwork(a.network)}
+      </header>
+      <div className="checkout-grid">
+        <aside className="checkout-summary" aria-label={t('landing.paidPlan')}>
+          <p className="eyebrow" lang={lang}>
+            {t('flow.coverage')}
+          </p>
+          <p className="checkout-amount">{formatMb(mb)}</p>
+          <p className="checkout-price">
+            {money(planUsd6)} <span>USDC</span>
+          </p>
+          <p className="note" lang={lang}>
+            {t('flow.dataOnly')}
+          </p>
+          {!entitlementKey ? (
+            <>
+              <p className="note" lang={lang}>
+                {t('pay.noPlan')}
+              </p>
+              {/* a new plan's activation code is sealed to this browser's session */}
+              <Caution k="warn.thisBrowser" />
+            </>
+          ) : null}
+          {me ? (
+            <MbMeter
+              remainingMb={me.remainingMb}
+              totalMb={me.mbTotal}
+              usageAsOf={me.usageAsOf}
+              lang={lang}
+              className="pay__meter"
+            />
+          ) : null}
+          {!entitlementKey && row.state === 'idle' ? (
+            <p className="pay__option" data-testid="pay-option" lang={lang}>
+              {t('pay.option', {
+                mb: formatMb(mb),
+                days: plans?.paid.validityDays ?? 7,
+                price: money(planUsd6),
+              })}
+            </p>
+          ) : null}
+          <Caution k="warn.unlocked" />
+        </aside>
+        <section className="checkout-payment" aria-label={t('pay.payFrom')}>
+          {accepts.length > 0 && row.state === 'idle' ? (
+            <div
+              className="segmented"
+              role="radiogroup"
+              aria-label={t('pay.payFrom')}
+              data-testid="pay-from"
             >
-              {netName(a.network)}
-              {balances[a.network] !== undefined
-                ? ` · ${usdcBalance(balances[a.network] ?? 0n)}`
-                : ''}
+              {accepts.map((a) => (
+                <button
+                  key={a.network}
+                  type="button"
+                  role="radio"
+                  aria-checked={a.network === chosen?.network}
+                  onClick={() => setNetwork(a.network)}
+                >
+                  {netName(a.network)}
+                  {balances[a.network] !== undefined
+                    ? ` · ${usdcBalance(balances[a.network] ?? 0n)}`
+                    : ''}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {isHedera && chosen && !hederaSessionBound ? (
+            <HederaPanel req={chosen} hp={hp} onConnect={() => void onConnect()} />
+          ) : null}
+          <ActionView
+            row={row}
+            now={now}
+            title={title}
+            network={chosen?.network ?? ''}
+            networkLabel={netName(chosen?.network)}
+            review={review}
+            {...(q &&
+            chosen &&
+            !quoteError &&
+            !q.recovery &&
+            row.state === 'idle' &&
+            approvalLeft > 0
+              ? { worstCase: t('pay.worst', { mmss: mmss(approvalLeft) }) }
+              : {})}
+            actionLabel={connectFirst ? t('wallet.connectToPay') : t('pay.button', { price })}
+            walletName={isHedera ? 'HashPack' : walletLabel(wallet)}
+            simulation={t('pay.simulation', { price, mb: formatMb(mb) })}
+            {...(result ? { result } : {})}
+            {...(blocked ? { blocked } : {})}
+            expectedMs={expectedMsFor(chosen?.network)}
+            onConfirm={() => {
+              if (connectFirst) openConnectModal?.();
+              else void onConfirm();
+            }}
+            onRetry={() => {
+              if (row.outcomeUnknown && row.hash && doneKey) {
+                router.push('/receipts');
+                return;
+              }
+              if (row.outcomeUnknown)
+                setQ((current) => (current ? { ...current, recovery: true } : current));
+              dispatch({ type: 'retry' });
+              setProof(undefined);
+              if (!row.outcomeUnknown) setQuoteRound((n) => n + 1);
+            }}
+            lang={lang}
+            className="pay__sheet"
+          />
+          {quoteError && row.state === 'idle' ? (
+            // the price did not load (network, API): ask again rather than leave a disabled button
+            <Button block variant="secondary" onClick={() => setQuoteRound((n) => n + 1)}>
+              {t('verify.retry')}
+            </Button>
+          ) : null}
+          {payableInstead && row.state === 'idle' ? (
+            // a new plan cannot be paid on Hedera: one tap moves the buyer to the network that can (RT-W-14)
+            <Button block variant="secondary" onClick={() => setNetwork(payableInstead.network)}>
+              {t('pay.useNetwork', { network: netName(payableInstead.network) })}
+            </Button>
+          ) : null}
+          <ProofPanel
+            proof={proof}
+            fallback={receipt && row.state !== 'failed' ? <ProofRows receipt={receipt} /> : null}
+          />
+          {/* the plan exists once the API settled, even while the chain read is still catching up */}
+          {doneKey && row.state !== 'failed' ? (
+            <button
+              type="button"
+              className="ui-button ui-button--block"
+              data-variant="secondary"
+              onClick={() => router.push(planHref(doneKey))}
+            >
+              {t('pay.openPlan')}
             </button>
-          ))}
-        </div>
-      ) : null}
-      {isHedera && chosen && !hederaSessionBound ? (
-        <HederaPanel req={chosen} hp={hp} onConnect={() => void onConnect()} />
-      ) : null}
-      <ActionView
-        row={row}
-        now={now}
-        title={title}
-        network={chosen?.network ?? ''}
-        networkLabel={netName(chosen?.network)}
-        review={review}
-        worstCase={t('pay.worst', { mmss: mmss(approvalLeft) })}
-        actionLabel={connectFirst ? t('wallet.connectToPay') : t('pay.button', { price })}
-        walletName={isHedera ? 'HashPack' : walletLabel(wallet)}
-        simulation={t('pay.simulation', { price, mb: formatMb(mb) })}
-        {...(result ? { result } : {})}
-        {...(blocked ? { blocked } : {})}
-        expectedMs={expectedMsFor(chosen?.network)}
-        onConfirm={() => {
-          if (connectFirst) openConnectModal?.();
-          else void onConfirm();
-        }}
-        onRetry={() => {
-          dispatch({ type: 'retry' });
-          setProof(undefined);
-          setQuoteRound((n) => n + 1);
-        }}
-        lang={lang}
-        className="pay__sheet"
-      />
-      {quoteError && row.state === 'idle' ? (
-        // the price did not load (network, API): ask again rather than leave a disabled button
-        <Button block variant="secondary" onClick={() => setQuoteRound((n) => n + 1)}>
-          {t('verify.retry')}
-        </Button>
-      ) : null}
-      {payableInstead && row.state === 'idle' ? (
-        // a new plan cannot be paid on Hedera: one tap moves the buyer to the network that can (RT-W-14)
-        <Button block variant="secondary" onClick={() => setNetwork(payableInstead.network)}>
-          {t('pay.useNetwork', { network: netName(payableInstead.network) })}
-        </Button>
-      ) : null}
-      <ProofPanel
-        proof={proof}
-        fallback={receipt && row.state !== 'failed' ? <ProofRows receipt={receipt} /> : null}
-      />
-      {/* the plan exists once the API settled, even while the chain read is still catching up */}
-      {doneKey && row.state !== 'failed' ? (
-        <button
-          type="button"
-          className="ui-button ui-button--block"
-          data-variant="secondary"
-          onClick={() => router.push(planHref(doneKey))}
-        >
-          {t('pay.openPlan')}
-        </button>
-      ) : null}
-      {entitlementKey ? (
-        <p className="quiet-rows">
-          <Link href={`/agent`} prefetch={false}>
-            {t('agent.title')}
-          </Link>
-        </p>
-      ) : null}
+          ) : null}
+          {entitlementKey ? (
+            <p className="quiet-rows">
+              <Link href={`/agent`} prefetch={false}>
+                {t('agent.title')}
+              </Link>
+            </p>
+          ) : null}
+        </section>
+      </div>
       <TabBar active="add" />
     </Screen>
   );

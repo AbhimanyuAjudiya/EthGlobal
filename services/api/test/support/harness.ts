@@ -3,6 +3,8 @@
  * fakeClock + app.request(). Every request gets its own X-Forwarded-For (TRUST_PROXY=1) unless a test pins one, so
  * rate limits only bite where a test asks for them. Logs are captured for the T-50 scans.
  */
+import { randomUUID } from 'node:crypto';
+
 import { namehash } from 'viem';
 
 import type { MockConsensusLog, MockReseller, MockTreasury } from '@ethglobal/adapters';
@@ -65,7 +67,7 @@ export async function harness(opts: HarnessOptions = {}) {
     TRUST_PROXY: '1',
     USDC_ADDRESS: TEST_USDC,
     OCTROI_SECRET: SECRET,
-    RESELLER_PLAN_ID: 'in-300mb-7d',
+    RESELLER_PLAN_ID: 'in-1gb-7d',
     ...opts.env,
   };
   const overrides: DepsOverrides = {
@@ -244,6 +246,7 @@ export async function buyGift(
   mb = PLAN_MB,
   headers: Record<string, string> = {},
 ) {
+  headers = { 'idempotency-key': randomUUID(), ...headers };
   const quote = await h.json('/gift', { name, mb }, headers);
   const res = await h.json('/gift', { name, mb }, { ...(await h.payFor(quote)), ...headers });
   if (res.status !== 201) throw new Error(`gift ${res.status}: ${await res.text()}`);

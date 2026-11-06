@@ -12,7 +12,7 @@ import { ChainRevert, ChainUnavailable } from '../chain.js';
 import { inputOf, type Ctx } from '../context.js';
 import { denyError, fail } from '../errors.js';
 import { fulfil, type Fulfilled } from './fulfil.js';
-import { proofTag } from '../middleware/octroi.js';
+import { claimIntentKey, proofTag } from '../middleware/octroi.js';
 import { paymentRequiredResponse, withPaymentResponse } from '../middleware/x402.js';
 
 import type { Release } from '../admission.js';
@@ -20,8 +20,6 @@ import type { Deps } from '../deps.js';
 
 type ServeFree = Extract<Decision, { kind: 'serve-free' }>;
 
-/** How long a verified-but-unserved claim waits for its session's retry (T-24): long enough to reach the next hour bucket. */
-export const INTENT_TTL_MS = 65 * 60_000;
 /** Reverts after verify that a later retry can still clear (a sponsor can top the budget up, RT-A-03). */
 const RETRYABLE_REVERTS = new Set(['HourlyCap', 'CampaignPaused', 'BudgetExhausted']);
 
@@ -73,17 +71,52 @@ async function serveFree(
   if (!campaign) throw fail('internal_error');
   // One fulfilment per human at a time: a concurrent twin waits, then finds the entitlement (T-18).
   return deps.mutex.run(decision.entitlement.key, async () => {
-    if (await deps.stores.entitlements.getByKey(decision.entitlement.key)) throw fail('replay');
+    const existing = await deps.stores.entitlements.getByKey(decision.entitlement.key);
+    if (existing) {
+      const delivery = deps.pendingDelivery.get(decision.entitlement.key);
+      if (delivery?.context && delivery.sessionPubKey === sessionPubKey)
+        return fulfil(deps, existing.payload, delivery.context);
+      throw fail('replay');
+    }
+    const body = inputOf<ClaimRequest>(c);
+    const tag = proofTag(deps, body.proof);
+    if (!tag) throw fail('invalid_proof');
+    const intentKey = claimIntentKey(deps, sessionPubKey, campaign.id as Hex, tag);
+    const saved = deps.intents.get(intentKey);
+    if (saved && saved.nullifierTag !== tag) throw fail('invalid_proof');
+    deps.intents.set(
+      intentKey,
+      {
+        ...saved,
+        decision,
+        campaignId: campaign.id,
+        nullifierTag: tag,
+        signal: saved?.signal ?? (body.challenge.signal as Hex),
+      },
+      decision.entitlement.expiresAt,
+    );
     let tx: Hex;
     try {
-      tx = await claimOnChain(deps, campaign.id as Hex, decision.claimKey, c.get('releaseSlot'));
+      if (saved && (await deps.dataDrop.claimed(campaign.id as Hex, decision.claimKey))) {
+        const recovered =
+          saved.claimTx ??
+          (await deps.dataDrop.claimTransaction?.(campaign.id as Hex, decision.claimKey));
+        if (!recovered)
+          throw new ChainUnavailable('mined claim transaction could not be recovered');
+        tx = recovered;
+        c.get('releaseSlot')?.();
+      } else {
+        tx = await claimOnChain(deps, campaign.id as Hex, decision.claimKey, c.get('releaseSlot'));
+      }
+      const intent = deps.intents.get(intentKey)!;
+      deps.intents.set(intentKey, { ...intent, claimTx: tx }, decision.entitlement.expiresAt);
     } catch (error) {
       // verified but not served: keep the decision for this session's retry (T-24), bound to this human's
       // nullifier (RT-A-05) and kept durably (RT-A-11); terminal reverts are not kept
       const body = inputOf<ClaimRequest>(c);
       const nullifierTag = proofTag(deps, body.proof);
       // another human's pending intent on this session key is never overwritten (RT-A-05)
-      const pending = deps.intents.get(sessionPubKey.toLowerCase());
+      const pending = deps.intents.get(intentKey);
       if (
         nullifierTag !== undefined &&
         (pending === undefined || pending.nullifierTag === nullifierTag) &&
@@ -91,22 +124,25 @@ async function serveFree(
           (error instanceof ChainRevert && RETRYABLE_REVERTS.has(error.errorName)))
       ) {
         deps.intents.set(
-          sessionPubKey.toLowerCase(),
-          { decision, campaignId: campaign.id, nullifierTag, signal: body.challenge.signal as Hex },
-          deps.now() + INTENT_TTL_MS,
+          intentKey,
+          {
+            ...pending,
+            decision,
+            campaignId: campaign.id,
+            nullifierTag,
+            signal: pending?.signal ?? (body.challenge.signal as Hex),
+          },
+          decision.entitlement.expiresAt,
         );
       }
       throw error;
     }
-    // served: this human's intent (if any) is done; another human's intent on the same session is not touched
-    const served = deps.intents.get(sessionPubKey.toLowerCase());
-    if (served?.nullifierTag === proofTag(deps, inputOf<ClaimRequest>(c).proof))
-      deps.intents.delete(sessionPubKey.toLowerCase());
     deps.metrics.inc('claims_total', { tier: decision.tier });
     void deps.anomaly.record(campaign.id as Hex, campaign.claimsPerHour);
-    return fulfil(deps, decision.entitlement, {
+    const fulfilled = await fulfil(deps, decision.entitlement, {
       nonce,
       sessionPubKey,
+      ...(saved?.recoveryKeyHash === undefined ? {} : { recoveryKeyHash: saved.recoveryKeyHash }),
       claimTx: tx,
       receipt: {
         kind: 'claim',
@@ -127,6 +163,8 @@ async function serveFree(
         tx,
       },
     });
+    deps.intents.delete(intentKey);
+    return fulfilled;
   });
 }
 

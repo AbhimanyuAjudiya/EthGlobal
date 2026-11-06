@@ -15,7 +15,7 @@ import { STEP_MB, dayBucket } from '@ethglobal/protocol/ids';
 import type { Entitlement } from '@ethglobal/protocol/schemas';
 import { priceUsd6, usd6FromWire, usd6ToWire } from '@ethglobal/protocol/units';
 
-import { logEvent, type Log } from './log.js';
+import { logEvent, safeError, type Log } from './log.js';
 
 import type { BuyOutcome, Buyer } from './buyer.js';
 import type { NotificationFacts } from './facts.js';
@@ -76,10 +76,11 @@ function facts(
   reason: NotificationFacts['reason'],
   boughtMb: number,
   spent: bigint,
+  volumeIncrease = boughtMb,
 ): NotificationFacts {
   return {
-    mbRemaining: Math.max(0, e.mbTotal + boughtMb - e.mbUsed),
-    mbTotal: e.mbTotal + boughtMb,
+    mbRemaining: Math.max(0, e.mbTotal + volumeIncrease - e.mbUsed),
+    mbTotal: e.mbTotal + volumeIncrease,
     expiresAt: e.expiresAt,
     boughtMb,
     spentTodayUsd6: usd6ToWire(spent),
@@ -140,7 +141,15 @@ async function run(deps: AgentDeps, key: string): Promise<TickResult> {
   const plans = await deps.plans.get();
   const stepPrice = priceUsd6(policy.stepMb, STEP_MB, usd6FromWire(plans.paid.priceUsd6PerStep));
   const lastExpiryBought = ownExpiry === e.expiresAt ? ownExpiry : pol.lastExpiryBought;
-  const verdict = shouldTopUp(e, policy, spent, now, stepPrice, lastExpiryBought);
+  const pending = await deps.state.pending(key);
+  const verdict: TopUpVerdict = pending
+    ? {
+        buy: true,
+        reason: pending.payment.reason,
+        mb: pending.payment.mb,
+        costUsd6: BigInt(pending.payment.expectedUsd6),
+      }
+    : shouldTopUp(e, policy, spent, now, stepPrice, lastExpiryBought);
 
   await deps.journal.write({
     at: now,
@@ -177,7 +186,8 @@ async function run(deps: AgentDeps, key: string): Promise<TickResult> {
   // A stored legacy policy (stepMb < 1 GB, before the PLAN_MB product unit) asks for a size the API no longer sells:
   // its top-up would be a 400 before any 402. Skip with the reason on the journal; no trigger claimed, nothing signed.
   const sizes = plans.paid.sizesMb;
-  if (sizes !== undefined && !sizes.includes(verdict.mb)) return skip('step-not-sold', verdict);
+  if (!pending && sizes !== undefined && !sizes.includes(verdict.mb))
+    return skip('step-not-sold', verdict);
 
   if (deps.dryRun) {
     await deps.journal.write({
@@ -191,9 +201,11 @@ async function run(deps: AgentDeps, key: string): Promise<TickResult> {
     return { key, verdict, skipped: 'dry-run' };
   }
 
-  const trigger = triggerKey(key, e, verdict.reason);
-  const claim = await deps.state.claimTrigger(trigger, now);
-  if (!claim.ok) return skip(claim.reason, verdict);
+  const trigger = pending?.trigger ?? triggerKey(key, e, verdict.reason);
+  if (!pending) {
+    const claim = await deps.state.claimTrigger(trigger, now);
+    if (!claim.ok) return skip(claim.reason, verdict);
+  }
 
   const attempt = async (): Promise<BuyOutcome> => {
     try {
@@ -202,13 +214,26 @@ async function run(deps: AgentDeps, key: string): Promise<TickResult> {
         mb: verdict.mb,
         reason: verdict.reason,
         expectedUsd6: verdict.costUsd6,
-        expiresAt: e.expiresAt,
-        mbTotalBefore: e.mbTotal,
-        onSigned: (validBefore) => deps.state.markSigned(trigger, deps.now(), validBefore),
+        expiresAt: pending?.payment.expiresAt ?? e.expiresAt,
+        mbTotalBefore: pending?.payment.mbTotalBefore ?? e.mbTotal,
+        ...(pending
+          ? { resume: { payload: pending.payment.payload, validBeforeMs: pending.validBefore } }
+          : {}),
+        onSigned: (validBefore, payload) =>
+          deps.state.markSigned(trigger, deps.now(), validBefore, {
+            ent,
+            mb: verdict.mb,
+            reason: verdict.reason,
+            expectedUsd6: verdict.costUsd6.toString(),
+            expiresAt: e.expiresAt,
+            mbTotalBefore: e.mbTotal,
+            signedAt: deps.now(),
+            payload,
+          }),
       });
     } catch (error) {
       // unknown whether anything was signed: keep the claim (it goes stale on its own), report the throw
-      await deps.journal.write({ at: now, ent, event: 'error', message: String(error) });
+      await deps.journal.write({ at: now, ent, event: 'error', message: safeError(error) });
       throw error;
     }
   };
@@ -217,7 +242,7 @@ async function run(deps: AgentDeps, key: string): Promise<TickResult> {
   // only once the backend accepted the authentication; denied / expired is a skip and the trigger is free again
   if (!outcome.ok && outcome.reason === 'pass-required' && deps.pass !== undefined) {
     const pass = await deps.pass.checkpoint(key).catch(async (error: unknown) => {
-      await deps.journal.write({ at: now, ent, event: 'error', message: String(error) });
+      await deps.journal.write({ at: now, ent, event: 'error', message: safeError(error) });
       throw error;
     });
     if (pass !== 'approved') {
@@ -240,13 +265,15 @@ async function run(deps: AgentDeps, key: string): Promise<TickResult> {
     return { key, verdict, skipped: outcome.reason };
   }
 
-  await deps.state.markDone(trigger, deps.now());
-  await deps.state.recordPurchase({
+  const recorded = await deps.state.completePurchase(trigger, {
     key,
-    now,
+    now: deps.now(),
     usd6: outcome.usd6,
-    ...(verdict.reason === 'expiry' ? { expiryFor: e.expiresAt } : {}),
+    ...(verdict.reason === 'expiry'
+      ? { expiryFor: pending?.payment.expiresAt ?? e.expiresAt }
+      : {}),
   });
+  if (!recorded) return skip('already-bought-for-trigger', verdict);
   const hcsSequence = await deps.receipts.submit({
     key,
     network: outcome.network,
@@ -255,8 +282,17 @@ async function run(deps: AgentDeps, key: string): Promise<TickResult> {
     mb: outcome.mb,
     reason: verdict.reason,
   });
-  const spentAfter = spent + outcome.usd6;
-  const text = await deps.notifier.phrase(facts(e, policy, verdict.reason, outcome.mb, spentAfter));
+  // Recovery may start after the ledger already reflects this purchase. Refresh display facts
+  // rather than adding the recovered purchase to an already-updated volume/spend snapshot.
+  const [current, ownAfter, ledgerAfter] = await Promise.all([
+    deps.reads.entitlement(key).catch(() => null),
+    deps.state.own(key, deps.now()),
+    deps.reads.spentTodayUsd6(key, deps.now()).catch(() => ledgerSpent),
+  ]);
+  const spentAfter = ledgerAfter > ownAfter.spentToday ? ledgerAfter : ownAfter.spentToday;
+  const text = await deps.notifier.phrase(
+    facts(current ?? e, policy, verdict.reason, outcome.mb, spentAfter, current ? 0 : outcome.mb),
+  );
   await deps.journal.write({
     at: now,
     ent,

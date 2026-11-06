@@ -69,3 +69,17 @@ describe('ScratchCard', () => {
     expect(container.querySelector('.coupon__panel canvas.scratch__canvas')).not.toBeNull();
   });
 });
+
+it.each([false, true])(
+  'can reveal again after a controlled reset (reduced motion: %s)',
+  (reduced) => {
+    mockReducedMotion(reduced);
+    const onReveal = vi.fn();
+    const view = render(<ScratchCard mb={1000} pin={PIN} revealed={false} onReveal={onReveal} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Reveal PIN' }));
+    view.rerender(<ScratchCard mb={1000} pin={PIN} revealed onReveal={onReveal} />);
+    view.rerender(<ScratchCard mb={1000} pin={PIN} revealed={false} onReveal={onReveal} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Reveal PIN' }));
+    expect(onReveal).toHaveBeenCalledTimes(2);
+  },
+);

@@ -148,7 +148,7 @@ export async function answers(url: string): Promise<boolean> {
   }
 }
 
-function start(
+export function start(
   name: string,
   command: string,
   args: string[],

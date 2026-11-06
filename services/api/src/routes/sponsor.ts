@@ -1,7 +1,7 @@
 /**
  * POST /sponsor (register) and GET /sponsor/:id (the dashboard = an Arkiv query + chain counters; T-72, A-9).
  *
- * Scopes (RT-A-04): the `SponsorLogin` bearer is a READ credential. Registration is a one-time write: an id that is
+ * Scopes (RT-A-04): `SponsorLogin` authorizes dashboard reads and one initial registration. An id that is
  * already registered is 409 `campaign_exists` whoever signs, so a captured dashboard bearer can neither rewrite a
  * campaign nor mint its audit key again. The audit key is shown once per channel — in the first registration's
  * 201, and on the first dashboard read — and "shown" is a ledger once-marker (`claim:` HMAC, A-42), not process
@@ -43,6 +43,7 @@ import { WindowLimiter } from '../admission.js';
 import { inputOf, type AppEnv } from '../context.js';
 import { fail } from '../errors.js';
 import { claimWindowMs, mintCard, type MintedCard } from '../flows/gift.js';
+import { assertConfiguredCapacity, assertPlanCapacity } from '../flows/plan.js';
 import {
   SPONSOR_FUTURE_SKEW_MS,
   sponsorFromHeader,
@@ -77,6 +78,16 @@ const firstTime = (
   );
 
 export function registerSponsor(app: Hono<AppEnv>, deps: Deps): void {
+  app.post(
+    '/sponsor/validate',
+    validateJson(sponsorRegisterSchema.pick({ campaign: true })),
+    async (c) => {
+      const { campaign } = inputOf<Pick<SponsorRegister, 'campaign'>>(c);
+      await validateDraft(deps, campaign);
+      return c.json({ valid: true });
+    },
+  );
+
   app.post('/sponsor', validateJson(sponsorRegisterSchema), async (c) => {
     const { campaign, auth } = inputOf<SponsorRegister>(c);
     const id = campaign.id.toLowerCase() as Hex;
@@ -105,6 +116,7 @@ export function registerSponsor(app: Hono<AppEnv>, deps: Deps): void {
     return deps.mutex.run(`sponsor:${id}`, async () => {
       if (await deps.stores.campaigns.get(id))
         throw fail('campaign_exists', { detail: 'already registered' });
+      await validateDraft(deps, campaign, false);
       // every claim provisions a whole eSIM: a NEW campaign paying less per claim (the on-chain price, authoritative)
       // is refused; registered campaigns are never re-checked
       if (chain.pricePerClaim < deps.env.COST_USD6_PER_CLAIM) {
@@ -115,9 +127,8 @@ export function registerSponsor(app: Hono<AppEnv>, deps: Deps): void {
           },
         ]);
       }
-      await deps.stores.campaigns.put(
-        campaignFromPayload({ ...campaign, id, v: 1, createdAt: deps.now() }),
-      );
+      const value = campaignFromPayload({ ...campaign, id, v: 1, createdAt: deps.now() });
+      await deps.stores.campaigns.put(value);
       // another process registered it first: ours is not the first registration, so no audit key
       if (!(await firstTime(deps, 'registered', id, campaign.expiresAt)))
         throw fail('campaign_exists', { detail: 'already registered' });
@@ -191,6 +202,7 @@ export function registerSponsor(app: Hono<AppEnv>, deps: Deps): void {
     const campaignId = id.toLowerCase() as Hex;
     const { count, mb, auth } = inputOf<SponsorCardsRequest>(c);
     await verifySponsorCards(deps, campaignId, { count, mb, ...auth });
+    await assertConfiguredCapacity(deps, mb);
     // after the signature: unsigned junk cannot spend the sponsor's batch quota
     const limited = cardBatches.hit(campaignId);
     if (!limited.ok) throw fail('rate_limited', { retryAfterS: limited.retryAfterS });
@@ -264,6 +276,33 @@ export function registerSponsor(app: Hono<AppEnv>, deps: Deps): void {
       release(minted);
     }
   });
+}
+
+/** Public preflight runs before wallet approval/funding; registration repeats it against the actual chain. */
+async function validateDraft(
+  deps: Deps,
+  campaign: SponsorRegister['campaign'],
+  checkPrice = true,
+): Promise<void> {
+  assertCampaignLifetime(campaign.expiresAt, deps.now());
+  if (
+    campaign.contract.toLowerCase() !== deps.dataDrop.address.toLowerCase() ||
+    campaign.network !== `eip155:${deps.chainId}`
+  )
+    throw fail('invalid_request', [{ path: 'campaign.contract', message: 'not this deployment' }]);
+  if (checkPrice && BigInt(campaign.pricePerClaimUsd6) < deps.env.COST_USD6_PER_CLAIM)
+    throw fail('invalid_request', [
+      {
+        path: 'campaign.pricePerClaimUsd6',
+        message: `per-claim price is below the eSIM cost (${formatUsd6(deps.env.COST_USD6_PER_CLAIM)})`,
+      },
+    ]);
+  const value = campaignFromPayload({ ...campaign, v: 1, createdAt: deps.now() });
+  await assertPlanCapacity(
+    deps,
+    campaign.planId,
+    Math.max(...(['orb', 'document', 'device'] as const).map((tier) => sizeBundle(value, tier))),
+  );
 }
 
 function campaignPayload(c: Campaign): SponsorView['campaign'] {

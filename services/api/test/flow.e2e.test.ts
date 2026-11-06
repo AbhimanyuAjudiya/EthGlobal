@@ -15,7 +15,7 @@ import {
   sha256Hex,
   type SealedBox,
 } from '@ethglobal/crypto';
-import { entitlementIndex } from '@ethglobal/octroi';
+import { entitlementIndex, giftEntitlementKey } from '@ethglobal/octroi';
 import { isValidPin } from '@ethglobal/protocol/pin';
 import {
   challengeSchema,
@@ -122,7 +122,7 @@ describe('flow.e2e (BUILD-PLAN §4, in process)', () => {
     expect(JSON.stringify(body)).not.toMatch(/maxAmountRequired/);
     expect((await h.deps.adapters.ledger.query()).length).toBe(puts);
 
-    // I-8 pay: 200 + PAYMENT-RESPONSE; the same signature again ⇒ 402 invalid_payment
+    // I-8 pay: 200 + PAYMENT-RESPONSE; the same signed operation returns its saved response.
     const pay = await h.payFor(quote, { key: HUMAN_KEY });
     const paid = await h.get(`/esim/topup?key=${key}&mb=1000`, pay);
     expect(paid.status).toBe(200);
@@ -132,10 +132,8 @@ describe('flow.e2e (BUILD-PLAN §4, in process)', () => {
       payer: addressOf(HUMAN_KEY),
     });
     const again = await h.get(`/esim/topup?key=${key}&mb=1000`, pay);
-    expect([again.status, ((await again.json()) as { error: string }).error]).toEqual([
-      402,
-      'invalid_payment',
-    ]);
+    expect(again.status).toBe(200);
+    expect(await again.json()).toEqual(topped);
 
     // I-9 effect: mbTotal +1 GB, expiry max(old, now + 7 d), topup receipt, HCS settle
     expect(topped.mbTotal).toBe(claimed.mbTotal + 1000);
@@ -177,7 +175,11 @@ describe('flow.e2e (BUILD-PLAN §4, in process)', () => {
     expect([nobody.status, nobody.headers.get('PAYMENT-REQUIRED')]).toEqual([404, null]);
     const giftQuote = await h.json('/gift', { name: 'bob.eth', mb: 1000 });
     expect(giftQuote.status).toBe(402);
-    const giftRes = await h.json('/gift', { name: 'bob.eth', mb: 1000 }, await h.payFor(giftQuote));
+    const giftRes = await h.json(
+      '/gift',
+      { name: 'bob.eth', mb: 1000 },
+      { ...(await h.payFor(giftQuote)), 'idempotency-key': 'c71c7f50-3db6-4415-badb-8ea4d2621955' },
+    );
     expect(giftRes.status).toBe(201);
     const gift = giftResponseSchema.parse(await giftRes.json());
     expect(isValidPin(gift.pin)).toBe(true);
@@ -205,7 +207,9 @@ describe('flow.e2e (BUILD-PLAN §4, in process)', () => {
     });
     expect(giftClaim.status).toBe(201);
     const giftEnt = entitledResponseSchema.parse(await giftClaim.json());
-    expect(giftEnt.entitlementKey).toBe(`giftent:${gift.giftId}`);
+    expect(giftEnt.entitlementKey).toBe(
+      giftEntitlementKey(h.deps.secret, gift.giftId as `0x${string}`),
+    );
     expect(hcsMessages(h).at(-1)?.t).toBe('gift-claim');
     const gch2 = await h.challengeFor('/gift/claim', bobSpk);
     const sig2 = await signGiftClaim(BOB_KEY, h.deps.chainId, {
@@ -275,7 +279,14 @@ describe('flow.e2e (BUILD-PLAN §4, in process)', () => {
     const lapsedQuote = await h.json('/gift', { name: 'alice.eth', mb: 1000 });
     const lapsed = giftResponseSchema.parse(
       await (
-        await h.json('/gift', { name: 'alice.eth', mb: 1000 }, await h.payFor(lapsedQuote))
+        await h.json(
+          '/gift',
+          { name: 'alice.eth', mb: 1000 },
+          {
+            ...(await h.payFor(lapsedQuote)),
+            'idempotency-key': '0f099feb-a044-4686-8c91-25895d69bf58',
+          },
+        )
       ).json(),
     );
     h.clock.advance(7 * DAY + 1000);

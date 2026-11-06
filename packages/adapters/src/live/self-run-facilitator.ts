@@ -27,6 +27,7 @@ import {
   type Authorization3009,
   type Relayer,
 } from '@ethglobal/eip3009';
+import { RECEIPT_TTL_S } from '@ethglobal/protocol/ids';
 import { isEvmExact } from '@ethglobal/protocol/schemas';
 
 import { buildPaymentRequired, sameRequirements } from '../payment-requirements.js';
@@ -43,8 +44,13 @@ import type {
   VerifyResult,
 } from '../types.js';
 
-/** How far back settle looks for the Transfer of a front-run authorization (T-15). */
+/** Fast path for a payment observed immediately after execution (T-15). */
 export const FRONT_RUN_LOOKBACK_BLOCKS = 20n;
+/** Bound historical RPC work; the normal client authorization lifetime is at most one hour. */
+const RECOVERY_LOOKBACK_BLOCKS = 100_000n;
+const RECOVERY_PAGE_BLOCKS = 2_000n;
+/** Consumed-payment markers live 38 days. Never recover an unjournaled transfer after they can expire. */
+export const PAYMENT_RECOVERY_MAX_AGE_S = RECEIPT_TTL_S - 86_400;
 
 export interface SelfRunFacilitatorOptions {
   publicClient: PublicClient;
@@ -172,10 +178,6 @@ export class SelfRunFacilitator implements PaymentRail {
       const amount = BigInt(requirements.amount);
       if (auth.value < amount) return no('insufficient_amount', payer);
       if (auth.value > amount) return no('amount_mismatch', payer);
-      const now = BigInt(Math.floor(this.#opts.now() / 1000));
-      // EIP-3009 is strict at both ends (D-24): validAfter < now < validBefore.
-      if (auth.validAfter >= now) return no('not_yet_valid', payer);
-      if (auth.validBefore <= now) return no('expired', payer);
       const client = this.#opts.publicClient;
       const [used, balance] = await Promise.all([
         client.readContract({
@@ -191,7 +193,13 @@ export class SelfRunFacilitator implements PaymentRail {
           args: [auth.from],
         }),
       ]);
+      // Expiry prevents a NEW transfer. It must not hide one that already paid us before
+      // an API crash. Signature, domain, recipient and amount have all been checked above.
       if (used) return { ok: false, reason: 'nonce_already_used', payer, auth };
+      const now = BigInt(Math.floor(this.#opts.now() / 1000));
+      // EIP-3009 is strict at both ends (D-24): validAfter < now < validBefore.
+      if (auth.validAfter >= now) return no('not_yet_valid', payer);
+      if (auth.validBefore <= now) return no('expired', payer);
       if (balance < auth.value) return no('insufficient_funds', payer);
       return { ok: true, auth, signature: payload.payload.signature as Hex, kind };
     } catch (error) {
@@ -259,29 +267,72 @@ export class SelfRunFacilitator implements PaymentRail {
         fromBlock: head > FRONT_RUN_LOOKBACK_BLOCKS ? head - FRONT_RUN_LOOKBACK_BLOCKS : 0n,
         toBlock: head,
       };
-      // The exact tx that consumed THIS nonce (a cancelAuthorization emits AuthorizationCanceled, never this) …
-      const used = await client.getContractEvents({
-        address: this.#token,
-        abi: EIP3009_ABI,
-        eventName: 'AuthorizationUsed',
-        args: { authorizer: auth.from, nonce: auth.nonce },
-        ...range,
-      });
-      const txs = new Set(used.map((log) => log.transactionHash));
-      // … and in that same tx, the Transfer(from, payTo, value) the payer authorised.
-      const transfers = await client.getContractEvents({
-        address: this.#token,
-        abi: EIP3009_ABI,
-        eventName: 'Transfer',
-        args: { from: auth.from, to: auth.to },
-        ...range,
-      });
-      return (
-        transfers.find((log) => log.args.value === auth.value && txs.has(log.transactionHash))
-          ?.transactionHash ?? undefined
-      );
+      const recent = await this.#matchingTransfer(auth, range);
+      if (recent) return recent;
+      // Anchor an old retry to its SIGNED expiry, not today's head. Otherwise a restart
+      // more than twenty blocks later strands an already-settled payment forever.
+      // Binary search avoids scanning the chain between the payment and today's head.
+      let end = head;
+      if ((await client.getBlock({ blockNumber: head })).timestamp >= auth.validBefore) {
+        let low = 0n;
+        let high = head;
+        while (low < high) {
+          const mid = (low + high + 1n) / 2n;
+          const block = await client.getBlock({ blockNumber: mid });
+          if (block.timestamp < auth.validBefore) low = mid;
+          else high = mid - 1n;
+        }
+        end = low;
+      }
+      const first = end > RECOVERY_LOOKBACK_BLOCKS ? end - RECOVERY_LOOKBACK_BLOCKS : 0n;
+      for (let toBlock = end; toBlock >= first;) {
+        const fromBlock =
+          toBlock - first >= RECOVERY_PAGE_BLOCKS ? toBlock - RECOVERY_PAGE_BLOCKS + 1n : first;
+        const recovered = await this.#matchingTransfer(auth, { fromBlock, toBlock });
+        if (recovered) return recovered;
+        if (fromBlock === first) break;
+        toBlock = fromBlock - 1n;
+      }
+      return undefined;
     } catch (error) {
       throw toAdapterError('payments', error);
     }
+  }
+
+  /** Match this nonce and its exact transfer in the same transaction; cancellation is never payment. */
+  async #matchingTransfer(
+    auth: Authorization3009,
+    range: { fromBlock: bigint; toBlock: bigint },
+  ): Promise<Hex | undefined> {
+    const client = this.#opts.publicClient;
+    // The exact tx that consumed THIS nonce (a cancelAuthorization emits AuthorizationCanceled, never this) …
+    const used = await client.getContractEvents({
+      address: this.#token,
+      abi: EIP3009_ABI,
+      eventName: 'AuthorizationUsed',
+      args: { authorizer: auth.from, nonce: auth.nonce },
+      ...range,
+    });
+    const txs = new Set(used.map((log) => log.transactionHash));
+    if (txs.size === 0) return undefined;
+    // … and in that same tx, the Transfer(from, payTo, value) the payer authorised.
+    const transfers = await client.getContractEvents({
+      address: this.#token,
+      abi: EIP3009_ABI,
+      eventName: 'Transfer',
+      args: { from: auth.from, to: auth.to },
+      ...range,
+    });
+    for (const transfer of transfers) {
+      if (transfer.args.value !== auth.value || !txs.has(transfer.transactionHash)) continue;
+      if (transfer.blockNumber === null || transfer.transactionHash === null) continue;
+      const block = await client.getBlock({ blockNumber: transfer.blockNumber });
+      const now = BigInt(Math.floor(this.#opts.now() / 1000));
+      // The signed validBefore can be years in the future. Bound the age of the
+      // actual payment, so an expired settlement marker cannot buy another serve.
+      if (now - block.timestamp >= BigInt(PAYMENT_RECOVERY_MAX_AGE_S)) continue;
+      return transfer.transactionHash;
+    }
+    return undefined;
   }
 }

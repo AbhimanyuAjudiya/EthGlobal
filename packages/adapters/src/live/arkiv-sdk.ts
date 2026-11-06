@@ -18,7 +18,7 @@ import {
   type Hex,
   type HttpTransportConfig,
 } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
+import { nonceManager, privateKeyToAccount } from 'viem/accounts';
 
 import { ANN } from '@ethglobal/protocol/ids';
 
@@ -183,18 +183,28 @@ export function createArkivClient(opts: ArkivSdkOptions): ArkivClientLike {
     ? (createWalletClient({
         chain,
         transport,
-        account: privateKeyToAccount(opts.privateKey),
+        account: privateKeyToAccount(opts.privateKey, { nonceManager }),
       }) as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>)
     : undefined;
   const write = () => {
     if (!wallet) throw new Error('arkiv: read-only client (no ARKIV_PRIVATE_KEY)');
     return wallet;
   };
+  // Entity locks protect read/modify/write, but every entity shares one transaction sender.
+  // Keep all SDK mutations on this wallet sequential, including after a failed transaction.
+  let writeTail: Promise<unknown> = Promise.resolve();
+  const mutate = <T>(run: () => Promise<T>): Promise<T> => {
+    const next = writeTail.then(run, run);
+    writeTail = next.catch(() => undefined);
+    return next;
+  };
   return {
     async createEntity(type, values, { expiration }) {
-      return (await write().createEntity!(schemas[type], toSdkValues(values), {
-        expiration: toSdkExpiration(expiration),
-      })) as { entityKey: Hex; txHash: Hex; expiresAt: bigint };
+      return (await mutate(() =>
+        write().createEntity!(schemas[type], toSdkValues(values), {
+          expiration: toSdkExpiration(expiration),
+        }),
+      )) as { entityKey: Hex; txHash: Hex; expiresAt: bigint };
     },
     async getEntity(entityKey) {
       try {
@@ -214,16 +224,20 @@ export function createArkivClient(opts: ArkivSdkOptions): ArkivClientLike {
       return { entities: page.entities.map(fromSdkRow), skipped: page.skipped };
     },
     async patchEntity(type, entityKey, changes) {
-      return (await write().patchEntity!(schemas[type], entityKey, {
-        set: toSdkValues(changes.set),
-        unset: changes.unset,
-      })) as { txHash: Hex };
+      return (await mutate(() =>
+        write().patchEntity!(schemas[type], entityKey, {
+          set: toSdkValues(changes.set),
+          unset: changes.unset,
+        }),
+      )) as { txHash: Hex };
     },
     async extendEntity(entityKey, expiration) {
-      return (await write().extendEntity!({
-        entityKey,
-        expiration: toSdkExpiration(expiration),
-      })) as {
+      return (await mutate(() =>
+        write().extendEntity!({
+          entityKey,
+          expiration: toSdkExpiration(expiration),
+        }),
+      )) as {
         txHash: Hex;
         expiresAt: bigint;
       };

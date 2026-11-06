@@ -6,7 +6,17 @@
  * `STATE_FILE` (local mode, tests) it is memory only. Live refuses to boot without it (env.ts). One API writer
  * process per deployment (THREAT-MODEL §8), so the file has one writer.
  */
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname } from 'node:path';
 
 import { openFromServer, sealToServer, utf8, type SealedBox } from '@ethglobal/crypto';
@@ -54,8 +64,24 @@ export class DurableState {
     mkdirSync(dirname(file), { recursive: true });
     const tmp = `${file}.${process.pid}.tmp`;
     const sealed = sealToServer(this.opts.sealKey, JSON.stringify(this.#data), AAD);
-    writeFileSync(tmp, JSON.stringify(sealed), { mode: 0o600 });
-    renameSync(tmp, file);
+    try {
+      const fd = openSync(tmp, 'w', 0o600);
+      try {
+        writeFileSync(fd, JSON.stringify(sealed));
+        fsyncSync(fd);
+      } finally {
+        closeSync(fd);
+      }
+      renameSync(tmp, file);
+      const directory = openSync(dirname(file), 'r');
+      try {
+        fsyncSync(directory);
+      } finally {
+        closeSync(directory);
+      }
+    } finally {
+      rmSync(tmp, { force: true });
+    }
   }
 }
 
@@ -69,7 +95,7 @@ export class DurableMap<V> {
 
   get(key: string): V | undefined {
     const row = this.rows[key];
-    return row && this.#live(row) ? (row.value as V) : undefined;
+    return row && this.#live(row) ? structuredClone(row.value as V) : undefined;
   }
 
   has(key: string): boolean {
@@ -77,15 +103,17 @@ export class DurableMap<V> {
   }
 
   set(key: string, value: V, expiresAt?: number): void {
-    this.#prune();
-    this.rows[key] = { value, exp: expiresAt ?? null };
-    this.flush();
+    this.#change(() => {
+      this.#prune();
+      this.rows[key] = { value: structuredClone(value), exp: expiresAt ?? null };
+    });
   }
 
   delete(key: string): boolean {
     if (!(key in this.rows)) return false;
-    delete this.rows[key];
-    this.flush();
+    this.#change(() => {
+      delete this.rows[key];
+    });
     return true;
   }
 
@@ -96,7 +124,7 @@ export class DurableMap<V> {
   entries(): [string, V][] {
     return Object.entries(this.rows)
       .filter(([, row]) => this.#live(row))
-      .map(([key, row]) => [key, row.value as V]);
+      .map(([key, row]) => [key, structuredClone(row.value as V)]);
   }
 
   #live(row: Row): boolean {
@@ -105,5 +133,18 @@ export class DurableMap<V> {
 
   #prune(): void {
     for (const [key, row] of Object.entries(this.rows)) if (!this.#live(row)) delete this.rows[key];
+  }
+
+  /** A failed checkpoint must never leave an undurable permission visible to this process. */
+  #change(change: () => void): void {
+    const before = { ...this.rows };
+    try {
+      change();
+      this.flush();
+    } catch (error) {
+      for (const key of Object.keys(this.rows)) delete this.rows[key];
+      Object.assign(this.rows, before);
+      throw error;
+    }
   }
 }

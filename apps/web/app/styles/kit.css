@@ -187,19 +187,26 @@
 /* MODE=local only: the demo-wallet pill in the TopBar */
 .demo-wallet {
   display: inline-flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: baseline;
   gap: 0 var(--space-2);
   margin: 0;
   padding: var(--space-1) var(--space-3);
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-pill);
+  /* one line, never wider than a third of a phone's TopBar: the wordmark keeps its room (local mode only) */
+  max-width: min(11rem, 38vw);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
   font-family: var(--font-mono);
   font-size: var(--text-12);
   color: var(--text-secondary);
 }
 .demo-wallet__addr {
   color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Language switch: a segmented pill; in the TopBar only from 480 px (the menu sheet carries it below) */

@@ -221,7 +221,7 @@
   "network.local": "लोकल चेन",
   "network.unknown": "अज्ञात नेटवर्क",
   "agent.title": "आपका एजेंट",
-  "agent.sentence": "जब आपका प्लान 20 % से कम हो या समाप्त हो, आपका एजेंट {network} पर {price} में 100 MB खरीदता है, दिन में {cap} तक।",
+  "agent.sentence": "जब आपका प्लान 20 % से कम हो या समाप्त हो, आपका एजेंट {network} पर {price} में {mb} खरीदता है, दिन में {cap} तक।",
   "agent.sentencePaused": "आपका एजेंट रुका हुआ है। दोबारा चालू करने तक यह कुछ नहीं खरीदेगा।",
   "agent.cap": "दैनिक सीमा",
   "agent.capAria": "≤ {cap} / दिन",

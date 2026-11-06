@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { toBytes } from 'viem';
 
 import { keccak256 } from '@ethglobal/crypto';
-import { dayBucket } from '@ethglobal/protocol/ids';
+import { dayBucket, STEP_MB } from '@ethglobal/protocol/ids';
 import type {
   AgentPolicyView,
   MeResponse,
@@ -13,6 +13,7 @@ import type {
   TopUpPolicyWire,
 } from '@ethglobal/protocol/schemas';
 import { AGENT_POLICY_TYPES, canonicalJson, rechargeDomain } from '@ethglobal/protocol/typed-data';
+import { priceUsd6, usd6FromWire } from '@ethglobal/protocol/units';
 import { Button, Hash } from '@ethglobal/ui/components';
 
 import { QrCode } from './QrCode';
@@ -142,10 +143,13 @@ export function AgentSheet() {
   const agentNetwork =
     plans?.paid.accepts.find((a) => a.network.startsWith('hedera:'))?.network ??
     plans?.paid.accepts[0]?.network;
+  // the step the policy buys, priced like the API prices it (octroi decide: priceUsd6(mb, stepMb, perStep))
+  const buyMb = policy?.stepMb ?? STEP_MB;
   const sentence = policy?.paused
     ? t('agent.sentencePaused')
     : t('agent.sentence', {
-        price: money(step),
+        mb: formatMb(buyMb),
+        price: money(priceUsd6(buyMb, plans?.paid.stepMb ?? STEP_MB, usd6FromWire(step))),
         network: netName(agentNetwork),
         cap: money(capUsd6),
       });

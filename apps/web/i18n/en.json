@@ -221,7 +221,7 @@
   "network.local": "Local chain",
   "network.unknown": "Unknown network",
   "agent.title": "Your agent",
-  "agent.sentence": "When your plan drops below 20 % or expires, your agent buys 100 MB for {price} on {network}, up to {cap} a day.",
+  "agent.sentence": "When your plan drops below 20 % or expires, your agent buys {mb} for {price} on {network}, up to {cap} a day.",
   "agent.sentencePaused": "Your agent is paused. It buys nothing until you resume it.",
   "agent.cap": "Daily cap",
   "agent.capAria": "≤ {cap} / day",

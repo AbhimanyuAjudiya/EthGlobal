@@ -12,6 +12,8 @@ The user requested ownership of testing. This update receives source review, com
 
 Release `0d67a93a284c956010208610d1dbd259321912f7` completed deployment at 07:59:59 UTC (13:29:59 IST). The production build and configuration validation passed before the atomic release switch; the previous `4882b33` release and private state backups were retained. The deployment helper's legacy log wording said “live-bundle tests” although that invocation was deliberately removed for this release; no test suite ran. That log wording is corrected in the follow-up helper. A small receipt-display follow-up keeps organizer reimbursements out of attendee spending and labels pending refunds accurately.
 
+The receipt follow-up `9a0a69b0ba4ba550684d13831112defcc2730b48` deployed at 08:05:31 UTC (13:35:31 IST). The production build passed. A subsequent read-only deployment check confirmed this release path, active API/web/agent/Caddy services, and public health in live mode on chain 296 with `degraded:false`. No functional tests or wallet/provider transactions were initiated for this update. The user's new campaign claim, cancellation and reimbursement test remains pending.
+
 This records the code audit, fixes, and validation performed in this checkout. Passing tests reduce risk; they do not establish that every external service or physical device will always work.
 
 ## Correctness and recovery

@@ -46,15 +46,16 @@ get a client registered (`client_secret_post`, any https redirect URI) — the f
 
 | Requirement | Evidence | Status | Smallest fix |
 |---|---|---|---|
-| Built on ENSv2 (mainnet or Sepolia) | `packages/adapters/src/live/ens-resolver.ts:2-3,50,57`: viem `getEnsAddress`/`getEnsText` via Universal Resolver on mainnet (Sepolia fallback). That is plain resolution, works the same on v1; nothing ENSv2-specific | ❌ | See below |
-| ENSv2 features central | None used (no registry, subname registry, EAC, permissioned resolver, aliasing). Gifting by name is central to the app, ENSv2 is not | ❌ | See below |
-| Functional, no hard-coded values | Resolves any name before the 402 (`routes/gift.ts`, `flows/gift.ts`); demo target `re-charge.eth` → `0x2Dd7…746C` (founder-registered; url record not verified here) | ✅ | — |
-| Live demo + open source | app live; repo private | ❌ | Make repo public |
+| Built on ENSv2 (mainnet or Sepolia) | **Live on Sepolia (ENSv2):** `re-charge.eth` registered through the v2 ETHRegistrar ([tx](https://sepolia.etherscan.io/tx/0xc12c8337b7d73a983a0de15003a4d7d5a524194fb7de151b217afcd56e6f1199)); our own `UserRegistry` proxy is its subregistry (`0x2973…EA41`); `spike.re-charge.eth` resolves with plain viem `getEnsText` through UniversalResolverV2 (`ens/SPIKE.md`, `ens/README.md`) | ✅ | — |
+| ENSv2 features central | One ENSv2 name per sponsor campaign (`packages/adapters/src/live/ens-campaigns.ts`, `services/api/src/flows/ens.ts`): own subname registry, a `PermissionedResolver` per campaign via `VerifiableFactory`, expiring non-transferable names (role bitmap 0), per-key EAC for the sponsor (`grantSetterRoles` avatar/description/com.twitter; on-chain proof: avatar [ok](https://sepolia.etherscan.io/tx/0x062818ef47d3a7167752a82403b7423776475dd3c08d7d49e0c7705a425341df), url [reverts](https://sepolia.etherscan.io/tx/0xa60e08af0032cae8c99032c3d0069c317e4cba3bab00b43ab55683b7b71cbb5a)); claim by name at `/c/<slug>` and sponsor-signed branding (`apps/web/components/CampaignByName.tsx`, `EnsCampaign.tsx`). In code with tests; **pending deploy** (`ENS_ENABLED=true` on the API) and the first real campaign name | ⚠️ | Deploy with the ENS env, register one real campaign, paste its name and txs into `ens/README.md` |
+| Functional, no hard-coded values | Names come from each campaign (slug = kebab-case of its name, unique on the UserRegistry); records written per campaign; `/c/<slug>` trusts a name only if `recharge.pool` is our DataDrop and it has not expired. Gift-to-name resolution unchanged (`routes/gift.ts`, `flows/gift.ts`) | ✅ | — |
+| Live demo + open source | app live; ENS section ships with the next deploy; repo private | ❌ | Make repo public; deploy |
 
-**Honest verdict:** not ENSv2 today; README already says "ENS integrated but not claimed" (`README.md:11,153`). Smallest
-central feature: **own subname registry under `re-charge.eth` on ENSv2 Sepolia** — each gift mints
-`<serial>.re-charge.eth` whose owner is the escrow/recipient, so the gift *is* the name. Estimate ~4-6 h (contract call +
-API hook + one screen), contingent on ENSv2 Sepolia contracts being usable (ask the ENS booth). Also costs one of three partner picks.
+**Honest verdict (2026-11-06):** ENSv2 is now load-bearing for sponsors: each campaign's name is how travellers reach
+it (`/c/<slug>`) and the sponsor's branding lives in the name, guarded by ENSv2 EAC. Live on Sepolia today: `re-charge.eth`,
+its UserRegistry and `spike.re-charge.eth` (same call sequence as the API). Not yet live: the API job and the two web
+screens, until deployed with `ENS_ENABLED=true`. ENSv2 is Sepolia-only by necessity (mainnet v2 not active). Still
+costs one of three partner picks.
 
 ## 4. Arkiv (from https://ethglobal.com/events/mumbai/prizes, fetched 2026-11-06)
 
@@ -100,7 +101,7 @@ Sources fetched 2026-11-06 (paraphrased, not verbatim): `/events/mumbai/info/det
 1. **Deadline is Sat 7 Nov 09:00 IST**, not Sun — the repo plan now has video Fri night, submit Sat 08:00; keep to it (everything, $22.5k).
 2. Confirm in writing with the ETHGlobal desk that Recharge is on an approved Continuity track; on the standard track it gets **no** partner prizes (everything).
 3. Make the repo public (`LICENSE` added 2026-11-06) — blocks Hedera, ENS, Arkiv and the Continuity "stay open source" rule.
-4. Pick 3 partners: Hedera, World, Arkiv, ENS is four; ENS is ❌ on ENSv2 unless you build the subname registry (~4-6 h).
+4. Pick 3 partners: Hedera, World, Arkiv, ENS is four; ENS now has the ENSv2 subname registry built (Sepolia; pending deploy with `ENS_ENABLED=true`, see `ens/README.md`).
 5. Run `recharge-agent --once` on live (Hedera) → in-window settlement + `agent-topup` HCS message; paste ids in README `:105-110` ($6.5k).
 6. Record one 2-4 min video with a HashScan tab (Hedera hard requirement, $6.5k).
 7. Ask Hedera, World (and ENS) booths whether Continuity entries are eligible (`DISCLOSURE.md:206-209`).

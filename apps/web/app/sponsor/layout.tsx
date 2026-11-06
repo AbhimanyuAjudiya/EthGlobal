@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { ConsoleSectionLinks } from '../../components/ConsoleSectionLinks';
 import { HeaderWallet, SiteMenu, TestnetStrip } from '../../components/Shell';
 
 import type { ReactNode } from 'react';
@@ -20,10 +21,7 @@ export default function SponsorLayout({ children }: { children: ReactNode }) {
           {/* the traveller's flows, as on every other screen */}
           <SiteMenu />
           <Link href="/sponsor">Campaigns</Link>
-          <a href="#claims-title">Claims</a>
-          <a href="#expiring-title">Quotas</a>
-          <a href="#exports-title">Exports</a>
-          <a href="#controls-title">Settings</a>
+          <ConsoleSectionLinks />
         </nav>
         <main className="console__main">
           {/* the sponsor wallet: the same one control as every traveller screen, top-right */}

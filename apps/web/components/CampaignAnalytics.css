@@ -1,6 +1,6 @@
 /* Campaign analytics (CampaignAnalytics.tsx): the console's tokens, light and dark through light-dark(). At phone
-   width the tiles stack, the charts scale with their viewBox and the tables become labelled rows (no sideways
-   scroll). */
+   width the tiles stack, the charts scale with their viewBox and the tables become labelled rows; wider, a table
+   that does not fit scrolls inside its .table-scroll, never the page. */
 .analytics {
   gap: 1rem;
 }
@@ -169,26 +169,31 @@
 .analytics-table tr[data-soon] td {
   background: var(--warning-subtle);
 }
+.analytics-cell {
+  display: inline-block;
+}
+/* inline beside its sentence (Tailwind's preflight makes an svg a block) */
 .analytics-expiry .ui-icon {
+  display: inline-block;
   margin-right: 0.25rem;
   vertical-align: -0.125em;
 }
 
-/* Phone width: each row is a block of label → value lines. */
+/* Phone width: each row is a block of label → value lines (.analytics-prefixed: beats .data-table in any order). */
 @media (max-width: 40rem) {
-  .analytics-table thead {
+  .analytics .analytics-table thead {
     display: none;
   }
-  .analytics-table,
-  .analytics-table tbody,
-  .analytics-table tr {
+  .analytics .analytics-table,
+  .analytics .analytics-table tbody,
+  .analytics .analytics-table tr {
     display: block;
   }
-  .analytics-table tr {
+  .analytics .analytics-table tr {
     padding: 0.5rem 0;
     border-bottom: 1px solid var(--border-subtle);
   }
-  .analytics-table td {
+  .analytics .table-scroll .analytics-table td {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
@@ -197,9 +202,10 @@
     padding: 0.125rem 0.25rem;
     border-bottom: 0;
     text-align: right;
+    white-space: normal;
     overflow-wrap: anywhere;
   }
-  .analytics-table td::before {
+  .analytics .analytics-table td::before {
     content: attr(data-label);
     flex: none;
     font-weight: 600;

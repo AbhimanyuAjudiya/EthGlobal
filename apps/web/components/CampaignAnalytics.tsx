@@ -455,71 +455,78 @@ export function CampaignAnalytics({ id, login }: { id: string; login: SponsorBea
                         usd: money(notInstalled.usd6),
                       })}
                 </p>
-                <table className="data-table analytics-table" data-testid="not-installed">
-                  <thead>
-                    <tr>
-                      <th scope="col">{t('analytics.col.claimed')}</th>
-                      <th scope="col">{t('analytics.col.tier')}</th>
-                      <th scope="col">{t('analytics.col.status')}</th>
-                      <th scope="col">{t('analytics.col.age')}</th>
-                      <th scope="col">{t('analytics.col.expires')}</th>
-                      <th scope="col">{t('analytics.col.tx')}</th>
-                      <th scope="col">{t('analytics.col.arkiv')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {notInstalled.rows.map((r) => {
-                      const soon = r.expiresAt - now <= SOON_MS;
-                      return (
-                        <tr key={r.arkivKey} data-soon={soon ? '' : undefined}>
-                          <td data-label={t('analytics.col.claimed')}>{when(r.claimedAt)}</td>
-                          <td data-label={t('analytics.col.tier')}>{t(TIER[r.tier])}</td>
-                          <td data-label={t('analytics.col.status')}>
-                            <span className="pill" data-state={r.status}>
-                              {t(
-                                r.status === 'ready'
-                                  ? 'analytics.state.ready'
-                                  : 'analytics.state.pending',
-                              )}
-                            </span>
-                            {r.statusAsOf === undefined ? null : (
-                              <span className="analytics-asof">
-                                {t('analytics.statusAsOf', { time: when(r.statusAsOf) })}
+                <div className="table-scroll">
+                  <table className="data-table analytics-table" data-testid="not-installed">
+                    <thead>
+                      <tr>
+                        <th scope="col">{t('analytics.col.claimed')}</th>
+                        <th scope="col">{t('analytics.col.tier')}</th>
+                        <th scope="col">{t('analytics.col.status')}</th>
+                        <th scope="col">{t('analytics.col.age')}</th>
+                        <th scope="col">{t('analytics.col.expires')}</th>
+                        <th scope="col">{t('analytics.col.tx')}</th>
+                        <th scope="col">{t('analytics.col.arkiv')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {notInstalled.rows.map((r) => {
+                        const soon = r.expiresAt - now <= SOON_MS;
+                        return (
+                          <tr key={r.arkivKey} data-soon={soon ? '' : undefined}>
+                            <td data-label={t('analytics.col.claimed')}>{when(r.claimedAt)}</td>
+                            <td data-label={t('analytics.col.tier')}>{t(TIER[r.tier])}</td>
+                            {/* one span per cell: at phone width a cell is a label and ONE value */}
+                            <td data-label={t('analytics.col.status')}>
+                              <span className="analytics-cell">
+                                <span className="pill" data-state={r.status}>
+                                  {t(
+                                    r.status === 'ready'
+                                      ? 'analytics.state.ready'
+                                      : 'analytics.state.pending',
+                                  )}
+                                </span>
+                                {r.statusAsOf === undefined ? null : (
+                                  <span className="analytics-asof">
+                                    {t('analytics.statusAsOf', { time: when(r.statusAsOf) })}
+                                  </span>
+                                )}
                               </span>
-                            )}
-                          </td>
-                          <td data-label={t('analytics.col.age')}>
-                            {t('analytics.age', { h: enIN.format(r.ageHours) })}
-                          </td>
-                          <td data-label={t('analytics.col.expires')} className="analytics-expiry">
-                            {soon ? <Icon name="warning" /> : null}
-                            {t('analytics.expiresUnused', { date: when(r.expiresAt) })}
-                          </td>
-                          <td data-label={t('analytics.col.tx')}>
-                            {r.claimTx ? (
+                            </td>
+                            <td data-label={t('analytics.col.age')}>
+                              {t('analytics.age', { h: enIN.format(r.ageHours) })}
+                            </td>
+                            <td data-label={t('analytics.col.expires')}>
+                              <span className="analytics-expiry">
+                                {soon ? <Icon name="warning" /> : null}
+                                {t('analytics.expiresUnused', { date: when(r.expiresAt) })}
+                              </span>
+                            </td>
+                            <td data-label={t('analytics.col.tx')}>
+                              {r.claimTx ? (
+                                <Hash
+                                  value={r.claimTx}
+                                  kind="transaction hash"
+                                  lang={lang}
+                                  {...txLink(r.claimTx)}
+                                />
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                            <td data-label={t('analytics.col.arkiv')}>
                               <Hash
-                                value={r.claimTx}
-                                kind="transaction hash"
+                                value={r.arkivKey}
+                                kind="Arkiv entity"
                                 lang={lang}
-                                {...txLink(r.claimTx)}
+                                {...arkivLink(r.arkivKey)}
                               />
-                            ) : (
-                              '—'
-                            )}
-                          </td>
-                          <td data-label={t('analytics.col.arkiv')}>
-                            <Hash
-                              value={r.arkivKey}
-                              kind="Arkiv entity"
-                              lang={lang}
-                              {...arkivLink(r.arkivKey)}
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
                 {notInstalled.rows.length < notInstalled.count ? (
                   <p className="note">
                     {t('analytics.notInstalled.more', {
@@ -541,39 +548,46 @@ export function CampaignAnalytics({ id, login }: { id: string; login: SponsorBea
                 </li>
               ))}
             </ul>
-            <table className="data-table analytics-table" data-testid="latest-claims">
-              <thead>
-                <tr>
-                  <th scope="col">{t('analytics.col.time')}</th>
-                  <th scope="col">{t('analytics.col.tier')}</th>
-                  <th scope="col">{t('analytics.col.tx')}</th>
-                  <th scope="col">{t('analytics.col.arkiv')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.latest.map((l) => (
-                  <tr key={l.arkivKey}>
-                    <td data-label={t('analytics.col.time')}>{when(l.at)}</td>
-                    <td data-label={t('analytics.col.tier')}>{t(TIER[l.tier])}</td>
-                    <td data-label={t('analytics.col.tx')}>
-                      {l.tx ? (
-                        <Hash value={l.tx} kind="transaction hash" lang={lang} {...txLink(l.tx)} />
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td data-label={t('analytics.col.arkiv')}>
-                      <Hash
-                        value={l.arkivKey}
-                        kind="Arkiv entity"
-                        lang={lang}
-                        {...arkivLink(l.arkivKey)}
-                      />
-                    </td>
+            <div className="table-scroll">
+              <table className="data-table analytics-table" data-testid="latest-claims">
+                <thead>
+                  <tr>
+                    <th scope="col">{t('analytics.col.time')}</th>
+                    <th scope="col">{t('analytics.col.tier')}</th>
+                    <th scope="col">{t('analytics.col.tx')}</th>
+                    <th scope="col">{t('analytics.col.arkiv')}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.latest.map((l) => (
+                    <tr key={l.arkivKey}>
+                      <td data-label={t('analytics.col.time')}>{when(l.at)}</td>
+                      <td data-label={t('analytics.col.tier')}>{t(TIER[l.tier])}</td>
+                      <td data-label={t('analytics.col.tx')}>
+                        {l.tx ? (
+                          <Hash
+                            value={l.tx}
+                            kind="transaction hash"
+                            lang={lang}
+                            {...txLink(l.tx)}
+                          />
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td data-label={t('analytics.col.arkiv')}>
+                        <Hash
+                          value={l.arkivKey}
+                          kind="Arkiv entity"
+                          lang={lang}
+                          {...arkivLink(l.arkivKey)}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       )}

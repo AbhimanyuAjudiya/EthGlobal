@@ -4599,6 +4599,523 @@
         }
       }
     },
+    "/sponsor/{id}/analytics": {
+      "get": {
+        "summary": "Campaign analytics (Authorization: Recharge-Sponsor …): totals, money, 14-day and 48-hour series, funnel, plan status, claimed-not-installed rows, proofs; the ledger read is capped (`sampled`) and cached 30 s",
+        "operationId": "getSponsorIdAnalytics",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "200",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "campaignId": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-fA-F]{64}$"
+                    },
+                    "network": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9-]{3,8}:[A-Za-z0-9._-]{1,32}$"
+                    },
+                    "asOf": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "scannedAt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "sampled": {
+                      "type": "boolean"
+                    },
+                    "scanCap": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "totals": {
+                      "type": "object",
+                      "properties": {
+                        "claims": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "uniqueHumans": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "byTier": {
+                          "type": "object",
+                          "properties": {
+                            "orb": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "document": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "unknown": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": ["orb", "document", "unknown"],
+                          "additionalProperties": false
+                        },
+                        "mbDelivered": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "mbUsed": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "avgMbUsed": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "claims",
+                        "uniqueHumans",
+                        "byTier",
+                        "mbDelivered",
+                        "mbUsed",
+                        "avgMbUsed"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "money": {
+                      "type": "object",
+                      "properties": {
+                        "budgetUsd6": {
+                          "type": "string",
+                          "pattern": "^\\d{1,30}$"
+                        },
+                        "spentUsd6": {
+                          "type": "string",
+                          "pattern": "^\\d{1,30}$"
+                        },
+                        "remainingUsd6": {
+                          "type": "string",
+                          "pattern": "^\\d{1,30}$"
+                        },
+                        "pricePerClaimUsd6": {
+                          "type": "string",
+                          "pattern": "^\\d{1,30}$"
+                        },
+                        "remainingClaims": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "burnPerHour": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "runOutAt": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "endsAt": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "daysLeft": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "budgetUsd6",
+                        "spentUsd6",
+                        "remainingUsd6",
+                        "pricePerClaimUsd6",
+                        "remainingClaims",
+                        "burnPerHour",
+                        "runOutAt",
+                        "endsAt",
+                        "daysLeft"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "daily": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "day": {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                          },
+                          "start": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "claims": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": ["day", "start", "claims"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "hourly": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "at": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "claims": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": ["at", "claims"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "hourlyCap": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "funnel": {
+                      "type": "object",
+                      "properties": {
+                        "claimed": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "installed": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "active": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "toppedUp": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "notInstalled": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "installedRate": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        "activeRate": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        "toppedUpRate": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        "notInstalledRate": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        "topUps": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "topUpRevenueUsd6": {
+                          "type": "string",
+                          "pattern": "^\\d{1,30}$"
+                        }
+                      },
+                      "required": [
+                        "claimed",
+                        "installed",
+                        "active",
+                        "toppedUp",
+                        "notInstalled",
+                        "installedRate",
+                        "activeRate",
+                        "toppedUpRate",
+                        "notInstalledRate",
+                        "topUps",
+                        "topUpRevenueUsd6"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "status": {
+                      "type": "object",
+                      "properties": {
+                        "pending": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "ready": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "installed": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "active": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "expired": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": ["pending", "ready", "installed", "active", "expired"],
+                      "additionalProperties": false
+                    },
+                    "notInstalled": {
+                      "type": "object",
+                      "properties": {
+                        "count": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "usd6": {
+                          "type": "string",
+                          "pattern": "^\\d{1,30}$"
+                        },
+                        "rows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "claimedAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "tier": {
+                                "type": "string",
+                                "enum": ["orb", "document", "unknown"]
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": ["pending-profile", "ready"]
+                              },
+                              "statusAsOf": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "ageHours": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "expiresAt": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "claimTx": {
+                                "type": "string",
+                                "maxLength": 128
+                              },
+                              "arkivKey": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "claimedAt",
+                              "tier",
+                              "status",
+                              "ageHours",
+                              "expiresAt",
+                              "arkivKey"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": ["count", "usd6", "rows"],
+                      "additionalProperties": false
+                    },
+                    "proof": {
+                      "type": "object",
+                      "properties": {
+                        "onChainClaims": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "claimTxs": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "arkivReceipts": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "arkivPlans": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "hcsMessages": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "onChainClaims",
+                        "claimTxs",
+                        "arkivReceipts",
+                        "arkivPlans",
+                        "hcsMessages"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "latest": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "at": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "tier": {
+                            "type": "string",
+                            "enum": ["orb", "document", "unknown"]
+                          },
+                          "tx": {
+                            "type": "string",
+                            "maxLength": 128
+                          },
+                          "arkivKey": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["at", "tier", "arkivKey"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "campaignId",
+                    "network",
+                    "asOf",
+                    "scannedAt",
+                    "sampled",
+                    "scanCap",
+                    "totals",
+                    "money",
+                    "daily",
+                    "hourly",
+                    "hourlyCap",
+                    "funnel",
+                    "status",
+                    "notInstalled",
+                    "proof",
+                    "latest"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "401",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {},
+                    "requestId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["error", "message"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/sponsor/{id}/cards": {
       "post": {
         "summary": "Mint ≤ 200 campaign-funded scratch cards (EIP-712 SponsorCards, A-43); PINs once in the 201 body",

@@ -21,6 +21,7 @@ import { registerFacilitator } from './routes/facilitator.js';
 import { registerGift } from './routes/gift.js';
 import { registerMe } from './routes/me.js';
 import { registerPublic } from './routes/public.js';
+import { registerSponsorAnalytics } from './routes/sponsor-analytics.js';
 import { registerSponsor } from './routes/sponsor.js';
 import { registerWebhooks } from './routes/webhooks.js';
 import { SIMULATED_LEVELS, simulatedWorldProof, type LocalClock } from './seed.js';
@@ -81,6 +82,7 @@ export function createApp(deps: Deps, options: AppOptions = {}) {
   registerWebhooks(app, deps);
   registerMe(app, deps);
   registerSponsor(app, deps);
+  registerSponsorAnalytics(app, deps);
   registerAgentPolicy(app, deps);
   registerAgentPass(app, deps);
   registerFacilitator(app, deps);

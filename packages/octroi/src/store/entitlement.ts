@@ -114,6 +114,15 @@ export class EntitlementStore {
     return as(found, key);
   }
 
+  /** At most `limit` live entitlements of this campaign and kind (sponsor analytics). Keys are indexes. */
+  forCampaign(
+    campaignId: Hex,
+    kind: Entitlement['kind'],
+    limit: number,
+  ): Promise<Found<Entitlement>[]> {
+    return this.#repo.findAll({ [ANN.campaignId]: lower(campaignId), [ANN.kind]: kind }, limit);
+  }
+
   /** Live entitlements whose expiresAt − now ≤ ms, soonest first (sponsor dashboard). Keys are indexes. */
   async expiringWithin(ms: number, limit = DEFAULT_LIST_LIMIT): Promise<Found<Entitlement>[]> {
     const horizon = this.now() + ms;

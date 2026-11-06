@@ -50,6 +50,20 @@ export class ReceiptStore {
     return payloads(await this.#repo.findAll({ [ANN.campaignId]: lower(campaignId) }));
   }
 
+  /**
+   * At most `limit` live receipts of one kind with their Arkiv entity keys (sponsor analytics): this campaign's when
+   * `campaignId` is given, every campaign's (and none) otherwise.
+   */
+  listKind(kind: Receipt['kind'], limit: number, campaignId?: Hex): Promise<Found<Receipt>[]> {
+    return this.#repo.findAll(
+      {
+        [ANN.receiptKind]: kind,
+        ...(campaignId === undefined ? {} : { [ANN.campaignId]: lower(campaignId) }),
+      },
+      limit,
+    );
+  }
+
   /** Σ usd6 of the receipts of exactly this kind, entitlement and UTC day (the agent's cap, T-30). */
   async spentUsd6(entitlementKeyHash: Hex, kind: Receipt['kind'], day: number): Promise<bigint> {
     return sumUsd6(

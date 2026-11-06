@@ -36,6 +36,7 @@ import {
   rpContextSchema,
   settleResultSchema,
   sponsorCardsRequestSchema,
+  sponsorAnalyticsSchema,
   sponsorCardsResponseSchema,
   sponsorRegisterSchema,
   sponsorViewSchema,
@@ -247,6 +248,15 @@ export const OPERATIONS: readonly Operation[] = [
     params: ['id'],
     headers: ['Authorization'],
     responses: { 200: sponsorViewSchema, 401: errorBodySchema },
+  },
+  {
+    method: 'get',
+    path: '/sponsor/{id}/analytics',
+    summary:
+      'Campaign analytics (Authorization: Recharge-Sponsor …): totals, money, 14-day and 48-hour series, funnel, plan status, claimed-not-installed rows, proofs; the ledger read is capped (`sampled`) and cached 30 s',
+    params: ['id'],
+    headers: ['Authorization'],
+    responses: { 200: sponsorAnalyticsSchema, 401: errorBodySchema },
   },
   {
     method: 'post',

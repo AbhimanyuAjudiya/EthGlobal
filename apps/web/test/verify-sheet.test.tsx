@@ -6,7 +6,7 @@ import type { EntitledResponse, PlansResponse } from '@ethglobal/protocol/schema
 
 import { SLOW_CLAIM_MS, VerifySheet } from '../components/VerifySheet';
 import { Wallets } from '../components/Wallets';
-import { LangProvider } from '../i18n/lang';
+import { LangProvider, LangSwitch } from '../i18n/lang';
 import { ApiError } from '../lib/api';
 import { del } from '../lib/store';
 
@@ -298,12 +298,14 @@ it('keeps the claim session stable when language changes during delivery', async
       <Wallets>
         <VerifySheet />
       </Wallets>
+      {/* the shell no longer renders a switch; the language can still change (?lang=, another tab) */}
+      <LangSwitch />
     </LangProvider>,
   );
   await click(await screen.findByRole('button', { name: 'Simulated World ID' }));
   await vi.waitFor(() => expect(mocks.claim).toHaveBeenCalled());
   const original = mocks.claim.mock.calls.at(-1)![0].sessionPubKey;
-  fireEvent.click(screen.getAllByRole('button', { name: 'हिं' })[0]!);
+  fireEvent.click(screen.getByRole('button', { name: 'हिं' }));
   await act(async () => {
     finish({ status: 202, data: PENDING });
   });

@@ -155,8 +155,8 @@ describe('the header menu', () => {
     fireEvent.click(toggle);
     const dialog = screen.getByRole('dialog', { name: 'Menu' });
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
-    // the phone header has no room for the language switch: the menu's sheet carries it
-    expect(within(dialog).getByRole('group', { name: 'Language' })).toBeTruthy();
+    // the owner dropped the language switch from the UI (?lang= still works): not in the header, not in the menu
+    expect(screen.queryByRole('group', { name: 'Language' })).toBeNull();
     const nav = within(dialog).getByRole('navigation', { name: 'Everything Recharge does' });
     expect(hrefs(within(nav).getAllByRole('link')).sort()).toEqual(EVERY_FLOW);
     // the first link of the first group: organizers come first in DESTINATIONS
@@ -210,7 +210,7 @@ describe('the AppShell (DESIGN.md §4)', () => {
     const more = within(nav).getByRole('button', { name: 'More' });
     fireEvent.click(more);
     const sheet = screen.getByRole('dialog', { name: 'More' });
-    expect(within(sheet).getByRole('group', { name: 'Language' })).toBeTruthy();
+    expect(screen.queryByRole('group', { name: 'Language' })).toBeNull();
     expect(
       within(sheet).getByRole('switch', { name: 'Show proof after each action' }),
     ).toBeTruthy();

@@ -25,6 +25,7 @@ export { ListGroup, type ListGroupProps } from './ListGroup';
 export { ListRow, type ListRowProps } from './ListRow';
 export { Notice, type NoticeProps, type NoticeTone } from './Notice';
 export { PageHeader, type PageHeaderProps } from './PageHeader';
+export { PageSplit, type PageSplitProps } from './PageSplit';
 export { Pill, type PillProps, type PillTone } from './Pill';
 export { QuickActions, type QuickAction } from './QuickActions';
 export { Section, type SectionProps } from './Section';

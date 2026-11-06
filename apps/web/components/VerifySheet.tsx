@@ -17,6 +17,7 @@ import {
   ListRow,
   Notice,
   PageHeader,
+  PageSplit,
   Pill,
   Skeleton,
   Stepper,
@@ -468,7 +469,7 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
   const starts = canStart && !needsPass;
 
   return (
-    <AppShell back="/">
+    <AppShell back="/" layout="split">
       <Stepper
         label={t('verify.steps')}
         lang={lang}
@@ -476,129 +477,138 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
         steps={[t('verify.step.prove'), t('verify.step.issue'), t('verify.step.install')]}
       />
       <PageHeader id="verify-title" title={t('verify.title')} lead={t('verify.lead')} lang={lang} />
-      {campaign ? (
-        // which event this page claims for: two pass links for two countries must not look alike
-        <ListGroup title={t('verify.eventFor')} data-testid="claim-event">
-          <ListRow
-            lang={lang}
-            leading={<Avatar label={campaign.name} />}
-            title={campaign.name}
-            subtitle={
-              event
-                ? `${regionName(event.destinationCountry, lang)} · ${new Date(event.startsAt).toLocaleDateString(lang)} – ${new Date(event.endsAt).toLocaleDateString(lang)}`
-                : t('verify.eventBundle', { mb: formatMb(mb) })
-            }
-            value={formatMb(mb)}
-          />
-        </ListGroup>
-      ) : null}
-      {/* the IDKit request: the QR on a computer, behind "Show QR instead" on a phone (World App opens from the bar) */}
-      <Card tone="band" lang={lang}>
-        {waitingUri && handheld ? (
-          showQr ? (
-            <QrCode url={waitingUri} sizeMm={44} label={t('verify.scan')} />
-          ) : (
-            <Button variant="quiet" onClick={() => setShowQr(true)}>
-              {t('verify.showQr')}
-            </Button>
-          )
-        ) : waitingUri ? (
+      <PageSplit
+        hero={
           <>
-            <QrCode url={waitingUri} sizeMm={44} label={t('verify.scan')} />
-            <ButtonLink href={waitingUri} variant="quiet" native>
-              {t('verify.open')}
-            </ButtonLink>
+            {campaign ? (
+              // which event this page claims for: two pass links for two countries must not look alike
+              <ListGroup title={t('verify.eventFor')} data-testid="claim-event">
+                <ListRow
+                  lang={lang}
+                  leading={<Avatar label={campaign.name} />}
+                  title={campaign.name}
+                  subtitle={
+                    event
+                      ? `${regionName(event.destinationCountry, lang)} · ${new Date(event.startsAt).toLocaleDateString(lang)} – ${new Date(event.endsAt).toLocaleDateString(lang)}`
+                      : t('verify.eventBundle', { mb: formatMb(mb) })
+                  }
+                  value={formatMb(mb)}
+                />
+              </ListGroup>
+            ) : null}
+            {/* the IDKit request: the QR on a computer, behind "Show QR instead" on a phone (World App opens from the bar) */}
+            <Card tone="band" lang={lang}>
+              {waitingUri && handheld ? (
+                showQr ? (
+                  <QrCode url={waitingUri} sizeMm={44} label={t('verify.scan')} />
+                ) : (
+                  <Button variant="quiet" onClick={() => setShowQr(true)}>
+                    {t('verify.showQr')}
+                  </Button>
+                )
+              ) : waitingUri ? (
+                <>
+                  <QrCode url={waitingUri} sizeMm={44} label={t('verify.scan')} />
+                  <ButtonLink href={waitingUri} variant="quiet" native>
+                    {t('verify.open')}
+                  </ButtonLink>
+                </>
+              ) : (
+                <p className="t-caption">
+                  {process.env.NEXT_PUBLIC_MODE === 'local'
+                    ? t('verify.simulatedNote')
+                    : t('verify.well')}
+                </p>
+              )}
+            </Card>
+            {status}
+            {needsPass ? (
+              <Notice
+                tone="warning"
+                role="status"
+                data-testid="pass-needed"
+                lang={lang}
+                title={t('verify.passNeeded')}
+              >
+                {t('verify.ticketNeeded')}
+              </Notice>
+            ) : ticketRequired && hasTicket ? (
+              <Notice lang={lang}>{t('verify.ticketExplained')}</Notice>
+            ) : null}
+            <ActionBar>
+              {starts ? (
+                <Button size="lg" block onClick={() => void start()} disabled={!admissionReady}>
+                  {process.env.NEXT_PUBLIC_MODE === 'local'
+                    ? t('verify.simulated')
+                    : t('verify.open')}
+                </Button>
+              ) : null}
+              {waitingUri && handheld ? (
+                // World App is on this phone: one tap opens it; the poll keeps running meanwhile
+                <ButtonLink href={waitingUri} size="lg" block native lang={lang}>
+                  {t('verify.open')}
+                </ButtonLink>
+              ) : null}
+              {phase.kind === 'waiting' && process.env.NEXT_PUBLIC_MODE !== 'local' ? (
+                <Button
+                  variant="quiet"
+                  onClick={() => {
+                    attempt.current += 1;
+                    session.current = undefined;
+                    setPhase({ kind: 'ready' });
+                  }}
+                >
+                  {t('verify.cancel')}
+                </Button>
+              ) : null}
+              {phase.kind === 'closed' ? (
+                <Button size="lg" block onClick={prepare}>
+                  {t('verify.retry')}
+                </Button>
+              ) : null}
+              {phase.kind === 'unconfirmed' ? (
+                <Button size="lg" block onClick={() => void start()} disabled={!admissionReady}>
+                  {t('verify.recover')}
+                </Button>
+              ) : null}
+              {pay ? (
+                <ButtonLink
+                  href="/pay"
+                  variant={starts ? 'secondary' : 'primary'}
+                  size="lg"
+                  block
+                  lang={lang}
+                >
+                  {t('landing.payInstead', { price, mb: payMb })}
+                </ButtonLink>
+              ) : null}
+            </ActionBar>
           </>
-        ) : (
-          <p className="t-caption">
-            {process.env.NEXT_PUBLIC_MODE === 'local'
-              ? t('verify.simulatedNote')
-              : t('verify.well')}
-          </p>
-        )}
-      </Card>
-      {status}
-      {needsPass ? (
-        <Notice
-          tone="warning"
-          role="status"
-          data-testid="pass-needed"
-          lang={lang}
-          title={t('verify.passNeeded')}
-        >
-          {t('verify.ticketNeeded')}
+        }
+      >
+        {event?.reclaimUnused ? (
+          <ListGroup label={t('verify.acceptTerms')}>
+            <ListRow
+              lang={lang}
+              title={t('verify.acceptTerms')}
+              subtitle={t('verify.reclaimTerms', {
+                date: new Date(event.reclaimAfter).toLocaleDateString(lang),
+              })}
+              trailing="switch"
+              checked={acceptedTerms}
+              onCheckedChange={setAcceptedTerms}
+              disabled={phase.kind === 'waiting' || phase.kind === 'checking'}
+            />
+          </ListGroup>
+        ) : null}
+        {plans ? <TierLedger plans={plans} /> : null}
+        <Notice lang={lang}>{t('verify.footnote')}</Notice>
+        {event ? <Notice lang={lang}>{t('verify.travelPreparation')}</Notice> : null}
+        <Notice tone="warning" lang={lang}>
+          {t('warn.thisBrowser')}
         </Notice>
-      ) : ticketRequired && hasTicket ? (
-        <Notice lang={lang}>{t('verify.ticketExplained')}</Notice>
-      ) : null}
-      {event?.reclaimUnused ? (
-        <ListGroup label={t('verify.acceptTerms')}>
-          <ListRow
-            lang={lang}
-            title={t('verify.acceptTerms')}
-            subtitle={t('verify.reclaimTerms', {
-              date: new Date(event.reclaimAfter).toLocaleDateString(lang),
-            })}
-            trailing="switch"
-            checked={acceptedTerms}
-            onCheckedChange={setAcceptedTerms}
-            disabled={phase.kind === 'waiting' || phase.kind === 'checking'}
-          />
-        </ListGroup>
-      ) : null}
-      {plans ? <TierLedger plans={plans} /> : null}
-      <Notice lang={lang}>{t('verify.footnote')}</Notice>
-      {event ? <Notice lang={lang}>{t('verify.travelPreparation')}</Notice> : null}
-      <Notice tone="warning" lang={lang}>
-        {t('warn.thisBrowser')}
-      </Notice>
-      <ProofPanel proof={proof} />
-      <ActionBar>
-        {starts ? (
-          <Button size="lg" block onClick={() => void start()} disabled={!admissionReady}>
-            {process.env.NEXT_PUBLIC_MODE === 'local' ? t('verify.simulated') : t('verify.open')}
-          </Button>
-        ) : null}
-        {waitingUri && handheld ? (
-          // World App is on this phone: one tap opens it; the poll keeps running meanwhile
-          <ButtonLink href={waitingUri} size="lg" block native lang={lang}>
-            {t('verify.open')}
-          </ButtonLink>
-        ) : null}
-        {phase.kind === 'waiting' && process.env.NEXT_PUBLIC_MODE !== 'local' ? (
-          <Button
-            variant="quiet"
-            onClick={() => {
-              attempt.current += 1;
-              session.current = undefined;
-              setPhase({ kind: 'ready' });
-            }}
-          >
-            {t('verify.cancel')}
-          </Button>
-        ) : null}
-        {phase.kind === 'closed' ? (
-          <Button size="lg" block onClick={prepare}>
-            {t('verify.retry')}
-          </Button>
-        ) : null}
-        {phase.kind === 'unconfirmed' ? (
-          <Button size="lg" block onClick={() => void start()} disabled={!admissionReady}>
-            {t('verify.recover')}
-          </Button>
-        ) : null}
-        {pay ? (
-          <ButtonLink
-            href="/pay"
-            variant={starts ? 'secondary' : 'primary'}
-            size="lg"
-            block
-            lang={lang}
-          >
-            {t('landing.payInstead', { price, mb: payMb })}
-          </ButtonLink>
-        ) : null}
-      </ActionBar>
+        <ProofPanel proof={proof} />
+      </PageSplit>
     </AppShell>
   );
 }

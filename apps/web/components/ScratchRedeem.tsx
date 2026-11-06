@@ -17,6 +17,7 @@ import {
   ListRow,
   Notice,
   PageHeader,
+  PageSplit,
   Pill,
   Skeleton,
   Ticket,
@@ -110,121 +111,128 @@ export function ScratchRedeem({ serial }: { serial?: string }) {
         lead={t(recovery ? 'card.recoverIntro' : 'card.lead')}
         lang={lang}
       />
-      {serial && preview === undefined ? (
-        <Skeleton shape="card" label="Loading the card" />
-      ) : serial && preview === null ? (
-        <Notice tone="warning" role="status" lang={lang}>
-          {t('card.notFound')}
-        </Notice>
-      ) : serial || checked ? (
-        <Ticket>
-          {checked ? (
-            <ScratchCard
-              {...coupon}
-              pin={checked}
-              revealed={revealed}
-              onReveal={() => setRevealed(true)}
-            />
-          ) : (
-            <Coupon
-              {...coupon}
-              {...(closed && preview
-                ? { status: t(`card.state.${preview.state}`) }
-                : { sealed: true })}
-            />
-          )}
-        </Ticket>
-      ) : null}
-      {canEnter ? (
-        <Card padded={false} lang={lang}>
-          <form
-            id="card-pin-form"
-            className="card--padded"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void check();
-            }}
-          >
-            <PinField
-              label={t('card.pin')}
-              value={pin}
-              onChange={setPin}
-              error={pinError}
-              testId="card-pin"
-            />
-            {checked ? (
-              <Button type="submit" variant="secondary" block>
-                {t('card.check')}
-              </Button>
+      <PageSplit
+        hero={
+          <>
+            {serial && preview === undefined ? (
+              <Skeleton shape="card" label="Loading the card" />
+            ) : serial && preview === null ? (
+              <Notice tone="warning" role="status" lang={lang}>
+                {t('card.notFound')}
+              </Notice>
+            ) : serial || checked ? (
+              <Ticket>
+                {checked ? (
+                  <ScratchCard
+                    {...coupon}
+                    pin={checked}
+                    revealed={revealed}
+                    onReveal={() => setRevealed(true)}
+                  />
+                ) : (
+                  <Coupon
+                    {...coupon}
+                    {...(closed && preview
+                      ? { status: t(`card.state.${preview.state}`) }
+                      : { sealed: true })}
+                  />
+                )}
+              </Ticket>
             ) : null}
-          </form>
-        </Card>
-      ) : null}
-      {preview ? (
-        <ListGroup label={t('card.title')}>
-          {serial ? <ListRow title={t('card.rowSerial')} value={serial} mono /> : null}
-          <ListRow title={t('gift.size')} value={formatMb(preview.mb)} />
-          {preview.sponsorName ? (
-            <ListRow title={t('card.rowSponsor')} value={preview.sponsorName} />
-          ) : null}
-          <ListRow
-            title={t('card.rowStatus')}
-            subtitle={t('card.claimBy', { day: dayLabel(preview.claimBy, lang) })}
-            trailing={
-              <Pill
-                tone={stateTone}
-                data-testid="card-state"
-                data-state={preview.state}
-                lang={lang}
-              >
-                {formatMb(preview.mb)} · {t(`card.state.${preview.state}`)}
-              </Pill>
-            }
-          />
-        </ListGroup>
-      ) : null}
-      {closed ? (
-        // a redeemed or expired card is not a dead end: the plan it became, or data to buy
-        <ListGroup label={t('card.title')}>
-          <ListRow leading={<Avatar icon="plan" />} title={t('landing.open')} href="/plan" />
-          <ListRow leading={<Avatar icon="add" />} title={t('hub.buy')} href="/pay" />
-        </ListGroup>
-      ) : null}
-      {checked && !revealed ? (
-        <Notice tone="info" lang={lang}>
-          {t('card.scratch')}
-        </Notice>
-      ) : null}
-      {status ? (
-        <Notice tone="negative" role="status" lang={lang}>
-          {status}
-        </Notice>
-      ) : null}
-      {canEnter ? (
-        <Notice tone="warning" lang={lang}>
-          {t('warn.thisBrowser')}
-        </Notice>
-      ) : null}
-      <ProofPanel proof={proof} />
-      {canEnter ? (
-        <ActionBar>
-          {checked ? (
-            <Button
-              block
-              size="lg"
-              disabled={!revealed || working}
-              onClick={() => void redeem()}
-              data-testid="card-redeem"
-            >
-              {recovery ? t('card.recover') : t('card.redeem', { mb: formatMb(mb) })}
-            </Button>
-          ) : (
-            <Button type="submit" form="card-pin-form" block size="lg">
-              {t('card.check')}
-            </Button>
-          )}
-        </ActionBar>
-      ) : null}
+            {canEnter ? (
+              <Card padded={false} lang={lang}>
+                <form
+                  id="card-pin-form"
+                  className="card--padded"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void check();
+                  }}
+                >
+                  <PinField
+                    label={t('card.pin')}
+                    value={pin}
+                    onChange={setPin}
+                    error={pinError}
+                    testId="card-pin"
+                  />
+                  {checked ? (
+                    <Button type="submit" variant="secondary" block>
+                      {t('card.check')}
+                    </Button>
+                  ) : null}
+                </form>
+              </Card>
+            ) : null}
+            {canEnter ? (
+              <ActionBar>
+                {checked ? (
+                  <Button
+                    block
+                    size="lg"
+                    disabled={!revealed || working}
+                    onClick={() => void redeem()}
+                    data-testid="card-redeem"
+                  >
+                    {recovery ? t('card.recover') : t('card.redeem', { mb: formatMb(mb) })}
+                  </Button>
+                ) : (
+                  <Button type="submit" form="card-pin-form" block size="lg">
+                    {t('card.check')}
+                  </Button>
+                )}
+              </ActionBar>
+            ) : null}
+          </>
+        }
+      >
+        {preview ? (
+          <ListGroup label={t('card.title')}>
+            {serial ? <ListRow title={t('card.rowSerial')} value={serial} mono /> : null}
+            <ListRow title={t('gift.size')} value={formatMb(preview.mb)} />
+            {preview.sponsorName ? (
+              <ListRow title={t('card.rowSponsor')} value={preview.sponsorName} />
+            ) : null}
+            <ListRow
+              title={t('card.rowStatus')}
+              subtitle={t('card.claimBy', { day: dayLabel(preview.claimBy, lang) })}
+              trailing={
+                <Pill
+                  tone={stateTone}
+                  data-testid="card-state"
+                  data-state={preview.state}
+                  lang={lang}
+                >
+                  {formatMb(preview.mb)} · {t(`card.state.${preview.state}`)}
+                </Pill>
+              }
+            />
+          </ListGroup>
+        ) : null}
+        {closed ? (
+          // a redeemed or expired card is not a dead end: the plan it became, or data to buy
+          <ListGroup label={t('card.title')}>
+            <ListRow leading={<Avatar icon="plan" />} title={t('landing.open')} href="/plan" />
+            <ListRow leading={<Avatar icon="add" />} title={t('hub.buy')} href="/pay" />
+          </ListGroup>
+        ) : null}
+        {checked && !revealed ? (
+          <Notice tone="info" lang={lang}>
+            {t('card.scratch')}
+          </Notice>
+        ) : null}
+        {status ? (
+          <Notice tone="negative" role="status" lang={lang}>
+            {status}
+          </Notice>
+        ) : null}
+        {canEnter ? (
+          <Notice tone="warning" lang={lang}>
+            {t('warn.thisBrowser')}
+          </Notice>
+        ) : null}
+        <ProofPanel proof={proof} />
+      </PageSplit>
     </>
   );
 }

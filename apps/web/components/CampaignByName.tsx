@@ -10,6 +10,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import {
+  ActionBar,
   AppShell,
   Avatar,
   BalanceCard,
@@ -19,6 +20,7 @@ import {
   ListRow,
   Notice,
   PageHeader,
+  PageSplit,
   QuickActions,
   Skeleton,
 } from './kit';
@@ -110,68 +112,80 @@ export function CampaignByName({ slug }: { slug: string }) {
     );
 
   return (
-    <AppShell back="/" action={action}>
+    <AppShell back="/" layout="split">
       <PageHeader
         id="campaign-name"
         size="display"
         eyebrow={live?.description ? name : undefined}
         title={live?.description ?? name}
       />
-      {state.kind === 'loading' ? <Skeleton shape="balance" label={`Looking up ${name}`} /> : null}
-      {state.kind === 'offline' ? (
-        <Notice tone="warning" role="status">
-          Could not reach Sepolia to look up {name}.
-        </Notice>
-      ) : null}
-      {done && !live ? (
-        <Notice
-          tone="info"
-          role="status"
-          data-testid="campaign-ended"
-          title="This campaign has ended."
-        />
-      ) : null}
-      {live?.bundle ? (
-        <BalanceCard
-          tone="brand"
-          amount={figure}
-          unit={unit.join(' ')}
-          note="free"
-          caption={`${live.bundle}, paid by the sponsor`}
-          status={live.avatar ? <Avatar src={ensAvatarUrl(live.name)} size={48} /> : undefined}
-        />
-      ) : null}
-      {live ? (
-        <QuickActions
-          label="Other ways to get data"
-          items={[
-            { icon: 'add', label: 'Pay instead', href: '/pay' },
-            { icon: 'card', label: 'Scratch card', href: '/card' },
-            { icon: 'organizers', label: 'Organizers', href: '/sponsor' },
-          ]}
-        />
-      ) : null}
-      {live?.passRequired ? (
-        <Notice tone="info" role="status" data-testid="pass-required">
-          This event&apos;s {bundle} is claimed through the private pass link your organizer sent
-          with your ticket. This public name alone does not open the claim.
-        </Notice>
-      ) : null}
-      <ListGroup label={name} {...(live ? { 'data-testid': 'campaign-live' } : {})}>
-        {live?.twitter ? (
-          <ListRow
-            href={`https://x.com/${live.twitter}`}
-            external
-            title={`@${live.twitter} on X`}
-          />
+      <PageSplit
+        hero={
+          <>
+            {state.kind === 'loading' ? (
+              <Skeleton shape="balance" label={`Looking up ${name}`} />
+            ) : null}
+            {state.kind === 'offline' ? (
+              <Notice tone="warning" role="status">
+                Could not reach Sepolia to look up {name}.
+              </Notice>
+            ) : null}
+            {done && !live ? (
+              <Notice
+                tone="info"
+                role="status"
+                data-testid="campaign-ended"
+                title="This campaign has ended."
+              />
+            ) : null}
+            {live?.bundle ? (
+              <BalanceCard
+                tone="brand"
+                amount={figure}
+                unit={unit.join(' ')}
+                note="free"
+                caption={`${live.bundle}, paid by the sponsor`}
+                status={
+                  live.avatar ? <Avatar src={ensAvatarUrl(live.name)} size={48} /> : undefined
+                }
+              />
+            ) : null}
+            {live ? (
+              <QuickActions
+                label="Other ways to get data"
+                items={[
+                  { icon: 'add', label: 'Pay instead', href: '/pay' },
+                  { icon: 'card', label: 'Scratch card', href: '/card' },
+                  { icon: 'organizers', label: 'Organizers', href: '/sponsor' },
+                ]}
+              />
+            ) : null}
+            {action ? <ActionBar>{action}</ActionBar> : null}
+          </>
+        }
+      >
+        {live?.passRequired ? (
+          <Notice tone="info" role="status" data-testid="pass-required">
+            This event&apos;s {bundle} is claimed through the private pass link your organizer sent
+            with your ticket. This public name alone does not open the claim.
+          </Notice>
         ) : null}
-        <ListRow
-          href={ensAppUrl(name)}
-          external
-          title="ENS app"
-          subtitle="Read from ENS on Sepolia"
-        />
-      </ListGroup>
+        <ListGroup label={name} {...(live ? { 'data-testid': 'campaign-live' } : {})}>
+          {live?.twitter ? (
+            <ListRow
+              href={`https://x.com/${live.twitter}`}
+              external
+              title={`@${live.twitter} on X`}
+            />
+          ) : null}
+          <ListRow
+            href={ensAppUrl(name)}
+            external
+            title="ENS app"
+            subtitle="Read from ENS on Sepolia"
+          />
+        </ListGroup>
+      </PageSplit>
     </AppShell>
   );
 }

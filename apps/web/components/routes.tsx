@@ -22,7 +22,7 @@ export function PlanRoute() {
   const params = useParams<{ key: string }>();
   const key = decodeURIComponent(param(params.key) ?? '');
   return (
-    <AppShell nav="plan">
+    <AppShell nav="plan" layout="split">
       <PlanView key={key} entitlementKey={key} />
     </AppShell>
   );
@@ -43,7 +43,7 @@ export function PayRoute() {
 export function VerifyRoute() {
   const id = useSearchParams().get('campaign') ?? '';
   return (
-    <AppShell back="/">
+    <AppShell back="/" layout="split">
       <VerifySheet key={id} {...(/^0x[0-9a-fA-F]{64}$/.test(id) ? { campaignId: id } : {})} />
     </AppShell>
   );
@@ -52,7 +52,7 @@ export function VerifyRoute() {
 export function ReceiptsRoute() {
   const key = useSearchParams().get('key') ?? undefined;
   return (
-    <AppShell nav="more" back={key ? `/plan/${encodeURIComponent(key)}` : '/plan'}>
+    <AppShell nav="more" back={key ? `/plan/${encodeURIComponent(key)}` : '/plan'} layout="wide">
       <ReceiptList key={key ?? 'latest'} {...(key ? { entitlementKey: key } : {})} />
     </AppShell>
   );
@@ -62,7 +62,7 @@ export function CardRoute() {
   const params = useParams<{ serial: string }>();
   const serial = param(params.serial);
   return (
-    <AppShell nav="more" back="/card">
+    <AppShell nav="more" back="/card" layout="split">
       <ScratchRedeem
         key={serial}
         {...(serial && /^[0-9a-f]{8}$/.test(serial) ? { serial } : { serial: 'invalid' })}

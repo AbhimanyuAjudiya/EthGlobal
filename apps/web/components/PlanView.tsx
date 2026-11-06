@@ -20,6 +20,7 @@ import {
   ListGroup,
   ListRow,
   Notice,
+  PageSplit,
   Pill,
   QuickActions,
   Section,
@@ -372,181 +373,188 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
 
   return (
     <AppShell nav="plan">
-      <BalanceCard
-        id="plan-coupon"
-        amount={left.value}
-        unit={left.unit}
-        eyebrow={t('plan.dataLeft')}
-        status={status}
-        {...(simulated ? { note: t('plan.simulated') } : {})}
-        meter={{
-          used: terminal ? m.mbTotal : m.mbTotal - m.remainingMb,
-          total: m.mbTotal,
-          label: t('plan.dataLeft'),
-        }}
-        caption={<UsageAsOf at={m.usageAsOf} lang={lang} />}
-        lang={lang}
-      />
-      <QuickActions
-        label={t('plan.manageTitle')}
-        items={[
-          {
-            icon: 'install',
-            label: t('plan.qaInstall'),
-            href: '/install',
-            disabled: !installable || installElsewhere,
-          },
-          { icon: 'add', label: t('tab.add'), href: `/pay?key=${k}`, disabled: !canTopUp },
-          { icon: 'gift', label: t('tab.gift'), href: '/gift' },
-          { icon: 'receipt', label: t('receipts.title'), href: '/receipts' },
-        ]}
-      />
-      {firstView ? issuing() : null}
-      {m.degraded ? (
-        <Notice tone="warning" role="status" lang={lang} data-testid="degraded-banner">
-          {t('plan.degraded')}
-        </Notice>
-      ) : null}
-      {load.offlineAt ? (
-        <Notice tone="warning" role="status" lang={lang} data-testid="plan-offline-banner">
-          {t('plan.offline', { time: clockIst(load.offlineAt) })}
-        </Notice>
-      ) : null}
-      {m.status === 'pending-profile' ? (
-        <Notice tone="info" role="status" lang={lang}>
-          {t('plan.pendingProfile')}
-        </Notice>
-      ) : null}
-      {isCancelled ? (
-        <Notice tone="negative" role="status" lang={lang}>
-          {t('plan.cancelledState')}
-        </Notice>
-      ) : null}
-      {foreign ? (
-        <Notice
-          tone="info"
-          lang={lang}
-          data-testid="foreign-plan"
-          action={
-            <Button
-              variant="secondary"
-              onClick={() => {
-                void store.adopt(entitlementKey).then(() => setOwned(true));
+      <PageSplit
+        hero={
+          <>
+            <BalanceCard
+              id="plan-coupon"
+              amount={left.value}
+              unit={left.unit}
+              eyebrow={t('plan.dataLeft')}
+              status={status}
+              {...(simulated ? { note: t('plan.simulated') } : {})}
+              meter={{
+                used: terminal ? m.mbTotal : m.mbTotal - m.remainingMb,
+                total: m.mbTotal,
+                label: t('plan.dataLeft'),
               }}
-              data-testid="keep-plan"
-            >
-              {t('plan.keep')}
-            </Button>
-          }
-        >
-          {t('plan.notHere')}
-        </Notice>
-      ) : null}
-      {installElsewhere ? (
-        <Notice tone="info" role="note" lang={lang} data-testid="install-elsewhere">
-          {t('install.noLpa')}
-        </Notice>
-      ) : null}
-      {m.campaignReclaim ? (
-        <Notice tone="info" role="status" lang={lang}>
-          {t(
-            m.campaignReclaim.state === 'scheduled'
-              ? 'plan.eventScheduled'
-              : m.campaignReclaim.state === 'refunded'
-                ? 'plan.eventRefunded'
-                : m.campaignReclaim.state === 'manual'
-                  ? 'plan.eventManual'
-                  : m.campaignReclaim.state === 'ineligible'
-                    ? 'plan.eventIneligible'
-                    : 'plan.eventPending',
-            { date: when(m.campaignReclaim.reclaimAfter) },
-          )}
-        </Notice>
-      ) : null}
-      {m.topUpAvailable === false ? (
-        <Notice tone="info" lang={lang}>
-          {t('plan.eventBundleOnly')}
-        </Notice>
-      ) : null}
-      <Section title={t('plan.detailsTitle')} lang={lang}>
-        <ListGroup>
-          <ListRow
-            title={t('plan.rowExpires')}
-            subtitle={expiry}
-            lang={lang}
-            data-testid="plan-expiry"
-          />
-          <ListRow
-            title={t('plan.rowFrom')}
-            value={m.sponsorName ?? from.reason ?? from.verified}
-            lang={lang}
-          />
-          {facts?.network ? (
-            <ListRow title={t('plan.rowNetwork')} value={netName(facts.network)} lang={lang} />
-          ) : null}
-          <ListRow
-            title={t('plan.rowArkiv')}
-            subtitle={t('plan.whyBody')}
-            mono
-            value={
-              <span data-hash title={m.arkivKey} data-testid="arkiv-key" lang="en">
-                {arkivUrl ? (
-                  <a href={arkivUrl} target="_blank" rel="noreferrer">
-                    {m.arkivKey}
-                  </a>
-                ) : (
-                  m.arkivKey
-                )}
-              </span>
-            }
-            trailing={
-              <CopyButton value={m.arkivKey} label={t('install.copy')} testId="copy-arkiv-key" />
-            }
-            lang={lang}
-          />
-        </ListGroup>
-        <ListGroup
-          title={t('plan.rowReceipt')}
-          meta={
-            latest
-              ? `${latest.mb && latest.mb !== m.mbTotal ? `+${formatMb(latest.mb)}` : t('plan.bundle')} · ${when(latest.at)} · ${t('receipts.final')}`
-              : t('plan.bundle')
-          }
-        >
-          <ListRow title={t('plan.rowYou')} value={lines.you} lang={lang} />
-          <ListRow title={t('plan.rowSponsor')} value={lines.sponsor} lang={lang} />
-          <ListRow title={t('plan.rowFee')} value="$0.00" lang={lang} />
-        </ListGroup>
-        {firstView ? null : issuing(t('plan.issuedTitle'))}
-        <ProofPanel proof={facts?.proof} />
-      </Section>
-      <Section title={t('plan.manageTitle')} lang={lang}>
-        <AddToHomeScreen ready={ready} />
-        <NotificationAsk ready={ready} />
-        {foreign || terminal || activationUnavailable ? null : (
-          <OtherDevice entitlementKey={entitlementKey} />
-        )}
-        {!activationUnavailable ? (
-          <PlanActions
-            entitlementKey={entitlementKey}
-            me={m}
-            onCancelled={() => {
-              setCancelled(true);
-              void readPlan(entitlementKey, true).then(setLoad);
-            }}
-          />
+              caption={<UsageAsOf at={m.usageAsOf} lang={lang} />}
+              lang={lang}
+            />
+            <QuickActions
+              label={t('plan.manageTitle')}
+              items={[
+                {
+                  icon: 'install',
+                  label: t('plan.qaInstall'),
+                  href: '/install',
+                  disabled: !installable || installElsewhere,
+                },
+                { icon: 'add', label: t('tab.add'), href: `/pay?key=${k}`, disabled: !canTopUp },
+                { icon: 'gift', label: t('tab.gift'), href: '/gift' },
+                { icon: 'receipt', label: t('receipts.title'), href: '/receipts' },
+              ]}
+            />
+            {firstView ? issuing() : null}
+            {installable && !installElsewhere ? (
+              <ActionBar>
+                <ButtonLink href="/install" size="lg" block>
+                  {t('plan.install')}
+                </ButtonLink>
+                <p className="t-caption" lang={lang}>
+                  {t('plan.later')}
+                </p>
+              </ActionBar>
+            ) : null}
+          </>
+        }
+      >
+        {m.degraded ? (
+          <Notice tone="warning" role="status" lang={lang} data-testid="degraded-banner">
+            {t('plan.degraded')}
+          </Notice>
         ) : null}
-      </Section>
-      {installable && !installElsewhere ? (
-        <ActionBar>
-          <ButtonLink href="/install" size="lg" block>
-            {t('plan.install')}
-          </ButtonLink>
-          <p className="t-caption" lang={lang}>
-            {t('plan.later')}
-          </p>
-        </ActionBar>
-      ) : null}
+        {load.offlineAt ? (
+          <Notice tone="warning" role="status" lang={lang} data-testid="plan-offline-banner">
+            {t('plan.offline', { time: clockIst(load.offlineAt) })}
+          </Notice>
+        ) : null}
+        {m.status === 'pending-profile' ? (
+          <Notice tone="info" role="status" lang={lang}>
+            {t('plan.pendingProfile')}
+          </Notice>
+        ) : null}
+        {isCancelled ? (
+          <Notice tone="negative" role="status" lang={lang}>
+            {t('plan.cancelledState')}
+          </Notice>
+        ) : null}
+        {foreign ? (
+          <Notice
+            tone="info"
+            lang={lang}
+            data-testid="foreign-plan"
+            action={
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  void store.adopt(entitlementKey).then(() => setOwned(true));
+                }}
+                data-testid="keep-plan"
+              >
+                {t('plan.keep')}
+              </Button>
+            }
+          >
+            {t('plan.notHere')}
+          </Notice>
+        ) : null}
+        {installElsewhere ? (
+          <Notice tone="info" role="note" lang={lang} data-testid="install-elsewhere">
+            {t('install.noLpa')}
+          </Notice>
+        ) : null}
+        {m.campaignReclaim ? (
+          <Notice tone="info" role="status" lang={lang}>
+            {t(
+              m.campaignReclaim.state === 'scheduled'
+                ? 'plan.eventScheduled'
+                : m.campaignReclaim.state === 'refunded'
+                  ? 'plan.eventRefunded'
+                  : m.campaignReclaim.state === 'manual'
+                    ? 'plan.eventManual'
+                    : m.campaignReclaim.state === 'ineligible'
+                      ? 'plan.eventIneligible'
+                      : 'plan.eventPending',
+              { date: when(m.campaignReclaim.reclaimAfter) },
+            )}
+          </Notice>
+        ) : null}
+        {m.topUpAvailable === false ? (
+          <Notice tone="info" lang={lang}>
+            {t('plan.eventBundleOnly')}
+          </Notice>
+        ) : null}
+        <Section title={t('plan.detailsTitle')} lang={lang}>
+          <ListGroup>
+            <ListRow
+              title={t('plan.rowExpires')}
+              subtitle={expiry}
+              lang={lang}
+              data-testid="plan-expiry"
+            />
+            <ListRow
+              title={t('plan.rowFrom')}
+              value={m.sponsorName ?? from.reason ?? from.verified}
+              lang={lang}
+            />
+            {facts?.network ? (
+              <ListRow title={t('plan.rowNetwork')} value={netName(facts.network)} lang={lang} />
+            ) : null}
+            <ListRow
+              title={t('plan.rowArkiv')}
+              subtitle={t('plan.whyBody')}
+              mono
+              value={
+                <span data-hash title={m.arkivKey} data-testid="arkiv-key" lang="en">
+                  {arkivUrl ? (
+                    <a href={arkivUrl} target="_blank" rel="noreferrer">
+                      {m.arkivKey}
+                    </a>
+                  ) : (
+                    m.arkivKey
+                  )}
+                </span>
+              }
+              trailing={
+                <CopyButton value={m.arkivKey} label={t('install.copy')} testId="copy-arkiv-key" />
+              }
+              lang={lang}
+            />
+          </ListGroup>
+          <ListGroup
+            title={t('plan.rowReceipt')}
+            meta={
+              latest
+                ? `${latest.mb && latest.mb !== m.mbTotal ? `+${formatMb(latest.mb)}` : t('plan.bundle')} · ${when(latest.at)} · ${t('receipts.final')}`
+                : t('plan.bundle')
+            }
+          >
+            <ListRow title={t('plan.rowYou')} value={lines.you} lang={lang} />
+            <ListRow title={t('plan.rowSponsor')} value={lines.sponsor} lang={lang} />
+            <ListRow title={t('plan.rowFee')} value="$0.00" lang={lang} />
+          </ListGroup>
+          {firstView ? null : issuing(t('plan.issuedTitle'))}
+          <ProofPanel proof={facts?.proof} />
+        </Section>
+        <Section title={t('plan.manageTitle')} lang={lang}>
+          <AddToHomeScreen ready={ready} />
+          <NotificationAsk ready={ready} />
+          {foreign || terminal || activationUnavailable ? null : (
+            <OtherDevice entitlementKey={entitlementKey} />
+          )}
+          {!activationUnavailable ? (
+            <PlanActions
+              entitlementKey={entitlementKey}
+              me={m}
+              onCancelled={() => {
+                setCancelled(true);
+                void readPlan(entitlementKey, true).then(setLoad);
+              }}
+            />
+          ) : null}
+        </Section>
+      </PageSplit>
     </AppShell>
   );
 }

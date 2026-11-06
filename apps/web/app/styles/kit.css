@@ -1,14 +1,18 @@
 /*
  * The kit (DESIGN.md v3 §4 template, §5 components, §6 motion): every consumer screen is built from these rules.
- * Tokens only; mobile first; desktop from 1024 px keeps the phone composition on the sand band.
+ * Tokens only; mobile first. Laptop (DESIGN.md §4): ONE breakpoint, 1024 px, and every rule for it lives in the single
+ * `@media (min-width: 1024px)` block near the end ("LAPTOP"); no other rule in this file uses a width above 600 px.
  */
 :root {
   --gutter: calc(var(--space-4) + var(--space-1)); /* 20 px */
   --page-w: 30rem;
   --topbar-h: 3rem;
   --nav-h: 3.5rem;
-  --rail-w: 4.5rem;
+  --sidebar-w: 15rem; /* 240 px: the laptop sidebar, the ConsoleShell's too */
   --card-pad: var(--gutter);
+  /* WCAG AA: tokens.css's light #7d776f is 4.43:1 on white (3.87:1 on brand-pale) and the kit sets captions, row
+     subtitles, tab labels and hints in it; #706a63 is 5.34:1 / 4.66:1. Dark value unchanged. */
+  --text-tertiary: light-dark(#706a63, #8c857d);
 }
 @media (min-width: 600px) {
   :root {
@@ -334,42 +338,24 @@
   stroke-width: 2.25;
 }
 
-/* Desktop: the phone composition centred on the sand band, the nav as a 72 px left rail */
-@media (min-width: 1024px) {
-  .app-shell {
-    padding-left: var(--rail-w);
-    background: var(--bg-band);
-  }
-  .app-shell .topbar {
-    background: var(--bg-band);
-  }
-  .page {
-    min-height: calc(100dvh - var(--topbar-h) - var(--space-5));
-    margin-bottom: var(--space-5);
-    padding-bottom: var(--space-8);
-    border-radius: var(--radius-card);
-    background: var(--bg-canvas);
-  }
-  .bottom-nav {
-    inset: 0 auto 0 0;
-    width: var(--rail-w);
-    grid-template-columns: minmax(0, 1fr);
-    grid-auto-rows: 4.5rem;
-    align-content: start;
-    padding: calc(var(--topbar-h) + var(--space-4)) 0 0;
-    border-top: 0;
-    border-right: 1px solid var(--border-subtle);
-  }
-  .action-bar {
-    position: static;
-    margin: 0;
-    padding: 0;
-    border: 0;
-    background: none;
-  }
+/* Sidebar (laptop only) */
+.app-sidebar {
+  display: none;
 }
 
-/* ── Sheet: bottom sheet (phones), centred dialog (desktop) ─────────────── */
+/* PageSplit: no box of its own below 1024 px (and in a single / wide page), so its blocks stack in the page column as
+   they always did; the ActionBar passed in the hero still lands last. */
+.page-split,
+.page-split__hero,
+.page-split__main,
+.page-split__aside {
+  display: contents;
+}
+.page-split .action-bar {
+  order: 1;
+}
+
+/* ── Sheet: bottom sheet (phones), centred dialog (laptop) ──────────────── */
 .sheet-scrim {
   position: fixed;
   inset: 0;
@@ -448,29 +434,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
-}
-@media (min-width: 1024px) {
-  .sheet-panel {
-    inset: 0;
-    width: min(32rem, calc(100% - 2 * var(--space-5)));
-    height: fit-content;
-    max-height: 80dvh;
-    margin: auto;
-    padding-top: var(--space-2);
-    border-radius: var(--radius-card);
-  }
-  .sheet-panel[hidden],
-  .sheet-panel:not([hidden]) {
-    transform: none;
-  }
-  @starting-style {
-    .sheet-panel:not([hidden]) {
-      transform: translateY(var(--space-4));
-    }
-  }
-  .sheet-panel__handle {
-    display: none;
-  }
 }
 /* the menu's contents */
 .site-menu__prefs {
@@ -993,11 +956,6 @@
   font-size: var(--type-label);
   font-weight: 600;
 }
-@media (min-width: 1024px) {
-  .ticket {
-    --notch: var(--bg-canvas);
-  }
-}
 
 /* ── QuickActions ──────────────────────────────────────────────────────── */
 .quick-actions {
@@ -1377,24 +1335,6 @@
   gap: var(--space-5);
   min-width: 0;
 }
-@media (min-width: 1024px) {
-  .console-shell__body {
-    display: grid;
-    grid-template-columns: 15rem minmax(0, 1fr);
-    gap: var(--space-6);
-    max-width: calc(15rem + 72rem + var(--space-6) + 2 * var(--gutter));
-    padding-top: var(--space-5);
-  }
-  .console-shell__nav {
-    position: sticky;
-    top: calc(var(--topbar-h) + var(--space-5));
-    flex-direction: column;
-    align-self: start;
-    margin: 0;
-    padding: 0;
-    border: 0;
-  }
-}
 
 /* ── EmptyState / Skeleton ─────────────────────────────────────────────── */
 .empty-state {
@@ -1601,6 +1541,10 @@
   font-size: var(--type-caption);
   color: var(--text-tertiary);
 }
+/* a long unbroken value (the sponsor's Arkiv query) wraps instead of widening the page */
+.note > code[data-hash] {
+  overflow-wrap: anywhere;
+}
 .banner,
 .caution {
   margin: 0;
@@ -1666,6 +1610,185 @@ pre.mono-key {
 .qr-code {
   --qr-paper: white;
   --qr-ink: black;
+}
+
+/* ── LAPTOP (≥ 1024 px, the one breakpoint; DESIGN.md §4) ──────────────── */
+@media (min-width: 1024px) {
+  /* AppShell: sidebar · content column (TopBar, TESTNET rail, page); no BottomNav */
+  .app-shell {
+    display: grid;
+    grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+    align-content: start;
+  }
+  .app-shell > * {
+    grid-column: 2;
+  }
+  .app-shell > .app-sidebar {
+    position: sticky;
+    top: 0;
+    grid-column: 1;
+    grid-row: 1 / span 3;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    height: 100dvh;
+    padding: var(--space-4) var(--space-4) var(--space-5);
+    overflow-y: auto;
+    border-right: 1px solid var(--border-subtle);
+  }
+  .app-sidebar > .wordmark {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 var(--space-4);
+  }
+  .app-sidebar__nav {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  .app-sidebar__link {
+    gap: var(--space-3);
+  }
+  .app-sidebar__link .kit-icon {
+    flex: none;
+  }
+  .app-sidebar__prefs {
+    margin-top: auto;
+    padding: 0 var(--space-2);
+  }
+  .bottom-nav {
+    display: none;
+  }
+  .app-shell .topbar {
+    padding-inline: var(--space-8);
+  }
+  /* the sidebar carries the wordmark */
+  .app-shell .topbar .wordmark {
+    display: none;
+  }
+
+  /* Content column: 40 / 48 px padding; 32 px between blocks, 48 px between sections; the layout sets the width */
+  .page {
+    gap: var(--space-6);
+    max-width: calc(40rem + 2 * var(--space-8));
+    padding: var(--space-7) var(--space-8) var(--space-9);
+  }
+  .page[data-layout='wide'] {
+    max-width: calc(48rem + 2 * var(--space-8));
+  }
+  /* split: the full 72 rem for a PageSplit; a split screen's loading / error states keep the single column */
+  .page[data-layout='split']:has(.page-split) {
+    max-width: calc(72rem + 2 * var(--space-8));
+  }
+  .app-shell--bare .page {
+    padding-bottom: var(--space-9);
+  }
+
+  /* PageSplit in a split page: a 12-column grid, the hero sticky in 1–5, the rest in 6–12 */
+  .page[data-layout='split'] .page-split {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: var(--space-6) var(--space-8);
+    align-items: start;
+  }
+  .page[data-layout='split'] .page-split__hero,
+  .page[data-layout='split'] .page-split__main,
+  .page[data-layout='split'] .page-split__aside {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    min-width: 0;
+  }
+  .page[data-layout='split'] .page-split__hero {
+    position: sticky;
+    top: calc(var(--topbar-h) + var(--space-5));
+    grid-column: 1 / 6;
+  }
+  .page[data-layout='split'] .page-split__main {
+    grid-column: 6 / -1;
+  }
+  .page[data-layout='split'] .page-split__main > .section:first-child {
+    margin-top: 0;
+  }
+
+  /* ActionBar: static. Under the last block, right-aligned, a pill of natural width (min 16 rem); in a split page
+     the foot of the hero column, full width */
+  .action-bar {
+    position: static;
+    justify-items: end;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  .action-bar > .ui-button:not([data-variant='quiet']) {
+    width: auto;
+    min-width: 16rem;
+  }
+  .page[data-layout='split'] .page-split__hero .action-bar {
+    justify-items: stretch;
+  }
+  .page[data-layout='split']
+    .page-split__hero
+    .action-bar
+    > .ui-button:not([data-variant='quiet']) {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* Sheet: a centred dialog, 32 rem at most */
+  .sheet-panel {
+    inset: 0;
+    width: min(32rem, calc(100% - 2 * var(--space-5)));
+    height: fit-content;
+    max-height: 80dvh;
+    margin: auto;
+    padding-top: var(--space-2);
+    border-radius: var(--radius-card);
+  }
+  .sheet-panel[hidden],
+  .sheet-panel:not([hidden]) {
+    transform: none;
+  }
+  @starting-style {
+    .sheet-panel:not([hidden]) {
+      transform: translateY(var(--space-4));
+    }
+  }
+  .sheet-panel__handle {
+    display: none;
+  }
+
+  /* ConsoleShell: the same sidebar width and link look */
+  .console-shell__body {
+    display: grid;
+    grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+    gap: var(--space-6);
+    max-width: calc(var(--sidebar-w) + 72rem + var(--space-6) + 2 * var(--gutter));
+    padding-top: var(--space-5);
+  }
+  .console-shell__nav {
+    position: sticky;
+    top: calc(var(--topbar-h) + var(--space-5));
+    flex-direction: column;
+    align-self: start;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  /* active: brand-pale pill, brand icon; the label stays ink (brand on brand-pale is 2.6:1, under AA) */
+  .console-shell__link[aria-current='page'],
+  .app-sidebar__link[aria-current='page'] {
+    background: var(--brand-pale);
+    color: var(--text-primary);
+    font-weight: 700;
+  }
+  .app-sidebar__link[aria-current='page'] .kit-icon {
+    color: var(--brand);
+    stroke-width: 2.25;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

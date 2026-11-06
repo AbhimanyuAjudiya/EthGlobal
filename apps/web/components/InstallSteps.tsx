@@ -7,6 +7,7 @@ import type { MeResponse } from '@ethglobal/protocol/schemas';
 import { Icon } from '@ethglobal/ui/components';
 
 import {
+  ActionBar,
   AppShell,
   Avatar,
   Button,
@@ -16,6 +17,7 @@ import {
   ListRow,
   Notice,
   PageHeader,
+  PageSplit,
   Pill,
   Section,
   Skeleton,
@@ -466,7 +468,7 @@ export function InstallSteps() {
     </>
   ) : undefined;
   return (
-    <AppShell back="/plan" nav="plan" {...(action ? { action } : {})}>
+    <AppShell back="/plan" nav="plan" layout="split">
       <Stepper
         steps={[t('install.stepProve'), t('install.stepIssue'), t('install.stepInstall')]}
         current={3}
@@ -478,115 +480,123 @@ export function InstallSteps() {
         title={t('install.title')}
         lang={lang}
       />
-      <StatusCard status={me?.status} handheld={handheld} />
-      {trip?.several ? (
-        <ListGroup>
-          <ListRow title={t('install.switchPlan')} href="/plan" lang={lang} />
-        </ListGroup>
-      ) : null}
-      {lpa === undefined || !device ? (
-        <Skeleton shape="row" count={3} />
-      ) : removed || installed ? (
-        <Notice tone="positive" role="status" lang={lang} data-testid="lpa-removed">
-          {t('install.done')}
-        </Notice>
-      ) : blocked ? (
-        <Notice tone="warning" role="status" lang={lang} data-testid="install-blocked">
-          {reclaim &&
-          reclaim.state !== 'ineligible' &&
-          (reclaim.state !== 'scheduled' || reclaim.reclaimAfter <= now)
-            ? t(
-                reclaim.state === 'refunded'
-                  ? 'plan.eventRefunded'
-                  : reclaim.state === 'manual'
-                    ? 'plan.eventManual'
-                    : 'plan.eventPending',
-              )
-            : policy?.cancelledAt !== undefined
-              ? t('plan.cancelledState')
-              : t('install.noLpa')}
-        </Notice>
-      ) : lpa === null ? (
-        <Notice tone="info" role="status" lang={lang}>
-          {t('install.noLpa')}
-        </Notice>
-      ) : (
-        <>
-          <Notice tone="warning" lang={lang}>
-            <p>{t('install.onlyHere')}</p>
-            <p>{t('warn.unlocked')}</p>
+      <PageSplit
+        hero={
+          <>
+            <StatusCard status={me?.status} handheld={handheld} />
+            {action ? <ActionBar>{action}</ActionBar> : null}
+          </>
+        }
+      >
+        {trip?.several ? (
+          <ListGroup>
+            <ListRow title={t('install.switchPlan')} href="/plan" lang={lang} />
+          </ListGroup>
+        ) : null}
+        {lpa === undefined || !device ? (
+          <Skeleton shape="row" count={3} />
+        ) : removed || installed ? (
+          <Notice tone="positive" role="status" lang={lang} data-testid="lpa-removed">
+            {t('install.done')}
           </Notice>
-          {ios ? (
-            <StepRows
-              steps={[
-                t('install.ios.1'),
-                t('install.ios.2', { mb: formatMb(mb) }),
-                t('install.ios.3'),
-                t('install.ios.4'),
-                t('install.ios.5'),
-              ]}
-            />
-          ) : android ? (
-            <>
+        ) : blocked ? (
+          <Notice tone="warning" role="status" lang={lang} data-testid="install-blocked">
+            {reclaim &&
+            reclaim.state !== 'ineligible' &&
+            (reclaim.state !== 'scheduled' || reclaim.reclaimAfter <= now)
+              ? t(
+                  reclaim.state === 'refunded'
+                    ? 'plan.eventRefunded'
+                    : reclaim.state === 'manual'
+                      ? 'plan.eventManual'
+                      : 'plan.eventPending',
+                )
+              : policy?.cancelledAt !== undefined
+                ? t('plan.cancelledState')
+                : t('install.noLpa')}
+          </Notice>
+        ) : lpa === null ? (
+          <Notice tone="info" role="status" lang={lang}>
+            {t('install.noLpa')}
+          </Notice>
+        ) : (
+          <>
+            <Notice tone="warning" lang={lang}>
+              <p>{t('install.onlyHere')}</p>
+              <p>{t('warn.unlocked')}</p>
+            </Notice>
+            {ios ? (
               <StepRows
                 steps={[
-                  t('install.android.1'),
-                  t('install.android.2'),
-                  t('install.android.3'),
-                  t('install.android.4'),
+                  t('install.ios.1'),
+                  t('install.ios.2', { mb: formatMb(mb) }),
+                  t('install.ios.3'),
+                  t('install.ios.4'),
+                  t('install.ios.5'),
                 ]}
               />
-              <CodeCard lpa={lpa} />
-            </>
-          ) : (
-            <Notice tone="info" lang={lang}>
-              {t('install.other')}
-            </Notice>
-          )}
-          <Section
-            title={phone ? t('install.anotherTitle') : t('install.waysComputer')}
+            ) : android ? (
+              <>
+                <StepRows
+                  steps={[
+                    t('install.android.1'),
+                    t('install.android.2'),
+                    t('install.android.3'),
+                    t('install.android.4'),
+                  ]}
+                />
+                <CodeCard lpa={lpa} />
+              </>
+            ) : (
+              <Notice tone="info" lang={lang}>
+                {t('install.other')}
+              </Notice>
+            )}
+            <Section
+              title={phone ? t('install.anotherTitle') : t('install.waysComputer')}
+              lang={lang}
+            >
+              <div data-testid="other-device">
+                <Reveal
+                  title={t('install.wayQr')}
+                  body={t('install.wayQrBody')}
+                  warn={t('install.anotherWarn')}
+                  buttonId="another-phone"
+                  panelId="second-device-qr"
+                >
+                  <QrCode url={lpa} sizeMm={40} label={t('install.code')} />
+                </Reveal>
+                <Reveal
+                  title={t('install.wayManual')}
+                  body={t('install.wayManualBody')}
+                  warn={t('install.detailsWarn')}
+                  buttonId="show-details"
+                  panelId="manual-details"
+                >
+                  <ManualDetails lpa={lpa} />
+                </Reveal>
+              </div>
+            </Section>
+          </>
+        )}
+        {late && me?.status !== 'active' ? (
+          <Notice tone="warning" title={t('trouble.title')} lang={lang}>
+            <p>{t('trouble.roaming')}</p>
+            <p>{t('trouble.line')}</p>
+            <p>{t('trouble.airplane')}</p>
+          </Notice>
+        ) : null}
+        <ConnectionCheck />
+        {/* the install ends where the plan lives: data left, expiry, top-ups */}
+        <ListGroup>
+          <ListRow
+            leading={<Avatar icon="plan" size={32} />}
+            title={t('landing.open')}
+            href={me ? planHref(me.entitlementKey) : '/plan'}
             lang={lang}
-          >
-            <div data-testid="other-device">
-              <Reveal
-                title={t('install.wayQr')}
-                body={t('install.wayQrBody')}
-                warn={t('install.anotherWarn')}
-                buttonId="another-phone"
-                panelId="second-device-qr"
-              >
-                <QrCode url={lpa} sizeMm={40} label={t('install.code')} />
-              </Reveal>
-              <Reveal
-                title={t('install.wayManual')}
-                body={t('install.wayManualBody')}
-                warn={t('install.detailsWarn')}
-                buttonId="show-details"
-                panelId="manual-details"
-              >
-                <ManualDetails lpa={lpa} />
-              </Reveal>
-            </div>
-          </Section>
-        </>
-      )}
-      {late && me?.status !== 'active' ? (
-        <Notice tone="warning" title={t('trouble.title')} lang={lang}>
-          <p>{t('trouble.roaming')}</p>
-          <p>{t('trouble.line')}</p>
-          <p>{t('trouble.airplane')}</p>
-        </Notice>
-      ) : null}
-      <ConnectionCheck />
-      {/* the install ends where the plan lives: data left, expiry, top-ups */}
-      <ListGroup>
-        <ListRow
-          leading={<Avatar icon="plan" size={32} />}
-          title={t('landing.open')}
-          href={me ? planHref(me.entitlementKey) : '/plan'}
-          lang={lang}
-        />
-      </ListGroup>
+          />
+        </ListGroup>
+      </PageSplit>
     </AppShell>
   );
 }

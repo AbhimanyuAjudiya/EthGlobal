@@ -7,6 +7,7 @@ import type { PlansResponse } from '@ethglobal/protocol/schemas';
 
 import { captureInstallPrompt } from './AddToHomeScreen';
 import {
+  ActionBar,
   AppShell,
   Avatar,
   BalanceCard,
@@ -15,6 +16,7 @@ import {
   ListRow,
   Notice,
   PageHeader,
+  PageSplit,
   Pill,
   QuickActions,
   Section,
@@ -124,81 +126,91 @@ export function ClaimPaths() {
   );
 
   return (
-    <AppShell nav="home" action={action}>
+    <AppShell nav="home" layout="split">
       <PageHeader
         size="display"
         title={t('home.title')}
         lead={t('home.lead', { mb: free })}
         lang={lang}
       />
-      {pending ? (
-        <Skeleton shape="balance" label="Loading the sponsor bundle" />
-      ) : (
-        // no validity line: /plans does not carry the campaign's validity, and a guess is fake specificity
-        <BalanceCard
-          id="landing-coupon"
-          tone="brand"
-          lang={lang}
-          aria-label={t('home.bundleLabel', { mb: free })}
-          amount={figure}
-          unit={unit}
-          note={note}
-          status={status}
-          caption={campaign ? t('home.from', { sponsor: campaign.name }) : t('landing.sponsored')}
-        >
-          <Preflight />
-        </BalanceCard>
-      )}
-      <QuickActions
-        label={t('home.actions')}
-        items={[
-          { icon: 'human', label: t('home.qa.prove'), href: '/verify' },
-          { icon: 'add', label: t('home.qa.pay'), href: '/pay' },
-          { icon: 'card', label: t('home.qa.card'), href: '/card' },
-          { icon: 'organizers', label: t('home.qa.organizers'), href: '/sponsor' },
-        ]}
-      />
-      {plans && !stale && !campaign && !liveMode ? (
-        <Notice tone="info" lang={lang}>
-          {t('landing.noCampaign')}
-        </Notice>
-      ) : null}
-      <Section title={t('how.title')} lang={lang}>
-        <ListGroup label={t('how.title')}>
-          <ListRow
-            leading={<Avatar label="1" />}
-            title={t('how.verify')}
-            subtitle={t('home.how.prove')}
-            href="/verify"
-          />
-          <ListRow
-            leading={<Avatar label="2" />}
-            title={t('how.install')}
-            subtitle={t('home.how.install')}
-            href="/install"
-          />
-          <ListRow
-            leading={<Avatar label="3" />}
-            title={t('how.topup')}
-            subtitle={t('home.how.topup', { mb: planMb, price: planPrice })}
-            href="/pay"
-          />
-        </ListGroup>
-      </Section>
-      <Section title={t('home.everything')} lang={lang}>
-        {DESTINATIONS.map((group) => (
-          <ListGroup key={group.group} title={t(group.group)}>
-            {group.items.map((item) => (
-              <ListRow
-                key={item.href}
-                href={item.href}
-                title={t(item.title)}
-                subtitle={t(item.line, { price: planPrice, mb: planMb })}
-              />
-            ))}
+      <PageSplit
+        hero={
+          <>
+            {pending ? (
+              <Skeleton shape="balance" label="Loading the sponsor bundle" />
+            ) : (
+              // no validity line: /plans does not carry the campaign's validity, and a guess is fake specificity
+              <BalanceCard
+                id="landing-coupon"
+                tone="brand"
+                lang={lang}
+                aria-label={t('home.bundleLabel', { mb: free })}
+                amount={figure}
+                unit={unit}
+                note={note}
+                status={status}
+                caption={
+                  campaign ? t('home.from', { sponsor: campaign.name }) : t('landing.sponsored')
+                }
+              >
+                <Preflight />
+              </BalanceCard>
+            )}
+            <QuickActions
+              label={t('home.actions')}
+              items={[
+                { icon: 'human', label: t('home.qa.prove'), href: '/verify' },
+                { icon: 'add', label: t('home.qa.pay'), href: '/pay' },
+                { icon: 'card', label: t('home.qa.card'), href: '/card' },
+                { icon: 'organizers', label: t('home.qa.organizers'), href: '/sponsor' },
+              ]}
+            />
+            {action ? <ActionBar>{action}</ActionBar> : null}
+          </>
+        }
+      >
+        {plans && !stale && !campaign && !liveMode ? (
+          <Notice tone="info" lang={lang}>
+            {t('landing.noCampaign')}
+          </Notice>
+        ) : null}
+        <Section title={t('how.title')} lang={lang}>
+          <ListGroup label={t('how.title')}>
+            <ListRow
+              leading={<Avatar label="1" />}
+              title={t('how.verify')}
+              subtitle={t('home.how.prove')}
+              href="/verify"
+            />
+            <ListRow
+              leading={<Avatar label="2" />}
+              title={t('how.install')}
+              subtitle={t('home.how.install')}
+              href="/install"
+            />
+            <ListRow
+              leading={<Avatar label="3" />}
+              title={t('how.topup')}
+              subtitle={t('home.how.topup', { mb: planMb, price: planPrice })}
+              href="/pay"
+            />
           </ListGroup>
-        ))}
-      </Section>
+        </Section>
+        <Section title={t('home.everything')} lang={lang}>
+          {DESTINATIONS.map((group) => (
+            <ListGroup key={group.group} title={t(group.group)}>
+              {group.items.map((item) => (
+                <ListRow
+                  key={item.href}
+                  href={item.href}
+                  title={t(item.title)}
+                  subtitle={t(item.line, { price: planPrice, mb: planMb })}
+                />
+              ))}
+            </ListGroup>
+          ))}
+        </Section>
+      </PageSplit>
     </AppShell>
   );
 }

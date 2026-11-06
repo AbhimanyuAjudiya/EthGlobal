@@ -21,7 +21,7 @@ import { Button, Icon } from '@ethglobal/ui/components';
 
 import { KitIcon, type KitIconName } from './kit/icons';
 import { Sheet } from './kit/Sheet';
-import { LangSwitch, T, useLang, useNetworkName } from '../i18n/lang';
+import { T, useLang, useNetworkName } from '../i18n/lang';
 import { IS_TESTNET } from '../lib/env';
 import { plans } from '../lib/store';
 import { caip2, demoIndex, type Wallet } from '../lib/wallet';
@@ -135,19 +135,17 @@ function ProofSwitch() {
 const TAB_HREFS = new Set(['/', '/plan', '/pay', '/gift']);
 
 /**
- * A menu button and its Sheet: every destination of `filter`, the proof switch and, with `withLang`, the language
- * switch. Open, the sheet holds the focus (Tab and Shift+Tab wrap inside it); Escape or Close shuts it and returns the
+ * A menu button and its Sheet: every destination of `filter` and the proof switch (no language switch: the owner
+ * dropped it from the UI; `?lang=` and the LangProvider still work). Open, the sheet holds the focus (Tab and Shift+Tab wrap inside it); Escape or Close shuts it and returns the
  * focus to the button; a tap on the scrim shuts it. Every target is 44 px or more (RT-W-07).
  */
 function MenuSheet({
   label,
-  withLang,
   filter,
   className,
   icon,
 }: {
   label: string;
-  withLang: boolean;
   filter?: (href: string) => boolean;
   className: string;
   icon?: KitIconName;
@@ -185,7 +183,6 @@ function MenuSheet({
         initialFocus="nav a"
       >
         <div className="site-menu__prefs">
-          {withLang ? <LangSwitch /> : null}
           <ProofSwitch />
         </div>
         <nav className="site-menu__groups" aria-label={t('hub.title')}>
@@ -219,11 +216,11 @@ function MenuSheet({
 
 /**
  * The TopBar's Menu, on every screen whether or not a plan exists: a "Menu" button and a Sheet with every
- * destination, the "Show proof after each action" switch and, with `withLang`, the language switch.
+ * destination and the "Show proof after each action" switch.
  */
-export function SiteMenu({ withLang = false }: { withLang?: boolean }) {
+export function SiteMenu() {
   const { t } = useLang();
-  return <MenuSheet label={t('menu.open')} withLang={withLang} className="menu-toggle" />;
+  return <MenuSheet label={t('menu.open')} className="menu-toggle" />;
 }
 
 /** A plain warning where it applies: the warning triangle and one factual sentence, on a warning tint. */
@@ -270,8 +267,8 @@ const useAddressPath = (): string | null =>
   );
 
 /**
- * TopBar, 48 px: Back (sub-screens) or the wordmark (tab roots) left; right the language switch (from 480 px), the
- * wallet pill and Menu. At 360 px it is one row; below 480 px the language switch lives in the menu's sheet.
+ * TopBar, 48 px: Back (sub-screens) or the wordmark (tab roots) left; the wallet pill and Menu right. From 1024 px it
+ * heads the content column and the wordmark moves to the sidebar.
  */
 function TopBar({ back, title }: { back?: string | undefined; title?: string | undefined }) {
   const { t, lang } = useLang();
@@ -291,9 +288,8 @@ function TopBar({ back, title }: { back?: string | undefined; title?: string | u
         {title ? <span className="topbar__title t-label">{title}</span> : null}
       </div>
       <div className="app-header__right">
-        <LangSwitch />
         <HeaderWallet />
-        <SiteMenu withLang />
+        <SiteMenu />
       </div>
     </header>
   );
@@ -325,21 +321,26 @@ function useLatestPlan(): string | undefined {
   return key;
 }
 
-/**
- * BottomNav, 56 px + safe area, on every consumer screen: Home · Plan · Add · Gift · More (a Sheet with the other
- * destinations, the language and the proof switch). A left rail from 1024 px. Plan and Add point at this device's
- * current plan when there is one.
- */
-export function BottomNav({ active }: { active?: ShellNav | undefined }) {
-  const { t, lang } = useLang();
+/** The four tabs (BottomNav and sidebar): Plan and Add point at this device's current plan when there is one. */
+function useTabs() {
+  const { t } = useLang();
   const key = useLatestPlan();
   const k = key ? encodeURIComponent(key) : undefined;
-  const tabs = [
+  return [
     { id: 'home', href: '/', icon: 'home', label: t('nav.home') },
     { id: 'plan', href: k ? `/plan/${k}` : '/plan', icon: 'plan', label: t('tab.plan') },
     { id: 'add', href: k ? `/pay?key=${k}` : '/pay', icon: 'add', label: t('tab.add') },
     { id: 'gift', href: '/gift', icon: 'gift', label: t('tab.gift') },
   ] as const;
+}
+
+/**
+ * BottomNav, 56 px + safe area, on every consumer screen below 1024 px: Home · Plan · Add · Gift · More (a Sheet with
+ * the other destinations and the proof switch). From 1024 px it is display: none and the Sidebar takes over.
+ */
+export function BottomNav({ active }: { active?: ShellNav | undefined }) {
+  const { t, lang } = useLang();
+  const tabs = useTabs();
   return (
     <nav className="bottom-nav tab-bar" aria-label="Recharge" lang={lang}>
       {tabs.map((tab) => (
@@ -357,13 +358,63 @@ export function BottomNav({ active }: { active?: ShellNav | undefined }) {
       <span className="bottom-nav__more" data-active={active === 'more' || undefined}>
         <MenuSheet
           label={t('nav.more')}
-          withLang
           filter={(href) => !TAB_HREFS.has(href)}
           className="bottom-nav__item"
           icon="more"
         />
       </span>
     </nav>
+  );
+}
+
+/** The More sheet's destinations as plain sidebar items (laptop). */
+const SIDEBAR_MORE: readonly { href: string; icon: KitIconName; label: StringKey }[] = [
+  { href: '/receipts', icon: 'receipt', label: 'receipts.title' },
+  { href: '/card', icon: 'card', label: 'home.qa.card' },
+  { href: '/agent', icon: 'agent', label: 'agent.autoTitle' },
+  { href: '/sponsor', icon: 'organizers', label: 'home.qa.organizers' },
+];
+
+/**
+ * The laptop sidebar (from 1024 px; display: none below, so the phone is unchanged): the wordmark, the four tabs, the
+ * More destinations as plain items, and the proof switch at the bottom. Same link look as the ConsoleShell's.
+ */
+function Sidebar({ active, path }: { active?: ShellNav | undefined; path: string | null }) {
+  const { t, lang } = useLang();
+  const tabs = useTabs();
+  const items = [
+    ...tabs.map((tab) => ({ ...tab, current: tab.id === active })),
+    ...SIDEBAR_MORE.map((item) => ({
+      id: item.href,
+      href: item.href,
+      icon: item.icon,
+      label: t(item.label),
+      current: path !== null && (path === item.href || path.startsWith(`${item.href}/`)),
+    })),
+  ];
+  return (
+    <aside className="app-sidebar" lang={lang}>
+      <Link href="/" className="wordmark" lang="en">
+        Recharge
+      </Link>
+      <nav className="app-sidebar__nav" aria-label={t('hub.title')}>
+        {items.map((item) => (
+          <Link
+            key={item.id}
+            href={item.href}
+            prefetch={false}
+            className="console-shell__link app-sidebar__link"
+            aria-current={item.current ? 'page' : undefined}
+          >
+            <KitIcon name={item.icon} size={24} />
+            <span>{item.label}</span>
+          </Link>
+        ))}
+      </nav>
+      <div className="app-sidebar__prefs">
+        <ProofSwitch />
+      </div>
+    </aside>
   );
 }
 
@@ -390,15 +441,20 @@ export interface AppShellProps {
   action?: ReactNode;
   /** Money screens: the TESTNET rail under the TopBar. */
   money?: boolean;
-  /** Hide the BottomNav (print-like or embedded views). */
+  /** Hide the BottomNav and the sidebar (print-like or embedded views). */
   bare?: boolean;
+  /**
+   * The column from 1024 px (DESIGN.md §4): `single` 40 rem (forms, sheets), `wide` 48 rem (lists), `split` 72 rem
+   * for a PageSplit screen. Phones ignore it.
+   */
+  layout?: 'split' | 'single' | 'wide';
   children: ReactNode;
   className?: string;
 }
 
 /**
  * The one page template (DESIGN.md §4): TopBar · Page (30 rem column, 36 rem from 600 px, 20 px gutters) · ActionBar ·
- * BottomNav. From 1024 px the column sits on the sand band and the BottomNav becomes a 72 px left rail.
+ * BottomNav. From 1024 px: a 240 px sidebar and the content column (TopBar, then the `layout` column); no BottomNav.
  */
 export function AppShell({
   back,
@@ -407,6 +463,7 @@ export function AppShell({
   action,
   money = false,
   bare = false,
+  layout = 'single',
   children,
   className,
 }: AppShellProps) {
@@ -417,9 +474,10 @@ export function AppShell({
   return (
     <ShellContext.Provider value={true}>
       <div className={`app-shell${bare ? ' app-shell--bare' : ''}`}>
+        {bare ? null : <Sidebar active={chrome.nav} path={path} />}
         <TopBar back={chrome.back} title={title} />
         {money ? <TestnetStrip /> : null}
-        <main className={`page${className ? ` ${className}` : ''}`}>
+        <main className={`page${className ? ` ${className}` : ''}`} data-layout={layout}>
           {children}
           {action ? <div className="action-bar">{action}</div> : null}
         </main>

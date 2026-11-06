@@ -9,12 +9,19 @@ import { api, ApiError } from './api';
 import { demoConnectorId } from './wagmi';
 import { walletFor, type DemoRole, type Wallet } from './wallet';
 
-/** One GET /plans in flight at a time: screens mounting together share it, and it is dropped once it settles. */
-let inflight: Promise<PlansResponse> | undefined;
-const fetchPlans = (): Promise<PlansResponse> =>
-  (inflight ??= api.plans().finally(() => {
-    inflight = undefined;
-  }));
+/**
+ * One GET /plans per campaign in flight at a time ('' = the default campaign): screens mounting together share it,
+ * and it is dropped once it settles.
+ */
+const inflight = new Map<string, Promise<PlansResponse>>();
+const fetchPlans = (campaignId = ''): Promise<PlansResponse> => {
+  let p = inflight.get(campaignId);
+  if (!p) {
+    p = api.plans(campaignId || undefined).finally(() => inflight.delete(campaignId));
+    inflight.set(campaignId, p);
+  }
+  return p;
+};
 
 /** After a failed GET /plans the next try waits 5 s, then 15 s, then 60 s between tries. */
 const RETRY_MS = [5_000, 15_000, 60_000] as const;
@@ -25,7 +32,7 @@ const RETRY_MS = [5_000, 15_000, 60_000] as const;
  * opened during an outage or an API restart recovers by itself. `plans` and `at` are the last success and when it
  * arrived; `error` is the latest try's failure (`code: 'network'` when no answer came back), cleared by a success.
  */
-export function usePlans() {
+export function usePlans(campaignId?: string) {
   const [state, setState] = useState<{ plans?: PlansResponse; at?: number; error?: ApiError }>({});
   useEffect(() => {
     let alive = true;
@@ -33,7 +40,7 @@ export function usePlans() {
     let retry: ReturnType<typeof setTimeout> | undefined;
     const load = () => {
       clearTimeout(retry);
-      fetchPlans().then(
+      fetchPlans(campaignId).then(
         (plans) => {
           if (!alive) return;
           failures = 0;
@@ -64,7 +71,7 @@ export function usePlans() {
       window.removeEventListener('pageshow', onShow);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, []);
+  }, [campaignId]);
   return { ...state, loading: !state.plans && !state.error };
 }
 

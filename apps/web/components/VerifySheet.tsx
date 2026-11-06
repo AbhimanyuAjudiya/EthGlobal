@@ -98,10 +98,11 @@ function phaseFor(e: unknown, t: (k: ReturnType<typeof errorKey>) => string): Ph
   return { kind: 'closed', retryS: err.retryAfterS ?? 30, message: t(errorKey(err.code)) };
 }
 
-export function VerifySheet() {
+/** `campaignId`: claim for that campaign (from /c/<slug>, the ENS name) instead of the default one. */
+export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
   const { t, lang } = useLang();
   const router = useRouter();
-  const { plans } = usePlans();
+  const { plans } = usePlans(campaignId);
   const now = useClock(1000);
   const [phase, setPhase] = useState<Phase>({ kind: 'preparing' });
   // read once on the client; the server never renders the `waiting` phase, so no hydration mismatch

@@ -9,6 +9,7 @@ import type { SponsorView } from '@ethglobal/protocol/schemas';
 import { Button, Hash } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
+import { EnsCampaign } from './EnsCampaign';
 import { SlideToConfirm } from './SlideToConfirm';
 import { api, ApiError } from '../lib/api';
 import {
@@ -248,6 +249,7 @@ export function SponsorTable({ id }: { id: string }) {
           <Hash value={auditKey} kind="audit key" />
         </section>
       ) : null}
+      <EnsCampaign campaign={campaign} />
       <section className="pane" aria-label="Budget">
         <div className="budget-bar" role="img" aria-label={`Spent ${spentPct} % of the budget`}>
           <span className="budget-bar__spent" style={{ transform: `scaleX(${spentPct / 100})` }} />

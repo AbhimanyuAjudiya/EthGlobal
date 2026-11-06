@@ -53,6 +53,8 @@ export function contentSecurityPolicy(nonce: string, dev = false): string {
     origin(
       process.env.NEXT_PUBLIC_ARKIV_RPC ?? 'https://rpc.rabdi.db-chain.testnet.arkiv.network/',
     ),
+    // /c/<slug> and the sponsor page resolve ENSv2 campaign names on Sepolia (lib/ens.ts, same default)
+    origin(process.env.NEXT_PUBLIC_ENS_RPC_URL ?? 'https://ethereum-sepolia-rpc.publicnode.com'),
     ...wc.connect,
   ].filter(Boolean);
   return [
@@ -61,7 +63,9 @@ export function contentSecurityPolicy(nonce: string, dev = false): string {
     // React style={} attributes cannot carry a nonce; styles cannot run script
     "style-src 'self' 'unsafe-inline'",
     `connect-src ${connect.join(' ')}`,
-    ["img-src 'self' data: blob:", ...wc.img].join(' '),
+    // a campaign's avatar is rendered by ENS's own avatar service (lib/ens.ts ensAvatarUrl), never fetched from the
+    // sponsor's URL
+    ["img-src 'self' data: blob: https://metadata.ens.domains", ...wc.img].join(' '),
     // the bazaar faces are self-hosted under /_next/static/media (packages/ui/fonts.css)
     "font-src 'self'",
     "worker-src 'self'",

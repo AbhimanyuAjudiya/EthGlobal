@@ -122,7 +122,13 @@ const enc = encodeURIComponent;
 
 export const api = {
   health: () => call('/healthz'),
-  plans: async () => (await call('/plans', { schema: plansResponseSchema })).data,
+  /** `campaignId`: that registered campaign instead of the default one (claim by ENS name, /c/<slug>). */
+  plans: async (campaignId?: string) =>
+    (
+      await call(campaignId ? `/plans?campaign=${campaignId}` : '/plans', {
+        schema: plansResponseSchema,
+      })
+    ).data,
   challenge: async (path: ChallengePath, sessionPubKey: Hex): Promise<ChallengeWire> =>
     (
       await call('/challenge', {

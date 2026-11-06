@@ -1,6 +1,7 @@
 /**
  * The EVM wallet layer: wagmi + RainbowKit (D-12 revised). Chains: Base Sepolia (84532) and Hedera testnet EVM (296),
- * the configured chain when it is a mainnet (8453 / 295), and Anvil (31337) only in MODE=local.
+ * Sepolia (11155111, where a sponsor signs its ENS campaign name's branding), the configured chain when it is a
+ * mainnet (8453 / 295), and Anvil (31337) only in MODE=local.
  *
  * Reads never leave for a public RPC: on the live chains the transport is the connected wallet's own EIP-1193
  * provider (what lib/wallet.ts `reader` did before), so csp.ts needs no RPC host; MODE=local reads Anvil directly.
@@ -16,7 +17,7 @@ import {
 } from '@rainbow-me/rainbowkit';
 import { injectedWallet, rainbowWallet, walletConnectWallet } from '@rainbow-me/rainbowkit/wallets';
 import { getAddress, type Address, type Chain } from 'viem';
-import { base, baseSepolia, foundry, hedera, hederaTestnet } from 'viem/chains';
+import { base, baseSepolia, foundry, hedera, hederaTestnet, sepolia } from 'viem/chains';
 import { createConfig, createConnector, custom, http, type Config, type Transport } from 'wagmi';
 import { getAccount } from 'wagmi/actions';
 
@@ -35,7 +36,8 @@ export function appChains(): readonly [Chain, ...Chain[]] {
         : env.chainId === hedera.id
           ? [hedera]
           : [];
-  return [baseSepolia, hederaTestnet, ...extra];
+  // Sepolia: a sponsor signs its ENS campaign name's branding there (components/EnsCampaign.tsx)
+  return [baseSepolia, hederaTestnet, sepolia, ...extra];
 }
 
 /** The id the demo connector for `role` registers under ("demo-human"). */

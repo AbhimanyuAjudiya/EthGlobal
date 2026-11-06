@@ -16,6 +16,7 @@ import { ReceiptList } from './ReceiptList';
 import { ScratchRedeem } from './ScratchRedeem';
 import { AppHeader, Screen, TabBar } from './Shell';
 import { SponsorTable } from './SponsorTable';
+import { VerifySheet } from './VerifySheet';
 import { useLang } from '../i18n/lang';
 import { planHref } from '../lib/deliver';
 import { useHydrated } from '../lib/hooks';
@@ -112,6 +113,12 @@ export function ClaimRoute() {
       />
     </Screen>
   );
+}
+
+/** `/verify?campaign=<id>`: the claim for that campaign (claim by ENS name, /c/<slug>); no param = the default one. */
+export function VerifyRoute() {
+  const id = useSearchParams().get('campaign') ?? '';
+  return <VerifySheet {...(/^0x[0-9a-fA-F]{64}$/.test(id) ? { campaignId: id } : {})} />;
 }
 
 export function ReceiptsRoute() {

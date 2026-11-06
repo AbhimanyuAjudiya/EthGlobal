@@ -34,11 +34,11 @@ describe('wallet list (lib/wagmi.ts)', () => {
     });
   });
 
-  it('chains: Base Sepolia and Hedera testnet; Anvil only in MODE=local', () => {
+  it('chains: Base Sepolia, Hedera testnet and Sepolia (ENS branding); Anvil only in MODE=local', () => {
     vi.stubEnv('NEXT_PUBLIC_MODE', 'live');
-    expect(appChains().map((c) => c.id)).toEqual([84532, 296]);
+    expect(appChains().map((c) => c.id)).toEqual([84532, 296, 11155111]);
     vi.stubEnv('NEXT_PUBLIC_MODE', 'local');
-    expect(appChains().map((c) => c.id)).toEqual([84532, 296, 31337]);
+    expect(appChains().map((c) => c.id)).toEqual([84532, 296, 11155111, 31337]);
   });
 });
 
@@ -59,7 +59,7 @@ describe('CSP and WalletConnect (lib/csp.ts)', () => {
       'wss://relay.walletconnect.com wss://relay.walletconnect.org https://api.web3modal.org',
     );
     expect(directive(csp, 'img-src')).toBe(
-      "img-src 'self' data: blob: https://explorer-api.walletconnect.com",
+      "img-src 'self' data: blob: https://metadata.ens.domains https://explorer-api.walletconnect.com",
     );
     expect(directive(csp, 'script-src')).not.toContain('unsafe-inline');
     expect(directive(csp, 'frame-src')).toBe('');

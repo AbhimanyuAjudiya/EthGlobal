@@ -110,11 +110,12 @@ function receiptLines(receipt: ReceiptPublic | undefined, facts: IssuedFacts | u
 
 /**
  * /me, falling back to the last IndexedDB snapshot ("Offline · as of 14:02"); 404 / 410 are their own states, and
- * a network failure with no snapshot is the honest offline card (RT-W-06), never a blank screen.
+ * a network failure with no snapshot is the honest offline card (RT-W-06), never a blank screen. `refresh` skips the
+ * API's 60-s /me cache (a pending profile's re-read).
  */
-async function readPlan(key: string): Promise<Load> {
+async function readPlan(key: string, refresh = false): Promise<Load> {
   try {
-    const me = await api.me(key);
+    const me = await api.me(key, refresh);
     void store.saveSnapshot(key, me);
     return { kind: 'ok', me };
   } catch (e) {
@@ -131,6 +132,8 @@ async function readPlan(key: string): Promise<Load> {
 }
 
 const INSTALLED = new Set<MeResponse['status']>(['installed', 'active']);
+/** "This page updates by itself": a pending profile's /me is read again this often while the tab is visible. */
+export const PENDING_POLL_MS = 15_000;
 
 /**
  * `/plan/[key]` — the MB number at 2× everything else, "usage as of", expiry from the entity's expiresAt.
@@ -170,6 +173,29 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
 
   const me = load.kind === 'ok' ? load.me : undefined;
   const live = load.kind === 'ok' && !load.offlineAt;
+
+  // a pending profile re-reads /me every 15 s until it is ready or gone (a 404 / 410 / offline load ends it too),
+  // skipping while the tab is hidden and reading at once when it is shown again
+  const pending = live && me?.status === 'pending-profile';
+  useEffect(() => {
+    if (!pending) return;
+    let alive = true;
+    const reread = () => {
+      if (document.visibilityState !== 'visible') return;
+      void readPlan(entitlementKey, true).then((next) => {
+        // a failed read (offline, the snapshot) keeps the pending card and the polling; ready / gone replaces it
+        if (alive && !(next.kind === 'offline' || (next.kind === 'ok' && next.offlineAt)))
+          setLoad(next);
+      });
+    };
+    const timer = setInterval(reread, PENDING_POLL_MS);
+    document.addEventListener('visibilitychange', reread);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', reread);
+    };
+  }, [pending, entitlementKey]);
   useEffect(() => {
     if (!live || !owned || !me) return;
     // the API answered for a plan this device holds: it becomes the one /install acts on

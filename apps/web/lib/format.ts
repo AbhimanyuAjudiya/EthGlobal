@@ -80,3 +80,12 @@ export function mmss(ms: number): string {
 
 /** ICCIDs in groups of five. */
 export const iccidGroups = (iccid: string): string => iccid.replace(/(\d{5})(?=\d)/g, '$1 ');
+
+/** "India" for IN in the reader's language; the code itself when the runtime has no name for it. */
+export function regionName(code: string, lang = 'en'): string {
+  try {
+    return new Intl.DisplayNames([lang], { type: 'region' }).of(code) ?? code;
+  } catch {
+    return code;
+  }
+}

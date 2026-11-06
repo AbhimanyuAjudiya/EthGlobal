@@ -13,26 +13,35 @@ import { useLang } from '../i18n/lang';
 import { activationBlocked, type ActivationPolicy } from '../lib/activation-policy';
 import { api, ApiError } from '../lib/api';
 import { planHref } from '../lib/deliver';
-import { parseDevice, type DeviceInfo } from '../lib/device';
+import { isHandheld, parseDevice, type DeviceInfo } from '../lib/device';
 import { config } from '../lib/env';
-import { formatMb } from '../lib/format';
+import { formatMb, regionName } from '../lib/format';
 import { useClock, useHydrated } from '../lib/hooks';
 import { ANDROID_EUICC_INTENT, iosUniversalLink, isLpa, splitLpa } from '../lib/lpa-links';
-import { get, plans } from '../lib/store';
+import { get, plans, type PlanMetadata } from '../lib/store';
 
 /** How long a revealed QR code or set of activation details stays on screen (T-61). */
 const REVEAL_MS = 60_000;
 const TROUBLE_AFTER_MS = 3 * 60_000;
 
 /** The OS's own words as a status pill: "No Service" → "Searching…" → "LTE · …" (role=status). */
-function StatusPill({ status }: { status: MeResponse['status'] | undefined }) {
+function StatusPill({
+  status,
+  handheld,
+}: {
+  status: MeResponse['status'] | undefined;
+  /** A computer has no cellular status: "No Service" there reads as a fault, not as "not installed yet". */
+  handheld: boolean;
+}) {
   const { t } = useLang();
   const text =
     status === 'active'
       ? t('status.lte', { carrier: 'Recharge' })
       : status === 'installed'
         ? t('status.searching')
-        : t('status.noService');
+        : handheld
+          ? t('status.noService')
+          : t('status.notInstalled');
   return (
     <p
       className="status-pill"
@@ -275,6 +284,8 @@ export function InstallSteps() {
   const [late, setLate] = useState(false);
 
   const [removed, setRemoved] = useState(false);
+  // which plan this screen installs (the device's current one) and whether there are others to switch to
+  const [trip, setTrip] = useState<{ metadata?: PlanMetadata; several: boolean }>();
 
   useEffect(() => {
     let alive = true;
@@ -329,12 +340,15 @@ export function InstallSteps() {
         if (alive) setLpa(null);
         return;
       }
-      const [stored, snapshot, savedPolicy] = await Promise.all([
+      const [stored, snapshot, savedPolicy, metadata, keys] = await Promise.all([
         plans.lpa(key),
         plans.snapshot(key),
         get<ActivationPolicy>(`activation-policy:${key}`),
+        plans.metadata(key),
+        plans.keys(),
       ]);
       if (!alive) return;
+      setTrip({ ...(metadata ? { metadata } : {}), several: keys.length > 1 });
       knownPolicy = savedPolicy;
       setMe(snapshot?.me);
       setPolicy(snapshot ? retainPolicy(snapshot.me) : savedPolicy);
@@ -379,17 +393,36 @@ export function InstallSteps() {
   const blocked = unavailable || (policy !== undefined && activationBlocked(policy, now));
   const reclaim = policy?.campaignReclaim;
   const mb = me?.mbTotal ?? PLAN_MB;
+  // the plan this installs: destination and event from the claim's own record, else the API's facts
+  const destination = trip?.metadata?.destinationCountry ?? me?.event?.destinationCountry;
+  const eventName = trip?.metadata?.eventName ?? me?.event?.name ?? me?.sponsorName;
+  const eyebrow =
+    destination || eventName
+      ? [destination ? regionName(destination, lang) : undefined, eventName, formatMb(mb)]
+          .filter(Boolean)
+          .join(' · ')
+      : t('flow.coverage');
+  const handheld = hydrated && isHandheld(window);
+  // a computer cannot hold the eSIM: it gets the two ways that reach the phone, not an empty "on this phone"
+  const phone = device?.os === 'ios' || device?.os === 'android';
   return (
     <Screen wide className="install-screen">
       <AppHeader />
       <header className="flow-heading">
-        <p className="eyebrow" lang={lang}>
-          {t('flow.coverage')}
+        <p className="eyebrow" lang={lang} data-testid="install-plan">
+          {eyebrow}
         </p>
         <h1 className="install__title" lang={lang}>
           {t('install.title')}
         </h1>
-        <StatusPill status={me?.status} />
+        <StatusPill status={me?.status} handheld={handheld} />
+        {trip?.several ? (
+          <p className="quiet-rows">
+            <Link href="/plan" prefetch={false} lang={lang}>
+              {t('install.switchPlan')}
+            </Link>
+          </p>
+        ) : null}
       </header>
       {lpa === undefined || !device ? (
         <div className="skeleton skeleton--line" aria-hidden="true" />
@@ -422,32 +455,39 @@ export function InstallSteps() {
           <Caution k="install.onlyHere" />
           <Caution k="warn.unlocked" />
           <h2 className="install__ways" lang={lang}>
-            {t('install.ways')}
+            {t(phone ? 'install.ways' : 'install.waysComputer')}
           </h2>
+          {phone ? null : (
+            <p className="note" lang={lang}>
+              {t('install.other')}
+            </p>
+          )}
           <ul className="install-ways" lang={lang}>
-            <li>
-              <h3>{t('install.wayHere')}</h3>
-              {device.os === 'ios' && device.universalLink ? (
-                <>
-                  <a
-                    className="ui-button ui-button--block"
-                    data-variant="primary"
-                    href={iosUniversalLink(lpa)}
-                    rel="noreferrer"
-                    target="_top"
-                    data-testid="ios-universal-link"
-                  >
-                    {t('install.button')}
-                  </a>
-                  <p className="note">{t('install.tapAgain')}</p>
-                  <IosSteps mb={mb} />
-                </>
-              ) : device.os === 'android' ? (
-                <AndroidSteps lpa={lpa} />
-              ) : (
-                <p className="note">{t('install.other')}</p>
-              )}
-            </li>
+            {phone ? (
+              <li>
+                <h3>{t('install.wayHere')}</h3>
+                {device.os === 'ios' && device.universalLink ? (
+                  <>
+                    <a
+                      className="ui-button ui-button--block"
+                      data-variant="primary"
+                      href={iosUniversalLink(lpa)}
+                      rel="noreferrer"
+                      target="_top"
+                      data-testid="ios-universal-link"
+                    >
+                      {t('install.button')}
+                    </a>
+                    <p className="note">{t('install.tapAgain')}</p>
+                    <IosSteps mb={mb} />
+                  </>
+                ) : device.os === 'android' ? (
+                  <AndroidSteps lpa={lpa} />
+                ) : (
+                  <p className="note">{t('install.other')}</p>
+                )}
+              </li>
+            ) : null}
             <li>
               <h3>{t('install.wayQr')}</h3>
               <p className="note">{t('install.wayQrBody')}</p>

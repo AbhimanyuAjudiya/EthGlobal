@@ -228,6 +228,7 @@
   "notify.denied": "Notifications are off in this browser's settings.",
   "install.title": "Install your eSIM",
   "status.noService": "No Service",
+  "status.notInstalled": "Not installed yet",
   "status.searching": "Searching…",
   "status.lte": "LTE · {carrier}",
   "install.button": "Install eSIM",
@@ -253,6 +254,8 @@
   "install.noLpa": "No activation code on this device. Install from the device that bought or claimed it: Install eSIM → Show QR code, then scan it with this phone.",
   "install.onlyHere": "Only this browser holds the activation code. Install on this phone, or show it to the phone that will use the eSIM.",
   "install.ways": "Three ways to install",
+  "install.waysComputer": "Two ways to install from this computer",
+  "install.switchPlan": "Not this plan? Open My plans",
   "install.wayHere": "On this phone",
   "install.wayQr": "Scan a QR code from another screen",
   "install.wayQrBody": "Show the code here, then scan it from the eSIM screen in the phone's Settings.",
@@ -632,5 +635,8 @@
   "plans.offline": "Offline · last saved details",
   "plans.open": "Open",
   "plans.select": "Make current",
-  "plans.switchNote": "The current plan is the one Install, Add data and the tabs act on. Switch before a new trip."
+  "plans.switchNote": "The current plan is the one Install, Add data and the tabs act on. Switch before a new trip.",
+  "nav.home": "Home",
+  "nav.more": "More",
+  "nav.back": "Back"
 }

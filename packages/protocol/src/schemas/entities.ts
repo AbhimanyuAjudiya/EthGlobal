@@ -5,6 +5,7 @@
  */
 import { z } from 'zod';
 
+import { MAX_BUNDLE_MB, PLAN_MB, STEP_MB } from '../ids.js';
 import {
   caipNetworkSchema,
   digitsSchema,
@@ -65,9 +66,10 @@ export const campaignSchema = z.object({
   id: hex32Schema,
   sponsor: evmAddressSchema,
   name: safeTextSchema(64),
+  /** Up to one eSIM (1 GB); campaigns registered at the old 300 MB cap stay valid. */
   bundleMb: z.object({
-    orb: mbSchema.max(300),
-    document: mbSchema.max(300),
+    orb: mbSchema.max(MAX_BUNDLE_MB),
+    document: mbSchema.max(MAX_BUNDLE_MB),
     device: z.literal(0),
   }),
   pricePerClaimUsd6: digitsSchema,
@@ -188,7 +190,11 @@ export type Receipt = z.infer<typeof receiptSchema>;
 export const topUpPolicySchema = z.object({
   maxUsd6PerDay: digitsSchema,
   thresholdMb: mbSchema,
-  stepMb: z.int().multipleOf(100).min(100).max(300),
+  /**
+   * The API sells PLAN_MB steps only; 100–900 still parse so stored legacy policies load (the agent skips their
+   * buys, `step-not-sold`).
+   */
+  stepMb: z.int().multipleOf(STEP_MB).min(STEP_MB).max(PLAN_MB),
   paused: z.boolean(),
   topUpOnExpiry: z.boolean(),
   /** Buy when expiresAt − now ≤ lead; an expired entity cannot be extended. */

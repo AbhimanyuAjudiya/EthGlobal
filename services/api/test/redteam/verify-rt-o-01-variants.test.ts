@@ -93,7 +93,7 @@ describe('verify RT-O-01 (closing variants): a ledger-read index opens nothing, 
           expect(((await receipts.clone().json()) as { receipts: unknown[] }).receipts).toEqual([]);
         leaks.push(receipts);
         // /esim/topup?key=: no 402 offer is ever minted for the index (it is not a live entitlement)
-        const topup = await h.get(`/esim/topup?key=${form}&mb=100`);
+        const topup = await h.get(`/esim/topup?key=${form}&mb=1000`);
         expect([400, 404], `topup ${form}`).toContain(topup.status);
         expect(topup.headers.get('PAYMENT-REQUIRED')).toBeNull();
         leaks.push(topup);

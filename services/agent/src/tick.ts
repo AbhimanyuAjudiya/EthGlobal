@@ -1,8 +1,8 @@
 /**
  * One decision for one entitlement (agent.md §3, normative). Every number the decision uses comes from the ledger
  * read (or, locally, the API's view of it), the agent's own state and /plans; nothing from an LLM, nothing from a
- * payload string (T-55). Order: ledger read → policy → spent today → stepPrice → shouldTopUp → (dry run) → trigger
- * claim → buy → HCS receipt → notification.
+ * payload string (T-55). Order: ledger read → policy → spent today → stepPrice → shouldTopUp → step sold (/plans
+ * paid.sizesMb) → (dry run) → trigger claim → buy → HCS receipt → notification.
  */
 import { sha256Hex } from '@ethglobal/crypto';
 import {
@@ -173,6 +173,11 @@ async function run(deps: AgentDeps, key: string): Promise<TickResult> {
     }
     return { key, verdict };
   }
+
+  // A stored legacy policy (stepMb < 1 GB, before the PLAN_MB product unit) asks for a size the API no longer sells:
+  // its top-up would be a 400 before any 402. Skip with the reason on the journal; no trigger claimed, nothing signed.
+  const sizes = plans.paid.sizesMb;
+  if (sizes !== undefined && !sizes.includes(verdict.mb)) return skip('step-not-sold', verdict);
 
   if (deps.dryRun) {
     await deps.journal.write({

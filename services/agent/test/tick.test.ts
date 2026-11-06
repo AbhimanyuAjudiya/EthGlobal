@@ -46,6 +46,40 @@ describe('tick', () => {
     expect(h.evm.account.signatures).toBe(1);
   });
 
+  it('buys one 1 GB step for 4000000 usd6 under the default per-step cap when /plans sells 1 GB', async () => {
+    const h = await harness({ api: { sizesMb: [1000] } });
+    await seed(h.ledger, h.clock.now, {
+      mbTotal: 1000,
+      mbUsed: 800,
+      policy: { stepMb: 1000, maxUsd6PerDay: '8000000' },
+    });
+    const r = await tick(h.agent.deps, KEY);
+    expect(h.config.maxUsd6PerStep).toBe(4_000_000n); // the default, not an override
+    expect(r.verdict).toMatchObject({ buy: true, mb: 1000, costUsd6: 4_000_000n });
+    expect(r.bought).toMatchObject({ mb: 1000, usd6: 4_000_000n });
+    expect(h.api.topups[0]?.url).toMatch(/[?&]mb=1000(&|$)/);
+    const p = h.api.paid[0]?.payload;
+    expect(p && 'authorization' in p ? p.authorization.value : undefined).toBe('4000000');
+    expect(h.signatures()).toBe(1);
+  });
+
+  it('a legacy 300 MB policy step that /plans no longer sells → skip step-not-sold on the journal, no request, no signature, every tick', async () => {
+    const h = await harness({ api: { sizesMb: [1000] } });
+    await seed(h.ledger, h.clock.now, { mbTotal: 1000, mbUsed: 900, policy: { stepMb: 300 } });
+    for (let i = 0; i < 2; i += 1) {
+      const r = await tick(h.agent.deps, KEY);
+      expect(r).toMatchObject({ skipped: 'step-not-sold', verdict: { buy: true, mb: 300 } });
+      h.clock.advance(5_000);
+    }
+    expect(h.api.topups).toHaveLength(0);
+    expect(h.signatures()).toBe(0);
+    const journal = await new Journal(h.stateDir).read();
+    expect(journal.filter((l) => l.event === 'skip')).toEqual([
+      expect.objectContaining({ skipped: 'step-not-sold', verdict: 'threshold' }),
+      expect.objectContaining({ skipped: 'step-not-sold', verdict: 'threshold' }),
+    ]);
+  });
+
   it('does not buy at 21 %', async () => {
     const h = await harness();
     await seed(h.ledger, h.clock.now, { mbTotal: 1000, mbUsed: 790 });

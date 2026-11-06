@@ -162,7 +162,7 @@ describe.skipIf(!anvilReady)('DataDrop on Anvil', () => {
     });
     expect(claim.status).toBe(201);
     const { entitlementKey } = (await claim.json()) as { entitlementKey: string };
-    const url = `/esim/topup?key=${encodeURIComponent(entitlementKey)}&mb=100`;
+    const url = `/esim/topup?key=${encodeURIComponent(entitlementKey)}&mb=1000`;
     const quote = await app.request(url);
     const required = JSON.parse(
       Buffer.from(quote.headers.get('PAYMENT-REQUIRED') ?? '', 'base64').toString(),

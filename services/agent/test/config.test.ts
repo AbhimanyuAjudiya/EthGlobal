@@ -60,7 +60,7 @@ describe('config', () => {
       tickMs: 5_000,
       dryRun: false,
       once: false,
-      maxUsd6PerStep: 1_000_000n,
+      maxUsd6PerStep: 4_000_000n, // one 1 GB step at $0.40 per 100 MB
       hcsTopic: '0.0.1001',
       stateDir: '.agent',
       llm: { provider: 'none' },

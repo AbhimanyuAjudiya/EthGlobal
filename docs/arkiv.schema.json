@@ -227,12 +227,12 @@
             "orb": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 300
+              "maximum": 1000
             },
             "document": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 300
+              "maximum": 1000
             },
             "device": {
               "type": "number",
@@ -650,7 +650,7 @@
             "stepMb": {
               "type": "integer",
               "minimum": 100,
-              "maximum": 300,
+              "maximum": 1000,
               "multipleOf": 100
             },
             "paused": {
@@ -722,7 +722,8 @@
           "enum": [
             "free-live",
             "free-campaign",
-            "settlement"
+            "settlement",
+            "once"
           ]
         },
         "expiresAt": {

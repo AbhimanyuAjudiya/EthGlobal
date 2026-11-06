@@ -20,9 +20,9 @@ import { LocalClock } from '../src/seed.js';
 import { LocalIdp, type SimScript } from '../src/world-agent-pass.js';
 
 const POLICY = {
-  maxUsd6PerDay: '2000000',
+  maxUsd6PerDay: '8000000',
   thresholdMb: 50,
-  stepMb: 100,
+  stepMb: 1000,
   paused: false,
   topUpOnExpiry: true,
   expiryLeadS: 3600,
@@ -60,7 +60,7 @@ async function policyFor(h: Harness) {
   const path = encodeURIComponent(key);
   return {
     key,
-    topup: `/esim/topup?key=${path}&mb=100`,
+    topup: `/esim/topup?key=${path}&mb=1000`,
     start: () => h.json(`/agent/policy/${path}/pass/start`, {}),
     poll: () => h.json(`/agent/policy/${path}/pass/poll`, {}),
     view: async () => (await (await h.get(`/agent/policy/${path}`)).json()) as View,

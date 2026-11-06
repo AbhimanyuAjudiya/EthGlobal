@@ -238,7 +238,7 @@ pass_round() { # $1 outcome the simulator follows for the next attempt → print
   curl -fsS -X POST "$PASS_URL/start" | grep -q '"user_code"' || { echo "FAIL I-21 agent pass: start ($1)"; exit 1; }
   curl -fsS -X POST "$PASS_URL/poll"
 }
-agent_topup_status() { curl -sS -o /dev/null -w '%{http_code}' -H 'X-Agent-Uaid: uaid:aid:e2e' "$API_URL/esim/topup?key=$PAID_KEY_ENC&mb=100"; }
+agent_topup_status() { curl -sS -o /dev/null -w '%{http_code}' -H 'X-Agent-Uaid: uaid:aid:e2e' "$API_URL/esim/topup?key=$PAID_KEY_ENC&mb=1000"; }
 pass_round deny | grep -q '"state":"denied"' || { echo "FAIL I-21 agent pass: deny did not end as denied"; exit 1; }
 STATUS="$(agent_topup_status)"
 [[ "$STATUS" == 403 ]] || { echo "FAIL I-21 agent pass: agent top-up after deny answered $STATUS, want 403 pass_required"; exit 1; }

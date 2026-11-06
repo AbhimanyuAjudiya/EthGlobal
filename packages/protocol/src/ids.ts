@@ -54,7 +54,14 @@ export const CHALLENGE_PATHS = ['/claim', '/gift/claim', '/gift/reclaim', '/card
 export type ChallengePath = (typeof CHALLENGE_PATHS)[number];
 
 export const STEP_MB = 100;
-export const MAX_BUNDLE_MB = 300;
+/**
+ * The product unit (founder decision, 6 Nov 2026): the smallest India eSIM the reseller sells is 1 GB / 7 days and its
+ * top-ups start at 1 GB, so a new plan, a top-up and a paid gift are each exactly PLAN_MB — still priced per STEP_MB
+ * (1 GB = 10 steps = $4.00 at $0.40). GET /plans publishes it (`paid.sizesMb`, `gift.sizesMb`).
+ */
+export const PLAN_MB = 1000;
+/** A sponsor's free bundle is at most one eSIM (bundleMb.orb / .document ≤ this). */
+export const MAX_BUNDLE_MB = PLAN_MB;
 export const MAX_MB_PER_PURCHASE = 3000;
 export const DEFAULT_VALIDITY_DAYS = 7;
 export const CHALLENGE_TTL_S = 120;

@@ -9,7 +9,7 @@ const seeded = async (live: boolean) => {
   return h;
 };
 const cardHook = (h: Harness) =>
-  h.json('/gift', { name: 'bob.eth', mb: 300 }, { 'x-seed-card-campaign': h.campaignId });
+  h.json('/gift', { name: 'bob.eth', mb: 1000 }, { 'x-seed-card-campaign': h.campaignId });
 
 describe('T-85 seed hooks are local-only', () => {
   it('live: X-Seed-Card-Campaign without payment ⇒ 402, no card, no DataDrop.claim', async () => {
@@ -26,7 +26,7 @@ describe('T-85 seed hooks are local-only', () => {
     expect(((await claim.res.json()) as { expiresAt: number }).expiresAt).toBe(
       h.clock.now() + 7 * DAY,
     );
-    const gift = await buyGift(h, 'bob.eth', 100, { 'x-seed-claim-window-s': '5' });
+    const gift = await buyGift(h, 'bob.eth', 1000, { 'x-seed-claim-window-s': '5' });
     expect(gift.claimBy).toBe(h.clock.now() + 7 * DAY);
     expect(h.lines.join('')).not.toMatch(/seed-hook/);
   });
@@ -38,7 +38,7 @@ describe('T-85 seed hooks are local-only', () => {
     expect(((await claim.res.json()) as { expiresAt: number }).expiresAt).toBe(
       h.clock.now() + 90_000,
     );
-    expect((await buyGift(h, 'bob.eth', 100, { 'x-seed-claim-window-s': '5' })).claimBy).toBe(
+    expect((await buyGift(h, 'bob.eth', 1000, { 'x-seed-claim-window-s': '5' })).claimBy).toBe(
       h.clock.now() + 5000,
     );
     expect(h.lines.join('').match(/"event":"seed-hook"/g)?.length).toBe(3);

@@ -37,7 +37,7 @@ import {
   SPONSOR_CARDS_TTL_MS,
   SPONSOR_CARDS_TYPES,
 } from '@ethglobal/protocol/typed-data';
-import { usd6ToWire } from '@ethglobal/protocol/units';
+import { formatUsd6, usd6ToWire } from '@ethglobal/protocol/units';
 
 import { WindowLimiter } from '../admission.js';
 import { inputOf, type AppEnv } from '../context.js';
@@ -105,6 +105,16 @@ export function registerSponsor(app: Hono<AppEnv>, deps: Deps): void {
     return deps.mutex.run(`sponsor:${id}`, async () => {
       if (await deps.stores.campaigns.get(id))
         throw fail('campaign_exists', { detail: 'already registered' });
+      // every claim provisions a whole eSIM: a NEW campaign paying less per claim (the on-chain price, authoritative)
+      // is refused; registered campaigns are never re-checked
+      if (chain.pricePerClaim < deps.env.COST_USD6_PER_CLAIM) {
+        throw fail('invalid_request', [
+          {
+            path: 'campaign.pricePerClaimUsd6',
+            message: `per-claim price is below the eSIM cost (${formatUsd6(deps.env.COST_USD6_PER_CLAIM)})`,
+          },
+        ]);
+      }
       await deps.stores.campaigns.put(
         campaignFromPayload({ ...campaign, id, v: 1, createdAt: deps.now() }),
       );

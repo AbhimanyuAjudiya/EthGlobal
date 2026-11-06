@@ -13,9 +13,9 @@ import {
 } from './support/harness.js';
 
 const POLICY = {
-  maxUsd6PerDay: '2000000',
+  maxUsd6PerDay: '8000000',
   thresholdMb: 50,
-  stepMb: 100,
+  stepMb: 1000,
   paused: false,
   topUpOnExpiry: true,
   expiryLeadS: 3600,
@@ -43,7 +43,7 @@ describe('PUT /agent/policy', () => {
     const view = (await (await h.get(`/agent/policy/${encodeURIComponent(key)}`)).json()) as {
       spentTodayUsd6: string;
     };
-    expect(view.spentTodayUsd6).toBe('400000');
+    expect(view.spentTodayUsd6).toBe('4000000');
   });
 
   it('wrong owner → 401; an older policy replayed → 409; a future issuedAt → 400; a tampered policy → 401', async () => {

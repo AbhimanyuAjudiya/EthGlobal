@@ -25,12 +25,12 @@ describe('attack: /me (AP9)', () => {
     const fresh = vi.spyOn(h.deps.cache, 'fresh');
     h.deps.health.failed();
     expect((await h.claim({ seed: 'degraded' })).res.status).toBe(503);
-    expect(await errorOf(await h.json('/gift', { name: 'bob.eth', mb: 100 }))).toBe(
+    expect(await errorOf(await h.json('/gift', { name: 'bob.eth', mb: 1000 }))).toBe(
       'ledger_unavailable',
     );
     expect((await redeemPin(h, card.pin)).status).toBe(503);
     expect((await webhook(h, iccidOf(h, key), 9).send()).status).toBe(503);
-    expect((await h.get(`/esim/topup?key=${path}&mb=100`)).status).toBe(503);
+    expect((await h.get(`/esim/topup?key=${path}&mb=1000`)).status).toBe(503);
     expect(fresh).not.toHaveBeenCalled();
     expect(((await (await h.get(`/me/${path}`)).json()) as { degraded: boolean }).degraded).toBe(
       true,
@@ -58,6 +58,8 @@ describe('attack: /me (AP9)', () => {
     });
     expect(((await (await h.get(`/me/${path}`)).json()) as { mbTotal: number }).mbTotal).toBe(300);
     expect((await h.get(`/me/${encodeURIComponent(paidKey)}`)).status).toBe(404);
-    expect((await h.get(`/esim/topup?key=${encodeURIComponent(paidKey)}&mb=100`)).status).toBe(404);
+    expect((await h.get(`/esim/topup?key=${encodeURIComponent(paidKey)}&mb=1000`)).status).toBe(
+      404,
+    );
   });
 });

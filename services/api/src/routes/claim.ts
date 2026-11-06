@@ -22,7 +22,7 @@ import { decideAndFulfil, settledDecision } from '../flows/entitle.js';
 import { fulfilTopUp } from '../flows/fulfil.js';
 import { record } from '../flows/record.js';
 import { octroi } from '../middleware/octroi.js';
-import { validateJson, validateQuery } from '../middleware/validate.js';
+import { assertPlanMb, validateJson, validateQuery } from '../middleware/validate.js';
 import { paymentNonce, withPaymentResponse, x402 } from '../middleware/x402.js';
 import { seedValidityS } from '../seed.js';
 
@@ -63,8 +63,9 @@ export function registerClaim(app: Hono<AppEnv>, deps: Deps): void {
     validateQuery(provisionQuerySchema),
     x402,
     createMiddleware<AppEnv>(async (c, next) => {
+      const { mb, planId } = inputOf<ProvisionQuery>(c);
+      assertPlanMb(mb);
       if (!c.get('sessionPubKey')) throw fail('invalid_request', { header: SESSION_PUBKEY_HEADER });
-      const { planId } = inputOf<ProvisionQuery>(c);
       if (
         planId !== undefined &&
         !(await deps.adapters.reseller.plans('IN')).some((p) => p.id === planId)
@@ -112,15 +113,17 @@ export function registerClaim(app: Hono<AppEnv>, deps: Deps): void {
 }
 
 /**
- * Before any 402 or settlement: the entitlement must be live (an expired one is 410 and is never charged, AP7.13) and
- * under its per-ICCID daily top-up cap (429 daily_cap before settle, AP7.14). Cheap ledger reads only. The cap is a
- * synchronous reservation over today's receipt count (RT-A-02): N concurrent payments take at most the slots left,
- * a slot is released when the request ends and counted as a commit when the top-up was served (its receipt now
- * exists), so the receipts stay the cross-process floor and in-flight requests are the in-process ceiling.
+ * Before any 402 or settlement: the size must be PLAN_MB (400 before any ledger read), the entitlement must be live
+ * (an expired one is 410 and is never charged, AP7.13) and under its per-ICCID daily top-up cap (429 daily_cap before
+ * settle, AP7.14). Cheap ledger reads only. The cap is a synchronous reservation over today's receipt count
+ * (RT-A-02): N concurrent payments take at most the slots left, a slot is released when the request ends and counted
+ * as a commit when the top-up was served (its receipt now exists), so the receipts stay the cross-process floor and
+ * in-flight requests are the in-process ceiling.
  */
 const topUpGuard = createMiddleware<AppEnv>(async (c, next) => {
   const deps = c.get('deps');
-  const { key } = inputOf<TopUpQuery>(c);
+  const { key, mb } = inputOf<TopUpQuery>(c);
+  assertPlanMb(mb);
   const found = await deps.stores.entitlements.getByKey(key);
   if (!found) throw fail(deps.cache.expired(key) ? 'expired' : 'not_found');
   const today = dayBucket(deps.now());

@@ -40,6 +40,8 @@ export interface FakeApiOptions {
   priceUsd6PerStep?: bigint;
   /** What /plans advertises (default: the real price); a lying /plans is an attack (AG2). */
   plansPriceUsd6PerStep?: bigint;
+  /** /plans `paid.sizesMb` (the API's [1000]); omitted ⇒ an older API that publishes none. */
+  sizesMb?: number[];
   rail?: PaymentRail;
   settleHedera?: (payload: PaymentPayload, req: PaymentRequirements) => Promise<SettleResult>;
   /** Hostile 402: rewrite the PaymentRequired (object), or return a raw header string. */
@@ -95,6 +97,7 @@ export function createFakeApi(opts: FakeApiOptions): FakeApi {
         priceUsd6PerStep: usd6ToWire(opts.plansPriceUsd6PerStep ?? price),
         validityDays: 7,
         accepts: opts.accepts,
+        ...(opts.sizesMb === undefined ? {} : { sizesMb: opts.sizesMb }),
       },
       gift: { sizesMb: [100, 300, 1000], claimWindowS: 604_800 },
       simulated: { usage: true, personhood: true },

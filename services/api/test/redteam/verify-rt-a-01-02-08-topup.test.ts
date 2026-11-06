@@ -1,7 +1,7 @@
 /**
  * Red-team verification variants for the top-up findings, through the real HTTP surface:
  *   RT-A-01 — four distinct payers AND a usage webhook racing on one entitlement: every settled top-up lands
- *             (mbTotal == 300 + 100 × served) and the webhook's usage is not rolled back.
+ *             (mbTotal == 300 + 1000 × served) and the webhook's usage is not rolled back.
  *   RT-A-02 — TOPUPS_PER_ICCID_PER_DAY=2 with six concurrent requests, half of them carrying a payment that fails
  *             before settle (wrong amount): a refused request frees its slot, and still ≤ 2 settle.
  *   RT-A-08 — a captured top-up PAYMENT-SIGNATURE for entitlement K replayed, unmodified, on the SAME route for the
@@ -15,7 +15,7 @@ import { decodePaymentRequired } from '@ethglobal/protocol/x402';
 
 import { harness, HUMAN_KEY, iccidOf, provisioned, webhook } from '../support/harness.js';
 
-const topUpPath = (key: string, mb = 100) => `/esim/topup?key=${encodeURIComponent(key)}&mb=${mb}`;
+const topUpPath = (key: string, mb = 1000) => `/esim/topup?key=${encodeURIComponent(key)}&mb=${mb}`;
 const meOf = async (h: Awaited<ReturnType<typeof harness>>, key: string) =>
   (await (await h.get(`/me/${encodeURIComponent(key)}?refresh=1`)).json()) as {
     mbTotal: number;
@@ -40,7 +40,7 @@ describe('verify RT-A-01: concurrent top-ups from four payers + a usage webhook'
     const served = results.filter((r) => r.status === 200).length;
     expect(served).toBe(4);
     const after = await meOf(h, key);
-    expect(after.mbTotal).toBe(before.mbTotal + 100 * served);
+    expect(after.mbTotal).toBe(before.mbTotal + 1000 * served);
     expect(after.mbUsed).toBeGreaterThanOrEqual(120);
   });
 });
@@ -82,7 +82,7 @@ describe('verify RT-A-08: a payment is bound to what it bought', () => {
     expect(thiefAfter.mbTotal).toBe(300);
     // the victim's own request with the same header still buys the victim's MB
     expect((await h.get(topUpPath(victim.key), captured)).status).toBe(200);
-    expect((await meOf(h, victim.key)).mbTotal).toBe(400);
+    expect((await meOf(h, victim.key)).mbTotal).toBe(1300);
   });
 
   it('the 402 binds the target as extra.resource = /esim/topup?key=<ledger index>, never the capability [RT-A-08]', async () => {
@@ -104,6 +104,6 @@ describe('verify RT-A-08: a payment is bound to what it bought', () => {
     const h = await harness();
     const victim = await provisioned(h, 'verify-a08-ctl');
     const captured = await h.payFor(await h.get(topUpPath(victim.key)));
-    expect((await h.get('/esim/provision?mb=100', captured)).status).not.toBe(200);
+    expect((await h.get('/esim/provision?mb=1000', captured)).status).not.toBe(200);
   });
 });

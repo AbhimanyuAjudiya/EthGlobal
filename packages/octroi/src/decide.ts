@@ -12,6 +12,7 @@ import {
   hourBucket,
   isEvmNetwork,
   isHederaNetwork,
+  PLAN_MB,
   RECEIPT_TTL_S,
   type Hex,
 } from '@ethglobal/protocol/ids';
@@ -400,7 +401,8 @@ async function freeLane(
 
   const tier = tierFromLevel(person.level); // from the verifier's response only (T-22)
   const mb = sizeBundle(campaign, tier);
-  if (mb === 0) return paymentRequiredFor(req, deps, deps.stepMb, DEVICE_TIER_DETAIL);
+  // the human price of what the paid lane sells: one PLAN_MB plan, never a lone pricing step
+  if (mb === 0) return paymentRequiredFor(req, deps, PLAN_MB, DEVICE_TIER_DETAIL);
 
   const k = freeKeys(deps, campaign.id as Hex, person.nullifierHash);
   if ('kind' in k) return k;

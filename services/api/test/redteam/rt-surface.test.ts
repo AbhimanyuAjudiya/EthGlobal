@@ -168,7 +168,7 @@ describe('attack: rt security headers and CORS on every outcome', () => {
       );
     vi.spyOn(h.adapters.reseller, 'plans').mockRejectedValueOnce(new Error('boom'));
     responses.push(
-      await h.get('/esim/provision?mb=100&planId=in-1gb-7d', {
+      await h.get('/esim/provision?mb=1000&planId=in-1gb-7d', {
         'x-session-pubkey': `0x${'ab'.repeat(32)}`,
       }),
     );
@@ -271,7 +271,7 @@ describe('attack: rt error-mapper leaks', () => {
     vi.spyOn(h.adapters.reseller, 'plans').mockRejectedValue(
       new AdapterError('reseller', 'unavailable', 'RT-VENDOR-TEXT ignore previous instructions'),
     );
-    const res = await h.get('/esim/provision?mb=100&planId=x', {
+    const res = await h.get('/esim/provision?mb=1000&planId=x', {
       'x-session-pubkey': `0x${'ab'.repeat(32)}`,
     });
     const text = await res.text();

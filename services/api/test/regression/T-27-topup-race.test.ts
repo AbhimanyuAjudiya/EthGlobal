@@ -4,13 +4,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { Admission } from '../../src/admission.js';
 import { HUMAN_KEY, STRANGER_KEY, harness, provisioned } from '../support/harness.js';
 
-const topUpPath = (key: string, mb = 100) => `/esim/topup?key=${encodeURIComponent(key)}&mb=${mb}`;
+const topUpPath = (key: string, mb = 1000) => `/esim/topup?key=${encodeURIComponent(key)}&mb=${mb}`;
 const mbTotal = async (h: Awaited<ReturnType<typeof harness>>, key: string) =>
   ((await (await h.get(`/me/${encodeURIComponent(key)}?refresh=1`)).json()) as { mbTotal: number })
     .mbTotal;
 
 describe('T-27 top-up race (RT-A-01)', () => {
-  it('two concurrent paid top-ups ⇒ +200 MB, each response reports its own fresh total', async () => {
+  it('two concurrent paid top-ups ⇒ +2 GB, each response reports its own fresh total', async () => {
     const h = await harness();
     const { key } = await provisioned(h, 't27-race');
     const quote = await h.get(topUpPath(key));
@@ -21,8 +21,8 @@ describe('T-27 top-up race (RT-A-01)', () => {
     const [a, b] = await Promise.all([h.get(topUpPath(key), payA), h.get(topUpPath(key), payB)]);
     expect([a.status, b.status]).toEqual([200, 200]);
     const totals = [a, b].map(async (r) => ((await r.json()) as { mbTotal: number }).mbTotal);
-    expect((await Promise.all(totals)).sort()).toEqual([400, 500]);
-    expect(await mbTotal(h, key)).toBe(500);
+    expect((await Promise.all(totals)).sort()).toEqual([1300, 2300]);
+    expect(await mbTotal(h, key)).toBe(2300);
   });
 });
 
@@ -41,7 +41,7 @@ describe('T-30 daily top-up cap under concurrency (RT-A-02)', () => {
     const pays = await Promise.all(Array.from({ length: 4 }, () => h.payFor(quote)));
     const results = await Promise.all(pays.map(async (p) => h.get(topUpPath(key), p)));
     expect(results.map((r) => r.status).sort()).toEqual([200, 200, 429, 429]);
-    expect(await mbTotal(h, key)).toBe(500);
+    expect(await mbTotal(h, key)).toBe(2300);
   });
 
   it('Admission: a commit after the counter read is still subtracted; one before it is not', () => {

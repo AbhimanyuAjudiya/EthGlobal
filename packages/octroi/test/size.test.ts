@@ -7,9 +7,10 @@ const at = (wholesaleUsd6PerGb: bigint, over: Partial<Campaign> = {}) =>
   sizeBundle(campaign({ wholesaleUsd6PerGb, ...over }), 'orb');
 
 describe('sizeBundle', () => {
-  it('caps at 300 MB', () => {
-    expect(at(1_140_000n)).toBe(300); // evMb = 350
+  it('caps at the configured size, and at 1 GB (MAX_BUNDLE_MB)', () => {
+    expect(at(1_140_000n)).toBe(300); // evMb = 350, configured 300
     expect(at(1_000n, { bundleMb: { orb: 300, document: 300, device: 0 } })).toBe(300);
+    expect(at(1_000n, { bundleMb: { orb: 1000, document: 300, device: 0 } })).toBe(1000);
   });
 
   it('shrinks with wholesale ($2.50/GB → 160)', () => {
@@ -32,7 +33,7 @@ describe('sizeBundle', () => {
   it('zero or negative wholesale uses the cap only', () => {
     expect(at(0n)).toBe(300);
     expect(at(-5n)).toBe(300);
-    expect(at(0n, { bundleMb: { orb: 5000, document: 300, device: 0 } })).toBe(300);
+    expect(at(0n, { bundleMb: { orb: 5000, document: 300, device: 0 } })).toBe(1000);
   });
 
   it('a non-positive ID resale price sizes to 0', () => {

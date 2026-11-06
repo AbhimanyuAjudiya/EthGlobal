@@ -109,14 +109,14 @@ describe('flow.e2e (BUILD-PLAN §4, in process)', () => {
 
     // I-7 402: header decodes to the body; v2 amount, Anvil domain; nothing written
     const puts = (await h.deps.adapters.ledger.query()).length;
-    const quote = await h.get(`/esim/topup?key=${key}&mb=100`);
+    const quote = await h.get(`/esim/topup?key=${key}&mb=1000`);
     expect(quote.status).toBe(402);
     const body = paymentRequiredSchema.parse(await quote.clone().json());
     expect(decodePaymentRequired(quote.headers.get('PAYMENT-REQUIRED') ?? '')).toEqual(body);
     expect(body.accepts[0]).toMatchObject({
       scheme: 'exact',
       network: 'eip155:31337',
-      amount: '400000',
+      amount: '4000000',
       extra: { name: 'USD Coin', version: '2' },
     });
     expect(JSON.stringify(body)).not.toMatch(/maxAmountRequired/);
@@ -124,21 +124,21 @@ describe('flow.e2e (BUILD-PLAN §4, in process)', () => {
 
     // I-8 pay: 200 + PAYMENT-RESPONSE; the same signature again ⇒ 402 invalid_payment
     const pay = await h.payFor(quote, { key: HUMAN_KEY });
-    const paid = await h.get(`/esim/topup?key=${key}&mb=100`, pay);
+    const paid = await h.get(`/esim/topup?key=${key}&mb=1000`, pay);
     expect(paid.status).toBe(200);
     const topped = topUpResponseSchema.parse(await paid.json());
     expect(decodePaymentResponse(paid.headers.get('PAYMENT-RESPONSE') ?? '')).toMatchObject({
       success: true,
       payer: addressOf(HUMAN_KEY),
     });
-    const again = await h.get(`/esim/topup?key=${key}&mb=100`, pay);
+    const again = await h.get(`/esim/topup?key=${key}&mb=1000`, pay);
     expect([again.status, ((await again.json()) as { error: string }).error]).toEqual([
       402,
       'invalid_payment',
     ]);
 
-    // I-9 effect: mbTotal +100, expiry max(old, now + 7 d), topup receipt, HCS settle
-    expect(topped.mbTotal).toBe(claimed.mbTotal + 100);
+    // I-9 effect: mbTotal +1 GB, expiry max(old, now + 7 d), topup receipt, HCS settle
+    expect(topped.mbTotal).toBe(claimed.mbTotal + 1000);
     expect(topped.expiresAt).toBe(T0 + 7 * DAY);
     expect(hcsMessages(h).map((m) => m.t)).toEqual(['claim', 'settle']);
 
@@ -146,7 +146,16 @@ describe('flow.e2e (BUILD-PLAN §4, in process)', () => {
     const iccid = h.reseller.orders()[0]?.profile.iccid ?? '';
     const hook = (usedMb: number, at = h.clock.now()) =>
       h.reseller.signedWebhook(
-        [{ provider: 'mock', eventId: `e-${usedMb}-${at}`, iccid, usedMb, totalMb: 400, asOf: at }],
+        [
+          {
+            provider: 'mock',
+            eventId: `e-${usedMb}-${at}`,
+            iccid,
+            usedMb,
+            totalMb: 1300,
+            asOf: at,
+          },
+        ],
         at,
       );
     const send = (d: { body: string; headers: Record<string, string> }) =>
@@ -263,10 +272,10 @@ describe('flow.e2e (BUILD-PLAN §4, in process)', () => {
     expect(live).toHaveLength(0);
 
     // I-17 reclaim: a second, unclaimed gift lapses ⇒ refund usd6 − fee once; again 409; the claimed gift 409
-    const lapsedQuote = await h.json('/gift', { name: 'alice.eth', mb: 100 });
+    const lapsedQuote = await h.json('/gift', { name: 'alice.eth', mb: 1000 });
     const lapsed = giftResponseSchema.parse(
       await (
-        await h.json('/gift', { name: 'alice.eth', mb: 100 }, await h.payFor(lapsedQuote))
+        await h.json('/gift', { name: 'alice.eth', mb: 1000 }, await h.payFor(lapsedQuote))
       ).json(),
     );
     h.clock.advance(7 * DAY + 1000);
@@ -284,9 +293,9 @@ describe('flow.e2e (BUILD-PLAN §4, in process)', () => {
     };
     const refund = await reclaimOnce(lapsed.giftId);
     expect(refund.status).toBe(200);
-    expect(giftReclaimResponseSchema.parse(await refund.json()).refundedUsd6).toBe('400000');
+    expect(giftReclaimResponseSchema.parse(await refund.json()).refundedUsd6).toBe('4000000');
     expect(h.treasury.refunds()).toEqual([
-      expect.objectContaining({ to: payer, usd6: 400_000n, memo: lapsed.giftId }),
+      expect.objectContaining({ to: payer, usd6: 4_000_000n, memo: lapsed.giftId }),
     ]);
     expect(hcsMessages(h).at(-1)?.t).toBe('gift-reclaim');
     expect((await reclaimOnce(lapsed.giftId)).status).toBe(409);

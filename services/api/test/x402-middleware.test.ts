@@ -9,7 +9,7 @@ describe('x402() middleware', () => {
   it('malformed or > 16 KiB PAYMENT-SIGNATURE → 400 before any adapter call', async () => {
     const h = await harness();
     const { path } = await provisioned(h);
-    const url = `/esim/topup?key=${path}&mb=100`;
+    const url = `/esim/topup?key=${path}&mb=1000`;
     for (const header of [
       'not base64!',
       Buffer.from('not json').toString('base64'),
@@ -39,12 +39,12 @@ describe('x402() middleware', () => {
     const v1 = encodePaymentPayload(
       await exactPayment(HUMAN_KEY, required.accepts[0]!, { now: h.clock.now() }),
     );
-    expect((await h.get(`/esim/topup?key=${path}&mb=100`, { 'X-PAYMENT': v1 })).status).toBe(402);
+    expect((await h.get(`/esim/topup?key=${path}&mb=1000`, { 'X-PAYMENT': v1 })).status).toBe(402);
   });
 
   it('X-Session-Pubkey must be hex32', async () => {
     const h = await harness();
-    expect((await h.get('/esim/provision?mb=100', { 'x-session-pubkey': '0x1234' })).status).toBe(
+    expect((await h.get('/esim/provision?mb=1000', { 'x-session-pubkey': '0x1234' })).status).toBe(
       400,
     );
   });

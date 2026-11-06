@@ -10,7 +10,7 @@ const EV_NUM = 8n;
 const EV_DEN = 10n;
 
 /**
- * min(c.bundleMb[tier], floor(0.8 × idResale / (wholesale / 1000 MB)), 300); device|none → 0;
+ * min(c.bundleMb[tier], floor(0.8 × idResale / (wholesale / 1000 MB)), MAX_BUNDLE_MB = 1 GB); device|none → 0;
  * wholesale ≤ 0 → the configured size under the cap (T-23).
  */
 export function sizeBundle(

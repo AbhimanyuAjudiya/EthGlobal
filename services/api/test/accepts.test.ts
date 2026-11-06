@@ -72,7 +72,7 @@ describe('accepts templates (A-20, A-21)', () => {
 
   it('no 402 body ever carries the v1 amount field (A-18)', async () => {
     const h = await harness();
-    const res = await h.json('/gift', { name: 'bob.eth', mb: 300 });
+    const res = await h.json('/gift', { name: 'bob.eth', mb: 1000 });
     expect(await res.text()).not.toMatch(/maxAmountRequired/);
     expect(Buffer.from(res.headers.get('PAYMENT-REQUIRED') ?? '', 'base64').toString()).not.toMatch(
       /maxAmountRequired/,

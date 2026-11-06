@@ -1,11 +1,11 @@
 /**
  * I-10 of BUILD-PLAN §4 against the real stack: the agent's `--once` pass (the same `loadConfig → buildAgent →
  * runPass` path `recharge-agent --once` runs, over real TCP to services/api, paying from Anvil #4 through the API's
- * self-run facilitator) on the paid key demo-seed.ts left at 18 % remaining. This is the "point at services/api"
+ * self-run facilitator) on the paid key demo-seed.ts left at 5 % remaining. This is the "point at services/api"
  * swap of services/agent/test/integration/local-anvil.test.ts, done here because a services/agent file may not
  * import services/api (eslint zone "services never import each other").
  *
- * Asserts: exactly one purchase — payout +400 000 on Anvil, `/me` mbTotal +100, one HCS `agent-topup` message with a
+ * Asserts: exactly one purchase — payout +4 000 000 on Anvil, `/me` mbTotal +1000, one HCS `agent-topup` message with a
  * `uaid:aid:` string, one `buy` line in the journal, an `agent-topup` receipt on `/me/:key/receipts`; a second pass
  * buys nothing. Agent log lines go to $E2E_OUT/agent.log (default .e2e/; scanned by the I-18 step).
  *
@@ -95,13 +95,13 @@ try {
   // E2E_FAULT (any value): the test of the test — a deliberately wrong expectation must fail the whole run, and
   // fail HERE: CI greps for FAULT_MARKER so a port clash or a missing build cannot pass for the planted failure (RT-P-07)
   const fault = Boolean(process.env.E2E_FAULT);
-  const step = fault ? 101 : 100;
+  const step = fault ? 1001 : 1000;
   check(
     after.mbTotal === before.mbTotal + step,
     `mbTotal ${before.mbTotal} → ${after.mbTotal}, want +${step}${fault ? ` ${FAULT_MARKER}` : ''}`,
   );
   const paid = (await usdcBalance(chain, deployed.usdc, deployed.payout)) - payoutBefore;
-  check(paid === 400_000n, `payout moved ${paid}, want 400000`);
+  check(paid === 4_000_000n, `payout moved ${paid}, want 4000000`);
   const [message, ...more] = topupMessages();
   check(
     message !== undefined && more.length === 0,
@@ -125,11 +125,11 @@ try {
   check(topupMessages().length === 1, 'second pass submitted another agent-topup');
   check(journal().filter((l) => l.event === 'buy').length === 1, 'second pass journaled a buy');
   check(
-    (await usdcBalance(chain, deployed.usdc, deployed.payout)) - payoutBefore === 400_000n,
+    (await usdcBalance(chain, deployed.usdc, deployed.payout)) - payoutBefore === 4_000_000n,
     'second pass paid',
   );
   console.log(
-    `PASS I-10 agent --once on the seeded paid key: one buy (+100 MB, payout +400000, HCS agent-topup ${String(message.uaid).slice(0, 24)}…), second pass buys nothing (${Math.round(performance.now() - t0)} ms)`,
+    `PASS I-10 agent --once on the seeded paid key: one buy (+1 GB, payout +4000000, HCS agent-topup ${String(message.uaid).slice(0, 24)}…), second pass buys nothing (${Math.round(performance.now() - t0)} ms)`,
   );
 } catch (error) {
   console.log(`FAIL I-10 agent: ${error instanceof Error ? error.message : String(error)}`);

@@ -3,6 +3,7 @@ import { challenge as issueChallenge } from '@ethglobal/octroi';
 import {
   ENTITLEMENT_CACHE_S,
   GIFT_CLAIM_WINDOW_S,
+  PLAN_MB,
   STEP_MB,
   type Hex,
 } from '@ethglobal/protocol/ids';
@@ -21,7 +22,8 @@ import { validateJson } from '../middleware/validate.js';
 import type { Deps } from '../deps.js';
 import type { Hono } from 'hono';
 
-export const GIFT_SIZES_MB = [100, 300, 500, 1000, 3000];
+/** Every paid lane (new plans, top-ups, gifts) sells one size: PLAN_MB, the smallest eSIM the reseller sells. */
+export const GIFT_SIZES_MB = [PLAN_MB];
 
 export function registerPublic(app: Hono<AppEnv>, deps: Deps): void {
   app.get('/healthz', async (c) => {
@@ -97,6 +99,7 @@ async function buildPlans(deps: Deps): Promise<PlansResponse> {
       priceUsd6PerStep: usd6ToWire(deps.env.PRICE_USD6_PER_STEP),
       validityDays: deps.env.VALIDITY_DAYS,
       accepts: deps.accepts,
+      sizesMb: [PLAN_MB],
     },
     gift: { sizesMb: GIFT_SIZES_MB, claimWindowS: GIFT_CLAIM_WINDOW_S },
     simulated: { usage: deps.env.MODE === 'local', personhood: deps.env.MODE === 'local' },

@@ -18,13 +18,13 @@ describe('T-74 idempotency scope', () => {
       method: 'POST',
       ip: '192.0.2.31',
       headers,
-      body: JSON.stringify({ name: 'bob.eth', mb: 100 }),
+      body: JSON.stringify({ name: 'bob.eth', mb: 1000 }),
     });
     const other = await h.request('/gift', {
       method: 'POST',
       ip: '192.0.2.32',
       headers,
-      body: JSON.stringify({ name: 'bob.eth', mb: 100 }),
+      body: JSON.stringify({ name: 'bob.eth', mb: 1000 }),
     });
     expect([cardRes.status, giftRes.status, other.status]).toEqual([400, 402, 402]);
     expect(other.headers.get('idempotent-replay')).toBeNull();

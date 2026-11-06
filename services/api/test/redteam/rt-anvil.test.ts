@@ -84,7 +84,7 @@ async function stack(salt: bigint, budget: bigint) {
   /** A provisioned entitlement, its top-up URL and the 402 terms. */
   const toppable = async (seed: string): Promise<{ url: string; req: PaymentRequirements }> => {
     const { entitlementKey } = (await (await claim(seed)).json()) as { entitlementKey: string };
-    const url = `/esim/topup?key=${encodeURIComponent(entitlementKey)}&mb=100`;
+    const url = `/esim/topup?key=${encodeURIComponent(entitlementKey)}&mb=1000`;
     const quote = await app.request(url);
     return { url, req: decodePaymentRequired(quote.headers.get('PAYMENT-REQUIRED')!).accepts[0]! };
   };

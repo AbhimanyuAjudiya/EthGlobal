@@ -97,7 +97,7 @@ describe.skipIf(!anvilReady)('verify RT-A-12: relayer under mixed concurrent loa
     const { entitlementKey } = (await (await claim('verify-a12-owner')).json()) as {
       entitlementKey: string;
     };
-    const url = `/esim/topup?key=${encodeURIComponent(entitlementKey)}&mb=100`;
+    const url = `/esim/topup?key=${encodeURIComponent(entitlementKey)}&mb=1000`;
     const offer: PaymentRequirements = decodePaymentRequired(
       (await req(url)).headers.get('PAYMENT-REQUIRED')!,
     ).accepts[0]!;

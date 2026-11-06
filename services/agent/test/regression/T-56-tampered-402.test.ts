@@ -158,8 +158,8 @@ describe('T-56 tampered 402 (AG2): no signature for a mutated entry', () => {
     expect(h.api.paid[0]?.accepted.payTo).toBe(PAYOUT);
   });
 
-  it('a lying /plans (price ×10) is caught by AGENT_MAX_USD6_PER_STEP → no request, no signature', async () => {
-    const h = await harness({ api: { plansPriceUsd6PerStep: 4_000_000n } });
+  it('a lying /plans (price ×20, still under the daily cap) is caught by AGENT_MAX_USD6_PER_STEP → no request, no signature', async () => {
+    const h = await harness({ api: { plansPriceUsd6PerStep: 8_000_000n } });
     const out = await buyOnce(h);
     expect(out).toMatchObject({ skipped: 'over-max-per-step', signatures: 0 });
     expect(h.api.topups).toHaveLength(0);

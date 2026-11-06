@@ -12,7 +12,7 @@ describe('T-69 testnet only', () => {
     const plans = (await (await h.get('/plans')).json()) as {
       paid: { accepts: { network: string }[] };
     };
-    const quote = await h.json('/gift', { name: 'bob.eth', mb: 100 });
+    const quote = await h.json('/gift', { name: 'bob.eth', mb: 1000 });
     const networks = [
       ...plans.paid.accepts,
       ...decodePaymentRequired(quote.headers.get('PAYMENT-REQUIRED') ?? '').accepts,

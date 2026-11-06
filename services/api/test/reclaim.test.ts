@@ -46,7 +46,7 @@ describe('POST /gift/reclaim', () => {
 
   it('claimed gift → 409; second reclaim → 409 already-reclaimed; wrong payer → 401', async () => {
     const { h, gift, lapse } = await lapsed();
-    const other = await buyGift(h, 'alice.eth', 100);
+    const other = await buyGift(h, 'alice.eth');
     expect((await claimGiftBySignature(h, other.giftId, anvilKeys[0], 'alice.eth')).status).toBe(
       201,
     );

@@ -185,6 +185,7 @@ export const topUpResponseSchema = z.object({
   settlement: paymentResponseSchema,
   receipt: receiptRefSchema,
 });
+/** `mb` must be PLAN_MB on both routes (a legacy plan tops up in PLAN_MB steps); the route refuses others before any 402. */
 export const provisionQuerySchema = z.object({
   mb: z.coerce.number().int(),
   planId: z.string().max(64).optional(),
@@ -199,6 +200,7 @@ export const topUpQuerySchema = z.object({
 const pinSchema = z.string().regex(/^\d{16}$/);
 export const giftRequestSchema = z.object({
   name: z.string().min(3).max(255),
+  /** A paid gift is exactly PLAN_MB (the route refuses any other size before the 402); local seed cards may differ. */
   mb: z.int().multipleOf(100).min(100).max(3000),
   message: safeTextSchema(80).optional(),
 });
@@ -291,11 +293,15 @@ export const plansResponseSchema = z.object({
     })
     .nullable(),
   paid: z.object({
+    /** The pricing step: a size costs ceil(mb / stepMb) × priceUsd6PerStep. */
     stepMb: z.literal(100),
     priceUsd6PerStep: digitsSchema,
     validityDays: z.int(),
     accepts: z.array(acceptTemplateSchema),
+    /** The only sizes GET /esim/provision and GET /esim/topup sell ([PLAN_MB]); absent from an older API. */
+    sizesMb: z.array(mbSchema).optional(),
   }),
+  /** sizesMb: the only sizes a paid POST /gift sells. */
   gift: z.object({ sizesMb: z.array(mbSchema), claimWindowS: z.int() }),
   simulated: z.object({ usage: z.boolean(), personhood: z.boolean() }),
 });

@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { HUMAN_KEY, STRANGER_KEY, harness, provisioned } from '../support/harness.js';
 
-const topUpPath = (key: string, mb = 100) => `/esim/topup?key=${encodeURIComponent(key)}&mb=${mb}`;
+const topUpPath = (key: string, mb = 1000) => `/esim/topup?key=${encodeURIComponent(key)}&mb=${mb}`;
 
 describe('attack: rt parallel top-ups on one entitlement', () => {
   // regression RT-A-01 (fixed): fulfilTopUp patches with the function form (mbTotal recomputed per CAS attempt)
@@ -23,17 +23,17 @@ describe('attack: rt parallel top-ups on one entitlement', () => {
     const payB = await h.payFor(quote, { key: STRANGER_KEY });
     const topUps = vi.spyOn(h.reseller, 'topUp');
     const [a, b] = await Promise.all([h.get(topUpPath(key), payA), h.get(topUpPath(key), payB)]);
-    expect([a.status, b.status]).toEqual([200, 200]); // both payments settled: the users paid $0.80
-    expect(topUps).toHaveBeenCalledTimes(2); // the reseller granted 200 MB
+    expect([a.status, b.status]).toEqual([200, 200]); // both payments settled: the users paid $8.00
+    expect(topUps).toHaveBeenCalledTimes(2); // the reseller granted 2 GB
     const after = (await (await h.get(`/me/${encodeURIComponent(key)}?refresh=1`)).json()) as {
       mbTotal: number;
     };
     // property: every settled top-up is reflected in the ledger (no lost update)
-    expect(after.mbTotal).toBe(before.mbTotal + 200);
+    expect(after.mbTotal).toBe(before.mbTotal + 2000);
   });
 
   // property: sequential top-ups are additive (control for the race above)
-  it('control: two sequential paid top-ups add 200 MB', async () => {
+  it('control: two sequential paid top-ups add 2 GB', async () => {
     const h = await harness();
     const { key } = await provisioned(h, 'rt-topup-seq');
     for (const k of [HUMAN_KEY, STRANGER_KEY]) {
@@ -43,7 +43,7 @@ describe('attack: rt parallel top-ups on one entitlement', () => {
     const me = (await (await h.get(`/me/${encodeURIComponent(key)}?refresh=1`)).json()) as {
       mbTotal: number;
     };
-    expect(me.mbTotal).toBe(300 + 200);
+    expect(me.mbTotal).toBe(300 + 2000);
   });
 });
 

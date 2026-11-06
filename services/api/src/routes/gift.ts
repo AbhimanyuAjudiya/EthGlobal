@@ -31,7 +31,7 @@ import {
 } from '../flows/gift.js';
 import { reclaim } from '../flows/reclaim.js';
 import { octroi } from '../middleware/octroi.js';
-import { validateJson } from '../middleware/validate.js';
+import { assertPlanMb, validateJson } from '../middleware/validate.js';
 import { paymentNonce, withPaymentResponse, x402 } from '../middleware/x402.js';
 import { seedCardCampaign, seedClaimWindowS } from '../seed.js';
 
@@ -58,6 +58,8 @@ export function registerGift(app: Hono<AppEnv>, deps: Deps): void {
           ),
           201,
         );
+      // a paid gift is one PLAN_MB plan (seed cards above are campaign-funded and keep their size)
+      assertPlanMb(body.mb);
       // the name resolves BEFORE any 402: nobody pays for a gift to nobody (T-43)
       c.set('input', { ...body, resolved: await resolveName(deps, body.name) } satisfies Resolved);
       return next();

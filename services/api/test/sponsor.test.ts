@@ -38,12 +38,12 @@ const register = async (
   });
 };
 
-/** Campaign #2 of SPONSOR on chain (0.50 per claim, 10 USDC, 10/h), ending at `expiresAt`. */
-const onChain = (h: Harness, expiresAt = T0 + 10 * DAY) => {
+/** Campaign #2 of SPONSOR on chain (1.20 per claim = the eSIM cost, 10 USDC, 10/h), ending at `expiresAt`. */
+const onChain = (h: Harness, expiresAt = T0 + 10 * DAY, pricePerClaim = 1_200_000n) => {
   const id = scopedCampaignId(SPONSOR, 2n);
   h.dataDrop.create(id, {
     sponsor: SPONSOR,
-    pricePerClaim: 500_000n,
+    pricePerClaim,
     budget: 10_000_000n,
     spent: 0n,
     claimsPerHour: 10,
@@ -62,6 +62,43 @@ describe('POST /sponsor', () => {
     expect(registered.id).toBe(id);
     expect(registered.auditKey).toMatch(/^0x[0-9a-f]{64}$/);
     expect(await h.deps.stores.campaigns.get(id)).not.toBeNull();
+  });
+
+  it('an on-chain price per claim below the eSIM cost ($1.20) → 400, nothing stored', async () => {
+    const h = await harness();
+    const id = onChain(h, T0 + 10 * DAY, 1_199_999n);
+    const res = await register(h);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      error: 'invalid_request',
+      details: [
+        {
+          path: 'campaign.pricePerClaimUsd6',
+          message: 'per-claim price is below the eSIM cost ($1.20)',
+        },
+      ],
+    });
+    expect(await h.deps.stores.campaigns.get(id)).toBeNull();
+  });
+
+  it('1 GB bundles at exactly $1.20 a claim → 201', async () => {
+    const h = await harness();
+    const id = onChain(h);
+    const login = await sponsorLogin(SPONSOR_KEY, h.deps.chainId, id, h.clock.now());
+    const bundleMb = { orb: 1000, document: 1000, device: 0 as const };
+    const res = await h.json('/sponsor', {
+      campaign: campaignFields({
+        id,
+        sponsor: SPONSOR,
+        bundleMb,
+        pricePerClaimUsd6: '1200000',
+        contract: h.dataDrop.address,
+        expiresAt: T0 + 10 * DAY,
+      }),
+      auth: { issuedAt: login.issuedAt, signature: login.signature },
+    });
+    expect(res.status).toBe(201);
+    expect((await h.deps.stores.campaigns.get(id))?.payload.bundleMb).toEqual(bundleMb);
   });
 
   it('a campaign longer than its claim records can live on the ledger → 400 campaign_too_long, nothing stored [RT-O-08]', async () => {

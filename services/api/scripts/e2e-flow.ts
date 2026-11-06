@@ -172,7 +172,7 @@ await step('I-0 sponsor funds a campaign on Anvil and registers it (POST /sponso
     address: addresses.dataDrop,
     abi: DataDropAbi as Abi,
     functionName: 'createCampaign',
-    args: [campaignId, budget, 500_000n, 120, BigInt(now + 30 * DAY_S)],
+    args: [campaignId, budget, 1_200_000n, 120, BigInt(now + 30 * DAY_S)],
   });
   check(
     (await publicClient.waitForTransactionReceipt({ hash: created })).status === 'success',
@@ -186,7 +186,7 @@ await step('I-0 sponsor funds a campaign on Anvil and registers it (POST /sponso
         sponsor,
         name: 'Mumbai Welcome (e2e)',
         bundleMb: { orb: 300, document: 160, device: 0 },
-        pricePerClaimUsd6: '500000',
+        pricePerClaimUsd6: '1200000',
         maxClaims: 2000,
         claimsPerHour: 120,
         validityDays: 7,
@@ -246,7 +246,7 @@ await step(
     );
     check((await claimedLogs(claimed.claimTx as Hex)) === 1, 'no Claimed log');
     check(
-      (await balance(addresses.payout)) - before === 500_000n,
+      (await balance(addresses.payout)) - before === 1_200_000n,
       'payout did not receive the claim price',
     );
     check(claimed.receipt.hcs !== undefined, 'no HCS receipt');
@@ -282,7 +282,7 @@ await step('I-6 /me twice (cached) and receipts', async () => {
 await step(
   'I-7/I-8/I-9 402 → EIP-3009 on MockUSDC3009 → 200 + PAYMENT-RESPONSE; resend ⇒ 402',
   async () => {
-    const path = `/esim/topup?key=${encodeURIComponent(entKey)}&mb=100`;
+    const path = `/esim/topup?key=${encodeURIComponent(entKey)}&mb=1000`;
     const quote = await call(path);
     check(
       quote.status === 402 && !/"maxAmount(?:Required)"/.test(JSON.stringify(quote.data)),
@@ -298,8 +298,11 @@ await step(
       hash: settlement.transaction as Hex,
     });
     check(receipt.status === 'success', 'settlement tx not on chain');
-    check((await balance(addresses.payout)) - before === 400_000n, 'payout did not receive 400000');
-    check(paid.data.mbTotal === claimed.mbTotal + 100, 'mbTotal +100');
+    check(
+      (await balance(addresses.payout)) - before === 4_000_000n,
+      'payout did not receive 4000000',
+    );
+    check(paid.data.mbTotal === claimed.mbTotal + 1000, 'mbTotal +1000');
     const again = await call(path, { headers });
     check(again.status === 402, `resend ${again.status}`);
   },
@@ -312,7 +315,16 @@ await step('I-11 webhook: 204, cache invalidated; replay 409; tampered 401; skew
   const nowMs = Number((await call('/__local/clock', { body: { advanceMs: 0 } })).data.now);
   const hook = (usedMb: number, at = nowMs) =>
     signer.signedWebhook(
-      [{ provider: 'mock', eventId: `e2e-${usedMb}-${at}`, iccid, usedMb, totalMb: 400, asOf: at }],
+      [
+        {
+          provider: 'mock',
+          eventId: `e2e-${usedMb}-${at}`,
+          iccid,
+          usedMb,
+          totalMb: 1300,
+          asOf: at,
+        },
+      ],
       at,
     );
   const send = (d: { body: string; headers: Record<string, string> }) =>
@@ -453,10 +465,10 @@ await step(
 await step(
   'I-17 reclaim: a lapsed gift refunds once; again 409; the claimed gift 409',
   async () => {
-    const quote = await call('/gift', { body: { name: 'alice.eth', mb: 100 } });
+    const quote = await call('/gift', { body: { name: 'alice.eth', mb: 1000 } });
     const lapsed = (
       await call('/gift', {
-        body: { name: 'alice.eth', mb: 100 },
+        body: { name: 'alice.eth', mb: 1000 },
         headers: await pay(quote.headers),
       })
     ).data as unknown as GiftResponse;
@@ -475,7 +487,7 @@ await step(
     };
     const res = await reclaim(lapsed.giftId);
     check(
-      res.status === 200 && res.data.refundedUsd6 === '400000',
+      res.status === 200 && res.data.refundedUsd6 === '4000000',
       `reclaim ${res.status} ${JSON.stringify(res.data)}`,
     );
     check((await reclaim(lapsed.giftId)).status === 409, 'second reclaim');

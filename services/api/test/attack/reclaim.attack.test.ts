@@ -46,8 +46,8 @@ describe('attack: reclaim (AP11)', () => {
 
   it('a GiftReclaim signed for gift A replayed for gift B ⇒ 401; a consumed reclaim challenge replayed ⇒ 409', async () => {
     const h = await harness();
-    const a = await buyGift(h, 'bob.eth', 100);
-    const b = await buyGift(h, 'alice.eth', 100);
+    const a = await buyGift(h, 'bob.eth');
+    const b = await buyGift(h, 'alice.eth');
     h.clock.advance(7 * DAY + 1);
     expect((await reclaimGift(h, b.giftId, HUMAN_KEY, { signFor: a.giftId })).status).toBe(401);
     const payer = addressOf(HUMAN_KEY);
@@ -69,7 +69,7 @@ describe('attack: reclaim (AP11)', () => {
   // T-71e fixed (protocol A-36): RECEIPT_TTL_S = claim window + reclaim window + 1 d = 38 d, so the receipt is there.
   it('day 31 after a 7-day gift: the gift receipt (RECEIPT_TTL_S = 38 d) is still there ⇒ reclaimed', async () => {
     const h = await harness();
-    const gift = await buyGift(h, 'bob.eth', 100);
+    const gift = await buyGift(h, 'bob.eth');
     h.clock.advance(31 * DAY);
     const res = await reclaimGift(h, gift.giftId);
     expect(await reasonOf(res)).toEqual([200, undefined]);

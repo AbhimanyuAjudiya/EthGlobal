@@ -1,5 +1,7 @@
 import { createMiddleware } from 'hono/factory';
 
+import { PLAN_MB } from '@ethglobal/protocol/ids';
+
 import { fail } from '../errors.js';
 
 import type { AppEnv } from '../context.js';
@@ -44,3 +46,12 @@ export const validateQuery = (schema: z.ZodType, integers: readonly string[] = [
     c.set('input', parsed.data);
     return next();
   });
+
+/**
+ * New plans, top-ups (a legacy plan's too) and paid gifts are exactly PLAN_MB, the smallest eSIM the reseller sells.
+ * Each route calls this before any ledger read, 402 quote or settlement.
+ */
+export function assertPlanMb(mb: number): void {
+  if (mb !== PLAN_MB)
+    throw fail('invalid_request', [{ path: 'mb', message: `mb must be ${PLAN_MB} (1 GB)` }]);
+}

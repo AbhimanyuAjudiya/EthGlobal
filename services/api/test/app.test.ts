@@ -84,11 +84,14 @@ describe('app basics', () => {
     const h = await harness();
     const plans = (await (await h.get('/plans')).json()) as {
       campaign: { id: string; remainingClaims: number };
-      paid: { accepts: unknown[]; priceUsd6PerStep: string };
+      paid: { accepts: unknown[]; priceUsd6PerStep: string; sizesMb: number[] };
+      gift: { sizesMb: number[] };
     };
     expect(plans.campaign.id).toBe(h.campaignId);
     expect(plans.campaign.remainingClaims).toBe(2000);
     expect(plans.paid.priceUsd6PerStep).toBe('400000');
+    // one size sold everywhere: 1 GB = 10 steps = $4.00
+    expect([plans.paid.sizesMb, plans.gift.sizesMb]).toEqual([[1000], [1000]]);
     expect(JSON.stringify(plans)).not.toMatch(/agentkit|maxAmountRequired/);
     const spy = vi.spyOn(h.deps.stores.campaigns, 'list');
     await h.get('/plans');

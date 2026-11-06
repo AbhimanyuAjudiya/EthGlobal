@@ -36,7 +36,7 @@ describe('POST /claim', () => {
     const h = await harness();
     const { res } = await h.claim({ level: 'device' });
     expect(res.status).toBe(402);
-    expect(paymentRequiredSchema.parse(await res.json()).accepts[0]?.amount).toBe('400000');
+    expect(paymentRequiredSchema.parse(await res.json()).accepts[0]?.amount).toBe('4000000');
     expect(h.dataDrop.claimedEvents).toHaveLength(0);
   });
 

@@ -58,7 +58,7 @@ const mutations: [schema: string, path: string, bad: unknown][] = [
   ['campaignSchema', 'sponsor', '0x1234'],
   ['campaignSchema', 'name', 'emoji \u{1F600}'],
   ['campaignSchema', 'name', 'line\nbreak'],
-  ['campaignSchema', 'bundleMb.orb', 301],
+  ['campaignSchema', 'bundleMb.orb', 1001],
   ['campaignSchema', 'bundleMb.device', 100],
   ['campaignSchema', 'pricePerClaimUsd6', '0.25'],
   ['campaignSchema', 'pricePerClaimUsd6', 250000],
@@ -75,7 +75,7 @@ const mutations: [schema: string, path: string, bad: unknown][] = [
   ['receiptSchema', 'entitlementKeyHash', 'ent:v1:0x01'],
   ['receiptSchema', 'hcs.sequence', -1],
   ['topUpPolicySchema', 'stepMb', 150],
-  ['topUpPolicySchema', 'stepMb', 400],
+  ['topUpPolicySchema', 'stepMb', 1100],
   ['topUpPolicySchema', 'expiryLeadS', 59],
   ['topUpPolicySchema', 'paused', 'no'],
   ['agentPolicySchema', 'owner', '0.0.1234'],
@@ -123,6 +123,7 @@ const mutations: [schema: string, path: string, bad: unknown][] = [
   ['meResponseSchema', 'usageSource', 'guess'],
   ['plansResponseSchema', 'mode', 'demo'],
   ['plansResponseSchema', 'paid.stepMb', 200],
+  ['plansResponseSchema', 'paid.sizesMb', [1.5]],
   ['sponsorRegisterSchema', 'auth.signature', 'sig'],
   ['sponsorViewSchema', 'chain.budgetUsd6', 125],
   ['agentPolicyPutSchema', 'issuedAt', -5],
@@ -140,6 +141,31 @@ const mutations: [schema: string, path: string, bad: unknown][] = [
 describe('rejects one mutation per field class', () => {
   it.each(mutations)('%s: %s', (name, path, bad) => {
     expect(schema(name).safeParse(mutate(examples[name], path, bad)).success).toBe(false);
+  });
+});
+
+describe('the 1 GB product unit (PLAN_MB)', () => {
+  const parses = (name: string, path: string, value: unknown): boolean =>
+    schema(name).safeParse(mutate(examples[name], path, value)).success;
+
+  it('sponsor bundles go up to 1 GB; campaigns stored at 300/150 MB stay valid', () => {
+    expect(parses('campaignSchema', 'bundleMb', { orb: 1000, document: 1000, device: 0 })).toBe(
+      true,
+    );
+    expect(parses('campaignSchema', 'bundleMb', { orb: 300, document: 150, device: 0 })).toBe(true);
+    expect(
+      parses('sponsorRegisterSchema', 'campaign.bundleMb', { orb: 1000, document: 500, device: 0 }),
+    ).toBe(true);
+  });
+
+  it('a policy step of 1 GB parses, and so do stored legacy 100–300 MB steps', () => {
+    for (const stepMb of [100, 300, 1000])
+      expect(parses('topUpPolicySchema', 'stepMb', stepMb), String(stepMb)).toBe(true);
+  });
+
+  it('/plans may publish paid.sizesMb (an older API omits it)', () => {
+    expect(parses('plansResponseSchema', 'paid.sizesMb', [1000])).toBe(true);
+    expect(parses('plansResponseSchema', 'paid.sizesMb', DELETE)).toBe(true);
   });
 });
 

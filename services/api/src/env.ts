@@ -188,6 +188,11 @@ export const envSchema = z
     X402_FACILITATOR: z.enum(['mock', 'self', 'remote']).optional(),
     X402_NETWORKS: csv('eip155:31337').pipe(z.array(caipNetworkSchema).min(1).max(8)),
     PRICE_USD6_PER_STEP: digitsSchema.default('400000').transform(BigInt),
+    /**
+     * What one free claim costs us: the reseller eSIM it provisions (RESELLER_PLAN_ID, 1 GB / 7 days, $1.20 wholesale).
+     * POST /sponsor refuses a campaign whose on-chain per-claim price is below it; registered campaigns are unaffected.
+     */
+    COST_USD6_PER_CLAIM: digitsSchema.default('1200000').transform(BigInt),
     VALIDITY_DAYS: z.coerce.number().int().min(1).max(30).default(7),
     TOPUPS_PER_ICCID_PER_DAY: z.coerce.number().int().min(1).max(1000).default(20),
     SALES_ENABLED: flag,

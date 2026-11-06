@@ -16,7 +16,7 @@ import {
   TEST_USDC,
 } from '@ethglobal/adapters/testing';
 import { bytesToHex, generateSessionKeypair, type SessionKeypair } from '@ethglobal/crypto';
-import type { Hex } from '@ethglobal/protocol/ids';
+import { PLAN_MB, type Hex } from '@ethglobal/protocol/ids';
 import type {
   ChallengeWire,
   EntitledResponse,
@@ -230,7 +230,7 @@ export async function topUp(
   key: string,
   o: { mb?: number; payKey?: Hex; headers?: Record<string, string> } = {},
 ) {
-  const path = `/esim/topup?key=${encodeURIComponent(key)}&mb=${o.mb ?? 100}`;
+  const path = `/esim/topup?key=${encodeURIComponent(key)}&mb=${o.mb ?? PLAN_MB}`;
   const quote = await h.get(path);
   const pay = await h.payFor(quote, { key: o.payKey ?? HUMAN_KEY });
   const paid = await h.get(path, { ...pay, ...o.headers });
@@ -241,7 +241,7 @@ export async function topUp(
 export async function buyGift(
   h: Harness,
   name = 'bob.eth',
-  mb = 1000,
+  mb = PLAN_MB,
   headers: Record<string, string> = {},
 ) {
   const quote = await h.json('/gift', { name, mb }, headers);
@@ -359,7 +359,7 @@ export const reasonOf = async (res: Response): Promise<[number, string | undefin
 export async function provisionPaid(h: Harness, o: { mb?: number; bind?: boolean } = {}) {
   const keys = generateSessionKeypair();
   const spk = bytesToHex(keys.publicKey);
-  const url = `/esim/provision?mb=${o.mb ?? 100}`;
+  const url = `/esim/provision?mb=${o.mb ?? PLAN_MB}`;
   const quote = await h.get(url, { 'x-session-pubkey': spk });
   const pay = await h.payFor(quote, o.bind === false ? {} : { sessionPubKey: spk });
   const res = await h.get(url, { 'x-session-pubkey': spk, ...pay });

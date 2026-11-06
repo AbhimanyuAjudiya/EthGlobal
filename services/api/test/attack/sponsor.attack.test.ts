@@ -18,8 +18,8 @@ const registerNamed = async (h: Harness, name: string) => {
   const id = scopedCampaignId(SPONSOR, 4n);
   h.dataDrop.create(id, {
     sponsor: SPONSOR,
-    pricePerClaim: 1n,
-    budget: 10n,
+    pricePerClaim: 1_200_000n,
+    budget: 12_000_000n,
     spent: 0n,
     claimsPerHour: 1,
     expiresAt: T0 + DAY,
@@ -31,7 +31,7 @@ const registerNamed = async (h: Harness, name: string) => {
       sponsor: SPONSOR,
       name,
       bundleMb: { orb: 300, document: 160, device: 0 },
-      pricePerClaimUsd6: '1',
+      pricePerClaimUsd6: '1200000',
       maxClaims: 10,
       claimsPerHour: 1,
       validityDays: 7,

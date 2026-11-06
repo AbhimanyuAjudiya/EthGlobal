@@ -13,7 +13,7 @@ import { exactPayment } from '../support/client.js';
 import { HUMAN_KEY, harness, provisioned } from '../support/harness.js';
 
 const b64 = (s: string) => Buffer.from(s, 'utf8').toString('base64');
-const topUpPath = (key: string) => `/esim/topup?key=${encodeURIComponent(key)}&mb=100`;
+const topUpPath = (key: string) => `/esim/topup?key=${encodeURIComponent(key)}&mb=1000`;
 const V1 = '"maxAmount\\u0052equired":"400000"';
 const V1_ALT = '"\\u006daxAmountRequired":"400000"';
 const nest = (depth: number, inner: string): string =>

@@ -110,8 +110,8 @@ describe('POST /gift', () => {
 
   it('normalises names (ENSIP-15) and refuses unnormalisable ones', async () => {
     const h = await harness();
-    expect((await h.json('/gift', { name: 'BOB.ETH', mb: 100 })).status).toBe(402);
-    expect((await h.json('/gift', { name: 'bo​b.eth', mb: 100 })).status).toBe(400);
+    expect((await h.json('/gift', { name: 'BOB.ETH', mb: 1000 })).status).toBe(402);
+    expect((await h.json('/gift', { name: 'bo​b.eth', mb: 1000 })).status).toBe(400);
   });
 });
 
@@ -227,7 +227,7 @@ describe('POST /gift/claim', () => {
     const gift = await buyGift(h);
     expect((await claimGiftBySignature(h, gift.giftId, STRANGER_KEY)).status).toBe(401);
     expect((await redeemPin(h, gift.pin, '/gift/claim')).status).toBe(201);
-    const late = await buyGift(h, 'alice.eth', 100);
+    const late = await buyGift(h, 'alice.eth');
     h.clock.advance(7 * DAY + 1);
     expect((await claimGiftBySignature(h, late.giftId, anvilKeys[0], 'alice.eth')).status).toBe(
       410,

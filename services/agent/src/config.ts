@@ -50,7 +50,8 @@ export const agentConfigSchema = z.object({
   AGENT_DRY_RUN: envBoolean,
   AGENT_ONCE: envBoolean,
   AGENT_PAYTO_ALLOWLIST: z.string(),
-  AGENT_MAX_USD6_PER_STEP: digitsSchema.default('1000000'),
+  /** One 1 GB step (PLAN_MB) at $0.40 per 100 MB = $4.00. */
+  AGENT_MAX_USD6_PER_STEP: digitsSchema.default('4000000'),
   AGENT_EVM_PRIVATE_KEY: optional(hex32Schema),
   AGENT_HEDERA_ACCOUNT_ID: optional(hederaAccountSchema),
   AGENT_HEDERA_PRIVATE_KEY: optionalString,

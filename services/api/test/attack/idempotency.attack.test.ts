@@ -11,7 +11,7 @@ const gift = (h: Harness, ip: string, headers: Record<string, string>, name = 'b
     method: 'POST',
     ip,
     headers: { 'content-type': 'application/json', ...headers },
-    body: JSON.stringify({ name, mb: 100 }),
+    body: JSON.stringify({ name, mb: 1000 }),
   });
 
 describe('attack: Idempotency-Key (AP12)', () => {

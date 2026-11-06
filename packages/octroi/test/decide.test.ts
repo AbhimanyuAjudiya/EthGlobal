@@ -162,9 +162,10 @@ describe('decide — free lane', () => {
     );
     if (r.kind !== 'payment-required') throw new Error(r.kind);
     expect(r.body.error).toBe(DEVICE_TIER_DETAIL);
-    expect(r.body.accepts.map((a) => [a.network, a.amount])).toEqual([
-      [NETWORKS.anvil, '400000'],
-      [NETWORKS.hederaTestnet, '400000'],
+    // the human price of one 1 GB plan (PLAN_MB = 10 steps of $0.40), never a lone 100 MB step
+    expect(r.body.accepts.map((a) => [a.network, a.amount, a.extra?.mb])).toEqual([
+      [NETWORKS.anvil, '4000000', 1000],
+      [NETWORKS.hederaTestnet, '4000000', 1000],
     ]);
   });
 

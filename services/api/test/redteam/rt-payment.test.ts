@@ -12,7 +12,7 @@ import { exactPayment } from '../support/client.js';
 import { HUMAN_KEY, buyGift, harness, provisioned } from '../support/harness.js';
 
 const b64 = (s: string) => Buffer.from(s, 'utf8').toString('base64');
-const topUpPath = (key: string, mb = 100) => `/esim/topup?key=${encodeURIComponent(key)}&mb=${mb}`;
+const topUpPath = (key: string, mb = 1000) => `/esim/topup?key=${encodeURIComponent(key)}&mb=${mb}`;
 
 async function setup() {
   const h = await harness();
@@ -59,12 +59,12 @@ describe('attack: rt x402 v1 field smuggling (A-18)', () => {
 describe('attack: rt non-canonical amounts and header shapes', () => {
   // property: only the canonical decimal string the server offered is accepted; nothing is settled otherwise
   it.each([
-    ['leading zero', '0400000'],
-    ['plus sign', '+400000'],
-    ['arabic-indic digits', '٤٠٠٠٠٠'],
-    ['fullwidth digits', '４０００００'],
-    ['exponent', '4e5'],
-    ['trailing space', '400000 '],
+    ['leading zero', '04000000'],
+    ['plus sign', '+4000000'],
+    ['arabic-indic digits', '٤٠٠٠٠٠٠'],
+    ['fullwidth digits', '４００００００'],
+    ['exponent', '4e6'],
+    ['trailing space', '4000000 '],
   ])('accepted.amount + authorization.value = %s ⇒ 400/402, no settle', async (_label, amount) => {
     const { h, key, payload } = await setup();
     const p = structuredClone(payload) as typeof payload & {
@@ -117,7 +117,7 @@ describe('attack: rt non-canonical amounts and header shapes', () => {
   it('Hedera payload on /esim/provision ⇒ 400/402, no settle', async () => {
     const h = await harness();
     const spk = `0x${'ab'.repeat(32)}`;
-    const quote = await h.get('/esim/provision?mb=100', { 'x-session-pubkey': spk });
+    const quote = await h.get('/esim/provision?mb=1000', { 'x-session-pubkey': spk });
     const req = decodePaymentRequired(quote.headers.get('PAYMENT-REQUIRED')!).accepts[0]!;
     const p = {
       x402Version: 2,
@@ -132,7 +132,7 @@ describe('attack: rt non-canonical amounts and header shapes', () => {
       payload: { transaction: b64('not-a-real-hedera-transaction') },
     };
     const settle = vi.spyOn(h.adapters.payments, 'settle');
-    const res = await h.get('/esim/provision?mb=100', {
+    const res = await h.get('/esim/provision?mb=1000', {
       'x-session-pubkey': spk,
       [PAYMENT_SIGNATURE_HEADER]: b64(JSON.stringify(p)),
     });
@@ -153,7 +153,7 @@ describe('attack: rt prototype keys through zod records and bodies', () => {
     expect([200, 400, 402]).toContain(res.status);
     expect(({} as Record<string, unknown>).rtPolluted).toBeUndefined();
     const body =
-      '{"__proto__":{"rtPolluted2":"yes"},"constructor":{"prototype":{"rtPolluted3":"yes"}},"name":"bob.eth","mb":100}';
+      '{"__proto__":{"rtPolluted2":"yes"},"constructor":{"prototype":{"rtPolluted3":"yes"}},"name":"bob.eth","mb":1000}';
     const gift = await h.request('/gift', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -173,7 +173,7 @@ describe('attack: rt one payment, two routes', () => {
     const header = b64(JSON.stringify(payload));
     const res = await h.json(
       '/gift',
-      { name: 'bob.eth', mb: 100 },
+      { name: 'bob.eth', mb: 1000 },
       { [PAYMENT_SIGNATURE_HEADER]: header },
     );
     const body = (await res.json()) as { pin?: string };
@@ -190,7 +190,7 @@ describe('attack: rt one payment, two routes', () => {
     expect(first.status).toBe(200);
     const second = await h.json(
       '/gift',
-      { name: 'bob.eth', mb: 100 },
+      { name: 'bob.eth', mb: 1000 },
       { [PAYMENT_SIGNATURE_HEADER]: header },
     );
     expect(second.status).not.toBe(201);

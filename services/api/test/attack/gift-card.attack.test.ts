@@ -15,15 +15,15 @@ import {
 describe('attack: gifts and cards (AP10)', () => {
   it('homoglyph and zero-width names ⇒ 400; "BOB.ETH " normalises to bob.eth', async () => {
     const h = await harness();
-    expect((await h.json('/gift', { name: 'bоb.eth', mb: 100 })).status).toBe(400);
-    expect((await h.json('/gift', { name: 'bo​b.eth', mb: 100 })).status).toBe(400);
-    expect((await h.json('/gift', { name: 'BOB.ETH ', mb: 100 })).status).toBe(402);
+    expect((await h.json('/gift', { name: 'bоb.eth', mb: 1000 })).status).toBe(400);
+    expect((await h.json('/gift', { name: 'bo​b.eth', mb: 1000 })).status).toBe(400);
+    expect((await h.json('/gift', { name: 'BOB.ETH ', mb: 1000 })).status).toBe(402);
   });
 
   it('re-pointing the name between gift and claim: the NEW owner can claim, the old cannot', async () => {
     const names = new MutableNames();
     const h = await harness({ overrides: { adapters: { names } } });
-    const gift = await buyGift(h, 'bob.eth', 100);
+    const gift = await buyGift(h, 'bob.eth');
     names.set({ name: 'bob.eth', address: anvilAccounts[9] });
     expect((await claimGiftBySignature(h, gift.giftId, anvilKeys[1])).status).toBe(401);
     expect((await claimGiftBySignature(h, gift.giftId, anvilKeys[9])).status).toBe(201);

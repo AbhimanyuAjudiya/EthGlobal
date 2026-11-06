@@ -13,9 +13,9 @@ import {
 import { DAY, errorOf, harness, provisioned, topUp, type Harness } from './fixture.js';
 import { fakeUsdcRail } from '../support/fake-chain.js';
 
-const quoteOf = async (h: Harness, key: string, mb = 100) =>
+const quoteOf = async (h: Harness, key: string, mb = 1000) =>
   h.get(`/esim/topup?key=${encodeURIComponent(key)}&mb=${mb}`);
-const paidWith = async (h: Harness, key: string, headers: Record<string, string>, mb = 100) =>
+const paidWith = async (h: Harness, key: string, headers: Record<string, string>, mb = 1000) =>
   h.get(`/esim/topup?key=${encodeURIComponent(key)}&mb=${mb}`, headers);
 
 describe('attack: 402 bypass and payment tampering (AP7)', () => {
@@ -26,7 +26,7 @@ describe('attack: 402 bypass and payment tampering (AP7)', () => {
     ['network eip155:1', { network: 'eip155:1' }],
     [
       'extra.name Fake',
-      { extra: { name: 'Fake', version: '2', mb: 100, stepMb: 100, sessionKeyRequired: false } },
+      { extra: { name: 'Fake', version: '2', mb: 1000, stepMb: 100, sessionKeyRequired: false } },
     ],
     ['maxTimeoutSeconds 3600', { maxTimeoutSeconds: 3600 }],
   ])('a tampered accepted (%s) ⇒ 402 invalid_payment, never served', async (_name, patch) => {
@@ -72,20 +72,23 @@ describe('attack: 402 bypass and payment tampering (AP7)', () => {
     ).toBe(400);
   });
 
-  it('exact amount: a one-step payment for mb=200 and an over-payment (value ≠ amount) ⇒ 402', async () => {
+  it('exact amount: a one-step payment on the 1 GB offer and an over-payment (value ≠ amount) ⇒ 402', async () => {
     const h = await harness();
     const { key } = await provisioned(h);
-    const one = await h.payFor(await quoteOf(h, key, 100));
-    expect((await paidWith(h, key, one, 200)).status).toBe(402);
-    const over = await h.payFor(await quoteOf(h, key, 100), { value: '800000' });
+    const one = await h.payFor(await quoteOf(h, key), { value: '400000' });
+    expect((await paidWith(h, key, one)).status).toBe(402);
+    const over = await h.payFor(await quoteOf(h, key), { value: '8000000' });
     expect((await paidWith(h, key, over)).status).toBe(402);
   });
 
-  it.each(['199', '0', '-100', '1e3', '3100', '0x64'])('mb=%s ⇒ 400', async (mb) => {
-    const h = await harness();
-    const { path } = await provisioned(h);
-    expect((await h.get(`/esim/topup?key=${path}&mb=${mb}`)).status).toBe(400);
-  });
+  it.each(['199', '0', '-100', '1e3', '3100', '0x64', '100', '300', '2000'])(
+    'mb=%s ⇒ 400',
+    async (mb) => {
+      const h = await harness();
+      const { path } = await provisioned(h);
+      expect((await h.get(`/esim/topup?key=${path}&mb=${mb}`)).status).toBe(400);
+    },
+  );
 
   it('a duplicate mb parameter ⇒ 400 (price and grant can never read different values)', async () => {
     const h = await harness();
@@ -164,7 +167,7 @@ describe('attack: 402 bypass and payment tampering (AP7)', () => {
     expect(
       ((await (await h.get(`/me/${encodeURIComponent(key)}`)).json()) as { mbTotal: number })
         .mbTotal,
-    ).toBe(400);
+    ).toBe(1300);
   });
 
   it('the base 402 writes nothing and calls no reseller (spies at zero); the paid leg writes only receipts and its settlement marker', async () => {
@@ -172,7 +175,7 @@ describe('attack: 402 bypass and payment tampering (AP7)', () => {
     const { key } = await provisioned(h);
     const put = vi.spyOn(h.adapters.ledger, 'put');
     const order = vi.spyOn(h.reseller, 'order');
-    await topUp(h, key, { mb: 100 }).then(() => undefined);
+    await topUp(h, key).then(() => undefined);
     expect(order).not.toHaveBeenCalled();
     expect(
       put.mock.calls.every(([input]) =>

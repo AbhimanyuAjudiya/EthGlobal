@@ -5,12 +5,13 @@
  * The only shortcuts are the API's three MODE=local seed hooks (services/api/src/seed.ts), which live mode ignores.
  *
  *   1. chain     sponsor role: approve MockUSDC3009 → DataDrop.createCampaign(scopedCampaignId(sponsor, salt), …)
- *                1 000 USDC budget, 0.50 per claim, 120 claims/h, 14 days; the id is sponsor-scoped (RT-C-02)
+ *                1 000 USDC budget, 1.20 per claim (the eSIM's cost, the API's minimum), 120 claims/h, 14 days; the id
+ *                is sponsor-scoped (RT-C-02)
  *   2. ledger    POST /sponsor (SponsorLogin) → audit key in .e2e/audit-key.txt (local only)
  *   3. entitled  three tiers, all through the API:
  *                  orb      free POST /claim, 300 MB, a signed mock webhook puts usage at 60 %
- *                  paid     GET /esim/provision 402 → EIP-3009 by the human role → 300 MB, webhook to 82 % used
- *                           (54 MB left: the agent's trigger), PUT /agent/policy signed by the human
+ *                  paid     GET /esim/provision 402 → EIP-3009 by the human role → 1 GB, webhook to 95 % used
+ *                           (50 MB left: the agent's trigger), PUT /agent/policy (1 GB steps) signed by the human
  *                  document free POST /claim, 150 MB, X-Seed-Validity-S: 90 (dies on screen)
  *   4. gift      POST /gift { name: 'rahul.eth', mb: 1000 } 402 → paid by a second wallet (the `stranger` role,
  *                Anvil #7: the self-run facilitator allows 5 settlements per payer per minute, and the e2e flow
@@ -74,14 +75,14 @@ const SEED_FILES = ['state.json', 'keys.json', 'gift.json', 'cards.json', 'audit
 export const CAMPAIGN_NAME = 'Recharge (demo sponsor)';
 const DAY_S = 86_400;
 const BUDGET = 1_000_000_000n;
-const PRICE_PER_CLAIM = 500_000n;
+const PRICE_PER_CLAIM = 1_200_000n;
 const CLAIMS_PER_HOUR = 120;
 const CARD_COUNT = 10;
 const CARD_MB = 300;
 export const AGENT_POLICY: TopUpPolicyWire = {
   maxUsd6PerDay: '10000000',
   thresholdMb: 60,
-  stepMb: 100,
+  stepMb: 1000,
   paused: false,
   topUpOnExpiry: true,
   expiryLeadS: 1800,
@@ -257,7 +258,7 @@ async function freeClaim(
 
 async function paidProvision(): Promise<EntitledResponse> {
   const session = bytesToHex(generateSessionKeypair().publicKey);
-  const path = '/esim/provision?mb=300';
+  const path = '/esim/provision?mb=1000';
   const headers = { [SESSION_PUBKEY_HEADER]: session };
   const quote = await api.request(path, { headers, expect: [402] });
   const paid = await api.request(path, {
@@ -304,7 +305,7 @@ async function seed(): Promise<SeedState> {
 
   const at = await api.now();
   const orbUsed = Math.round(orb.mbTotal * 0.6);
-  const paidUsed = Math.round(paid.mbTotal * 0.82);
+  const paidUsed = Math.round(paid.mbTotal * 0.95);
   await reportUsage(stack, {
     entitlementKey: orb.entitlementKey,
     usedMb: orbUsed,
@@ -325,7 +326,7 @@ async function seed(): Promise<SeedState> {
     at,
   );
   await api.request('/agent/policy', { method: 'PUT', body: put, expect: [200] });
-  say(`usage     orb 60 % · paid 82 % (signed mock webhooks) · agent policy on the paid key`);
+  say(`usage     orb 60 % · paid 95 % (signed mock webhooks) · agent policy on the paid key`);
 
   const giftBody = { name: 'rahul.eth', mb: 1000 };
   const giftQuote = await api.request('/gift', { body: giftBody, expect: [402] });

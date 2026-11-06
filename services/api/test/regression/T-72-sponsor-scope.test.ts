@@ -38,7 +38,7 @@ describe('T-72 sponsor scopes (RT-A-04)', () => {
     const h = await harness();
     h.dataDrop.create(ID, {
       sponsor: SPONSOR,
-      pricePerClaim: 500_000n,
+      pricePerClaim: 1_200_000n,
       budget: 10_000_000n,
       spent: 0n,
       claimsPerHour: 10,

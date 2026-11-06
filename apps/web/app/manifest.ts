@@ -6,7 +6,7 @@ export default function manifest(): MetadataRoute.Manifest {
     id: '/',
     name: 'Recharge',
     short_name: 'Recharge',
-    description: "Prove you're one human and a sponsor pays for your first 300 MB.",
+    description: "Prove you're one human and a sponsor pays for your first 1 GB.",
     start_url: '/plan',
     scope: '/',
     display: 'standalone',

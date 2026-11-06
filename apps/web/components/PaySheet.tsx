@@ -3,7 +3,7 @@
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { parseAbi, type Address } from 'viem';
 
 import { keccak256 } from '@ethglobal/crypto';
@@ -34,7 +34,7 @@ import {
   mmss,
   money,
   moneyUsdc,
-  priceFor,
+  soldPlan,
   usdcBalance,
 } from '../lib/format';
 import { useClock, usePlans, useWallet } from '../lib/hooks';
@@ -56,7 +56,6 @@ import { chainNow } from '../lib/wallet';
 import type { HashPackSession } from '../lib/hedera-wc';
 
 const BALANCE_ABI = parseAbi(['function balanceOf(address) view returns (uint256)']);
-const SIZES = [100, 200, 300];
 
 /** A Hedera offer on an LPA-delivering route: HashPack cannot carry the session key yet, so it pays top-ups only (RT-W-14). */
 const sessionBound = (a: PaymentRequirements | undefined): boolean =>
@@ -206,7 +205,7 @@ function ForeignPlanGate({
 }
 
 /** `/pay` — the 402 moment, after the plan check: a top-up of another device's plan is asked for first. */
-export function PaySheet(props: { entitlementKey?: string; initialMb?: number }) {
+export function PaySheet(props: { entitlementKey?: string }) {
   const key = props.entitlementKey;
   const [owned, setOwned] = useState<boolean | undefined>(key ? undefined : true);
   const [confirmed, setConfirmed] = useState(false);
@@ -220,13 +219,7 @@ export function PaySheet(props: { entitlementKey?: string; initialMb?: number })
 }
 
 /** The receipt-shaped sheet that IS the OnchainAction component. */
-function PaySheetBody({
-  entitlementKey,
-  initialMb,
-}: {
-  entitlementKey?: string;
-  initialMb?: number;
-}) {
+function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
   const { t, lang } = useLang();
   const netName = useNetworkName();
   const walletLabel = useWalletLabel();
@@ -236,9 +229,9 @@ function PaySheetBody({
   const { openConnectModal } = useConnectModal();
   const { row, dispatch, now } = useOnchainAction();
   const clock = useClock(1000);
-  const [mb, setMb] = useState(
-    initialMb && SIZES.includes(initialMb) ? initialMb : entitlementKey ? 100 : 300,
-  );
+  // one size, from /plans (paid.sizesMb): a new plan and a top-up are each 1 GB
+  const sold = useMemo(() => soldPlan(plans), [plans]);
+  const { mb, usd6: planUsd6 } = sold;
   const [q, setQ] = useState<(Quote & { at: number; spk?: Hex }) | undefined>();
   const [quoteError, setQuoteError] = useState<string | undefined>();
   const [network, setNetwork] = useState<string | undefined>();
@@ -300,11 +293,7 @@ function PaySheetBody({
     }
   }, [wallet, accepts]);
 
-  const price = chosen
-    ? moneyUsdc(chosen.amount)
-    : plans
-      ? moneyUsdc(priceFor(mb, plans.paid.priceUsd6PerStep))
-      : '';
+  const price = chosen ? moneyUsdc(chosen.amount) : plans ? moneyUsdc(planUsd6) : '';
   const shortPrice = chosen ? money(chosen.amount) : '';
   const title = entitlementKey
     ? t('pay.topup', { mb: formatMb(mb), price: shortPrice })
@@ -477,25 +466,14 @@ function PaySheetBody({
           className="pay__meter"
         />
       ) : null}
-      {row.state === 'idle' ? (
-        <div
-          className="segmented segmented--even"
-          role="radiogroup"
-          aria-label={t('pay.size')}
-          style={{ '--segments': SIZES.length } as CSSProperties}
-        >
-          {SIZES.map((size) => (
-            <button
-              key={size}
-              type="button"
-              role="radio"
-              aria-checked={size === mb}
-              onClick={() => setMb(size)}
-            >
-              {formatMb(size)}
-            </button>
-          ))}
-        </div>
+      {!entitlementKey && row.state === 'idle' ? (
+        <p className="pay__option" data-testid="pay-option" lang={lang}>
+          {t('pay.option', {
+            mb: formatMb(mb),
+            days: plans?.paid.validityDays ?? 7,
+            price: money(planUsd6),
+          })}
+        </p>
       ) : null}
       {accepts.length > 0 && row.state === 'idle' ? (
         <div

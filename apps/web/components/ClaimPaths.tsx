@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState, type ReactNode } from 'react';
 
+import { PLAN_MB } from '@ethglobal/protocol/ids';
 import type { PlansResponse } from '@ethglobal/protocol/schemas';
 import { Coupon } from '@ethglobal/ui/components';
 
@@ -10,7 +11,7 @@ import { captureInstallPrompt } from './AddToHomeScreen';
 import { AppHeader, DESTINATIONS } from './Shell';
 import { useLang } from '../i18n/lang';
 import { parseDevice } from '../lib/device';
-import { clockIst, formatMb, money, priceFor } from '../lib/format';
+import { clockIst, formatMb, money, soldPlan } from '../lib/format';
 import { useHydrated, usePlans } from '../lib/hooks';
 import { get, plans as store, set } from '../lib/store';
 
@@ -70,7 +71,7 @@ function Step({
 }
 
 /** "How it works": verify, install (all three ways), top up, gift, agent, with the warnings where they apply. */
-function HowItWorks({ price }: { price: string }) {
+function HowItWorks({ price, mb }: { price: string; mb: string }) {
   const { t, lang } = useLang();
   const [key, setKey] = useState<string>();
   useEffect(() => {
@@ -102,7 +103,7 @@ function HowItWorks({ price }: { price: string }) {
         </Step>
         <Step
           title={t('how.topup')}
-          body={t('how.topupBody', { price })}
+          body={t('how.topupBody', { price, mb })}
           links={[{ href: topUp, label: t('tab.add') }]}
         />
         <Step
@@ -115,7 +116,7 @@ function HowItWorks({ price }: { price: string }) {
         />
         <Step
           title={t('how.agent')}
-          body={t('how.agentBody')}
+          body={t('how.agentBody', { mb })}
           links={[{ href: '/agent', label: t('how.agentLink') }]}
         />
       </ol>
@@ -124,7 +125,7 @@ function HowItWorks({ price }: { price: string }) {
 }
 
 /** Below the fold: every flow with one plain sentence — ruled rows, the same list as the header menu. */
-function Everything({ price }: { price: string }) {
+function Everything({ price, mb }: { price: string; mb: string }) {
   const { t, lang } = useLang();
   return (
     <section className="landing__section" aria-labelledby="hub-title" lang={lang}>
@@ -140,7 +141,7 @@ function Everything({ price }: { price: string }) {
                 <li key={item.href}>
                   <Link href={item.href} prefetch={false}>
                     <span className="hub__title">{t(item.title)}</span>{' '}
-                    <span className="hub__line">{t(item.line, { price })}</span>
+                    <span className="hub__line">{t(item.line, { price, mb })}</span>
                   </Link>
                 </li>
               ))}
@@ -207,12 +208,14 @@ export function ClaimPaths() {
   const plans = stale?.plans ?? (error ? undefined : live);
   const pending = !live && !error;
   const campaign = plans?.campaign ?? null;
-  const freeMb = campaign?.bundleMb.orb ?? 300;
-  const step = plans?.paid.priceUsd6PerStep;
+  const freeMb = campaign?.bundleMb.orb ?? PLAN_MB;
+  // the paid lane sells one size: 1 GB · $4.00 (its list price until a /plans reading says otherwise)
+  const sold = soldPlan(plans);
+  const planMb = formatMb(sold.mb);
+  const planPrice = money(sold.usd6);
   const exhausted = Boolean(campaign && (campaign.paused || campaign.remainingClaims === 0));
   // claim-first unless the reading shown says no sponsor bundle is open
   const claimable = !plans || (campaign !== null && !exhausted);
-  const stepPrice = step ? money(step) : '$0.40';
 
   let status: string | undefined;
   if (stale) status = t('landing.asOf', { time: clockIst(stale.at) });
@@ -271,27 +274,25 @@ export function ClaimPaths() {
               </Link>
             ) : (
               <Link
-                href={`/pay?mb=${freeMb}`}
+                href="/pay"
                 className="ui-button ui-button--block"
                 data-variant="primary"
                 prefetch={false}
               >
-                <span lang={lang}>
-                  {t('landing.payInstead', {
-                    price: step ? money(priceFor(freeMb, step)) : '',
-                    mb: formatMb(freeMb),
-                  })}
-                </span>
+                <span lang={lang}>{t('landing.payInstead', { price: planPrice, mb: planMb })}</span>
               </Link>
             )}
-            <Link
-              href="/pay"
-              className="ui-button ui-button--block"
-              data-variant="secondary"
-              prefetch={false}
-            >
-              <span lang={lang}>{t('landing.pay', { price: stepPrice })}</span>
-            </Link>
+            {/* with no sponsor bundle open the primary button already sells the 1 GB plan */}
+            {claimable ? (
+              <Link
+                href="/pay"
+                className="ui-button ui-button--block"
+                data-variant="secondary"
+                prefetch={false}
+              >
+                <span lang={lang}>{t('landing.pay', { price: planPrice, mb: planMb })}</span>
+              </Link>
+            ) : null}
           </div>
           <Preflight />
           <nav className="quiet-rows" aria-label="More ways in">
@@ -304,9 +305,9 @@ export function ClaimPaths() {
           </nav>
         </section>
       </div>
-      <HowItWorks price={stepPrice} />
+      <HowItWorks price={planPrice} mb={planMb} />
       <EsimFacts />
-      <Everything price={stepPrice} />
+      <Everything price={planPrice} mb={planMb} />
     </main>
   );
 }

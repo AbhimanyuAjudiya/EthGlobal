@@ -3,7 +3,7 @@
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { useCallback, useEffect, useState, type CSSProperties, type MouseEvent } from 'react';
 
-import { GIFT_RECLAIM_WINDOW_S } from '@ethglobal/protocol/ids';
+import { GIFT_RECLAIM_WINDOW_S, PLAN_MB } from '@ethglobal/protocol/ids';
 import type { GiftResponse } from '@ethglobal/protocol/schemas';
 import { BoardingPass, Button, Field, Hash } from '@ethglobal/ui/components';
 
@@ -29,7 +29,6 @@ import { get, set } from '../lib/store';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
 import { chainNow } from '../lib/wallet';
 
-const SIZES_MB = [300, 1000, 3000];
 type Resolution = 'idle' | 'resolving' | 'resolves' | 'unresolved' | 'error';
 
 export interface SentGift {
@@ -58,7 +57,10 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
   const { openConnectModal } = useConnectModal();
   const { row, dispatch, now } = useOnchainAction();
   const [name, setName] = useState('');
-  const [mb, setMb] = useState(1000);
+  // the sizes a paid gift sells (/plans gift.sizesMb): one, 1 GB, so the size picker only appears for more than one
+  const sizes = plans?.gift.sizesMb.length ? plans.gift.sizesMb : [PLAN_MB];
+  const [picked, setMb] = useState<number>();
+  const mb = picked !== undefined && sizes.includes(picked) ? picked : (sizes[0] ?? PLAN_MB);
   const [resolved, setResolved] = useState<{ name: string; mb: number; result: Resolution }>();
   const [gift, setGift] = useState<GiftResponse | undefined>();
   const [copied, setCopied] = useState(false);
@@ -190,26 +192,28 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
                   ? t('gift.unresolved', { name: shownName })
                   : ' '}
           </p>
-          <div
-            className="segmented segmented--even"
-            role="radiogroup"
-            aria-label={t('gift.size')}
-            style={{ '--segments': SIZES_MB.length } as CSSProperties}
-          >
-            {SIZES_MB.map((size) => (
-              <button
-                key={size}
-                type="button"
-                role="radio"
-                aria-checked={size === mb}
-                onClick={() => setMb(size)}
-              >
-                <span className="segmented__main">{formatMb(size)}</span>
-                <span className="ui-visually-hidden"> · </span>
-                <span className="segmented__sub">{money(priceFor(size, step))}</span>
-              </button>
-            ))}
-          </div>
+          {sizes.length > 1 ? (
+            <div
+              className="segmented segmented--even"
+              role="radiogroup"
+              aria-label={t('gift.size')}
+              style={{ '--segments': sizes.length } as CSSProperties}
+            >
+              {sizes.map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  role="radio"
+                  aria-checked={size === mb}
+                  onClick={() => setMb(size)}
+                >
+                  <span className="segmented__main">{formatMb(size)}</span>
+                  <span className="ui-visually-hidden"> · </span>
+                  <span className="segmented__sub">{money(priceFor(size, step))}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
           <p className="gift__rule" data-testid="gift-rule" lang={lang}>
             {t('gift.rule', {
               claimBy: dayLabel(claimBy, lang),

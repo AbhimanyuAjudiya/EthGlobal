@@ -9,7 +9,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: { default: 'Recharge', template: '%s · Recharge' },
-  description: "Prove you're one human and a sponsor pays for your first 300 MB in Mumbai.",
+  description: "Prove you're one human and a sponsor pays for your first 1 GB in Mumbai.",
   applicationName: 'Recharge',
   appleWebApp: { capable: true, title: 'Recharge', statusBarStyle: 'default' },
   icons: {

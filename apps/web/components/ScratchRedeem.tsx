@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import { PLAN_MB } from '@ethglobal/protocol/ids';
 import { isValidPin } from '@ethglobal/protocol/pin';
 import type { CardPreview } from '@ethglobal/protocol/schemas';
 import { Button, Coupon, ScratchCard } from '@ethglobal/ui/components';
@@ -38,7 +39,7 @@ export function ScratchRedeem({ serial }: { serial?: string }) {
     api.card(serial).then(setPreview, () => setPreview(null));
   }, [serial]);
 
-  const mb = preview?.mb ?? 300;
+  const mb = preview?.mb ?? PLAN_MB;
   const closed = preview && preview.state !== 'open';
 
   const check = () => {

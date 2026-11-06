@@ -2,6 +2,8 @@
  * Thin wrappers over @ethglobal/protocol/units (no second formatter): money with the unit that moves, MB/GB,
  * "usage as of", expiry from the entity's expiresAt, all in the viewer's zone with "IST" when it differs.
  */
+import { PLAN_MB } from '@ethglobal/protocol/ids';
+import type { PlansResponse } from '@ethglobal/protocol/schemas';
 import {
   DEFAULT_TIME_ZONE,
   formatExpiry,
@@ -38,6 +40,18 @@ export const usdcBalance = (usd6: bigint): string => `${money(usd6).replace('$',
 /** Price of `mb` at `priceUsd6PerStep` per 100 MB, as a bigint (one price, no invented discounts). */
 export const priceFor = (mb: number, priceUsd6PerStep: string, stepMb = 100): bigint =>
   (BigInt(mb) / BigInt(stepMb)) * usd6FromWire(priceUsd6PerStep);
+
+/**
+ * The one size a paid lane sells — GET /plans `paid.sizesMb` (new plans, top-ups) or `gift.sizesMb` (paid gifts);
+ * PLAN_MB (1 GB) before /plans answers or from an older API — and its price ($4.00 at $0.40 per 100 MB).
+ */
+export function soldPlan(
+  plans: Pick<PlansResponse, 'paid' | 'gift'> | undefined,
+  lane: 'paid' | 'gift' = 'paid',
+): { mb: number; usd6: bigint } {
+  const mb = (lane === 'gift' ? plans?.gift.sizesMb : plans?.paid.sizesMb)?.[0] ?? PLAN_MB;
+  return { mb, usd6: priceFor(mb, plans?.paid.priceUsd6PerStep ?? '400000') };
+}
 
 export function viewerTimeZone(): string {
   try {

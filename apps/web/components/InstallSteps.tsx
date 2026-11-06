@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 
+import { PLAN_MB } from '@ethglobal/protocol/ids';
 import type { MeResponse } from '@ethglobal/protocol/schemas';
 import { Button, Icon } from '@ethglobal/ui/components';
 
@@ -299,7 +300,7 @@ export function InstallSteps() {
     return () => clearInterval(timer);
   }, [me]);
 
-  const mb = me?.mbTotal ?? 300;
+  const mb = me?.mbTotal ?? PLAN_MB;
   return (
     <Screen>
       <AppHeader />

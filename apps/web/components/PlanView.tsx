@@ -24,7 +24,7 @@ import { AppHeader, Caution, Screen, TabBar } from './Shell';
 import { useLang } from '../i18n/lang';
 import { api, ApiError } from '../lib/api';
 import { arkivEntityUrl } from '../lib/env';
-import { clockIst, dayLabel, formatMb, money, moneyUsdc } from '../lib/format';
+import { clockIst, dayLabel, formatMb, money, moneyUsdc, soldPlan } from '../lib/format';
 import { useClock, usePlans } from '../lib/hooks';
 import { plans as store, type IssuedFacts } from '../lib/store';
 
@@ -179,7 +179,8 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
   }, [live, owned, me, entitlementKey]);
 
   const odometer = useOdometer(me?.mbTotal ?? 0, firstView && Boolean(me));
-  const price = plans ? money(plans.paid.priceUsd6PerStep) : '$0.40';
+  // a top-up is the paid lane's one size: "+1 GB · $4.00"
+  const price = money(soldPlan(plans).usd6);
   const k = encodeURIComponent(entitlementKey);
   const uiLang: CouponLang = lang;
 

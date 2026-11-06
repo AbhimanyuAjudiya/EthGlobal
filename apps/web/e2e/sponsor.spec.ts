@@ -27,7 +27,7 @@ test("sponsor: create → approve → createCampaign (two OnchainAction rows, ha
   await page.waitForURL(/\/sponsor\/0x[0-9a-f]{64}$/);
   await expect(page.getByTestId('sponsor-claims')).toHaveText('0 claims');
   await expect(page.locator('.sponsor-hero__line')).toContainText(
-    '$0.00 of $50.00 · 2,000 cap · 120/h',
+    '$0.00 of $50.00 · 10 cap · 10/h',
   );
   // no KPI tile wall, no donut: tables
   await expect(page.getByRole('table')).toHaveCount(3);

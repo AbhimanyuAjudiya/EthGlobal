@@ -26,7 +26,7 @@ test.describe('/plan/[key]', () => {
     await expect(page.locator('.mb-meter__source')).toHaveText(' · simulated usage');
     await expect(page.getByTestId('degraded-banner')).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Install eSIM · 2 min' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Add 100 MB · $0.40' })).toBeVisible();
+    await expect(page.getByRole('link', { name: '+1 GB · $4.00' })).toBeVisible();
     // the "why it expires" disclosure carries the Arkiv entity key
     await page.getByText('Why it expires by itself').click();
     await expect(page.getByTestId('arkiv-key')).toHaveText(me.arkivKey);

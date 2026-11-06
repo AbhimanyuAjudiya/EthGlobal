@@ -40,16 +40,17 @@ interface Draft {
   expiresDays: string;
 }
 
+/** Testnet defaults: ten 1 GB claims at the eSIM's cost, a week long. */
 const initial: Draft = {
   name: 'Mumbai Welcome',
-  budgetUsd: '1000',
-  priceUsd: '0.50',
-  orbMb: '300',
-  documentMb: '150',
-  maxClaims: '2000',
-  perHour: '120',
+  budgetUsd: '12',
+  priceUsd: '1.20',
+  orbMb: '1000',
+  documentMb: '1000',
+  maxClaims: '10',
+  perHour: '10',
   validityDays: '7',
-  expiresDays: '14',
+  expiresDays: '7',
 };
 
 /** "0.50" → 500000n; refuses anything but plain decimals with ≤ 6 places. */
@@ -164,9 +165,10 @@ export function CampaignForm() {
           maxClaims: Number(draft.maxClaims),
           claimsPerHour: Number(draft.perHour),
           validityDays: Number(draft.validityDays),
-          wholesaleUsd6PerGb: '1140000',
-          idResaleUsd6: '500000',
-          planId: 'in-300mb-7d',
+          wholesaleUsd6PerGb: '1200000',
+          // founder decision 2026-11-06 (T-23): at $1.50 the 80 % bundle-EV rule (octroi size.ts) allows the full 1 GB
+          idResaleUsd6: '1500000',
+          planId: 'in-1gb-7d',
           network: wallet.network,
           contract: dataDropAddress(),
           expiresAt: Number(expiresAtS) * 1000,
@@ -252,9 +254,13 @@ export function CampaignForm() {
         {field('name', 'Name')}
         <div className="form-grid">
           {field('budgetUsd', 'Budget (USDC)')}
-          {field('priceUsd', 'Paid per claim (USDC)')}
-          {field('orbMb', 'Orb bundle (MB)', 'max 300')}
-          {field('documentMb', 'Document bundle (MB)', 'max 300')}
+          {field(
+            'priceUsd',
+            'Paid per claim (USDC)',
+            'Covers one 1 GB eSIM ($1.20 wholesale); lower prices are refused',
+          )}
+          {field('orbMb', 'Orb bundle (MB)', 'max 1 GB')}
+          {field('documentMb', 'Document bundle (MB)', 'max 1 GB')}
           {field('maxClaims', 'Claims cap')}
           {field('perHour', 'Claims per hour')}
           {field('validityDays', 'Plan validity (days)')}

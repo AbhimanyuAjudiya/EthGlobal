@@ -13,7 +13,6 @@ test('gift: reclaim after claimBy (clock mocked via API seed) → refund receipt
   await page.goto('/gift');
   await page.getByTestId('gift-name').fill('rahul.eth');
   await expect(page.getByTestId('gift-resolution')).toHaveText(/resolves/);
-  await page.getByRole('radio', { name: /^300\sMB/ }).click();
   await page
     .locator('.onchain-action')
     .getByRole('button', { name: /^Pay \$/ })
@@ -47,7 +46,7 @@ test('gift: reclaim after claimBy (clock mocked via API seed) → refund receipt
     .getByRole('button', { name: 'Reclaim the USDC' });
   await expect(reclaim).toBeEnabled();
   await reclaim.click();
-  await expect(page.getByTestId('reclaim-row').first()).toContainText('Refunded $1.20', {
+  await expect(page.getByTestId('reclaim-row').first()).toContainText('Refunded $4.00', {
     timeout: 20_000,
   });
   await expect(page.getByTestId('reclaim-row').first().locator('.receipt')).toContainText('You');

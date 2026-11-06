@@ -77,15 +77,9 @@ export function PlanIndex() {
 
 export function PayRoute() {
   const search = useSearchParams();
+  // one size is sold (/plans paid.sizesMb), so an old `?mb=` link is ignored rather than quoted
   const key = search.get('key') ?? undefined;
-  const mb = Number(search.get('mb') ?? '') || undefined;
-  return (
-    <PaySheet
-      key={`${key ?? 'new'}-${mb ?? ''}`}
-      {...(key ? { entitlementKey: key } : {})}
-      {...(mb ? { initialMb: mb } : {})}
-    />
-  );
+  return <PaySheet key={key ?? 'new'} {...(key ? { entitlementKey: key } : {})} />;
 }
 
 export function GiftPage() {

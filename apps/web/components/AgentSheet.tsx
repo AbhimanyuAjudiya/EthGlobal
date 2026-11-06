@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { toBytes } from 'viem';
 
 import { keccak256 } from '@ethglobal/crypto';
-import { dayBucket, STEP_MB } from '@ethglobal/protocol/ids';
+import { dayBucket, PLAN_MB, STEP_MB } from '@ethglobal/protocol/ids';
 import type {
   AgentPolicyView,
   MeResponse,
@@ -23,19 +23,21 @@ import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
 import { planHash, readTopUps, topUpsRequest, type AgentTopUp } from '../lib/arkiv-read';
 import { config, explorerName, explorerTemplate } from '../lib/env';
-import { clockIst, dayLabel, formatMb, money, moneyUsdc } from '../lib/format';
+import { clockIst, dayLabel, formatMb, money, moneyUsdc, soldPlan } from '../lib/format';
 import { usePlans, useWallet } from '../lib/hooks';
 import { plans as store } from '../lib/store';
 import { isUserRejection } from '../lib/wallet';
 
-const CAPS_USD = [1, 5, 10, 25];
+/** Daily caps that buy at least one 1 GB step ($4.00): one, two or five top-ups a day. */
+const CAPS_USD = [4, 8, 20];
 const USD6 = 1_000_000;
 
 export function defaultPolicy(me: MeResponse | undefined): TopUpPolicyWire {
   return {
-    maxUsd6PerDay: String(10 * USD6),
-    thresholdMb: Math.max(1, Math.floor((me?.mbTotal ?? 300) * 0.2)),
-    stepMb: 100,
+    maxUsd6PerDay: String(8 * USD6),
+    thresholdMb: Math.max(1, Math.floor((me?.mbTotal ?? PLAN_MB) * 0.2)),
+    // the one size the API sells; the agent skips a step it does not sell (`step-not-sold`)
+    stepMb: PLAN_MB,
     paused: false,
     topUpOnExpiry: true,
     expiryLeadS: 1800,
@@ -65,8 +67,11 @@ export function AgentSheet() {
       const existing = await api.agentPolicy(k).catch(() => undefined);
       setView(existing);
       setPolicy(existing?.policy ?? defaultPolicy(m));
-      const receipts = await api.receipts(k).catch(() => []);
-      setRows(receipts.filter((r) => r.kind === 'agent-topup'));
+      // live reads the agent's history from Arkiv only (ArkivHistory); the API-fed list stays for the local e2e
+      if (process.env.NEXT_PUBLIC_MODE === 'local') {
+        const receipts = await api.receipts(k).catch(() => []);
+        setRows(receipts.filter((r) => r.kind === 'agent-topup'));
+      }
     })();
   }, []);
 
@@ -138,6 +143,7 @@ export function AgentSheet() {
     );
 
   const step = plans?.paid.priceUsd6PerStep ?? '400000';
+  const sold = soldPlan(plans);
   const capUsd6 = policy ? BigInt(policy.maxUsd6PerDay) : 0n;
   const spent = view ? BigInt(view.spentTodayUsd6) : 0n;
   const agentNetwork =
@@ -166,7 +172,7 @@ export function AgentSheet() {
         </p>
         {policy ? (
           <>
-            {/* one row of four equal segments: "$1 · $5 · $10 · $25", the "/ day" said once (no orphan chip) */}
+            {/* one row of three equal segments: "$4 · $8 · $20", the "/ day" said once (no orphan chip) */}
             <p className="segmented__legend" id="agent-cap-legend">
               {t('agent.capLegend')}
             </p>
@@ -185,7 +191,9 @@ export function AgentSheet() {
                   aria-label={t('agent.capAria', { cap: `$${usd}` })}
                   aria-checked={capUsd6 === BigInt(usd * USD6)}
                   disabled={status === 'signing' || status === 'saving' || !wallet}
-                  onClick={() => void save({ ...policy, maxUsd6PerDay: String(usd * USD6) })}
+                  onClick={() =>
+                    void save({ ...policy, stepMb: sold.mb, maxUsd6PerDay: String(usd * USD6) })
+                  }
                 >
                   {`$${usd}`}
                 </button>
@@ -196,7 +204,7 @@ export function AgentSheet() {
               <Button
                 variant="secondary"
                 disabled={status === 'signing' || status === 'saving'}
-                onClick={() => void save({ ...policy, paused: !policy.paused })}
+                onClick={() => void save({ ...policy, stepMb: sold.mb, paused: !policy.paused })}
                 aria-pressed={policy.paused}
               >
                 {policy.paused ? t('agent.resume') : t('agent.pause')}
@@ -220,7 +228,11 @@ export function AgentSheet() {
         {view && capUsd6 > 0n ? (
           <p className="note" lang={lang}>
             {spent >= capUsd6
-              ? t('agent.capReached', { cap: money(capUsd6), price: money(step) })
+              ? t('agent.capReached', {
+                  cap: money(capUsd6),
+                  mb: formatMb(sold.mb),
+                  price: money(sold.usd6),
+                })
               : t('agent.spent', { spent: money(spent), cap: money(capUsd6) })}
           </p>
         ) : null}
@@ -263,41 +275,43 @@ export function AgentSheet() {
           </div>
         ) : null}
       </section>
-      <section className="agent__rows" aria-label="Agent top-ups">
-        {rows.length === 0 ? (
-          <p className="ghost-row" lang={lang}>
-            {t('agent.empty')}
-          </p>
-        ) : (
-          <ul className="ledger-rows">
-            {rows.map((r) => {
-              const template = explorerTemplate(r.network);
-              return (
-                <li key={`${r.tx}-${r.at}`} data-testid="agent-row">
-                  <span>{clockIst(r.at)}</span>
-                  <span>{r.mb ? `+${formatMb(r.mb)}` : ''}</span>
-                  <span>{r.usd6 ? money(r.usd6) : ''}</span>
-                  <span className="mono-key" data-hash title={r.uaid}>
-                    {r.uaid ? `agent ${r.uaid.slice(0, 18)}…` : 'agent'}
-                  </span>
-                  {r.tx ? (
-                    <Hash
-                      value={r.tx}
-                      kind="transaction hash"
-                      {...(template
-                        ? {
-                            explorerHref: template.replace('{hash}', r.tx),
-                            explorerName: 'HashScan',
-                          }
-                        : {})}
-                    />
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+      {process.env.NEXT_PUBLIC_MODE === 'local' ? (
+        <section className="agent__rows" aria-label="Agent top-ups">
+          {rows.length === 0 ? (
+            <p className="ghost-row" lang={lang}>
+              {t('agent.empty')}
+            </p>
+          ) : (
+            <ul className="ledger-rows">
+              {rows.map((r) => {
+                const template = explorerTemplate(r.network);
+                return (
+                  <li key={`${r.tx}-${r.at}`} data-testid="agent-row">
+                    <span>{clockIst(r.at)}</span>
+                    <span>{r.mb ? `+${formatMb(r.mb)}` : ''}</span>
+                    <span>{r.usd6 ? money(r.usd6) : ''}</span>
+                    <span className="mono-key" data-hash title={r.uaid}>
+                      {r.uaid ? `agent ${r.uaid.slice(0, 18)}…` : 'agent'}
+                    </span>
+                    {r.tx ? (
+                      <Hash
+                        value={r.tx}
+                        kind="transaction hash"
+                        {...(template
+                          ? {
+                              explorerHref: template.replace('{hash}', r.tx),
+                              explorerName: 'HashScan',
+                            }
+                          : {})}
+                      />
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      ) : null}
       {key ? <ArkivHistory planKey={key} policy={policy} /> : null}
       {/* the agent is its own screen, not the Add-data tab (RT design review: wrong active tab) */}
       <TabBar />
@@ -410,6 +424,7 @@ function ArkivHistory({
                 {r.mb ? <span>{`+${formatMb(r.mb)}`}</span> : null}
                 {r.usd6 ? <span>{moneyUsdc(r.usd6)}</span> : null}
                 <span>{netName(r.network)}</span>
+                {r.uaid ? <Hash value={r.uaid} kind="agent UAID" lang={lang} /> : null}
                 {r.tx ? (
                   <Hash
                     value={r.tx}

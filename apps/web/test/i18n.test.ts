@@ -40,8 +40,9 @@ describe('i18n', () => {
     expect(t('verify.title', undefined, 'mr')).toBe('तुम्ही एक माणूस आहात हे सिद्ध करा');
     expect(t('plan.install', undefined, 'hi')).toBe('eSIM इंस्टॉल करें · 2 मिनट');
     expect(t('plan.install', undefined, 'mr')).toBe('eSIM इंस्टॉल करा · 2 मिनिटे');
-    expect(t('plan.add', { price: '$0.40' }, 'hi')).toBe('100 MB जोड़ें · $0.40');
-    expect(t('plan.add', { price: '$0.40' }, 'mr')).toBe('100 MB जोडा · $0.40');
+    // the product unit (founder decision, 6 Nov): a top-up is one 1 GB step
+    expect(t('plan.add', { price: '$4.00' })).toBe('+1 GB · $4.00');
+    expect(t('plan.add', { price: '$4.00' }, 'hi')).toBe('+1 GB · $4.00');
     expect(t('plan.reason', undefined, 'hi')).toBe('क्योंकि आप इंसान हैं');
     expect(t('plan.reason', undefined, 'mr')).toBe('कारण तुम्ही माणूस आहात');
     expect(t('error.settlement_failed', undefined, 'hi')).toContain('आपके खाते से कुछ नहीं गया।');

@@ -9,16 +9,19 @@ test('agent: policy sheet persists via signed PUT; sentence updates; receipts ro
   await page.goto('/agent');
   const sentence = page.getByTestId('agent-sentence');
   await expect(sentence).toHaveText(
-    /^When your plan drops below 20 % or expires, your agent buys 100 MB for \$0\.40 on .+, up to \$10\.00 a day\.$/,
+    /^When your plan drops below 20 % or expires, your agent buys 1\sGB for \$4\.00 on .+, up to \$8\.00 a day\.$/,
   );
-  await page.getByTestId('agent-cap').getByRole('radio', { name: '≤ $5 / day' }).click();
+  // every cap buys at least one 1 GB top-up: $4 · $8 · $20
+  await expect(page.getByTestId('agent-cap').getByRole('radio')).toHaveText(['$4', '$8', '$20']);
+  await page.getByTestId('agent-cap').getByRole('radio', { name: '≤ $20 / day' }).click();
   await expect(page.getByTestId('agent-status')).toHaveText(
     /^Saved · signed by 0x[0-9a-fA-F]{4}…[0-9a-fA-F]{4}$/,
   );
-  await expect(sentence).toContainText('up to $5.00 a day');
+  await expect(sentence).toContainText('up to $20.00 a day');
 
   const saved = await apiGet<AgentPolicyView>(page, `/agent/policy/${encodeURIComponent(key)}`);
-  expect(saved.policy.maxUsd6PerDay).toBe('5000000');
+  expect(saved.policy.maxUsd6PerDay).toBe('20000000');
+  expect(saved.policy.stepMb).toBe(1000);
   expect(saved.owner.toLowerCase()).toBe('0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc'); // demo wallet · Anvil #5
 
   await page.getByRole('button', { name: 'Pause' }).click();

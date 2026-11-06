@@ -9,7 +9,7 @@ export const reader = chainReader;
 export const seedCampaign = (name: string): Promise<Hex> =>
   registerCampaign({
     name,
-    budget: 10_000_000n,
+    budget: 24_000_000n, // 20 claims at $1.20
     maxClaims: 20,
     expiresInDays: 10,
     salt: BigInt(Date.now()) * 7n,

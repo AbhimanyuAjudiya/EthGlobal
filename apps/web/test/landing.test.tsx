@@ -29,7 +29,7 @@ function plansWith(campaign: boolean): PlansResponse {
           id: `0x${'3'.repeat(64)}`,
           name: 'Mumbai Welcome',
           sponsor: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
-          bundleMb: { orb: 300, document: 150, device: 0 },
+          bundleMb: { orb: 1000, document: 1000, device: 0 },
           remainingClaims: 1214,
           maxClaims: 2000,
           paused: false,
@@ -37,8 +37,14 @@ function plansWith(campaign: boolean): PlansResponse {
           network: 'eip155:31337',
         }
       : null,
-    paid: { stepMb: 100, priceUsd6PerStep: '400000', validityDays: 7, accepts: [] },
-    gift: { sizesMb: [300], claimWindowS: 3600 },
+    paid: {
+      stepMb: 100,
+      priceUsd6PerStep: '400000',
+      validityDays: 7,
+      accepts: [],
+      sizesMb: [1000],
+    },
+    gift: { sizesMb: [1000], claimWindowS: 3600 },
     simulated: { usage: true, personhood: true },
   };
 }
@@ -55,7 +61,7 @@ const EVERY_FLOW = [
   '/sponsor',
   '/verify',
 ];
-const CLAIM = /^Prove I.m human → 300\sMB$/;
+const CLAIM = /^Prove I.m human → 1\sGB$/;
 /** The reading this phone saved at 19:53 IST, before the sponsor's campaign went live. */
 const SAVED_AT = Date.UTC(2026, 10, 5, 14, 23);
 
@@ -75,7 +81,7 @@ describe('the landing is the hub', () => {
     expect(hrefs(links).sort()).toEqual(EVERY_FLOW);
     for (const link of links)
       expect(link.querySelector('.hub__line')?.textContent).toMatch(/^\S.{24,}\.$/);
-    expect(within(hub).getByRole('link', { name: /^Buy data \$0\.40 per 100 MB in USDC/ })).toBe(
+    expect(within(hub).getByRole('link', { name: /^Buy data 1\sGB for \$4\.00 in USDC/ })).toBe(
       links.find((a) => a.getAttribute('href') === '/pay'),
     );
   });
@@ -177,8 +183,10 @@ describe('the landing never shows a stored /plans reading as current (stale land
       .mockResolvedValue(plansWith(true));
     render(<ClaimPaths />, { wrapper: Wallets });
     expect(await screen.findByText(`as of ${clockIst(SAVED_AT)}`)).toBeTruthy();
-    const pay = screen.getByRole('link', { name: /^Pay \$1\.20 for 300\sMB$/ });
-    expect(pay.getAttribute('href')).toBe('/pay?mb=300');
+    const pay = screen.getByRole('link', { name: /^Pay \$4\.00 for 1\sGB$/ });
+    expect(pay.getAttribute('href')).toBe('/pay');
+    // one way to pay when no sponsor bundle is open: the 1 GB plan, not a second button for it
+    expect(screen.queryByRole('link', { name: /^I.ll pay/ })).toBeNull();
     // "right now" is never said of a saved reading
     expect(screen.queryByText(/No sponsor bundle is live right now/)).toBeNull();
 
@@ -187,7 +195,8 @@ describe('the landing never shows a stored /plans reading as current (stale land
     });
     expect((await screen.findByRole('link', { name: CLAIM })).getAttribute('href')).toBe('/verify');
     expect(screen.queryByText(/as of/)).toBeNull();
-    expect(screen.queryByRole('link', { name: /^Pay \$1\.20/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: /^Pay \$4\.00/ })).toBeNull();
+    expect(screen.getByRole('link', { name: /^I.ll pay · 1\sGB for \$4\.00$/ })).toBeTruthy();
     expect(mocks.plans).toHaveBeenCalledTimes(2);
   });
 

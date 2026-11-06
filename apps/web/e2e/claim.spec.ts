@@ -10,8 +10,8 @@ test.describe('claim: / → /verify → /plan', () => {
     await expect(
       page.getByRole('heading', { name: 'Landing in Mumbai without data?' }),
     ).toBeVisible();
-    await expect(page.getByRole('link', { name: /Prove I.m human → 300\sMB/ })).toBeVisible();
-    await expect(page.getByRole('link', { name: /I.ll pay · \$0\.40 per 100 MB/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Prove I.m human → 1\sGB/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /I.ll pay · 1\sGB for \$4\.00/ })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Enter a coupon PIN' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Open my plan' })).toBeVisible();
     const campaign = plans.campaign;
@@ -29,7 +29,7 @@ test.describe('claim: / → /verify → /plan', () => {
       'rub here · यहाँ रगड़ें',
     );
     await expect(page.locator('#landing-coupon .coupon__wordmark')).toHaveCount(0);
-    await expect(page.locator('#landing-coupon .coupon__value')).toHaveText('300');
+    await expect(page.locator('#landing-coupon .coupon__value')).toHaveText('1');
     await expect(page.getByTestId('preflight')).toContainText(/eSIM/);
     // no AddToHomeScreen on launch, never "Connect Wallet" as the only CTA
     await expect(page.getByTestId('add-to-home-screen')).toHaveCount(0);
@@ -40,7 +40,8 @@ test.describe('claim: / → /verify → /plan', () => {
     await page.goto('/');
     await page.getByRole('link', { name: /I.ll pay/ }).click();
     await expect(page).toHaveURL(/\/pay$/);
-    await expect(page.getByRole('heading', { name: /Buy 300\sMB · \$1\.20/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Buy 1\sGB · \$4\.00/ })).toBeVisible();
+    await expect(page.getByTestId('pay-option')).toHaveText(/^1\sGB · 7 days · \$4\.00$/);
   });
 
   test('/verify calls POST /challenge then POST /world/rp-context before opening IDKit, and the /claim body’s proof equals the IDKit result byte-for-byte (local simulated IDKit)', async ({
@@ -68,14 +69,14 @@ test.describe('claim: / → /verify → /plan', () => {
     expect(JSON.stringify(claimed)).toBe(JSON.stringify(simulated));
   });
 
-  test('simulated World ID → /plan shows 300 MB, IssuingRows turn primary in order, odometer runs once, Arkiv key visible', async ({
+  test('simulated World ID → /plan shows 1 GB, IssuingRows turn primary in order, odometer runs once, Arkiv key visible', async ({
     page,
   }) => {
     const key = await claimFreeBundle(page);
     expect(key).toMatch(/^ent:/);
     const coupon = page.locator('#plan-coupon');
-    await expect(coupon.locator('.coupon__value')).toHaveText('300');
-    // the lock-screen line: "300 MB · from <sponsor> · because you're human"
+    await expect(coupon.locator('.coupon__value')).toHaveText('1');
+    // the lock-screen line: "1 GB · from <sponsor> · because you're human"
     await expect(coupon.locator('.coupon__line').first()).toContainText(
       /from .+ · because you.re human/,
     );
@@ -87,11 +88,11 @@ test.describe('claim: / → /verify → /plan', () => {
     await expect(page.getByTestId('arkiv-key')).toHaveText(/\S{8,}/, { useInnerText: false });
     await expect(page.getByRole('meter', { name: 'Data left' })).toHaveAttribute(
       'aria-valuenow',
-      '300',
+      '1000',
     );
     // second visit: the odometer does not run again
     await page.reload();
-    await expect(coupon.locator('.coupon__value')).toHaveText('300');
+    await expect(coupon.locator('.coupon__value')).toHaveText('1');
     const values = await page.evaluate(async () => {
       const seen: string[] = [];
       for (let i = 0; i < 10; i += 1) {
@@ -100,7 +101,7 @@ test.describe('claim: / → /verify → /plan', () => {
       }
       return seen;
     });
-    expect(new Set(values)).toEqual(new Set(['300']));
+    expect(new Set(values)).toEqual(new Set(['1']));
   });
 
   test('second simulated proof with the same nullifier → "This World ID claimed its bundle…" state', async ({

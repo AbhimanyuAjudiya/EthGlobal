@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
-import type { Hex } from '@ethglobal/protocol/ids';
+import { PLAN_MB, type Hex } from '@ethglobal/protocol/ids';
 import type { ChallengeWire } from '@ethglobal/protocol/schemas';
 import { Button, Coupon } from '@ethglobal/ui/components';
 
@@ -17,7 +17,7 @@ import { api, ApiError } from '../lib/api';
 import { deliver, planHref } from '../lib/deliver';
 import { isHandheld } from '../lib/device';
 import { config } from '../lib/env';
-import { formatMb, mmss, money, priceFor } from '../lib/format';
+import { formatMb, mmss, money, soldPlan } from '../lib/format';
 import { useClock, usePlans } from '../lib/hooks';
 import { beginSession } from '../lib/session-key';
 
@@ -190,9 +190,11 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
     }
   }, [claim, fail]);
 
-  const mb = plans?.campaign?.bundleMb.orb ?? 300;
-  const price = plans ? money(priceFor(mb, plans.paid.priceUsd6PerStep)) : '';
-  const payHref = `/pay?mb=${mb}`;
+  const mb = plans?.campaign?.bundleMb.orb ?? PLAN_MB;
+  // "pay instead" sells the paid lane's one size (1 GB · $4.00), whatever the free bundle is
+  const sold = soldPlan(plans);
+  const price = money(sold.usd6);
+  const payMb = formatMb(sold.mb);
 
   let status: ReactNode = null;
   switch (phase.kind) {
@@ -261,7 +263,7 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
     case 'failed':
       status = (
         <p role="status" lang={lang}>
-          {t('verify.failed', { price, mb: formatMb(mb) })}
+          {t('verify.failed', { price, mb: payMb })}
         </p>
       );
       break;
@@ -342,8 +344,8 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
           {phase.kind === 'failed' ||
           phase.kind === 'noCredential' ||
           phase.kind === 'sponsorFailed' ? (
-            <Link href={payHref} className="ui-button" data-variant="secondary" prefetch={false}>
-              {t('landing.payInstead', { price, mb: formatMb(mb) })}
+            <Link href="/pay" className="ui-button" data-variant="secondary" prefetch={false}>
+              {t('landing.payInstead', { price, mb: payMb })}
             </Link>
           ) : null}
         </div>

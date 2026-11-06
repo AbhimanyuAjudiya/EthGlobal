@@ -385,6 +385,8 @@
   "receipts.details": "तपशील",
   "receipts.final": "अंतिम",
   "receipts.refund": "परतावा",
+  "receipts.sponsorRefund": "आयोजकाला परतावा",
+  "receipts.pending": "प्रलंबित",
   "receipts.foreign": "या फोनवर सेव्ह नसलेल्या प्लॅनच्या पावत्या.",
   "receipts.dayYou": "तुम्ही · {amount}",
   "demo.banner": "डेमो वॉलेट · Anvil #{n}",

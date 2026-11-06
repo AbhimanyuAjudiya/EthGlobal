@@ -385,6 +385,8 @@
   "receipts.details": "Details",
   "receipts.final": "Final",
   "receipts.refund": "Refund",
+  "receipts.sponsorRefund": "Return to organizer",
+  "receipts.pending": "Pending",
   "receipts.foreign": "Receipts of a plan that isn't saved on this phone.",
   "receipts.dayYou": "You · {amount}",
   "demo.banner": "demo wallet · Anvil #{n}",

@@ -385,6 +385,8 @@
   "receipts.details": "विवरण",
   "receipts.final": "फ़ाइनल",
   "receipts.refund": "वापसी",
+  "receipts.sponsorRefund": "आयोजक को वापसी",
+  "receipts.pending": "लंबित",
   "receipts.foreign": "उस प्लान की रसीदें जो इस फ़ोन पर सेव नहीं है।",
   "receipts.dayYou": "आप · {amount}",
   "demo.banner": "डेमो वॉलेट · Anvil #{n}",

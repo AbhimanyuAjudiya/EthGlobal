@@ -14,12 +14,13 @@ import { explorerName, explorerTemplate, hcsTopicUrl } from '../lib/env';
 import { clockIst, dayLabel, formatMb, money } from '../lib/format';
 import { plans } from '../lib/store';
 
-const SPONSORED = new Set(['claim', 'card-redeem']);
+const SPONSORED = new Set(['claim', 'card-redeem', 'campaign-reclaim']);
 /** Money back to the traveller (POST /plan/cancel): a credit row, never spend. */
 const REFUND = 'plan-cancel';
 
 function lines(r: ReceiptPublic) {
   const amount = r.usd6 ? money(r.usd6) : '$0.00';
+  if (r.kind === 'campaign-reclaim') return { you: '$0.00', sponsor: r.tx ? `−${amount}` : '—' };
   if (r.kind === REFUND) return { you: `−${amount}`, sponsor: '—' };
   return SPONSORED.has(r.kind) ? { you: '$0.00', sponsor: amount } : { you: amount, sponsor: '—' };
 }
@@ -134,7 +135,7 @@ export function ReceiptList({ entitlementKey }: { entitlementKey?: string }) {
                     data-kind={r.kind}
                   >
                     <Receipt
-                      heading={`${r.kind === REFUND ? t('receipts.refund') : r.mb ? `+${formatMb(r.mb)}` : r.kind} · ${day} ${clockIst(r.at)} · ${netName(r.network)} · ${t('receipts.final')}`}
+                      heading={`${r.kind === 'campaign-reclaim' ? t('receipts.sponsorRefund') : r.kind === REFUND ? t('receipts.refund') : r.mb ? `+${formatMb(r.mb)}` : r.kind} · ${day} ${clockIst(r.at)} · ${netName(r.network)} · ${t((r.kind === REFUND || r.kind === 'campaign-reclaim') && !r.tx ? 'receipts.pending' : 'receipts.final')}`}
                       {...lines(r)}
                       networkFee="$0.00"
                       lang={lang}

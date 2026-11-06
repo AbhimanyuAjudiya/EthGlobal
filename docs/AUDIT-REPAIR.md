@@ -1,6 +1,6 @@
 # Recharge repair and verification — 6 November 2026
 
-## Event workflow update — awaiting deployment
+## Event workflow update — deployed 6 November
 
 The next release adds destination-specific, ticket-linked event campaigns. Organizers issue private passes from confirmed ticket references; World ID enforces one human per campaign without replacing ticket eligibility. Passes are signed by the sponsor, bound after verification, and recoverable only with the original browser's private operation identity. New event allocations use the actual selected provider package and preserve pre-travel installation/service lifecycle information.
 
@@ -9,6 +9,8 @@ New campaigns can explicitly enroll eligible unused allocations in post-event re
 Authenticated campaign history survives the public record's expiry, so organizers can still view returns after the event. Unclaimed contract budget and refunds for issued allocations remain separate. New event packages explicitly disable top-ups/autopay until exact provider validity/pricing is supported. Dead/missing paid plans no longer offer agent policy activation. Installer and plan screens honor cached cancellation deadlines while offline.
 
 The user requested ownership of testing. This update receives source review, compilation, static lint and production build only; no new test suites, browser claims, purchases, cancellations or wallet actions are run by the assistant. Historical test results below do not validate this new release. Product boundaries are documented in [EVENT-CONNECTIVITY.md](EVENT-CONNECTIVITY.md).
+
+Release `0d67a93a284c956010208610d1dbd259321912f7` completed deployment at 07:59:59 UTC (13:29:59 IST). The production build and configuration validation passed before the atomic release switch; the previous `4882b33` release and private state backups were retained. The deployment helper's legacy log wording said “live-bundle tests” although that invocation was deliberately removed for this release; no test suite ran. That log wording is corrected in the follow-up helper. A small receipt-display follow-up keeps organizer reimbursements out of attendee spending and labels pending refunds accurately.
 
 This records the code audit, fixes, and validation performed in this checkout. Passing tests reduce risk; they do not establish that every external service or physical device will always work.
 

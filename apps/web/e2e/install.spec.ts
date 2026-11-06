@@ -1,4 +1,4 @@
-import { claimFreeBundle, expect, storedValues, test } from './fixtures';
+import { claimFreeBundle, expect, storedLpas, test } from './fixtures';
 
 import type { Page } from '@playwright/test';
 
@@ -8,7 +8,7 @@ const ANDROID =
   'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36';
 
 async function openedLpa(page: Page): Promise<string> {
-  return (await storedValues(page)).find((v) => v.startsWith('LPA:1$')) ?? '';
+  return (await storedLpas(page)).find((v) => v.startsWith('LPA:1$')) ?? '';
 }
 
 test.describe('/install — honest by platform', () => {
@@ -34,7 +34,8 @@ test.describe('/install — honest by platform', () => {
         page.getByText('Settings → Cellular → Recharge → Data Roaming on').first(),
       ).toBeVisible();
       await expect(page.locator('svg.qr-code')).toHaveCount(0);
-      await expect(page.getByTestId('status-pill')).toHaveText('No Service');
+      // Desktop Chrome UA (no coarse pointer): a computer says what the state is, not a phone's status-bar words
+      await expect(page.getByTestId('status-pill')).toHaveText('Not installed yet');
       await expect(page.getByTestId('copy-activation-code')).toHaveCount(0);
     });
   });
@@ -49,6 +50,7 @@ test.describe('/install — honest by platform', () => {
       await claimFreeBundle(page);
       await page.goto('/install');
       const lpa = await openedLpa(page);
+      expect(lpa).toMatch(/^LPA:1\$/);
       await expect(page.getByTestId('ios-universal-link')).toHaveCount(0);
       const copy = page.getByTestId('copy-activation-code');
       await expect(copy).toHaveText(/Copy activation code/);

@@ -1,4 +1,4 @@
-import { expect, interruptEntitlementOnce, state, storedValues, test } from './fixtures';
+import { expect, interruptEntitlementOnce, state, storedLpas, test } from './fixtures';
 
 test('free claim response loss recovers the same activation after reload and a new proof', async ({
   page,
@@ -12,7 +12,7 @@ test('free claim response loss recovers the same activation after reload and a n
   await page.waitForURL(/\/plan\/.+/);
   expect(decodeURIComponent(new URL(page.url()).pathname.slice('/plan/'.length))).toBe(issuedKey());
   await expect
-    .poll(async () => (await storedValues(page)).filter((value) => value.startsWith('LPA:')).length)
+    .poll(async () => (await storedLpas(page)).filter((value) => value.startsWith('LPA:')).length)
     .toBe(1);
 });
 
@@ -37,6 +37,6 @@ test('a claimed scratch card can recover its interrupted activation on the origi
   await page.waitForURL(/\/plan\/.+/);
   expect(decodeURIComponent(new URL(page.url()).pathname.slice('/plan/'.length))).toBe(issuedKey());
   await expect
-    .poll(async () => (await storedValues(page)).filter((value) => value.startsWith('LPA:')).length)
+    .poll(async () => (await storedLpas(page)).filter((value) => value.startsWith('LPA:')).length)
     .toBe(1);
 });

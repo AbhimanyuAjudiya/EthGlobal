@@ -8,7 +8,7 @@ test.describe('claim: / → /verify → /plan', () => {
   test('landing renders both paths and the live coupon count', async ({ page }) => {
     const plans = await apiGet<PlansResponse>(page, '/plans');
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Your India trip. Connected.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Arrive connected.' })).toBeVisible();
     await expect(
       page.getByRole('link', {
         name: `Prove I'm human → ${formatMb(plans.campaign!.bundleMb.orb)}`,
@@ -55,22 +55,34 @@ test.describe('claim: / → /verify → /plan', () => {
     const order: string[] = [];
     let simulated: unknown;
     let claimed: unknown;
+    let claimedSession: unknown;
+    let lastChallengeSession: unknown;
     page.on('request', (req) => {
       if (!req.url().startsWith(API_URL) || req.method() !== 'POST') return;
       const path = new URL(req.url()).pathname;
       order.push(path);
-      if (path === '/claim') claimed = (req.postDataJSON() as { proof: unknown }).proof;
+      if (path === '/challenge')
+        lastChallengeSession = (req.postDataJSON() as { sessionPubKey: unknown }).sessionPubKey;
+      if (path === '/claim') {
+        const body = req.postDataJSON() as { proof: unknown; sessionPubKey: unknown };
+        claimed = body.proof;
+        claimedSession = body.sessionPubKey;
+      }
     });
     page.on('response', async (res) => {
       if (res.url() === `${API_URL}/__local/world-proof`) simulated = await res.json();
     });
     await claimFreeBundle(page);
-    expect(order.slice(0, 4)).toEqual([
+    // Two challenges by design: VerifySheet prepares on mount, then again once /plans names the campaign, because the
+    // recovery session (and so the sessionPubKey the challenge binds) is per campaign. The claim must use the second.
+    expect(order.slice(0, 5)).toEqual([
+      '/challenge',
       '/challenge',
       '/world/rp-context',
       '/__local/world-proof',
       '/claim',
     ]);
+    expect(claimedSession).toBe(lastChallengeSession);
     expect(JSON.stringify(claimed)).toBe(JSON.stringify(simulated));
   });
 

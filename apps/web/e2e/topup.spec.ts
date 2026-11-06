@@ -2,7 +2,7 @@ import type { MeResponse } from '@ethglobal/protocol/schemas';
 import { formatMb } from '@ethglobal/protocol/units';
 
 import { API_URL } from './env';
-import { apiGet, claimFreeBundle, expect, storedValues, test } from './fixtures';
+import { apiGet, claimFreeBundle, expect, storedLpas, storedValues, test } from './fixtures';
 
 test.describe('/pay — the 402 round-trip with the demo wallet', () => {
   test('+1 GB → Review shows $4.00, accepts by network name, approval expiry → demo wallet signs → Sending shows a hash within 1 s → Confirmed +1 GB → meter extends once → Final', async ({
@@ -98,11 +98,12 @@ test.describe('/pay — the 402 round-trip with the demo wallet', () => {
     await page.getByRole('button', { name: 'Open my plan' }).click();
     await page.waitForURL(/\/plan\/.+/);
     await expect(page.locator('#plan-coupon .coupon__value')).toHaveText('1');
-    // T-60: storage holds the opened LPA and the key, never the session secret
+    // T-60: storage holds the opened LPA (encrypted at rest, readable only through its key) and never the session secret
+    expect((await storedLpas(page)).some((lpa) => lpa.startsWith('LPA:1$'))).toBe(true);
     const stored =
       (await storedValues(page)).join('\n') +
       JSON.stringify(await page.evaluate(() => ({ ...localStorage })));
-    expect(stored).toContain('LPA:1$');
+    expect(stored).not.toContain('LPA:1$');
     expect(stored).not.toMatch(/secretKey|"secret"/i);
   });
 });

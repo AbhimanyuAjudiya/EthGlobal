@@ -108,6 +108,51 @@ export async function storedValues(page: Page): Promise<string[]> {
   });
 }
 
+/**
+ * The activation codes the device holds, decrypted the way lib/store.ts reads them back ('lpa:<key>' records, AES-GCM
+ * under a nonextractable key, the plan key as AAD). A plaintext record fails here: LPAs are encrypted at rest.
+ */
+export async function storedLpas(page: Page): Promise<string[]> {
+  return page.evaluate(async () => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open('recharge');
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error ?? new Error('indexeddb'));
+    });
+    const read = <T>(req: () => IDBRequest<T>) =>
+      new Promise<T>((resolve) => {
+        const r = req();
+        r.onsuccess = () => resolve(r.result);
+      });
+    const store = () => db.transaction('kv').objectStore('kv');
+    const keys = await read(() => store().getAllKeys());
+    const lpas: string[] = [];
+    for (const key of keys) {
+      if (typeof key !== 'string' || !key.startsWith('lpa:')) continue;
+      const record = (await read(() => store().get(key))) as {
+        v?: number;
+        iv: Uint8Array<ArrayBuffer>;
+        ciphertext: ArrayBuffer;
+        encryptionKey: CryptoKey;
+      };
+      if (record?.v !== 1) throw new Error(`${key.slice(0, 12)}… is not an encrypted activation`);
+      const clear = await crypto.subtle.decrypt(
+        {
+          name: 'AES-GCM',
+          iv: record.iv,
+          additionalData: new TextEncoder().encode(
+            `recharge-activation:v1:${key.slice('lpa:'.length)}`,
+          ),
+        },
+        record.encryptionKey,
+        record.ciphertext,
+      );
+      lpas.push(new TextDecoder().decode(clear));
+    }
+    return lpas;
+  });
+}
+
 /** The page never scrolls sideways at this width. */
 export async function expectNoHorizontalScroll(page: Page): Promise<void> {
   const overflow = await page.evaluate(

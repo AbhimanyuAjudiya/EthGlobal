@@ -2,6 +2,14 @@ import type { PlansResponse } from '@ethglobal/protocol/schemas';
 
 import { apiGet, claimFreeBundle, expect, test } from './fixtures';
 
+const DAY = 86_400_000;
+/** A datetime-local value in this device's time zone, as the form reads it back. */
+const local = (ms: number) => {
+  const d = new Date(ms);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+
 test("sponsor: create → approve → createCampaign (two OnchainAction rows, hashes shown) → register → audit key shown once with copy → table lists HMAC'd keys only → pause via slide-to-confirm", async ({
   page,
 }) => {
@@ -9,7 +17,19 @@ test("sponsor: create → approve → createCampaign (two OnchainAction rows, ha
   await page.goto('/sponsor');
   await expect(page.getByTestId('demo-wallet')).toContainText('Anvil #3');
   await page.getByTestId('campaign-name').fill('Mumbai Arrivals e2e');
+  await page.getByRole('textbox', { name: 'Destination country' }).fill('IN');
+  await page.getByRole('button', { name: 'Find destination plans' }).click();
+  await page.getByLabel('Provider package').selectOption({ index: 1 });
   await page.getByTestId('campaign-budgetUsd').fill('50');
+  await page.getByTestId('campaign-priceUsd').fill('1.20'); // the package prefills wholesale; the API's floor is higher
+  const startsAt = Date.now() + 10 * DAY;
+  for (const [key, at] of Object.entries({
+    startsAt,
+    endsAt: startsAt + 2 * DAY,
+    claimUntil: startsAt + DAY,
+    reclaimAfter: startsAt + 2 * DAY,
+  }))
+    await page.getByTestId(`campaign-${key}`).fill(local(at));
   await page.getByTestId('campaign-submit').click();
 
   const rows = page.locator('.sponsor-step');

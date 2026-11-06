@@ -1,4 +1,4 @@
-import { distinctClient, expect, interruptEntitlementOnce, storedValues, test } from './fixtures';
+import { distinctClient, expect, interruptEntitlementOnce, storedLpas, test } from './fixtures';
 
 import type { Page } from '@playwright/test';
 
@@ -114,7 +114,7 @@ test.describe('/gift — a boarding pass addressed to a name', () => {
       await expect
         .poll(
           async () =>
-            (await storedValues(recipient)).filter((value) => value.startsWith('LPA:')).length,
+            (await storedLpas(recipient)).filter((value) => value.startsWith('LPA:')).length,
         )
         .toBe(1);
       await holder.close();

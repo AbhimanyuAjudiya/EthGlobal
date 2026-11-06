@@ -125,7 +125,7 @@ describe('interaction state stays aligned with confirmed data', () => {
     expect(screen.queryByRole('switch', { name: 'Pause' })).toBeNull();
     expect(mocks.savePolicy).not.toHaveBeenCalled();
   });
-  it("another wallet's policy is shown locked, named by its owner, and never signed over", async () => {
+  it("another wallet sees that this plan's agent belongs to its owner, with nothing to sign", async () => {
     const other = `0x${'cd'.repeat(20)}`;
     mocks.loadPolicy.mockResolvedValueOnce({
       owner: other,
@@ -133,12 +133,13 @@ describe('interaction state stays aligned with confirmed data', () => {
       policy: { paused: true, maxUsd6PerDay: '4000000', thresholdMb: 200, stepMb: 1000 },
     });
     render(<AgentSheet />);
-    const pause = await screen.findByRole<HTMLInputElement>('switch', { name: 'Pause' });
-    expect(pause.checked).toBe(true);
-    expect(pause.hasAttribute('disabled')).toBe(true);
-    expect(screen.getByTestId('agent-other-owner').textContent).toContain('0xcdcd…cdcd');
-    expect(screen.getByRole('radio', { name: '$20' }).hasAttribute('disabled')).toBe(true);
-    fireEvent.click(pause);
+    const notice = await screen.findByTestId('agent-other-owner');
+    expect(notice.textContent).toContain('0xcdcd…cdcd');
+    expect(notice.textContent).toMatch(/paused/);
+    expect(screen.getByTestId('agent-sentence').textContent).toMatch(/this wallet/);
+    expect(screen.queryByRole('switch', { name: 'Pause' })).toBeNull();
+    expect(screen.queryByRole('radio', { name: '$20' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Save and enable policy' })).toBeNull();
     expect(mocks.wallet.signTypedData).not.toHaveBeenCalled();
     expect(mocks.savePolicy).not.toHaveBeenCalled();
   });

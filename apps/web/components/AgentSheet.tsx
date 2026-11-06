@@ -98,7 +98,7 @@ export function AgentSheet() {
     view && wallet && view.owner.toLowerCase() !== wallet.address.toLowerCase()
       ? view.owner
       : undefined;
-  const locked = busy || !wallet || otherOwner !== undefined;
+  const locked = busy || !wallet;
 
   const markUnavailable = useCallback((reason: 'ended' | 'missing') => {
     setUnavailable(reason);
@@ -374,15 +374,17 @@ export function AgentSheet() {
   const buyMb = policy?.stepMb ?? STEP_MB;
   const sentence = !policy
     ? t('agent.loading')
-    : view && policy.paused
-      ? t('agent.sentencePaused')
-      : t(view ? 'agent.sentence' : 'agent.sentenceDraft', {
-          mb: formatMb(buyMb),
-          threshold: formatMb(policy?.thresholdMb ?? Math.floor(PLAN_MB * 0.2)),
-          price: money(priceUsd6(buyMb, plans?.paid.stepMb ?? STEP_MB, usd6FromWire(step))),
-          network: netName(agentNetwork),
-          cap: money(capUsd6),
-        });
+    : otherOwner
+      ? t('agent.otherOwnerLead')
+      : view && policy.paused
+        ? t('agent.sentencePaused')
+        : t(view ? 'agent.sentence' : 'agent.sentenceDraft', {
+            mb: formatMb(buyMb),
+            threshold: formatMb(policy?.thresholdMb ?? Math.floor(PLAN_MB * 0.2)),
+            price: money(priceUsd6(buyMb, plans?.paid.stepMb ?? STEP_MB, usd6FromWire(step))),
+            network: netName(agentNetwork),
+            cap: money(capUsd6),
+          });
   const statusText =
     status === 'checking'
       ? t('agent.checkingPlan')
@@ -408,10 +410,12 @@ export function AgentSheet() {
       ) : null}
       {otherOwner ? (
         <Notice tone="warning" data-testid="agent-other-owner" lang={lang}>
-          {t('agent.otherOwner', { address: `${otherOwner.slice(0, 6)}…${otherOwner.slice(-4)}` })}
+          {t(policy?.paused ? 'agent.otherOwnerPaused' : 'agent.otherOwnerRunning', {
+            address: `${otherOwner.slice(0, 6)}…${otherOwner.slice(-4)}`,
+          })}
         </Notice>
       ) : null}
-      {policy ? (
+      {otherOwner ? null : policy ? (
         <Card lang={lang}>
           {/* $4 · $8 · $20, the "/ day" said once in the caption */}
           <ChoiceChips

@@ -3,6 +3,122 @@
   "source": "docs",
   "note": "One valid example per exported schema of @ethglobal/protocol/schemas (INTERFACES §1). Values are synthetic; addresses are Anvil's public test accounts.",
   "examples": {
+    "analyticsTierSchema": "orb",
+    "notInstalledRowSchema": {
+      "claimedAt": 1793700000000,
+      "tier": "orb",
+      "status": "ready",
+      "statusAsOf": 1793703600000,
+      "ageHours": 2,
+      "expiresAt": 1794304800000,
+      "claimTx": "0x7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c",
+      "arkivKey": "0xe1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1"
+    },
+    "sponsorAnalyticsSchema": {
+      "campaignId": "0xc1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+      "network": "eip155:31337",
+      "asOf": 1793707200000,
+      "scannedAt": 1793707200000,
+      "sampled": false,
+      "scanCap": 500,
+      "totals": {
+        "claims": 2,
+        "uniqueHumans": 2,
+        "byTier": {
+          "orb": 1,
+          "document": 1,
+          "unknown": 0
+        },
+        "mbDelivered": 460,
+        "mbUsed": 40,
+        "avgMbUsed": 20
+      },
+      "money": {
+        "budgetUsd6": "100000000",
+        "spentUsd6": "500000",
+        "remainingUsd6": "99500000",
+        "pricePerClaimUsd6": "250000",
+        "remainingClaims": 398,
+        "burnPerHour": 0.08,
+        "runOutAt": 1811617200000,
+        "endsAt": 1796299200000,
+        "daysLeft": 30
+      },
+      "daily": [
+        {
+          "day": "2026-11-02",
+          "start": 1793557800000,
+          "claims": 0
+        },
+        {
+          "day": "2026-11-03",
+          "start": 1793644200000,
+          "claims": 2
+        }
+      ],
+      "hourly": [
+        {
+          "at": 1793703600000,
+          "claims": 1
+        },
+        {
+          "at": 1793707200000,
+          "claims": 1
+        }
+      ],
+      "hourlyCap": 60,
+      "funnel": {
+        "claimed": 2,
+        "installed": 1,
+        "active": 1,
+        "toppedUp": 0,
+        "notInstalled": 1,
+        "installedRate": 0.5,
+        "activeRate": 0.5,
+        "toppedUpRate": 0,
+        "notInstalledRate": 0.5,
+        "topUps": 0,
+        "topUpRevenueUsd6": "0"
+      },
+      "status": {
+        "pending": 0,
+        "ready": 1,
+        "installed": 0,
+        "active": 1,
+        "expired": 0
+      },
+      "notInstalled": {
+        "count": 1,
+        "usd6": "250000",
+        "rows": [
+          {
+            "claimedAt": 1793700000000,
+            "tier": "orb",
+            "status": "ready",
+            "statusAsOf": 1793703600000,
+            "ageHours": 2,
+            "expiresAt": 1794304800000,
+            "claimTx": "0x7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c",
+            "arkivKey": "0xe1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1"
+          }
+        ]
+      },
+      "proof": {
+        "onChainClaims": 2,
+        "claimTxs": 2,
+        "arkivReceipts": 2,
+        "arkivPlans": 2,
+        "hcsMessages": 2
+      },
+      "latest": [
+        {
+          "at": 1793700000000,
+          "tier": "orb",
+          "tx": "0x7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c",
+          "arkivKey": "0xe2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2"
+        }
+      ]
+    },
     "hexSchema": "0x",
     "hex32Schema": "0xabababababababababababababababababababababababababababababababab",
     "hex24Schema": "0x4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e",

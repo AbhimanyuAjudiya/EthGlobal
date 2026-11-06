@@ -54,7 +54,8 @@ export function registerPublic(app: Hono<AppEnv>, deps: Deps): void {
         chainId: seen.chainId,
         attestor: deps.dataDrop.attestor,
         degraded: deps.health.degraded,
-        chainAgeS: Math.floor((now - seen.at) / 1000),
+        // measured after a refresh that may have just landed, never negative
+        chainAgeS: Math.max(0, Math.floor((deps.now() - seen.at) / 1000)),
       });
     } catch (error) {
       deps.logger.error(

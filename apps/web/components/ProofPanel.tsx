@@ -88,7 +88,8 @@ export function ProofPanel({
     >
       <summary>{[t('proof.title'), ...groups.map((g) => name(g.partner))].join(' · ')}</summary>
       {groups.map((group) => (
-        <section key={group.partner} className="proof__group" aria-label={name(group.partner)}>
+        // a heading per partner, no landmark: a reclaim list shows one panel per gift
+        <section key={group.partner} className="proof__group">
           <h3 className="proof__partner">{name(group.partner)}</h3>
           <dl className="proof__items">
             {group.items.map((item, i) => (

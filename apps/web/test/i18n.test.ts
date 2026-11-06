@@ -43,8 +43,7 @@ describe('i18n', () => {
     // the product unit (founder decision, 6 Nov): a top-up is one 1 GB step
     expect(t('plan.add', { price: '$4.00' })).toBe('+1 GB · $4.00');
     expect(t('plan.add', { price: '$4.00' }, 'hi')).toBe('+1 GB · $4.00');
-    expect(t('plan.reason', undefined, 'hi')).toBe('क्योंकि आप इंसान हैं');
-    expect(t('plan.reason', undefined, 'mr')).toBe('कारण तुम्ही माणूस आहात');
+    // "because you're human" is the Coupon's own line (packages/ui strings), not a web key
     expect(t('error.settlement_failed', undefined, 'hi')).toContain('आपके खाते से कुछ नहीं गया।');
   });
 

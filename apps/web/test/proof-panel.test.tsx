@@ -50,7 +50,8 @@ describe('ProofPanel', () => {
     expect(panel.querySelector('summary')?.textContent).toBe(
       'Proof · Hedera · Base · Arkiv · ENS · Recharge API',
     );
-    const base = within(panel).getByRole('region', { name: 'Base' });
+    const base = within(panel).getByRole('heading', { name: 'Base' }).closest('section');
+    if (!base) throw new Error('no Base group');
     expect(within(base).getByText('Settlement transaction')).toBeTruthy();
     expect(within(base).getByText('$4.00 USDC · 4000000')).toBeTruthy();
     const links = within(panel)

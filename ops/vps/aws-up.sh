@@ -13,11 +13,19 @@ REF="${REF:-claude/ethglobal-mumbai-build}"
 [[ -r "$ENV_FILE" ]] || { echo "env file $ENV_FILE missing"; exit 2; }
 say() { printf '\n== %s ==\n' "$*"; }
 
+# An expired `aws login` session made every call below fail, and the old key-pair branch then redirected a failed
+# create-key-pair INTO the private key file (2026-11-06: ~/.ssh/recharge-live.pem truncated to 0 bytes). Fail fast.
+aws sts get-caller-identity >/dev/null 2>&1 || { echo "AWS session missing or expired: run 'aws login' and retry"; exit 2; }
 say "key pair"; KEY="${KEY:-$HOME/.ssh/$NAME.pem}"
-if ! aws ec2 describe-key-pairs --key-names "$NAME" >/dev/null 2>&1; then
-  aws ec2 create-key-pair --key-name "$NAME" --key-type ed25519 --query KeyMaterial --output text > "$KEY"; chmod 600 "$KEY"; echo "created $KEY"
-else echo "exists (private key must be at $KEY)"; fi
-[[ -r "$KEY" ]] || { echo "no private key at $KEY"; exit 2; }
+if aws ec2 describe-key-pairs --key-names "$NAME" >/dev/null 2>&1; then
+  echo "exists (private key must be at $KEY)"
+else
+  # never overwrite an existing key file; write to a temp file and move it only when AWS returned key material
+  [[ -s "$KEY" ]] && { echo "key pair $NAME not found but $KEY exists: refusing to overwrite it"; exit 2; }
+  tmp="$(mktemp)"; aws ec2 create-key-pair --key-name "$NAME" --key-type ed25519 --query KeyMaterial --output text > "$tmp" \
+    && [[ -s "$tmp" ]] && install -m 0600 "$tmp" "$KEY" && echo "created $KEY"; rm -f "$tmp"
+fi
+[[ -s "$KEY" ]] || { echo "no private key at $KEY"; exit 2; }
 
 say "security group"; VPC=$(aws ec2 describe-vpcs --filters Name=is-default,Values=true --query 'Vpcs[0].VpcId' --output text)
 SG=$(aws ec2 describe-security-groups --filters Name=group-name,Values=$NAME Name=vpc-id,Values=$VPC --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null || true)

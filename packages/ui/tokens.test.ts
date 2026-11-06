@@ -141,15 +141,14 @@ function hues(text: string): number[] {
 }
 
 const bans: readonly { name: string; test: (text: string) => boolean }[] = [
-  { name: 'gradient', test: (t) => /\b(?:linear|radial|conic)-gradient\(/.test(t) },
-  { name: 'backdrop-filter / blur', test: (t) => /backdrop-filter|backdrop-blur|\bblur\(/.test(t) },
+  // DESIGN.md v3 (2026-11-06): gradients, blur and lift on hover are allowed in the bold-consumer system;
+  // the faces are Anek Devanagari and Chivo Mono only, purple stays out (the first AI-slop tell), no emoji, no hype.
   {
     name: 'banned font family (Inter, Geist, Poppins, DM Sans, Space Grotesk)',
     test: (t) => /\b(?:Inter|Geist|Poppins|DM Sans|Space Grotesk)\b/.test(t),
   },
   { name: 'accent hue 260–300', test: (t) => hues(t).some((h) => h >= 260 && h <= 300) },
   { name: 'emoji', test: (t) => /[\p{Emoji_Presentation}\u{FE0F}]/u.test(t) },
-  { name: 'hover:scale / shadow-xl', test: (t) => /hover:scale|shadow-xl/.test(t) },
   {
     name: 'hype copy',
     test: (t) => /\b(?:Supercharge|Seamless|Effortless|Unlock|Empower)\b/.test(t),

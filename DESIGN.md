@@ -1,125 +1,165 @@
 ---
 name: Recharge
-description: The design language of Recharge, a mobile-first PWA that hands a traveller landing in Mumbai a sponsored eSIM data bundle. Warm paper, one oxide-teal accent, a single Devanagari-capable display face at two widths, a mono face for every number, and the recharge coupon as the one hero object. Reads like a printed ledger that happens to be on a phone, never like a crypto dashboard.
-version: 2.0 (2026-11-06 frontend rebuild)
-binding: research/design-foundations.md §1 (ban list, enforced by packages/ui/tokens.test.ts), research/design-references.md §1–§7 (screen-by-screen spec, 15 regressions), packages/ui/tokens.css (token names)
+description: Recharge v3 — a bold consumer money-app look (the Wise / Revolut family) for a PWA that hands a traveller landing in India a sponsored eSIM data bundle. White canvas with warm-sand bands, one saffron brand colour on pill buttons, heavy near-black display type, 24 px cards, and ONE page template that every screen is built from.
+version: 3.0 (2026-11-06, replaces v2 by the owner's decision: "rebuild whole UI/UX, change everything")
+supersedes: research/design-foundations.md §1 bans (CI list reduced to fonts, purple, emoji, hype), §4 colour, research/design-references.md §1–§7 layouts and §7 regressions. Those files stay as history; this file wins.
 ---
 
-# Recharge — DESIGN.md
+# Recharge — DESIGN.md v3
 
-## Overview
+## 0. The one rule that matters
 
-Recharge is a paper object on a phone. Every screen has **one dominant element** at twice the size of anything else: the coupon's MB number on `/`, `/plan` and `/card`; one sentence on `/verify` and `/agent`; the status pill on `/install`; the `OnchainAction` sheet on `/pay`; the boarding pass on `/gift`; the claims figure on `/sponsor`. Everything else is ruled rows, quiet labels and one teal button carrying a number.
+**Every screen is the same screen.** v2 failed because each page had its own layout. In v3 a page is never designed; it is *assembled* from the kit in §5 inside the page template in §4. If a screen needs something the kit lacks, the kit grows (one shared component, one shared style), never the page. Page-level CSS files are deleted; `apps/web/app/styles/` keeps only `kit.css`, `base.css` and the print rules.
 
-The feel: **warm, flat, exact.** Paper-coloured canvas (never pure white or black), hairline rules instead of boxes, tabular figures everywhere, sentence case, no decoration that is not information. Motion explains state and then stops.
+## 1. Overview
 
-Reference families (structure borrowed, never their colours or copy): Wise (one bold display face, one accent, numbers as copy), Mercury (grayscale plus one accent, light weights), Linear (dense console rows, one hero figure per pane), Stripe (the test-mode rail, receipts as the UI).
+Recharge should feel like opening a modern money app at the airport: one bold line, one big number, one bright button, everything else in calm cards. Reference families (structure borrowed, never their colours or copy): **Wise** (heavy display face, one brand colour on pill CTAs, sage band + white cards, the converter card as hero), **Revolut** (pill buttons everywhere, magazine rhythm, bottom tab bar, transaction rows with avatars). Light first; dark is a token flip.
 
-## Colors
+Personality in three words: **bold, warm, exact.** Big type says the one thing; the brand colour appears on the one action; numbers are formatted to the digit.
 
-Token names are fixed in `packages/ui/tokens.css` (`light-dark()` pairs; never hard-code a hex in app code). Values may be tuned, names may not change.
+## 2. Colors
 
-| Role                | Token                                                                         | Light                          | Dark                | Rule                                                                                                                                                         |
-| ------------------- | ----------------------------------------------------------------------------- | ------------------------------ | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Canvas              | `--bg-canvas`                                                                 | warm paper L .985              | warm ink L .16      | the page itself                                                                                                                                              |
-| Surface             | `--bg-surface`                                                                | L .995                         | L .20               | cards, sheets; sits on canvas with a hairline, never a shadow                                                                                                |
-| Sunken              | `--bg-sunken`                                                                 | L .962                         | L .13               | skeleton blocks, meter tracks, code wells, segmented control track                                                                                           |
-| Raised / Overlay    | `--bg-raised`, `--bg-overlay`                                                 | = surface                      | L .24 / .28         | menus, popovers; elevation by lightness in dark                                                                                                              |
-| Hairline            | `--border-subtle`                                                             | L .90                          | L .30               | every rule and card edge                                                                                                                                     |
-| Strong              | `--border-strong`                                                             | L .76                          | L .44               | hover edge of a linked card, segmented selection                                                                                                             |
-| Input               | `--border-input`                                                              | L .64                          | L .50               | fields (3.2:1)                                                                                                                                               |
-| Text                | `--text-primary / -secondary / -tertiary`                                     | L .20 / .44 / .55              | L .93 / .72 / .63   | tertiary for labels and "as of" lines                                                                                                                        |
-| Accent              | `--accent` (hover `--accent-hover`, tint `--accent-subtle`, on `--on-accent`) | oxide teal oklch(.52 .085 195) | oklch(.78 .11 195)  | **one teal per screen**: the primary button, the meter fill, the current-tab bar, focus rings. ≤ 5 % of pixels, never a gradient, never a tinted icon circle |
-| Positive / Negative | `--positive`, `--negative` (+ `-subtle`)                                      | green 150 / red 25             |                     | **money moved** (data landed, payment settled / failed amount). Never for "verified", never for decoration                                                   |
-| Warning             | `--warning` (+ `-subtle`)                                                     | amber 75–85                    |                     | usage ≥ 80 %, unverified links, stuck transactions                                                                                                           |
-| Series              | `--series-1…6`                                                                | fixed order                    |                     | charts only; a 7th folds into "Other"                                                                                                                        |
-| Object              | `--latex`, `--ink-spot`                                                       | silver / teal                  | same in both themes | the coupon is paper-light in dark mode on purpose                                                                                                            |
+Token names from `packages/ui/tokens.css` stay (components already use them); values change, and the brand tokens are new. Light / dark.
 
-Banned (CI grep): any hue 260–300, gradients, `backdrop-filter`/blur, neon or glow borders, `#000`/`#fff` canvases, rainbow tags.
+| Role | Token | Light | Dark |
+|---|---|---|---|
+| Brand (CTA pill, active nav, progress, selected chip) | `--brand` | `#ff6a1f` saffron `oklch(0.72 0.19 45)` | `#ff8a4c` |
+| Brand pressed | `--brand-deep` | `#e85a12` | `#ff7a36` |
+| Brand tint (badges, selected rows, hero band option) | `--brand-pale` | `#ffe9db` | `#3a2416` |
+| Text on brand | `--on-brand` | `#140a04` | `#140a04` |
+| Canvas (page) | `--bg-canvas` | `#ffffff` | `#0e0d0c` |
+| Band (hero / section band, the Wise "sage" idea) | `--bg-band` | `#f4efe6` warm sand | `#171513` |
+| Surface (cards) | `--bg-surface` | `#ffffff` | `#1b1917` |
+| Sunken (inputs on cards, skeletons, chip tracks) | `--bg-sunken` | `#f3f1ed` | `#242120` |
+| Raised / overlay (sheets, menus) | `--bg-raised`, `--bg-overlay` | `#ffffff` | `#242120` / `#2c2927` |
+| Hairline | `--border-subtle` | `#e9e5de` | `#2e2b28` |
+| Strong border | `--border-strong` | `#cfc9bf` | `#4a4541` |
+| Input border | `--border-input` | `#b9b2a7` | `#5c5650` |
+| Ink | `--text-primary` | `#121110` | `#f3f0ec` |
+| Body | `--text-secondary` | `#4d4944` | `#b5aea6` |
+| Mute | `--text-tertiary` | `#7d776f` | `#8c857d` |
+| Positive (data landed, settled) | `--positive` / `--positive-subtle` | `#1f9d4a` / `#dff5e6` | `#5ed08a` / `#153323` |
+| Warning (≥ 80 % used, stuck, unverified) | `--warning` / `--warning-subtle` | `#c77700` / `#fff1d6` | `#ffb648` / `#3b2a0f` |
+| Negative (failed amount) | `--negative` / `--negative-subtle` | `#d0312f` / `#fde3e2` | `#ff7a73` / `#3d1716` |
+| Accent (legacy name; = brand) | `--accent`, `--accent-hover`, `--accent-subtle`, `--on-accent` | = brand tokens | = brand tokens |
+| Focus | `--focus` | `#121110` ring, 2 px, offset 2 px | `#f3f0ec` |
+| Object (coupon, latex) | `--latex`, `--ink-spot` | silver `#b9b9b9`, brand | same |
 
-## Typography
+Gradients are allowed in exactly two places: the hero band (`--gradient-hero`: sand → white, vertical) and the balance card's top edge (`--gradient-card`: brand-pale → surface). Nothing else. No purple anywhere (CI).
 
-One family does display and text in Latin and Devanagari: **Anek Devanagari** (variable, `wdth` 100–110, `wght` 400–700). **Chivo Mono** sets every figure, hash, PIN, ICCID, time and the testnet rail. **Baloo 2** appears once, on the scratch latex. No other face, ever (Inter, Geist, Poppins, DM Sans, Space Grotesk are banned).
+## 3. Typography
 
-| Style            | Face    | Size                                | Weight / width | Leading | Use                                                                       |
-| ---------------- | ------- | ----------------------------------- | -------------- | ------- | ------------------------------------------------------------------------- |
-| Hero number      | display | `--text-64` (clamp 44–64 on phones) | 700 / wdth 110 | 1.0     | the MB, the claims count; unit at `--text-24` 500, baseline-aligned       |
-| Display question | display | `clamp(32px, 9vw, 44px)`            | 700 / 110      | 1.1     | the one H1 per screen                                                     |
-| Title            | display | `--text-24`                         | 600 / 110      | 1.15    | sheet titles, console pane titles                                         |
-| Section title    | display | `--text-20`                         | 600 / 100      | 1.15    | groups inside a screen                                                    |
-| Body             | text    | `--text-16`                         | 400–500 / 100  | 1.45    | sentences, steps                                                          |
-| Row              | text    | `--text-14`                         | 400 / 100      | 1.45    | ruled rows, menu items, table cells (13 px in the sponsor console)        |
-| Label            | text    | `--text-13`                         | 500            | 1.45    | `--text-tertiary`, sentence case, never uppercase (Devanagari forbids it) |
-| Figure           | mono    | inherits                            | 400–700        |         | `[data-hash]`, `.amount-mono`, `.tnum-zero`: tabular, slashed zero        |
-| Rail             | mono    | `--text-12`                         | 400            |         | "TESTNET · test USDC · not a sale", "usage as of 14:02"                   |
+One family, **Anek Devanagari** (variable: `wght` 100–800, `wdth` 75–125, self-hosted, Latin + Devanagari), does everything; **Chivo Mono** only for hashes, PINs, ICCIDs and activation codes.
 
-Rules: `tabular-nums` on `html`; no letter-spacing, italics or uppercase in Hindi/Marathi (`:lang(hi), :lang(mr)` get leading 1.6, 14 px floor); numbers formatted by `lib/format.ts` (`Intl.NumberFormat('en-IN')`, "300 MB", "$0.40 USDC", "Sun 15 Nov 09:12", `0x1a2b…9f3e`); buttons carry the amount ("Add 100 MB · $0.40").
+| Style | Size | Weight / width | Leading / tracking | Use |
+|---|---|---|---|---|
+| `display-xl` | `clamp(44px, 11vw, 72px)` | 800 / 112 | 0.98 / −0.02em | the landing line, the balance number |
+| `display` | `clamp(34px, 8vw, 48px)` | 800 / 110 | 1.02 / −0.015em | screen titles that carry the message ("Who gets it?") |
+| `title` | 28 px | 700 / 105 | 1.1 | PageHeader titles |
+| `heading` | 22 px | 700 / 100 | 1.15 | card and section headings |
+| `body-lg` | 18 px | 500 / 100 | 1.4 | lead sentences |
+| `body` | 17 px | 400 / 100 | 1.45 | paragraphs, list primary text |
+| `label` | 15 px | 600 / 100 | 1.3 | buttons, chips, nav labels, list secondary |
+| `caption` | 13 px | 500 / 100 | 1.35 | `--text-tertiary` metadata, "as of" |
+| `amount` | inherits display | 800 / 112 | tabular | money and MB figures inside cards |
+| `mono` | 15 px | 500 | | Chivo Mono, hashes / PIN / ICCID |
 
-## Layout
+Rules: `tabular-nums` everywhere; Devanagari (`:lang(hi), :lang(mr)`) gets leading +0.15, no tracking, never uppercase; no uppercase labels in any language; numbers via `lib/format.ts` (en-IN grouping, "300 MB", "$4.00", "Sun 15 Nov · 09:12"); buttons carry the number ("Add 1 GB · $4.00").
 
-- **One column, 16 px gutters, `max-width: 44rem`** (`.screen`), the primary action in the bottom quarter. The sponsor console is `.screen--wide` at 72 rem with a sticky left rail from 1024 px.
-- **4 px grid.** Inside a row 4/8; between rows 12; between groups 24; between sections 40 (phone) / 48 (desktop). Expose these as `--space-1…10` in `tokens.css` (4, 8, 12, 16, 24, 32, 40, 48, 64, 96 px) and use nothing else.
-- **Desktop (≥ 880 px)** is a second composition, not a stretched phone: `/` goes 5/7 with the coupon on the right; `/plan`, `/pay`, `/gift`, `/agent` put the object (coupon, action sheet, boarding pass, policy sentence) in a left column and the ruled details in the right; `/sponsor/[id]` is panes in a 12-column grid with one hero figure per pane.
-- **Equal edges:** every block sits on the column's left and right lines; nothing hangs out to one side; no horizontal scroll at 360 px (Playwright asserts it).
-- **Rows, not cards.** Lists are ruled rows (`.ruled`) with label left, value right, units in the label. A card is reserved for an object (coupon, boarding pass, sheet). Never a card inside a card; never a three-tile grid.
-- **Header:** wordmark · wallet control · "Menu" (a word, not a hamburger) on one 72 px row with a hairline below. **Tab bar** (Plan · Add data · Gift · Receipts) only once a plan exists, sticky at the bottom, 56 px, a 2 px teal bar over the current tab.
-- **Sheets, never modals.** A sheet slides up from the bottom on a phone (`--duration-spatial-in`, `--ease-standard`, translateY 24 px → 0 + opacity) and sits in place on desktop.
+## 4. The page template (every consumer screen)
 
-## Elevation & Depth
+```
+AppShell
+├─ TopBar          48 px · left: Back (on sub-screens) or wordmark (on tab roots) · centre: nothing · right: WalletPill (avatar + short name) and Menu
+├─ Page            max-width 30 rem on phones, 36 rem from 600 px, centred; 20 px gutters; vertical rhythm 24 px between blocks, 40 px between sections
+│   ├─ PageHeader  eyebrow (caption) + title (title or display) + lead (body-lg), left-aligned
+│   ├─ … blocks    only kit components, in this order where present: hero (BalanceCard / Ticket) → QuickActions → Stepper → Cards / ListGroups → Notice
+│   └─ bottom pad  so the last block clears ActionBar + BottomNav
+├─ ActionBar       sticky above BottomNav; holds the ONE primary pill (+ optional quiet link under it); hidden when the screen has no primary action
+└─ BottomNav       56 px + safe area, always on consumer screens: Home · Plan · Add · Gift · More (More = sheet with Receipts, Scratch card, Agent, Organizers, Language, Proof switch)
+```
 
-Two levels only, by lightness and hairline, not shadow:
+- **Desktop (≥ 1024 px)** keeps the same phone composition, centred on the sand band (`--bg-band`), with the BottomNav turning into a left rail (72 px, icons + labels) and the ActionBar sitting inline under the last block. No second desktop layout per page.
+- **Sponsor console** (`/sponsor/*`) is the one exception: ConsoleShell = TopBar + left sidebar (240 px from 1024 px; a tab strip on phones) + 72 rem content; its blocks are the same kit (StatTile, Card, ListGroup, Table).
+- Spacing scale `--space-1…10` = 4, 8, 12, 16, 24, 32, 40, 48, 64, 96 px. Cards pad 20 px (24 px from 600 px). Nothing else.
 
-1. **Rest:** surface on canvas, 1 px `--border-subtle`, no shadow.
-2. **Lifted:** a linked card on hover (`translateY(-2px)`, border → `--border-strong`, `--shadow-2`); sheets, menus and popovers (`--shadow-2`).
+## 5. The kit (`apps/web/components/kit/`, styles in `apps/web/app/styles/kit.css`)
 
-Add to `tokens.css`: `--shadow-1: 0 1px 2px oklch(0.2 0.012 70 / 0.06)` (fields on focus only) and `--shadow-2: 0 8px 24px oklch(0.2 0.012 70 / 0.10)` (dark: `/ 0.4`). Never a shadow and a strong border on the same resting element; never `shadow-xl`.
+Every component below exists with exactly this name and renders from tokens only. Page agents import from `../components/kit`.
 
-## Shapes
+| Component | Props (essentials) | Look |
+|---|---|---|
+| `AppShell` | `back?: href`, `title?`, `nav?: 'home'|'plan'|'add'|'gift'|'more'`, `action?: ReactNode`, `children` | the template above; `money` adds the TestnetStrip under the TopBar |
+| `ConsoleShell` | `active: section`, `children` | sponsor variant |
+| `PageHeader` | `eyebrow?`, `title`, `size?: 'title'|'display'`, `lead?` | left-aligned stack |
+| `BalanceCard` | `amount`, `unit`, `caption`, `meter?: {used,total}`, `status?: Pill`, `tone?: 'brand'|'surface'` | the hero card: 24 px radius, `--gradient-card` top, amount in `display-xl`, a 6 px rounded progress bar, caption row |
+| `Ticket` | the Coupon / BoardingPass wrapper: perforated 24 px card with a brand-coloured stub | used by card, gift, print preview |
+| `QuickActions` | `items: {icon, label, href|onClick, primary?}[]` | a row of 3–4 round 56 px icon buttons with labels under, like a money app's Send / Request / Top up |
+| `Section` | `title?`, `action?: {label, href}`, `children` | heading row + children, 40 px above |
+| `Card` | `tone?: 'surface'|'band'|'brand-pale'`, `padded?` | 24 px radius, no border on canvas, hairline when on surface |
+| `ListGroup` / `ListRow` | `ListRow: leading?: Avatar|Icon, title, subtitle?, value?, valueTone?, href|onClick?, trailing?: chevron|switch|pill` | rows of 56–64 px inside a Card, 1 px hairline between, chevron on links, value right in `label` weight |
+| `Avatar` | `label` (initials) or `src`, `size 32|40|48`, `tone` | round, brand-pale by default |
+| `Pill` | `tone: 'neutral'|'brand'|'positive'|'warning'|'negative'`, `dot?` | 28 px pill, label weight |
+| `ChoiceChips` | `options: {value,label,sub?}[]`, `value`, `onChange` | wrapping pill chips; selected = brand fill with on-brand text (segmented control replacement, also the network and amount pickers) |
+| `Stepper` | `steps: string[]`, `current` | numbered dots joined by a rule, current = brand |
+| `Button` (re-export of ui Button, restyled) | `variant: 'primary'|'secondary'|'quiet'`, `size: 'lg'|'md'`, `block?` | pill; primary = brand fill + on-brand text, 56 px lg / 48 px md; secondary = sunken fill, ink text; quiet = text only; press scale .97 |
+| `ActionBar` | `children` | the sticky bar (surface, top hairline, 16 px pad) |
+| `Sheet` | `open`, `onClose`, `title`, `children` | bottom sheet with a grab handle, 28 px top radius, scrim; desktop = centred dialog |
+| `Field` (ui Field restyled) | | 56 px, 12 px radius, sunken fill, floating label, brand ring on focus, error line in `--negative` |
+| `Notice` | `tone: 'info'|'warning'|'negative'|'positive'`, `title?`, `children`, `action?` | tinted card with an icon |
+| `StatTile` | `label`, `value`, `delta?`, `hint?` | console: 24 px card, value in display |
+| `Table` | `columns`, `rows` | console: 44 px rows, sticky header, numbers right |
+| `EmptyState` | `title`, `body`, `action?` | centred, with one line and one pill |
+| `Skeleton` | `shape: 'balance'|'row'|'card'|'text'` | sunken blocks shaped like the kit |
+| `Amount` | `value`, `unit`, `size` | splits number and unit, unit at 40 % size on the baseline |
 
-| Family   | Token                 | Value   | Use                                                          |
-| -------- | --------------------- | ------- | ------------------------------------------------------------ |
-| Controls | `--radius-control`    | 0.5 rem | buttons, fields, segmented control, menu items               |
-| Objects  | `--radius-object`     | 1 rem   | coupon, boarding pass, sheets, panes                         |
-| Pills    | `--radius-pill` (new) | 999 px  | the status pill, Live/Paused state, the one testnet rail     |
-| Rules    | —                     | 0       | tables, ruled rows, the meter track (4 px tall, square ends) |
+Icons: Lucide, 24 px in QuickActions and nav, 20 px in rows, stroke 1.75; icons may sit in round brand-pale circles (QuickActions, ListRow leading).
 
-Icons: Lucide at `stroke-width 1.5`, 16 px inline, 20 px in controls, `currentColor`, never in a tinted circle. Allowed set only: copy, external link, chevron, QR, SIM card, pause, play, check (stepper), warning triangle, close, wallet. No emoji, no illustration, no shield-check.
+## 6. Motion
 
-## Components
+Short and springy, never decorative. Press: `scale(.97)` 90 ms. Hover (fine pointer): buttons darken one step, rows tint `--bg-sunken`, cards lift 2 px. Sheet: 280 ms in / 220 ms out, `cubic-bezier(.2,.8,.2,1)`, translateY + opacity. Route change: page fades in 180 ms. Balance number ticks once when it changes (odometer 400 ms). Progress bars animate width 300 ms on data. Reduced motion: opacity only ≤ 120 ms. No scroll-triggered animation, no loops, no confetti.
 
-All in `@ethglobal/ui/components` (`.ui-*`, `.coupon`, `.boarding-pass`, `.onchain-action`, `.mb-meter`, `.receipt`, `.ruled`, `.hash`, `.scratch`) plus app-level pieces in `apps/web/app/styles/*.css`.
+## 7. Information architecture and flows
 
-- **Button** (`.ui-button`): 48 px, radius-control, 600 weight, carries the amount. Primary = teal fill (one per screen); secondary = hairline outline on surface; quiet = text only, 44 px. Hover: fill steps 6 % toward ink and the box moves up 1 px (fine pointer only); press: down 1 px and `scale(.985)` in 90 ms; disabled: `--text-disabled` on sunken, no transform. Block on phones below 480 px.
-- **Field** (`.ui-field`): label above, 48 px input, `--border-input`, on focus `--accent` border + `--shadow-1`; error in `--text-secondary` prose, never red boxes; mono variant for PINs and codes.
-- **Coupon**: the brand. Paper-light in both themes, `--radius-object`, faint grain on the coupon only, MB at hero size, "from <sponsor> · because you're human", PIN 4 × 4 under latex, QR, serial. Three variants: screen / notification / print (print markup is frozen: snapshot-tested).
-- **Ruled rows / Receipt**: label left `--text-secondary`, value right mono, 1 px hairline between, three lines for money (You / Sponsor / Network fee).
-- **MbMeter**: 4 px teal rule on sunken, drains left → right, `role="meter"`, warning tint at ≥ 80 %. Moves only on a new `usageAsOf`.
-- **Status pill**: the OS's own words ("No Service" tertiary → "Searching…" → "LTE · Jio" primary with a 6 px teal dot), `role="status"`, radius-pill, hairline.
-- **Segmented control**: sunken track, surface thumb with `--border-strong`, labels by network name, never chain ids.
-- **Sheet**: surface, radius-object top corners on a phone, title at `--text-24`, body rows, actions at the bottom; closes with Escape and a Close button.
-- **Skeleton**: the real layout with text replaced by `--bg-sunken` blocks of the right width; numbers arrive last; no shimmer.
-- **Empty state**: a ghost row with the real column headers and one verb ("Create a campaign — name, budget, bundle size by tier, hourly cap"). Never an illustration.
-- **Table** (console): 32 px rows at 13 px, text left, numbers right, units in headers, sticky header, hover row tint `--bg-sunken`.
-- **Testnet rail**: 12 px mono, `--bg-sunken`, full width above every money screen.
+**Bottom nav tabs (roots, wordmark in the TopBar):** `/` Home · `/plan` Plan · `/pay` Add · `/gift` Gift · More (sheet).
+**Sub-screens (Back in the TopBar):** `/verify`, `/install`, `/receipts`, `/agent`, `/card`, `/card/[serial]`, `/gift/claim`, `/c/[slug]`, every `/sponsor/*` page.
 
-Motion (tokens only; animate `transform` and `opacity`): hover 140 ms in / 200 ms out; press 90 ms; sheet 260 ms in / 208 ms out; the odometer 400 ms **once** on issue; reduced motion collapses everything to ≤ 100 ms and drops transforms. Nothing bounces, nothing animates on scroll, no loops, no confetti, no toast for money.
+Every multi-step flow uses the same pattern: a `Stepper` under the PageHeader, one question per screen, the answer as `ChoiceChips` or a `Field`, the ONE primary pill in the ActionBar with the amount in its label, a quiet "Back" link under it.
 
-## Do's and Don'ts
+| Screen | Composition (top → bottom) | Primary action |
+|---|---|---|
+| `/` Home (no plan) | PageHeader display "Land in India. Be online in two minutes." lead "A sponsor pays your first {mb}. Prove you're one human, install the eSIM, done." → BalanceCard tone brand: amount {mb} "free · {n} of {max} left", caption "from {sponsor}" (skeleton while loading; count omitted when not live) → QuickActions: Prove I'm human · Pay instead · Scratch card · Organizers → Section "How it works": Card with three ListRows (1 Prove · 2 Install · 3 Top up) → Section "Everything else": ListGroup of the remaining destinations | "Prove I'm human → {mb}" (exhausted: "Buy {mb} · {price}") |
+| `/` Home (plan exists) | redirects to `/plan` | |
+| `/verify` | Back · Stepper [Prove, Issue, Install] current 1 · PageHeader title "Prove you're one human" lead "World checks you're one human. We get a code that can't be traced to you." → Card: the IDKit QR / deeplink area (sunken well) → ListGroup "What you get": Orb / Document / Device rows with MB values (TierLedger data) → Notice info "One free bundle per human, not per phone." → states as Notice rows (waiting with a timer Pill, checking, failed, already-claimed with a link) | "Open World App" / local: "Simulate World ID" |
+| `/plan` (index) | PageHeader title "Your plans" → ListGroup of plans (Avatar initials of destination, title name, subtitle status · expiry, value MB left, chevron) → EmptyState when none | none (EmptyState pill "Get a bundle") |
+| `/plan/[key]` | TopBar wordmark, nav plan · BalanceCard: amount MB left, meter, caption "usage as of HH:MM" + Pill status (Issuing / Ready / Installed / Expired / warning at ≥ 80 %) → QuickActions: Install · Add data · Gift · Receipts → Card "Issuing" (first view only): 3 ListRows that turn on as facts arrive (Verified, Sponsor paid + hash, Written to Arkiv + key) → Section "Details": ListGroup rows: Expires (abs + countdown), Sponsor, Network, Arkiv key (mono + copy), Receipt (You / Sponsor / Fee) → Section "Manage": ListGroup: Add to Home Screen, Notifications, Send to someone, Cancel plan → Notices: degraded ledger, offline snapshot, foreign plan | "Install eSIM · 2 min" (installed: none; expired: "Add 1 GB · $4.00") |
+| `/install` | Back · Stepper current 3 · PageHeader title "Install your eSIM" → Card: status Pill large in the OS's own words (No Service → Searching… → LTE · Jio) with a one-line hint → Card "Steps": numbered ListRows in the order the system asks (iOS or Android set) → Card "Activation code" (Android): mono code split on `$`, copy button → Section "Another phone": quiet row that reveals the QR with its warning, 60 s → Notice troubleshooter after 3 min → "Check connection" secondary button | iOS: "Install eSIM" (universal link) + "Didn't open? Tap again"; Android: "Copy activation code" |
+| `/pay` | TopBar wordmark, nav add · PageHeader title "Add data" lead "Lands on the same eSIM. Pay with USDC." → ChoiceChips amount (sizes × price) → Card review (ListRows: Data, Valid until, Pay from = ChoiceChips by network name and balance, Network fee, Worst case) → OnchainAction card for signing / sending / confirmed / failed (hash row with copy + explorer, ring while sending) → Hedera path = Card with instructions | "Pay $4.00 USDC" |
+| `/agent` | Back · PageHeader title "Auto top-up" lead = the policy sentence in body-lg → Card: ChoiceChips daily cap ($4 · $8 · $20) + ListRow switch "Pause" → Section "Spent today" Amount → Section "History": ListGroup rows (time · +MB · $ · uaid) → Notice states (cap reached, fund the agent, unavailable) | "Save policy" |
+| `/gift` | TopBar wordmark, nav gift · Stepper [Who, Size, Pay] · PageHeader display "Who gets it?" → Field ENS name with live resolution line → ChoiceChips size (300 MB · 1 GB · 3 GB with prices) → Notice info the reclaim rule → OnchainAction card → result: Ticket (BoardingPass) with Share / Save / Print QuickActions | "Gift 1 GB to rahul.eth · $4.00" |
+| `/gift/claim` | Back · PageHeader title "Claim a gift" → Card: "Approve in your wallet" primary path → Card: PIN Field (4 × 4 mono) → Section "Reclaim": ListGroup rows | "Claim" |
+| `/receipts` | Back · PageHeader title "Receipts" action "Download CSV" → ListGroups per day (day header with total right) of ListRows: Avatar (initials of network), title "+1 GB", subtitle "Sat 7 Nov 03:12 · Hedera · Final", value "$4.00"; row opens a Sheet with the three-line receipt and hash / HCS / Arkiv rows → EmptyState | none |
+| `/card` | Back · PageHeader title "Scratch card" lead "Type the 16-digit PIN under the silver strip." → Card: PIN Field (mono, groups of 4, Verhoeff check) | "Check PIN" → "Redeem" |
+| `/card/[serial]` | Back · Ticket with the coupon preview (ScratchCard canvas over the PIN, Reveal twin) → Card details rows | "Redeem" |
+| `/c/[slug]` | public campaign page: PageHeader display sponsor name → BalanceCard brand with the bundle → QuickActions | "Get my bundle" |
+| `/sponsor` | ConsoleShell · PageHeader title "Campaigns" action "New campaign" → StatTiles row (Live campaigns, Claims today, Spend) → Table of campaigns (name · status Pill · claims · spend / budget · expires) or EmptyState → Card "Create a campaign" with the form grid (country → package → dates → budget) and the two OnchainAction steps in a right column from 1024 px → audit key Notice shown once | "Create campaign" |
+| `/sponsor/[id]` | ConsoleShell · PageHeader title {name} + Pill Live/Paused, lead "{claims} claims · ${spent} of ${budget} · cap · /h" → StatTiles (Claims, Spent, Remaining, Claims/h) → Card chart (one line, cap dashed) → Table claims by level → Table expiring quotas → Table claims → Section Exports → Section Controls (slide-to-confirm pause, refund) | none in ActionBar (actions inline) |
+| `/offline` | AppShell · Notice warning "You're offline" + the last plan BalanceCard | none |
+
+Copy voice: sentence case, short, says the number. Hindi and Marathi strings keep brand nouns, units and numerals Latin.
+
+## 8. Do's and don'ts
 
 **Do**
-
-- Make the number the hero and the button say what it costs.
-- Use hairlines and spacing to group; boxes only for objects.
-- Show a hash the instant it exists, with copy and an explorer link; say "Final" in words.
-- Give every list an empty state that teaches and every load a skeleton shaped like the content.
-- Keep light and dark parity by token; test both at 360 px.
-- Put Hindi and Marathi strings in Anek with 1.6 leading; keep units, numerals and brand nouns Latin.
+- Build every screen from AppShell + PageHeader + kit blocks in the order in §4. If two screens look different in structure, one of them is wrong.
+- One brand-coloured element per screen: the primary pill (plus the active nav item). Everything else ink, sand, white.
+- Put the number in the headline and in the button.
+- Give every list an EmptyState and every load a Skeleton of the same shape.
+- Keep every `data-testid`, role and i18n key that tests rely on; add new ones freely; update unit tests that pin the old layout.
 
 **Don't**
-
-- No purple, gradients, glass, glow, shadow-xl, `hover:scale-105`, bounce easings, scroll reveals.
-- No shield-check, "Verified human" pill, confetti, "Success!", spinner without a hash, "Payment Required" heading, coin icon.
-- No three-card grid, "Trusted by", phone mockup, KPI tile wall, donut, logo marquee.
-- No chat bubbles or robot for the agent; no gift box or ribbon on `/gift`; no emoji anywhere.
-- No raw `0x…` without copy + explorer; no chain id shown to a traveller; no relative-only time.
-- No hype copy (Seamless, Effortless, Supercharge, Unlock, Empower, Next-gen) and no "Beta" pill.
+- No page-specific CSS files, no bespoke grids, no one-off components; no inline styles except dynamic widths.
+- No hairline-rows-only screens (v2's look): rows live inside Cards.
+- No purple, no emoji, no hype copy, no fonts beyond Anek and Chivo Mono (CI).
+- No second primary button, no outlined "ghost" primaries, no icon-only primary actions.
+- No chat UI for the agent, no confetti, no "Payment Required" heading, no raw `0x…` without copy + explorer.

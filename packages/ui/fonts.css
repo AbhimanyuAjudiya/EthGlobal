@@ -17,8 +17,8 @@
 @font-face {
   font-family: 'Anek Devanagari';
   src: url('./fonts/anek-devanagari-latin.woff2') format('woff2');
-  font-weight: 400 700;
-  font-stretch: 100% 110%;
+  font-weight: 100 800;
+  font-stretch: 75% 125%;
   font-display: swap;
   unicode-range:
     U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20B9,
@@ -27,8 +27,8 @@
 @font-face {
   font-family: 'Anek Devanagari';
   src: url('./fonts/anek-devanagari-devanagari.woff2') format('woff2');
-  font-weight: 400 700;
-  font-stretch: 100% 110%;
+  font-weight: 100 800;
+  font-stretch: 75% 125%;
   font-display: swap;
   unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+25CC, U+A830-A839, U+A8E0-A8FF;
 }

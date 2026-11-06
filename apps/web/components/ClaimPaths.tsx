@@ -24,11 +24,10 @@ import {
 } from './kit';
 import { DESTINATIONS } from './Shell';
 import { useLang } from '../i18n/lang';
-import { planHref } from '../lib/deliver';
 import { parseDevice } from '../lib/device';
 import { clockIst, formatMb, money, soldPlan } from '../lib/format';
 import { useHydrated, usePlans } from '../lib/hooks';
-import { get, plans as store, set } from '../lib/store';
+import { get, set } from '../lib/store';
 
 const enIN = new Intl.NumberFormat('en-IN');
 

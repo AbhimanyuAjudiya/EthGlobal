@@ -49,6 +49,10 @@ export function contentSecurityPolicy(nonce: string, dev = false): string {
     'https://*.world.org',
     origin(process.env.NEXT_PUBLIC_EXPLORER_EVM),
     origin(process.env.NEXT_PUBLIC_EXPLORER_HEDERA ?? 'https://hashscan.io'),
+    // /agent reads the agent's receipts from the Arkiv node directly (lib/arkiv-read.ts)
+    origin(
+      process.env.NEXT_PUBLIC_ARKIV_RPC ?? 'https://rpc.rabdi.db-chain.testnet.arkiv.network/',
+    ),
     ...wc.connect,
   ].filter(Boolean);
   return [

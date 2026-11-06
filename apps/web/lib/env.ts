@@ -42,6 +42,11 @@ export const config = {
     `https://hashscan.io/${IS_TESTNET ? 'testnet' : 'mainnet'}`,
   /* eslint-enable @typescript-eslint/prefer-nullish-coalescing */
   arkivExplorer: process.env.NEXT_PUBLIC_ARKIV_EXPLORER ?? 'https://rabdi.explorer.arkiv.network',
+  /** The Arkiv node /agent reads the agent's receipts from, straight from the browser (lib/arkiv-read.ts). */
+  arkivRpc:
+    process.env.NEXT_PUBLIC_ARKIV_RPC ?? 'https://rpc.rabdi.db-chain.testnet.arkiv.network/',
+  /** The API's Arkiv writer: those reads keep only entities it created (`$creator`, T-79). */
+  arkivWriter: process.env.NEXT_PUBLIC_ARKIV_WRITER ?? '0xC3358be9F35fDF5C8e1922be7376980C93734d3c',
   /** Wednesday's measured median attach time in seconds; empty → the "1–3 min" range is shown. */
   attachMedianS: Number(process.env.NEXT_PUBLIC_ATTACH_MEDIAN_S ?? '') || undefined,
   /** DataDrop for the sponsor's createCampaign; in MODE=local next.config.ts fills it from deploy/addresses.anvil.json. */

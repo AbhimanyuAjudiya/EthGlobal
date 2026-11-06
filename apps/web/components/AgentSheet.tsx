@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { toBytes } from 'viem';
 
 import { keccak256 } from '@ethglobal/crypto';
+import { dayBucket } from '@ethglobal/protocol/ids';
 import type {
   AgentPolicyView,
   MeResponse,
@@ -18,8 +19,9 @@ import { AppHeader, Screen, TabBar, WalletButton } from './Shell';
 import { useLang, useNetworkName } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
-import { config, explorerTemplate } from '../lib/env';
-import { clockIst, formatMb, money } from '../lib/format';
+import { planHash, readTopUps, topUpsRequest, type AgentTopUp } from '../lib/arkiv-read';
+import { config, explorerName, explorerTemplate } from '../lib/env';
+import { clockIst, dayLabel, formatMb, money, moneyUsdc } from '../lib/format';
 import { usePlans, useWallet } from '../lib/hooks';
 import { plans as store } from '../lib/store';
 import { isUserRejection } from '../lib/wallet';
@@ -284,8 +286,154 @@ export function AgentSheet() {
           </ul>
         )}
       </section>
+      {key ? <ArkivHistory planKey={key} policy={policy} /> : null}
       {/* the agent is its own screen, not the Add-data tab (RT design review: wrong active tab) */}
       <TabBar />
     </Screen>
+  );
+}
+
+/**
+ * "Spending history — read from Arkiv": this plan's agent top-ups, queried by the browser from the Arkiv node itself
+ * (lib/arkiv-read.ts), on mount, when the page is shown again and every 30 s while it is visible.
+ */
+function ArkivHistory({
+  planKey,
+  policy,
+}: {
+  planKey: string;
+  policy: TopUpPolicyWire | undefined;
+}) {
+  const { t, lang } = useLang();
+  const netName = useNetworkName();
+  const [hash, setHash] = useState<string | undefined>();
+  const [history, setHistory] = useState<{ rows: AgentTopUp[]; spentToday: bigint } | undefined>();
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+
+  // on mount, on Retry, when the page is shown again and every 30 s while it is visible; one read at a time
+  useEffect(() => {
+    let alive = true;
+    let busy = false;
+    const load = () => {
+      if (busy) return;
+      busy = true;
+      planHash(planKey)
+        .then(async (h) => {
+          if (alive) setHash(h);
+          const rows = await readTopUps(h);
+          // the API's daily cap counts the UTC day (T-30), so this line does too
+          const today = dayBucket(Date.now());
+          const spentToday = rows
+            .filter((r) => dayBucket(r.at) === today)
+            .reduce((sum, r) => sum + BigInt(r.usd6 ?? '0'), 0n);
+          if (!alive) return;
+          setHistory({ rows, spentToday });
+          setFailed(false);
+        })
+        .catch(() => {
+          if (alive) setFailed(true);
+        })
+        .finally(() => {
+          busy = false;
+        });
+    };
+    const again = () => {
+      if (document.visibilityState === 'visible') load();
+    };
+    load();
+    const timer = setInterval(again, 30_000);
+    document.addEventListener('visibilitychange', again);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', again);
+    };
+  }, [planKey, attempt]);
+
+  return (
+    <section className="sheet" aria-labelledby="arkiv-history-title" data-testid="arkiv-history">
+      <h2 id="arkiv-history-title" className="sheet__kicker" lang={lang}>
+        {t('agent.historyTitle')}
+      </h2>
+      {history && policy ? (
+        <p className="note" lang={lang}>
+          {t('agent.spent', {
+            spent: money(history.spentToday),
+            cap: money(BigInt(policy.maxUsd6PerDay)),
+          })}
+        </p>
+      ) : null}
+      {failed ? (
+        <div className="row-actions" style={{ alignItems: 'center' }}>
+          <p className="note" role="status" lang={lang}>
+            {t('agent.historyError')}
+          </p>
+          <Button variant="quiet" onClick={() => setAttempt((n) => n + 1)}>
+            {t('verify.retry')}
+          </Button>
+        </div>
+      ) : null}
+      {!history ? (
+        failed ? null : (
+          <div className="skeleton skeleton--line" aria-hidden="true" />
+        )
+      ) : history.rows.length === 0 ? (
+        <p className="ghost-row" lang={lang}>
+          {policy
+            ? t('agent.historyEmpty', {
+                step: formatMb(policy.stepMb),
+                threshold: formatMb(policy.thresholdMb),
+              })
+            : t('agent.empty')}
+        </p>
+      ) : (
+        <ul className="ledger-rows">
+          {history.rows.map((r) => {
+            const template = explorerTemplate(r.network);
+            const name = explorerName(r.network);
+            return (
+              <li key={r.entityKey} data-testid="arkiv-row">
+                <span>{`${dayLabel(r.at, lang)} ${clockIst(r.at)}`}</span>
+                {r.mb ? <span>{`+${formatMb(r.mb)}`}</span> : null}
+                {r.usd6 ? <span>{moneyUsdc(r.usd6)}</span> : null}
+                <span>{netName(r.network)}</span>
+                {r.tx ? (
+                  <Hash
+                    value={r.tx}
+                    kind="transaction hash"
+                    {...(template ? { explorerHref: template.replace('{hash}', r.tx) } : {})}
+                    {...(name ? { explorerName: name } : {})}
+                  />
+                ) : null}
+                <Hash
+                  value={r.entityKey}
+                  kind="Arkiv entity key"
+                  explorerHref={`${config.arkivExplorer}/entity/${r.entityKey}`}
+                  explorerName="Arkiv"
+                />
+                {r.hcs ? (
+                  <Hash
+                    value={r.hcs.topic}
+                    kind="HCS topic"
+                    explorerHref={`${config.explorerHedera}/topic/${r.hcs.topic}`}
+                    explorerName={`HCS #${r.hcs.sequence}`}
+                  />
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {hash ? (
+        <details className="disclosure">
+          <summary lang={lang}>{t('agent.historyHow')}</summary>
+          <p lang={lang}>{t('agent.historyHowBody', { rpc: config.arkivRpc })}</p>
+          <p className="mono-key" lang="en" data-testid="arkiv-query">
+            {JSON.stringify(topUpsRequest(hash))}
+          </p>
+        </details>
+      ) : null}
+    </section>
   );
 }

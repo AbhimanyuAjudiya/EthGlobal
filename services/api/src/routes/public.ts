@@ -25,21 +25,39 @@ import type { Hono } from 'hono';
 export { GIFT_SIZES_MB } from '../flows/public-plans.js';
 
 export function registerPublic(app: Hono<AppEnv>, deps: Deps): void {
+  // The chain id is asked of the RPC relay at most every CHAIN_SEEN_TTL_MS; a relay blip within CHAIN_SEEN_GRACE_MS of
+  // the last answer keeps the service "ok" (with the age shown) instead of stalling every probe on the RPC timeout.
+  const CHAIN_SEEN_TTL_MS = 30_000;
+  const CHAIN_SEEN_GRACE_MS = 120_000;
+  let chainSeen: { at: number; chainId: number } | undefined;
   app.get('/healthz', async (c) => {
+    const now = deps.now();
     try {
-      const chainId = await deps.getChainId();
+      if (!chainSeen || now - chainSeen.at >= CHAIN_SEEN_TTL_MS)
+        chainSeen = { at: now, chainId: await deps.getChainId() };
       return c.json({
         ok: true,
         mode: deps.env.MODE,
-        chainId,
+        chainId: chainSeen.chainId,
         attestor: deps.dataDrop.attestor,
         degraded: deps.health.degraded,
+        chainAgeS: Math.floor((now - chainSeen.at) / 1000),
       });
     } catch (error) {
       deps.logger.error(
         { err: error instanceof Error ? error.name : 'error' },
         'healthz: chain unreachable',
       );
+      if (chainSeen && now - chainSeen.at < CHAIN_SEEN_GRACE_MS)
+        return c.json({
+          ok: true,
+          mode: deps.env.MODE,
+          chainId: chainSeen.chainId,
+          attestor: deps.dataDrop.attestor,
+          degraded: deps.health.degraded,
+          chainAgeS: Math.floor((now - chainSeen.at) / 1000),
+          chainStale: true,
+        });
       return c.json({ ok: false, mode: deps.env.MODE, error: 'chain_unreachable' }, 503);
     }
   });
@@ -84,15 +102,28 @@ export function registerPublic(app: Hono<AppEnv>, deps: Deps): void {
 
   // One cache entry per explicitly requested campaign. Live generic plans never discover a campaign for a visitor.
   const plans = new Map<string, { at: number; body: PlansResponse }>();
+  const PLANS_STALE_MAX_MS = 10 * 60_000;
   app.get('/plans', async (c) => {
     const query = plansQuerySchema.safeParse({ campaign: c.req.query('campaign') });
     if (!query.success) throw fail('invalid_request', [{ path: 'campaign', message: 'bytes32' }]);
     const id = deps.env.MODE === 'live' ? '' : (query.data.campaign?.toLowerCase() ?? '');
     let hit = plans.get(id);
     if (!hit || deps.now() - hit.at >= ENTITLEMENT_CACHE_S * 1000) {
-      hit = { at: deps.now(), body: await buildPlans(deps, id === '' ? undefined : (id as Hex)) };
-      if (plans.size >= PLANS_CACHE_MAX) plans.clear();
-      plans.set(id, hit);
+      try {
+        hit = { at: deps.now(), body: await buildPlans(deps, id === '' ? undefined : (id as Hex)) };
+        if (plans.size >= PLANS_CACHE_MAX) plans.clear();
+        plans.set(id, hit);
+      } catch (error) {
+        // a relay blip must not empty the landing: the last good answer (≤ 10 min old) stands in, logged
+        if (!hit || deps.now() - hit.at >= PLANS_STALE_MAX_MS) throw error;
+        deps.logger.warn(
+          {
+            err: error instanceof Error ? error.name : 'error',
+            ageS: Math.floor((deps.now() - hit.at) / 1000),
+          },
+          'plans: chain unavailable, serving the last answer',
+        );
+      }
     }
     return c.json(hit.body);
   });

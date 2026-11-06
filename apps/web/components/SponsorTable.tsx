@@ -9,8 +9,8 @@ import type { SponsorView } from '@ethglobal/protocol/schemas';
 import { Button, Hash } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
-import { EnsCampaign } from './EnsCampaign';
 import { CampaignAnalytics } from './CampaignAnalytics';
+import { EnsCampaign } from './EnsCampaign';
 import { ProofPanel } from './ProofPanel';
 import { SlideToConfirm } from './SlideToConfirm';
 import { api, ApiError } from '../lib/api';

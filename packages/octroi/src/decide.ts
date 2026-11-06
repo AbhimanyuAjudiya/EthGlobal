@@ -420,7 +420,9 @@ async function freeLane(
     status: 'pending-profile',
     tier,
     campaignId: campaign.id,
-    planId: campaign.planId,
+    // the operator's vendor package wins: a campaign's planId comes from the sponsor's form and the vendor rejects
+    // unknown package codes (live: RESELLER_PLAN_ID=JC060 vs the form's `in-1gb-7d`)
+    planId: deps.planId !== undefined && deps.planId !== '' ? deps.planId : campaign.planId,
     mbTotal: mb,
     mbUsed: 0,
     usageAsOf: now,

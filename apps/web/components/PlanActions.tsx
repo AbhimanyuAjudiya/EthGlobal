@@ -21,7 +21,7 @@ import { api, ApiError } from '../lib/api';
 import { planHref } from '../lib/deliver';
 import { config, explorerName, explorerTemplate } from '../lib/env';
 import { money } from '../lib/format';
-import { useClock, useWallet } from '../lib/hooks';
+import { useClock, useEnsureChain, useWallet, WrongChainError } from '../lib/hooks';
 import { isLpa } from '../lib/lpa-links';
 import { payerSessionKey } from '../lib/redeem';
 import { plans } from '../lib/store';
@@ -146,15 +146,18 @@ function CancelPlan({
   const netName = useNetworkName();
   const { wallet } = useWallet('human');
   const { openConnectModal } = useConnectModal();
+  const ensureChain = useEnsureChain();
   const [step, setStep] = useState<Step>('idle');
   const [error, setError] = useState<string | undefined>();
   const amount = money(offer.usd6);
   const busy = step === 'signing' || step === 'sending';
 
-  const cancel = async (w: Wallet) => {
+  const cancel = async (wallet: Wallet) => {
     setError(undefined);
     setStep('signing');
     try {
+      // the Recharge EIP-712 domain is chain 296: MetaMask refuses typed data for another chain than the wallet's
+      const w = await ensureChain(wallet, config.chainId);
       const challenge = await api.challenge('/plan/cancel', payerSessionKey(w.address));
       const issuedAt = await chainNow(w);
       const signature = await w.signTypedData({
@@ -180,6 +183,10 @@ function CancelPlan({
     } catch (e) {
       setStep('confirm');
       if (isUserRejection(e)) return;
+      if (e instanceof WrongChainError) {
+        setError(t('wallet.switchNeeded', { network: e.chainName }));
+        return;
+      }
       const reason =
         e instanceof ApiError ? (e.details as { reason?: string } | undefined)?.reason : undefined;
       const key = reason === undefined ? undefined : REASONS[reason];

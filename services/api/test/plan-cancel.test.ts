@@ -26,7 +26,7 @@ import {
   type Harness,
 } from './support/harness.js';
 
-/** A ready 100 MB plan ($0.40) paid by HUMAN_KEY. */
+/** A ready 1 GB plan ($4.00) paid by HUMAN_KEY. */
 async function paidPlan(h: Harness): Promise<string> {
   const { res } = await provisionPaid(h);
   expect(res.status).toBe(201);
@@ -67,23 +67,23 @@ describe('POST /plan/cancel', () => {
     const key = await paidPlan(h);
     const payer = addressOf(HUMAN_KEY);
     const offer = (await me(h, key)).body.refundable;
-    expect([offer?.usd6, offer?.to]).toEqual(['390000', payer]);
+    expect([offer?.usd6, offer?.to]).toEqual(['3990000', payer]);
     const { res } = await cancel(h, key);
     expect(res.status).toBe(200);
     const out = (await res.json()) as PlanCancelResponse;
-    expect([out.refund.usd6, out.refund.network]).toEqual(['390000', offer?.network]);
+    expect([out.refund.usd6, out.refund.network]).toEqual(['3990000', offer?.network]);
     expect(out.refund.tx).toMatch(/^0x[0-9a-f]{64}$/);
     expect(h.treasury.refunds()).toEqual([
-      expect.objectContaining({ to: payer, usd6: 390_000n, tx: out.refund.tx }),
+      expect.objectContaining({ to: payer, usd6: 3_990_000n, tx: out.refund.tx }),
     ]);
     expect((await h.reseller.usage(iccidOf(h, key))).status).toBe('expired');
     expect(await cancelReceipts(h)).toEqual([
-      expect.objectContaining({ usd6: '390000', tx: out.refund.tx, mb: 100, payer }),
+      expect.objectContaining({ usd6: '3990000', tx: out.refund.tx, mb: 1000, payer }),
     ]);
     expect(hcsMessages(h).at(-1)).toMatchObject({
       t: 'plan-cancel',
       tx: out.refund.tx,
-      usd6: '390000',
+      usd6: '3990000',
       feeUsd6: '10000',
     });
     // the entitlement's expiry moved to now: once it has passed, /me answers the cancelled plan from its receipt
@@ -92,15 +92,15 @@ describe('POST /plan/cancel', () => {
     expect(after.status).toBe(200);
     expect(after.body).toMatchObject({
       kind: 'paid',
-      mbTotal: 100,
+      mbTotal: 1000,
       remainingMb: 0,
       expiresAt: out.cancelledAt,
       cancelledAt: out.cancelledAt,
-      refund: { usd6: '390000', tx: out.refund.tx },
+      refund: { usd6: '3990000', tx: out.refund.tx },
     });
     expect(after.body.refundable).toBeUndefined();
     // the cancelled plan is never charged for a top-up
-    expect((await h.get(`/esim/topup?key=${encodeURIComponent(key)}&mb=100`)).status).toBe(410);
+    expect((await h.get(`/esim/topup?key=${encodeURIComponent(key)}&mb=1000`)).status).toBe(410);
   });
 
   it('the same request replayed ⇒ no second refund; a fresh signature ⇒ 409 already-cancelled (404 once expired); two at once ⇒ one refund', async () => {
@@ -161,7 +161,7 @@ describe('POST /plan/cancel', () => {
     const h = await harness();
     const free = await provisioned(h);
     const card = await redeemPin(h, (await seedCard(h)).pin);
-    const gift = await redeemPin(h, (await buyGift(h, 'bob.eth', 100)).pin, '/gift/claim');
+    const gift = await redeemPin(h, (await buyGift(h, 'bob.eth', 1000)).pin, '/gift/claim');
     expect([card.status, gift.status]).toEqual([201, 201]);
     for (const key of [
       free.key,
@@ -201,10 +201,10 @@ describe('POST /plan/cancel', () => {
     );
     const { res } = await cancel(h, key);
     expect([res.status, await errorOf(res)]).toEqual([503, 'reseller_unavailable']);
-    expect(await cancelReceipts(h)).toEqual([expect.objectContaining({ usd6: '400000' })]);
+    expect(await cancelReceipts(h)).toEqual([expect.objectContaining({ usd6: '4000000' })]);
     expect(h.treasury.refunds()).toHaveLength(0);
     expect(await reasonOf((await cancel(h, key)).res)).toEqual([409, 'already-cancelled']);
-    const quote = await h.get(`/esim/topup?key=${encodeURIComponent(key)}&mb=100`);
+    const quote = await h.get(`/esim/topup?key=${encodeURIComponent(key)}&mb=1000`);
     expect([quote.status, await errorOf(quote)]).toEqual([410, 'expired']);
   });
 
@@ -215,16 +215,16 @@ describe('POST /plan/cancel', () => {
     const { res } = await cancel(h, key);
     expect(res.status).toBe(202);
     const out = (await res.json()) as PlanCancelResponse;
-    expect([out.refund.usd6, out.refund.tx]).toEqual(['400000', undefined]);
+    expect([out.refund.usd6, out.refund.tx]).toEqual(['4000000', undefined]);
     const [pending] = await cancelReceipts(h);
-    expect(pending).toMatchObject({ usd6: '400000' });
+    expect(pending).toMatchObject({ usd6: '4000000' });
     expect(pending).not.toHaveProperty('tx');
     expect(await reasonOf((await cancel(h, key)).res)).toEqual([409, 'already-cancelled']);
     h.clock.advance(1_000);
     expect((await cancel(h, key)).res.status).toBe(404);
     expect(h.treasury.refunds()).toHaveLength(0);
     const after = await me(h, key);
-    expect(after.body).toMatchObject({ cancelledAt: out.cancelledAt, refund: { usd6: '400000' } });
+    expect(after.body).toMatchObject({ cancelledAt: out.cancelledAt, refund: { usd6: '4000000' } });
     expect(after.body.refund?.tx).toBeUndefined();
   });
 

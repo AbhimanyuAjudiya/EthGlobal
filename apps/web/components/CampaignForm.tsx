@@ -23,6 +23,7 @@ import {
   ListGroup,
   ListRow,
   Notice,
+  Pill,
   Section,
   Skeleton,
   StatTile,
@@ -32,7 +33,7 @@ import { ProofPanel } from './ProofPanel';
 import { useLang } from '../i18n/lang';
 import { api, ApiError } from '../lib/api';
 import { config, contractUrl, explorerName, networkName } from '../lib/env';
-import { formatMb, money, moneyUsdc } from '../lib/format';
+import { clockIst, dayLabel, formatMb, money, moneyUsdc } from '../lib/format';
 import { useEnsureChain, useHydrated, useWallet } from '../lib/hooks';
 import { buildProof, type Proof, type ProofInput } from '../lib/proof';
 import {
@@ -45,7 +46,10 @@ import {
   isHederaSponsorChain,
   pauseCall,
   readSponsorFunding,
+  type CampaignOnChain,
+  readCampaignOnChain,
   refundCall,
+  refundOpensAt,
   scopedCampaignId,
   sponsorLogin,
   usdcAddress,
@@ -394,6 +398,36 @@ export function CampaignForm() {
   // this wallet's campaigns on this deployment only: another wallet's never show in this browser
   const contract = hydrated ? configuredContract() : undefined;
   const list = wallet && contract ? myCampaigns.list(wallet.address, network, contract) : [];
+  /** What DataDrop says about each saved campaign (and the resumed one): status, spend, expiry, the refund gate. */
+  const [chain, setChain] = useState<Record<string, CampaignOnChain>>({});
+  const pauseState = pause.row.state;
+  const refundState = refund.row.state;
+  const resumeId = resume?.campaign.id;
+  const listIds = list.map((c) => c.id).join(',');
+  useEffect(() => {
+    if (!wallet) return;
+    const ids = [
+      ...new Set([...listIds.split(',').filter(Boolean), ...(resumeId ? [resumeId] : [])]),
+    ];
+    let live = true;
+    void Promise.all(
+      ids.map(async (id) => {
+        try {
+          return [id, await readCampaignOnChain(wallet, id as Hex)] as const;
+        } catch {
+          return undefined; // not on this chain, or the reader is unavailable: the row keeps its dashes
+        }
+      }),
+    ).then((pairs) => {
+      if (live) setChain(Object.fromEntries(pairs.filter((x): x is NonNullable<typeof x> => !!x)));
+    });
+    return () => {
+      live = false;
+    };
+  }, [wallet, listIds, resumeId, pauseState, refundState]);
+  const nowMs = Date.now();
+  const stateOf = (c: CampaignOnChain) =>
+    nowMs >= c.expiresAt ? 'Expired' : c.paused ? 'Paused' : 'Live';
 
   /** Budget follows claims cap × price until the sponsor types one. */
   const autoBudget = (d: Draft): Draft => {
@@ -687,6 +721,27 @@ export function CampaignForm() {
     try {
       const sponsor = await ensureChain(wallet, config.chainId);
       const id = resume.campaign.id as Hex;
+      if (kind === 'refund') {
+        // DataDrop refunds only after the expiry or 24 h after a pause: say when, instead of opening the wallet on a
+        // call that would revert (the owner saw "Approve in wallet…" hang with nothing to approve)
+        let gate: string | undefined;
+        try {
+          const chainCampaign = await readCampaignOnChain(sponsor, id);
+          const opens = refundOpensAt(chainCampaign, Date.now());
+          if (opens !== undefined) {
+            const when = `${dayLabel(opens)} ${clockIst(opens)} IST`;
+            gate = chainCampaign.paused
+              ? `Refund opens ${when}, 24 h after the pause.`
+              : `Refund opens when the campaign expires (${when}), or 24 h after you pause it.`;
+          }
+        } catch {
+          gate = undefined; // unreadable (an RPC blip, a test double): the wallet decides
+        }
+        if (gate) {
+          setError(gate);
+          return;
+        }
+      }
       await send(
         sponsor,
         kind === 'pause' ? pauseCall(id, true) : refundCall(id),
@@ -775,12 +830,37 @@ export function CampaignForm() {
         {c.name}
       </Link>
     ),
-    // the saved list holds names only; status and figures load on the campaign page after sign-in
-    status: dash,
-    claims: dash,
-    spend: dash,
-    expires: dash,
+    // the saved list holds names only; DataDrop fills status, spend and expiry once a wallet can read the chain
+    status: chain[c.id] ? (
+      <Pill
+        tone={
+          stateOf(chain[c.id]!) === 'Live'
+            ? 'positive'
+            : stateOf(chain[c.id]!) === 'Paused'
+              ? 'warning'
+              : 'neutral'
+        }
+        dot={stateOf(chain[c.id]!) === 'Live'}
+      >
+        {stateOf(chain[c.id]!)}
+      </Pill>
+    ) : (
+      dash
+    ),
+    claims:
+      chain[c.id] && chain[c.id]!.pricePerClaim > 0n
+        ? String(chain[c.id]!.spent / chain[c.id]!.pricePerClaim)
+        : dash,
+    spend: chain[c.id] ? `${money(chain[c.id]!.spent)} / ${money(chain[c.id]!.budget)}` : dash,
+    expires: chain[c.id] ? dayLabel(chain[c.id]!.expiresAt) : dash,
   }));
+  // the resumed campaign's refund gate, read from the chain (undefined = refundable now)
+  const resumeChain = resumeId ? chain[resumeId] : undefined;
+  const refundOpens = resumeChain ? refundOpensAt(resumeChain, nowMs) : undefined;
+  const refundOpensText = refundOpens
+    ? `${dayLabel(refundOpens)} ${clockIst(refundOpens)} IST`
+    : undefined;
+  const nothingToRefund = resumeChain ? resumeChain.budget - resumeChain.spent === 0n : false;
   const perCampaign = 'Opens on each campaign after sign-in';
 
   return (
@@ -844,32 +924,57 @@ export function CampaignForm() {
                 aria-label="Draft cannot be registered"
                 data-testid="draft-stuck"
                 action={
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {resumeChain?.paused || nowMs >= (resumeChain?.expiresAt ?? Infinity) ? null : (
+                      <Button
+                        variant="secondary"
+                        disabled={running || !resume.createHash}
+                        onClick={() => void recover('pause')}
+                      >
+                        Pause campaign
+                      </Button>
+                    )}
                     <Button
                       variant="secondary"
-                      disabled={running || !resume.createHash}
-                      onClick={() => void recover('pause')}
-                    >
-                      Pause campaign
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      disabled={running || !resume.createHash}
+                      disabled={
+                        running ||
+                        !resume.createHash ||
+                        refundOpens !== undefined ||
+                        nothingToRefund
+                      }
                       onClick={() => void recover('refund')}
                     >
                       Refund unspent budget
                     </Button>
+                    {refundOpensText ? (
+                      <span className="t-caption">Refund opens {refundOpensText}</span>
+                    ) : nothingToRefund ? (
+                      <span className="t-caption">Nothing left to refund</span>
+                    ) : null}
                   </div>
                 }
               >
-                <p role="status">
-                  This draft can’t be registered any more: the campaign was funded before event
-                  terms were required, so the API refuses it. Its locked budget
-                  {locked ? ` (${locked})` : ''} stays in this campaign on chain; the sponsor wallet
-                  can refund what is unspent once the campaign has expired, or 24 hours after
-                  pausing it. Start a new campaign to fund one with event terms; this draft is kept
-                  on this device.
-                </p>
+                {resumeChain?.paused ? (
+                  <p role="status">
+                    Paused since {dayLabel(resumeChain.pausedSince)}{' '}
+                    {clockIst(resumeChain.pausedSince)} IST.{' '}
+                    {money(resumeChain.budget - resumeChain.spent)}
+                    {locked ? ` of ${locked}` : ''} is still locked in this campaign on chain; the
+                    refund opens 24 hours after the pause
+                    {refundOpensText ? ` (${refundOpensText})` : ''}, or when the campaign expires
+                    on {dayLabel(resumeChain.expiresAt)}. This draft is kept on this device until
+                    then.
+                  </p>
+                ) : (
+                  <p role="status">
+                    This draft can’t be registered any more: the campaign was funded before event
+                    terms were required, so the API refuses it. Its locked budget
+                    {locked ? ` (${locked})` : ''} stays in this campaign on chain; the sponsor
+                    wallet can refund what is unspent once the campaign has expired, or 24 hours
+                    after pausing it. Start a new campaign to fund one with event terms; this draft
+                    is kept on this device.
+                  </p>
+                )}
               </Notice>
             ) : null}
             <p className="note">{t('event.intro')}</p>

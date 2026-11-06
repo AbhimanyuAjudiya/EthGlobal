@@ -122,6 +122,56 @@ export const refundCall = (id: Hex) => ({
   data: encodeFunctionData({ abi: DATADROP, functionName: 'refund', args: [id] }),
 });
 
+/** DataDrop lets the sponsor refund `budget − spent` after `expiresAt`, or 24 h after pausing (T-06). */
+export const REFUND_GRACE_MS = 24 * 60 * 60 * 1000;
+
+export interface CampaignOnChain {
+  budget: bigint;
+  spent: bigint;
+  pricePerClaim: bigint;
+  /** ms */
+  expiresAt: number;
+  /** ms; 0 while unpaused */
+  pausedSince: number;
+  paused: boolean;
+}
+
+/** `campaigns(id)` from DataDrop through the wallet's reader; throws when the answer is not a campaign struct. */
+export async function readCampaignOnChain(wallet: Wallet, id: Hex): Promise<CampaignOnChain> {
+  const raw: unknown = await wallet.reader.readContract({
+    address: dataDropAddress(),
+    abi: DATADROP,
+    functionName: 'campaigns',
+    args: [id],
+  });
+  const o = raw as Partial<
+    Record<'budget' | 'spent' | 'pricePerClaim' | 'expiresAt' | 'pausedSince', bigint>
+  > & { paused?: boolean };
+  if (
+    !o ||
+    typeof o !== 'object' ||
+    typeof o.expiresAt !== 'bigint' ||
+    typeof o.pausedSince !== 'bigint'
+  )
+    throw new Error('campaign read failed');
+  return {
+    budget: o.budget ?? 0n,
+    spent: o.spent ?? 0n,
+    pricePerClaim: o.pricePerClaim ?? 0n,
+    expiresAt: Number(o.expiresAt) * 1000,
+    pausedSince: Number(o.pausedSince) * 1000,
+    paused: o.paused === true,
+  };
+}
+
+/** When the refund opens: `undefined` = now; else the earlier of the expiry and pause + 24 h (expiry alone while unpaused). */
+export function refundOpensAt(c: CampaignOnChain, nowMs: number): number | undefined {
+  if (nowMs >= c.expiresAt) return undefined;
+  const byPause = c.paused && c.pausedSince > 0 ? c.pausedSince + REFUND_GRACE_MS : undefined;
+  if (byPause !== undefined && nowMs >= byPause) return undefined;
+  return byPause !== undefined ? Math.min(byPause, c.expiresAt) : c.expiresAt;
+}
+
 /** EIP-712 SponsorLogin{campaignId, sponsor, issuedAt} over rechargeDomain(chain); valid 1 h (T-72). */
 export async function sponsorLogin(wallet: Wallet, campaignId: Hex) {
   const issuedAt = await chainNow(wallet);

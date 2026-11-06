@@ -15,16 +15,19 @@ export async function buildPlans(
   asked?: Hex,
   authorized = false,
 ): Promise<PlansResponse> {
+  // Live: a ticketed (event) campaign is named only to an authorized pass holder; CAMPAIGN_ID may pin one public,
+  // non-event campaign that the landing advertises to everyone (the sponsored free bundle).
   const id =
     deps.env.MODE === 'live'
       ? authorized
         ? asked
-        : undefined
+        : deps.env.CAMPAIGN_ID
       : (asked ?? deps.env.CAMPAIGN_ID ?? (await deps.stores.campaigns.list())[0]?.payload.id);
   let campaign: PlansResponse['campaign'] = null;
   if (id !== undefined) {
     const { campaign: value, counters } = await campaignState(deps, id as Hex);
-    if (value && counters)
+    const disclosable = deps.env.MODE !== 'live' || authorized || !value?.event;
+    if (value && counters && disclosable)
       campaign = {
         id: value.id,
         name: value.name,

@@ -542,9 +542,9 @@ describe('FallbackReseller', () => {
     await expect(chain.topUp(profile.iccid, 100, { idempotencyKey: 't' })).rejects.toMatchObject({
       code: 'not_found',
     });
-    // cancel never reaches the fallback: its evidence is never eligible, so the chain refuses before any cancel call
+    // cancel never reaches the fallback: the primary never issued it, so it cannot cancel it either
     await expect(chain.cancel(profile.iccid, { idempotencyKey: 'c' })).rejects.toMatchObject({
-      code: 'invalid_request',
+      code: 'not_found',
     });
     await expect(fallback.usage(profile.iccid)).resolves.toMatchObject({ status: 'ready' });
     await expect(chain.order('nope', { idempotencyKey: 'z' })).rejects.toMatchObject({

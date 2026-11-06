@@ -47,7 +47,7 @@ export const MOCK_PLANS: readonly EsimPlan[] = [
     validityDays: 7,
     wholesaleUsd6: 1_140_000n,
     activation: { startsOn: 'first-network', installWithinDays: 180 },
-    cancellation: 'unsupported',
+    cancellation: 'never-installed',
   },
   {
     id: 'in-300mb-7d',
@@ -58,7 +58,7 @@ export const MOCK_PLANS: readonly EsimPlan[] = [
     validityDays: 7,
     wholesaleUsd6: 342_000n,
     activation: { startsOn: 'first-network', installWithinDays: 180 },
-    cancellation: 'unsupported',
+    cancellation: 'never-installed',
   },
 ];
 
@@ -182,10 +182,21 @@ export class MockReseller implements Reseller {
     return { iccid, usedMb, totalMb: line.totalMb, asOf: now, status };
   }
 
+  /**
+   * Local simulation of a provider that cancels never-installed profiles (what the live eSIM Access adapter
+   * reports): an unused line is eligible, a cancelled one reads cancelled, anything used is ineligible. Simulated
+   * state is still never evidence of a provider credit, so `credit` is never set.
+   */
   async cancellationEvidence(iccid: string): Promise<EsimCancellationEvidence> {
-    this.#line(iccid);
-    // Simulated state is never evidence of a real provider credit or cancellation.
-    return { provider: this.name, status: 'ineligible', observedAt: this.#now() };
+    const line = this.#line(iccid);
+    const observedAt = this.#now();
+    if (line.cancelled === true) return { provider: this.name, status: 'cancelled', observedAt };
+    const { status } = await this.usage(iccid);
+    return {
+      provider: this.name,
+      status: status === 'ready' ? 'eligible' : 'ineligible',
+      observedAt,
+    };
   }
 
   /** Local simulation only: an unused line cancels (then reads 'expired'); a cancelled one resolves again. */

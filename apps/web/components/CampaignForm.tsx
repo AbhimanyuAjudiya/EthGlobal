@@ -470,7 +470,7 @@ export function CampaignForm() {
       }}
       type={type}
       inputMode={key === 'name' || type === 'datetime-local' ? 'text' : 'decimal'}
-      mono={key !== 'name'}
+      mono={key !== 'name' && type !== 'datetime-local'}
       data-testid={`campaign-${key}`}
     />
   );
@@ -1078,7 +1078,7 @@ export function CampaignForm() {
             </Section>
             <Section title="3 · Dates">
               <p className="note">When the event runs; the package must cover it.</p>
-              <div className="grid items-start gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(15rem,1fr))] items-start gap-4">
                 {field('startsAt', t('event.startsAt'), undefined, 'datetime-local', datesHint)}
                 {field('endsAt', t('event.endsAt'), undefined, 'datetime-local', datesHint)}
               </div>
@@ -1087,7 +1087,7 @@ export function CampaignForm() {
               </p>
               <details className="grid gap-3">
                 <summary className="t-label cursor-pointer">Advanced timing</summary>
-                <div className="mt-3 grid items-start gap-4 sm:grid-cols-2">
+                <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(15rem,1fr))] items-start gap-4">
                   {field(
                     'claimUntil',
                     t('event.claimUntil'),

@@ -1761,6 +1761,19 @@ pre.mono-key {
   }
 }
 
+/* ── Inputs on cards: a hairline so two side-by-side fields read as two boxes in dark mode too; date-time
+   inputs keep the text face so Chrome has room for the picker indicator in a half-width column ── */
+.ui-field__input {
+  border: 1px solid var(--border-input);
+  min-width: 0;
+}
+input.ui-field__input[type='datetime-local'],
+input.ui-field__input[type='date'],
+input.ui-field__input[type='time'] {
+  font-family: var(--font-text);
+  font-variant-numeric: tabular-nums;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .page,
   .sheet-scrim,

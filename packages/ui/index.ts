@@ -3,8 +3,11 @@
  * tokens.test.ts fails when a name listed here is missing from the stylesheet.
  */
 
+/** DESIGN.md v3 §2: saffron, the one colour on the primary pill and the active nav item. */
+export const brandTokens = ['brand', 'brand-deep', 'brand-pale', 'on-brand'] as const;
 export const surfaceTokens = [
   'bg-canvas',
+  'bg-band',
   'bg-surface',
   'bg-sunken',
   'bg-raised',
@@ -46,6 +49,7 @@ export const objectTokens = ['latex', 'ink-spot'] as const;
 export type ObjectToken = (typeof objectTokens)[number];
 
 export const colorTokens = [
+  ...brandTokens,
   ...surfaceTokens,
   ...borderTokens,
   ...textTokens,
@@ -55,8 +59,18 @@ export const colorTokens = [
 ] as const;
 export type ColorToken = (typeof colorTokens)[number];
 
-/** One radius per component family; never `rounded-2xl` everywhere. */
-export const radiusTokens = ['radius-control', 'radius-object', 'radius-pill'] as const;
+/** One radius per component family: cards 24 px, inputs 12 px, sheet tops 28 px, pills round. */
+export const radiusTokens = [
+  'radius-control',
+  'radius-object',
+  'radius-card',
+  'radius-input',
+  'radius-sheet',
+  'radius-pill',
+] as const;
+
+/** The two allowed gradients (hero band, balance card top edge). */
+export const gradientTokens = ['gradient-hero', 'gradient-card'] as const;
 export type RadiusToken = (typeof radiusTokens)[number];
 
 /** 4 px grid: 4, 8, 12, 16, 24, 32, 40, 48, 64, 96 px. */
@@ -94,8 +108,20 @@ export type Theme = (typeof themes)[number];
 
 /** Milliseconds / CSS easings, mirrored from tokens.css for JS-driven animation (springs, odometers). */
 export const motion = {
-  duration: { micro: 100, state: 180, spatialIn: 260, spatialOut: 208, odometerMax: 400 },
-  easing: { standard: 'cubic-bezier(0.2, 0, 0, 1)', exit: 'cubic-bezier(0.3, 0, 1, 1)' },
+  duration: {
+    micro: 90,
+    state: 180,
+    route: 180,
+    progress: 300,
+    spatialIn: 280,
+    spatialOut: 220,
+    odometerMax: 400,
+  },
+  easing: {
+    standard: 'cubic-bezier(0.2, 0, 0, 1)',
+    exit: 'cubic-bezier(0.3, 0, 1, 1)',
+    spring: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+  },
   spring: { stiffness: 400, damping: 35 },
 } as const;
 export const motionTokens = [
@@ -106,6 +132,9 @@ export const motionTokens = [
   'duration-odometer',
   'ease-standard',
   'ease-exit',
+  'ease-spring',
+  'duration-route',
+  'duration-progress',
   'spring-stiffness',
   'spring-damping',
 ] as const;
@@ -115,6 +144,7 @@ export type Token =
   | ColorToken
   | ObjectToken
   | RadiusToken
+  | (typeof gradientTokens)[number]
   | SpaceToken
   | ShadowToken
   | FontToken

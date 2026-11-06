@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PlansResponse } from '@ethglobal/protocol/schemas';
 
 import { ClaimPaths } from '../components/ClaimPaths';
-import { AppHeader } from '../components/Shell';
+import { AppHeader, AppShell, Screen, TabBar } from '../components/Shell';
 import { Wallets } from '../components/Wallets';
 import { ApiError } from '../lib/api';
 import { clockIst } from '../lib/format';
@@ -193,6 +193,43 @@ describe('the header menu', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     expect(document.activeElement).toBe(toggle);
+  });
+});
+
+describe('the AppShell (DESIGN.md §4)', () => {
+  it('the BottomNav and its More sheet reach every flow; the legacy chrome steps aside inside the shell', async () => {
+    render(
+      <AppShell nav="home">
+        <Screen>
+          <AppHeader />
+          <p>screen body</p>
+          <TabBar active="plan" />
+        </Screen>
+      </AppShell>,
+      { wrapper: Wallets },
+    );
+    // one TopBar, one BottomNav: the old AppHeader / TabBar inside the shell render nothing
+    expect(screen.getAllByRole('button', { name: 'Menu' })).toHaveLength(1);
+    const nav = screen.getByRole('navigation', { name: 'Recharge' });
+    const tabs = within(nav).getAllByRole('link');
+    expect(hrefs(tabs)).toEqual(['/', '/plan', '/pay', '/gift']);
+    expect(tabs[0]?.getAttribute('aria-current')).toBe('page');
+
+    const more = within(nav).getByRole('button', { name: 'More' });
+    fireEvent.click(more);
+    const sheet = screen.getByRole('dialog', { name: 'More' });
+    expect(within(sheet).getByRole('group', { name: 'Language' })).toBeTruthy();
+    expect(
+      within(sheet).getByRole('switch', { name: 'Show proof after each action' }),
+    ).toBeTruthy();
+    const rest = hrefs(within(within(sheet).getByRole('navigation')).getAllByRole('link')).sort();
+    expect(rest).toEqual(['/agent', '/card', '/gift/claim', '/receipts', '/sponsor', '/verify']);
+    expect([...new Set([...rest, ...hrefs(tabs)])].filter((h) => h !== '/').sort()).toEqual(
+      EVERY_FLOW,
+    );
+    fireEvent.keyDown(document.activeElement ?? sheet, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(more));
   });
 });
 

@@ -1,9 +1,8 @@
 'use client';
 
-import Link from 'next/link';
-
 import { OnchainAction, type CouponLang, type ReviewRow } from '@ethglobal/ui/components';
 
+import { ButtonLink } from './kit/Button';
 import { explorerName, explorerTemplate } from '../lib/env';
 import { elapsed, type ActionRow } from '../lib/onchain-action';
 
@@ -31,7 +30,7 @@ export interface ActionViewProps {
 
 /**
  * Maps a reducer row onto the ui `OnchainAction` props union, so every transaction on every screen renders
- * through the same eight-state component (hash shown from `submitted` on, never a bare spinner).
+ * through the same eight-state component, a kit Card (hash shown from `submitted` on, never a bare spinner).
  */
 export function ActionView(p: ActionViewProps) {
   const url = explorerTemplate(p.network);
@@ -115,7 +114,9 @@ export function ActionView(p: ActionViewProps) {
             {...(p.onRetry ? { onRetry: p.onRetry } : {})}
           />
           {p.row.outcomeUnknown && p.row.hash ? (
-            <Link href="/receipts">Check saved transactions</Link>
+            <ButtonLink href="/receipts" variant="secondary" block>
+              Check saved transactions
+            </ButtonLink>
           ) : null}
         </>
       );

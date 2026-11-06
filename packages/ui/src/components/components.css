@@ -1,5 +1,5 @@
 /*
- * @ethglobal/ui components — design-foundations §1–§7 and design-references §1–§6.
+ * @ethglobal/ui components — DESIGN.md v3 §5 (kit look) and §6 (motion).
  * Colours, type, radii and motion come only from tokens.css / fonts.css custom properties.
  * Animate transform and opacity only; the token durations already collapse under reduced motion.
  */
@@ -21,33 +21,37 @@
   vertical-align: -0.125em;
 }
 
-/* ── Button ──────────────────────────────────────────────────────────────
-   48 px, carries the amount. Hover (fine pointer only): the fill steps toward ink and the box rises 1 px;
-   press: down 1 px + scale(.985) at --duration-micro; disabled: flat, no transform. */
+/* ── Button: a pill. lg 56 / md 48; primary brand, secondary sunken, quiet text; press scale(.97) ── */
 .ui-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
+  box-sizing: border-box;
   min-height: 48px;
   min-width: 48px;
   padding: 0 var(--space-5);
-  border: 1px solid transparent;
-  border-radius: var(--radius-control);
+  border: 0;
+  border-radius: var(--radius-pill);
   font-family: var(--font-text);
-  font-size: var(--text-16);
+  font-size: var(--type-label);
   font-weight: 600;
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
+  text-align: center;
   text-decoration: none;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   transition:
-    transform var(--duration-state) var(--ease-standard),
+    transform var(--duration-micro) var(--ease-standard),
     background-color var(--duration-state) var(--ease-standard),
-    border-color var(--duration-state) var(--ease-standard),
     color var(--duration-state) var(--ease-standard);
+}
+.ui-button[data-size='lg'] {
+  min-height: 56px;
+  padding: 0 var(--space-6);
+  font-size: var(--type-body);
 }
 .ui-button--block {
   width: 100%;
@@ -57,12 +61,11 @@
   outline-offset: 2px;
 }
 .ui-button[data-variant='primary'] {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--brand);
+  color: var(--on-brand);
 }
 .ui-button[data-variant='secondary'] {
-  background: var(--bg-surface);
-  border-color: var(--border-input);
+  background: var(--bg-sunken);
   color: var(--text-primary);
 }
 .ui-button[data-variant='quiet'] {
@@ -70,114 +73,101 @@
   padding: 0 var(--space-3);
   background: transparent;
   color: var(--text-primary);
-  text-decoration: underline;
-  text-decoration-color: var(--border-strong);
-  text-decoration-thickness: 1px;
-  text-underline-offset: 0.25em;
 }
 @media (hover: hover) and (pointer: fine) {
-  .ui-button:hover:not(:disabled) {
-    transform: translateY(-1px);
-  }
   .ui-button[data-variant='primary']:hover:not(:disabled) {
-    background: color-mix(in oklch, var(--accent) 94%, var(--text-primary));
+    background: var(--brand-deep);
   }
   .ui-button[data-variant='secondary']:hover:not(:disabled) {
-    background: color-mix(in oklch, var(--bg-surface) 94%, var(--text-primary));
-    border-color: var(--border-strong);
+    background: color-mix(in oklch, var(--bg-sunken) 88%, var(--text-primary));
   }
   .ui-button[data-variant='quiet']:hover:not(:disabled) {
-    text-decoration-color: currentColor;
+    text-decoration: underline;
+    text-underline-offset: 0.25em;
   }
 }
 .ui-button:active:not(:disabled) {
-  transform: translateY(1px) scale(0.985);
-  transition-duration: var(--duration-micro);
+  transform: scale(0.97);
 }
 .ui-button[data-variant='primary']:active:not(:disabled) {
-  background: var(--accent-hover);
+  background: var(--brand-deep);
 }
 .ui-button:disabled,
 .ui-button[aria-disabled='true'] {
   background: var(--bg-sunken);
-  border-color: var(--border-subtle);
   color: var(--text-disabled);
-  text-decoration: none;
   cursor: not-allowed;
   transform: none;
 }
 .ui-button[data-variant='quiet']:disabled {
   background: transparent;
-  border-color: transparent;
 }
 
-/* ── Field ───────────────────────────────────────────────────────────────── */
+/* ── Field: 56 px, 12 px radius, sunken fill, brand ring on focus, error line in --negative ── */
 .ui-field {
   display: grid;
   gap: var(--space-2);
   font-family: var(--font-text);
 }
 .ui-field__label {
-  font-size: var(--text-14);
-  font-weight: 500;
-  color: var(--text-secondary);
+  font-size: var(--type-label);
+  font-weight: 600;
+  color: var(--text-primary);
 }
 .ui-field__input {
-  min-height: 48px;
-  padding: 0 var(--space-3);
-  border: 1px solid var(--border-input);
-  border-radius: var(--radius-control);
-  background: var(--bg-surface);
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 56px;
+  padding: 0 var(--space-4);
+  border: 2px solid transparent;
+  border-radius: var(--radius-input);
+  background: var(--bg-sunken);
   color: var(--text-primary);
   font: inherit;
-  font-size: var(--text-16);
+  font-size: var(--type-body);
   transition:
     border-color var(--duration-state) var(--ease-standard),
     box-shadow var(--duration-state) var(--ease-standard);
 }
-.ui-field__input:focus {
-  border-color: var(--accent);
-  box-shadow: var(--shadow-1);
-}
 .ui-field__input::placeholder {
   color: var(--text-tertiary);
 }
+.ui-field__input:focus,
 .ui-field__input:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 4px var(--brand-pale);
 }
 .ui-field__input--mono {
   font-family: var(--font-mono);
+  font-size: var(--type-mono);
   font-variant-numeric: tabular-nums slashed-zero;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
 .ui-field__hint {
   margin: 0;
-  font-size: var(--text-13);
+  font-size: var(--type-caption);
   color: var(--text-tertiary);
 }
-/* Errors are prose in the text colours, never a red box (red is money that failed to move). */
 .ui-field__error {
   margin: 0;
-  font-size: var(--text-13);
-  font-weight: 500;
-  color: var(--text-secondary);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  color: var(--negative);
 }
 .ui-field[data-invalid] .ui-field__input {
-  padding: 0 calc(var(--space-3) - 1px);
-  border-width: 2px;
-  border-color: var(--text-primary);
+  border-color: var(--negative);
 }
 .ui-field[data-invalid] .ui-field__input:focus {
-  border-color: var(--accent);
+  border-color: var(--brand);
 }
 
 /* ── Hash: short 0x value, copy, explorer ───────────────────────────────── */
 .hash {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  font-size: var(--text-13);
+  gap: var(--space-1);
+  font-size: var(--type-caption);
   white-space: nowrap;
 }
 .hash__value {
@@ -191,13 +181,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.25rem;
+  gap: var(--space-1);
   min-width: 44px;
   height: 44px;
   margin: -8px -6px;
-  padding: 0 0.25rem;
+  padding: 0 var(--space-1);
   border: 0;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--text-secondary);
   font: inherit;
@@ -207,7 +197,6 @@
 .hash__copy:hover {
   color: var(--text-primary);
 }
-/* The glyph swaps to a check for ~1.5 s; the word beside it is the live announcement. */
 .hash__copy .ui-icon {
   transition: transform var(--duration-micro) var(--ease-standard);
 }
@@ -215,7 +204,7 @@
   transform: scale(0.9);
 }
 .hash__copy[data-copy='copied'] {
-  color: var(--text-primary);
+  color: var(--positive);
 }
 .hash__copy:focus-visible,
 .hash__explorer:focus-visible {
@@ -228,12 +217,13 @@
 .hash__explorer {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: var(--space-1);
   min-height: 44px;
   margin: -8px 0;
-  padding: 0 0.25rem;
-  border-radius: var(--radius-control);
-  color: var(--accent);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  color: var(--text-primary);
+  font-weight: 600;
   text-decoration: none;
 }
 .hash__explorer:hover {
@@ -241,41 +231,42 @@
   text-underline-offset: 0.2em;
 }
 
-/* ── Ruled lines (Receipt, OnchainAction review) ─────────────────────────── */
+/* ── Ruled rows (Receipt, OnchainAction review): rows inside a card, a hairline between ── */
 .ruled {
   display: grid;
   margin: 0;
 }
 .ruled__row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  min-height: 44px;
+  min-height: 56px;
   box-sizing: border-box;
   padding: var(--space-3) 0;
-  border-top: 1px solid var(--border-subtle);
-  font-size: var(--text-14);
+  font-size: var(--type-body);
   line-height: var(--leading-text);
 }
-.ruled__row:last-child {
-  border-bottom: 1px solid var(--border-subtle);
+.ruled__row + .ruled__row {
+  border-top: 1px solid var(--border-subtle);
 }
 .ruled__label {
   flex: 0 1 auto;
   color: var(--text-secondary);
 }
-/* Values are prose by default (left-aligned under a narrow label column, so a sentence never wraps ragged-right);
-   figures opt into tabular mono, right-aligned (RT design review #6). */
 .ruled__value {
   margin: 0;
   min-width: 0;
   color: var(--text-primary);
   font-family: var(--font-text);
+  font-size: var(--type-label);
+  font-weight: 600;
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 .ruled__value--mono {
   font-family: var(--font-mono);
+  font-weight: 500;
   font-variant-numeric: tabular-nums slashed-zero;
 }
 :where(:lang(hi), :lang(mr)) .ruled__value {
@@ -294,22 +285,22 @@
 }
 .receipt__heading {
   margin: 0;
-  font-size: var(--text-14);
-  font-weight: 600;
+  font-size: var(--type-heading);
+  font-weight: 700;
+  font-stretch: 100%;
   font-variant-numeric: tabular-nums;
 }
 
-/* ── UsageAsOf / Countdown: 12 px mono rails ───────────────────────────────── */
+/* ── UsageAsOf / Countdown: caption lines ──────────────────────────────── */
 .ui-countdown {
-  font-family: var(--font-mono);
-  font-size: var(--text-12);
-  font-variant-numeric: tabular-nums slashed-zero;
+  font-family: var(--font-text);
+  font-size: var(--type-caption);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
   color: var(--text-tertiary);
 }
 .ui-countdown:lang(hi),
 .ui-countdown:lang(mr) {
-  font-family: var(--font-text);
-  font-size: var(--text-14);
   line-height: var(--leading-devanagari);
 }
 .ui-countdown[data-ended] {
@@ -317,23 +308,21 @@
 }
 .usage-as-of {
   margin: 0;
-  font-family: var(--font-mono);
-  font-size: var(--text-12);
-  font-variant-numeric: tabular-nums slashed-zero;
+  font-family: var(--font-text);
+  font-size: var(--type-caption);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
   color: var(--text-tertiary);
 }
-/* Devanagari: Anek, 14 px floor, leading 1.6; the clock digits stay Latin. */
 .usage-as-of:lang(hi),
 .usage-as-of:lang(mr) {
-  font-family: var(--font-text);
-  font-size: var(--text-14);
   line-height: var(--leading-devanagari);
 }
 .usage-as-of[data-tone='warning'] {
   color: var(--warning);
 }
 
-/* ── MbMeter ─────────────────────────────────────────────────────────────── */
+/* ── MbMeter: a 6 px rounded bar, brand fill, 300 ms on data ─────────────── */
 .mb-meter {
   display: grid;
   gap: var(--space-2);
@@ -341,7 +330,7 @@
 }
 .mb-meter__text {
   margin: 0;
-  font-size: var(--text-14);
+  font-size: var(--type-label);
   font-variant-numeric: tabular-nums;
   color: var(--text-secondary);
 }
@@ -349,18 +338,19 @@
   font-weight: 600;
   color: var(--text-primary);
 }
-/* 4 px, square ends: a rule, not a pill. */
 .mb-meter__track {
-  height: 4px;
+  height: 6px;
   overflow: hidden;
-  border-radius: 0;
+  border-radius: var(--radius-pill);
   background: var(--bg-sunken);
 }
-/* Remaining data, anchored right so the bar drains left → right. No transition: data ticks snap. */
+/* Remaining data, anchored right so the bar drains left → right. */
 .mb-meter__fill {
   height: 100%;
-  background: var(--accent);
+  border-radius: var(--radius-pill);
+  background: var(--brand);
   transform-origin: right center;
+  transition: transform var(--duration-progress) var(--ease-standard);
 }
 .mb-meter[data-warning] .mb-meter__fill {
   background: var(--warning);
@@ -375,25 +365,34 @@
   }
 }
 
-/* ── Objects: the coupon, the boarding pass and the onchain sheet share one surface ── */
+/* ── Objects: coupon (screen), boarding pass and the onchain card share the 24 px card ── */
 .coupon,
 .boarding-pass,
 .onchain-action {
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-object);
+  border-radius: var(--radius-card);
   background: var(--bg-surface);
   color: var(--text-primary);
   font-family: var(--font-text);
 }
 .boarding-pass__to,
-.boarding-pass__data,
 .onchain-action__title {
   font-family: var(--font-display);
-  font-size: var(--text-24);
-  font-stretch: 110%;
-  font-variation-settings: 'wdth' 110;
+  font-size: var(--type-heading);
+  font-stretch: 105%;
+  font-variation-settings: 'wdth' 105;
   font-weight: 700;
-  line-height: var(--leading-display);
+  line-height: 1.15;
+}
+/* the amount on a ticket: display-xl */
+.boarding-pass__data {
+  font-family: var(--font-display);
+  font-size: var(--type-display-xl);
+  font-stretch: 112%;
+  font-variation-settings: 'wdth' 112;
+  font-weight: 800;
+  line-height: 0.98;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── Coupon (screen + notification; print lives in print.css) ───────────── */
@@ -674,13 +673,53 @@
   display: none;
 }
 
-/* ── BoardingPass ────────────────────────────────────────────────────────── */
+/* ── Ticket look on screen: the coupon card with a brand stub ─────────── */
+.coupon[data-variant='screen'] {
+  max-width: 30rem;
+  padding: var(--space-5);
+  box-shadow:
+    var(--shadow-1),
+    0 0 0 1px var(--border-subtle);
+}
+.coupon[data-variant='screen'] .coupon__value {
+  font-size: var(--type-display-xl);
+  font-weight: 800;
+  font-stretch: 112%;
+  font-variation-settings: 'wdth' 112;
+  letter-spacing: -0.02em;
+  line-height: 0.98;
+}
+.coupon[data-variant='screen'] .coupon__unit {
+  font-size: calc(var(--type-display-xl) * 0.4);
+  font-weight: 700;
+}
+.coupon[data-variant='screen'] .coupon__line {
+  font-size: var(--type-body);
+}
+.coupon[data-variant='screen'] .coupon__status[data-stub] {
+  margin: var(--space-1) calc(-1 * var(--space-5)) calc(-1 * var(--space-5));
+  padding: var(--space-4) var(--space-5);
+  border-top: 2px dashed var(--border-strong);
+  background: var(--brand);
+  color: var(--on-brand);
+  font-size: var(--type-label);
+  font-weight: 600;
+}
+.coupon[data-variant='notification'] {
+  border-radius: var(--radius-input);
+  box-shadow: 0 0 0 1px var(--border-subtle);
+}
+
+/* ── BoardingPass (the Ticket): 24 px card, brand stub, display-xl amount ── */
 .boarding-pass {
   --notch: var(--bg-canvas);
   display: grid;
   grid-template-columns: minmax(0, 1fr) 0 minmax(7.5rem, 32%);
   max-width: 34rem;
   overflow: hidden;
+  box-shadow:
+    var(--shadow-1),
+    0 0 0 1px var(--border-subtle);
 }
 .boarding-pass p,
 .boarding-pass dl,
@@ -696,18 +735,17 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 1rem;
+  gap: var(--space-4);
 }
 .boarding-pass__wordmark {
   font-family: var(--font-display);
-  font-size: var(--text-16);
+  font-size: var(--type-body);
   font-stretch: 110%;
-  font-weight: 700;
+  font-weight: 800;
 }
-/* Labels in sentence case (Devanagari has no capitals; DESIGN.md "Label"). */
 .boarding-pass__kind,
 .boarding-pass__label {
-  font-size: var(--text-12);
+  font-size: var(--type-caption);
   font-weight: 500;
   color: var(--text-tertiary);
 }
@@ -720,7 +758,8 @@
   grid-column: 1 / -1;
 }
 .boarding-pass__value {
-  font-size: var(--text-14);
+  font-size: var(--type-label);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 .boarding-pass__to,
@@ -730,7 +769,7 @@
 .boarding-pass__window {
   padding-top: var(--space-3);
   border-top: 1px solid var(--border-subtle);
-  font-size: var(--text-13);
+  font-size: var(--type-caption);
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
@@ -742,10 +781,10 @@
 .boarding-pass__perforation::after {
   content: '';
   position: absolute;
+  z-index: 1;
   left: -0.6875rem;
   width: 1.25rem;
   height: 1.25rem;
-  border: 1px solid var(--border-subtle);
   border-radius: 50%;
   background: var(--notch);
 }
@@ -761,8 +800,12 @@
   justify-items: center;
   gap: var(--space-2);
   padding: var(--space-4);
+  background: var(--brand);
+  color: var(--on-brand);
 }
-/* A phone column: the stub tears off below, the perforation runs across with its notches at the edges. */
+.boarding-pass__stub .boarding-pass__serial {
+  color: inherit;
+}
 @media (max-width: 26rem) {
   .boarding-pass {
     grid-template-columns: minmax(0, 1fr);
@@ -791,10 +834,9 @@
   }
 }
 .boarding-pass__pin {
-  /* Two groups per line: 4821 9930 / 1127 5064. */
   inline-size: 11ch;
   font-family: var(--font-mono);
-  font-size: var(--text-14);
+  font-size: var(--type-mono);
   font-variant-numeric: tabular-nums slashed-zero;
   text-align: center;
   word-spacing: 0.3em;
@@ -802,6 +844,9 @@
 .boarding-pass__qr {
   width: 5.5rem;
   aspect-ratio: 1;
+  padding: var(--space-1);
+  border-radius: var(--radius-input);
+  background: var(--bg-surface);
 }
 .boarding-pass__qr > * {
   width: 100%;
@@ -812,50 +857,47 @@
   color: var(--text-tertiary);
 }
 
-/* ── OnchainAction: receipt-shaped sheet ────────────────────────────────── */
+/* ── OnchainAction: a Card with a status row, a hash row (copy + explorer), a ring while sending ── */
 .onchain-action {
   display: grid;
   gap: var(--space-4);
-  max-width: 26rem;
-  padding: var(--space-5) var(--space-5) var(--space-6);
-  /* Receipt-shaped: a torn (dashed) bottom edge and square lower corners. */
-  border-bottom: 1px dashed var(--border-strong);
-  border-radius: var(--radius-object) var(--radius-object) 0 0;
+  box-sizing: border-box;
+  max-width: 36rem;
+  padding: var(--space-5);
+  box-shadow: 0 0 0 1px var(--border-subtle);
 }
 .onchain-action p {
   margin: 0;
 }
 .onchain-action__title {
   margin: 0;
-  font-weight: 600;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
-/* The status line sits on a hairline like the next receipt row; it holds the hash the instant one exists. */
-.onchain-action__status {
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--border-subtle);
-}
-.onchain-action__review + .onchain-action__status {
-  padding-top: 0;
-  border-top: 0;
-}
 .onchain-action__worst,
 .onchain-action__blocked {
-  font-size: var(--text-13);
+  font-size: var(--type-caption);
   color: var(--text-secondary);
 }
 .onchain-action__blocked {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-input);
+  background: var(--warning-subtle);
   color: var(--text-primary);
+  font-size: var(--type-label);
   font-weight: 600;
 }
 .onchain-action__status {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.25rem;
-  min-height: 1.5rem;
-  font-size: var(--text-14);
+  gap: var(--space-1);
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-input);
+  background: var(--bg-sunken);
+  font-size: var(--type-label);
   font-variant-numeric: tabular-nums;
 }
 .onchain-action__status:empty {
@@ -870,43 +912,57 @@
 }
 .onchain-action__ring {
   flex: none;
-  margin-right: 0.25rem;
+  margin-right: var(--space-1);
 }
 .onchain-action__ring-track,
 .onchain-action__ring-fill {
   fill: none;
-  stroke-width: 2;
+  stroke-width: 2.5;
 }
 .onchain-action__ring-track {
   stroke: var(--border-subtle);
 }
 .onchain-action__ring-fill {
-  stroke: var(--accent);
-  stroke-linecap: butt;
+  stroke: var(--brand);
+  stroke-linecap: round;
 }
 .onchain-action[data-state='finalized'] .onchain-action__status,
 .onchain-action[data-state='confirmed'] .onchain-action__status {
+  background: var(--positive-subtle);
   color: var(--text-primary);
-  font-weight: 500;
+  font-weight: 600;
+}
+.onchain-action[data-state='failed'] .onchain-action__status {
+  background: var(--negative-subtle);
 }
 .onchain-action__note {
-  font-size: var(--text-14);
+  font-size: var(--type-label);
   color: var(--text-secondary);
 }
+.onchain-action__hashline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
 .onchain-action__result {
-  font-size: var(--text-16);
-  font-weight: 600;
+  font-size: var(--type-heading);
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 .onchain-action__tag {
-  margin-left: 0.25rem;
-  padding: 0 0.375rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-control);
-  font-family: var(--font-mono);
-  font-size: var(--text-12);
-  font-weight: 400;
-  color: var(--text-tertiary);
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  margin-left: var(--space-1);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--warning-subtle);
+  font-family: var(--font-text);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  color: var(--text-primary);
+  vertical-align: middle;
 }
 .onchain-action__failed {
   color: var(--negative);
@@ -916,10 +972,14 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  margin-top: var(--space-2);
+  margin-top: var(--space-1);
 }
 .onchain-action__actions .ui-button--block {
   flex: 1 1 100%;
+}
+.onchain-action__actions .ui-button[data-variant='primary'] {
+  min-height: 56px;
+  font-size: var(--type-body);
 }
 
 @media (prefers-reduced-motion: reduce) {

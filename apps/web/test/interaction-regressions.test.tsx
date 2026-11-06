@@ -38,7 +38,17 @@ vi.mock('@rainbow-me/rainbowkit', () => ({ useConnectModal: () => ({}) }));
 vi.mock('../components/Shell', () => ({
   AppHeader: () => null,
   TabBar: () => null,
+  TopBar: () => null,
+  BottomNav: () => null,
   Screen: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  // the v3 shell: children and the ActionBar's primary render; chrome does not
+  AppShell: ({ children, action }: { children: ReactNode; action?: ReactNode }) => (
+    <div>
+      {children}
+      {action}
+    </div>
+  ),
+  routeChrome: () => ({}),
   useWalletLabel: () => () => 'Test wallet',
   useProofShown: () => false,
 }));

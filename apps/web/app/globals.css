@@ -6,12 +6,11 @@
 @import '@ethglobal/ui/components.css';
 
 /*
- * App layer, one file per area (DESIGN.md): tokens only; one radius per family; motion = transform/opacity
- * at token durations. base/proof/shell/sheets/layouts are shared; the rest belong to their screens.
+ * App layer (DESIGN.md v3): base (type, focus) and kit (every shared component) first. The per-screen files below
+ * are legacy: each page agent deletes its file when its screen moves onto the kit.
  */
 @import './styles/base.css';
-@import './styles/proof.css';
-@import './styles/shell.css';
+@import './styles/kit.css';
 @import './styles/sheets.css';
 @import './styles/layouts.css';
 @import './styles/landing.css';

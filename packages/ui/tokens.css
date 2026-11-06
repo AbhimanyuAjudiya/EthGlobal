@@ -1,10 +1,10 @@
 /*
- * Design tokens — research/design-foundations.md §3 (scale), §4 (colour), §6 (motion).
+ * Design tokens — DESIGN.md v3 §2 (colour), §3 (type), §4 (space), §6 (motion).
  *
  * Colour tokens are declared once with light-dark(): the browser picks the light or dark value from
  * `color-scheme`, which follows prefers-color-scheme by default and is pinned by
  * <html data-theme="light|dark"> for a manual toggle. A sub-tree can flip on its own with
- * `color-scheme: dark`. Hex comments are the sRGB rendering from the research doc.
+ * `color-scheme: dark`.
  */
 
 :root {
@@ -31,45 +31,49 @@
 
 :root,
 [data-color-scheme] {
-  /* ── Surfaces (warm ink ramp, hue 70–80) ─────────────────────────────── light / dark */
-  --bg-canvas: light-dark(oklch(0.985 0.004 80), oklch(0.16 0.006 70)); /* #fbfaf7 / #0f0d0b */
-  --bg-surface: light-dark(oklch(0.995 0.002 80), oklch(0.2 0.007 70)); /* #fdfcfa / #181613 */
-  --bg-sunken: light-dark(oklch(0.962 0.006 80), oklch(0.13 0.005 70)); /* #f5f2ee / #080706 */
-  --bg-raised: light-dark(oklch(0.995 0.002 80), oklch(0.24 0.008 70)); /* #fdfcfa / #221f1b */
-  /* §4 defines overlay for dark only; light mirrors --bg-raised. */
-  --bg-overlay: light-dark(oklch(0.995 0.002 80), oklch(0.28 0.008 70)); /* #fdfcfa / #2b2825 */
+  /* ── Brand: saffron, the one colour on the primary pill, the active nav item, progress, the selected chip ── */
+  --brand: light-dark(#ff6a1f, #ff8a4c); /* oklch(0.72 0.19 45) */
+  --brand-deep: light-dark(#e85a12, #ff7a36); /* pressed */
+  --brand-pale: light-dark(#ffe9db, #3a2416); /* badges, selected rows, icon circles */
+  --on-brand: light-dark(#140a04, #140a04);
+
+  /* ── Surfaces ──────────────────────────────────────────────────────────── light / dark */
+  --bg-canvas: light-dark(#ffffff, #0e0d0c);
+  --bg-band: light-dark(#f4efe6, #171513); /* warm sand: hero band, desktop backdrop */
+  --bg-surface: light-dark(#ffffff, #1b1917);
+  --bg-sunken: light-dark(#f3f1ed, #242120);
+  --bg-raised: light-dark(#ffffff, #242120);
+  --bg-overlay: light-dark(#ffffff, #2c2927);
 
   /* ── Borders ─────────────────────────────────────────────────────────── */
-  --border-subtle: light-dark(oklch(0.9 0.006 80), oklch(0.3 0.008 70)); /* #e0deda */
-  --border-strong: light-dark(
-    oklch(0.76 0.008 80),
-    oklch(0.44 0.008 70)
-  ); /* #b4b1ab, decorative only */
-  --border-input: light-dark(
-    oklch(0.64 0.01 80),
-    oklch(0.5 0.01 70)
-  ); /* #8f8c85 / #67625d, 3.2:1 */
+  --border-subtle: light-dark(#e9e5de, #2e2b28);
+  --border-strong: light-dark(#cfc9bf, #4a4541);
+  --border-input: light-dark(#b9b2a7, #5c5650);
 
   /* ── Text ────────────────────────────────────────────────────────────── */
-  --text-primary: light-dark(oklch(0.2 0.012 70), oklch(0.93 0.006 80)); /* #1a1510 / #eae7e3 */
-  --text-secondary: light-dark(oklch(0.44 0.012 70), oklch(0.72 0.008 80)); /* #57514c / #a7a49f */
-  --text-tertiary: light-dark(oklch(0.55 0.01 70), oklch(0.63 0.008 80)); /* #75716b / #8c8984 */
-  --text-disabled: light-dark(oklch(0.7 0.008 70), oklch(0.48 0.008 80)); /* #a29e99, no AA claim */
+  --text-primary: light-dark(#121110, #f3f0ec);
+  --text-secondary: light-dark(#4d4944, #b5aea6);
+  --text-tertiary: light-dark(#7d776f, #8c857d);
+  --text-disabled: light-dark(#b2aca4, #5f5953); /* no AA claim */
 
-  /* ── Accent: "oxide" teal, hue 195, ≤ ~5 % of pixels, never a gradient ── */
-  --accent: light-dark(oklch(0.52 0.085 195), oklch(0.78 0.1 195)); /* #117878 / #5ecbcb */
-  --accent-hover: light-dark(oklch(0.46 0.075 195), oklch(0.84 0.09 195));
-  --accent-subtle: light-dark(oklch(0.95 0.03 195), oklch(0.25 0.03 195)); /* #d8f5f5 */
-  --on-accent: light-dark(oklch(1 0 0), oklch(0.16 0.006 70)); /* white / ink on a light accent */
-  --focus: var(--accent);
+  /* ── Accent: the legacy names, aliased to the brand ─────────────────── */
+  --accent: light-dark(#ff6a1f, #ff8a4c);
+  --accent-hover: light-dark(#e85a12, #ff7a36);
+  --accent-subtle: light-dark(#ffe9db, #3a2416);
+  --on-accent: light-dark(#140a04, #140a04);
+  --focus: light-dark(#121110, #f3f0ec); /* ink ring, 2 px, offset 2 px */
 
-  /* ── Semantic: positive 150, negative 25, warning 75–85 ──────────────── */
-  --positive: light-dark(oklch(0.5 0.13 150), oklch(0.78 0.14 150)); /* #137738 / #6fd087 */
-  --positive-subtle: light-dark(oklch(0.93 0.06 150), oklch(0.24 0.04 150)); /* #ccf4d3 */
-  --negative: light-dark(oklch(0.52 0.17 25), oklch(0.74 0.15 25)); /* #b63132 / #fb817a */
-  --negative-subtle: light-dark(oklch(0.94 0.035 25), oklch(0.25 0.05 25));
-  --warning: light-dark(oklch(0.52 0.105 75), oklch(0.82 0.13 80)); /* #8c5f0e / #f0ba59 */
-  --warning-subtle: light-dark(oklch(0.95 0.05 85), oklch(0.26 0.04 80));
+  /* ── Semantic ────────────────────────────────────────────────────────── */
+  --positive: light-dark(#1f9d4a, #5ed08a);
+  --positive-subtle: light-dark(#dff5e6, #153323);
+  --negative: light-dark(#d0312f, #ff7a73);
+  --negative-subtle: light-dark(#fde3e2, #3d1716);
+  --warning: light-dark(#c77700, #ffb648);
+  --warning-subtle: light-dark(#fff1d6, #3b2a0f);
+
+  /* ── Gradients: exactly two (DESIGN.md §2) ───────────────────────────── */
+  --gradient-hero: linear-gradient(180deg, var(--bg-band), var(--bg-canvas));
+  --gradient-card: linear-gradient(180deg, var(--brand-pale), var(--bg-surface) 70%);
 
   /* ── Data-viz series: fixed order, never cycled; a 7th folds into "Other" ── */
   --series-1: light-dark(#00948e, #0e9a94);
@@ -81,7 +85,7 @@
 
   /* ── Object colours: the coupon is a physical object and keeps one palette in both themes ── */
   --latex: oklch(0.79 0 0); /* #b9b9b9, silver rub-off latex; "rub here" ink on it is 9.2:1 */
-  --ink-spot: oklch(0.52 0.085 195); /* #117878, the one spot colour on the printed card */
+  --ink-spot: #ff6a1f; /* the brand, the one spot colour on the printed card */
 
   /* ── Type scale (§3): 11 / 12 / 13 / 14 / 16 / 20 / 24 / 32 / 44 / 64 ── */
   --text-11: 0.6875rem;
@@ -94,14 +98,27 @@
   --text-32: 2rem;
   --text-44: 2.75rem;
   --text-64: 4rem;
+  /* DESIGN.md §3 type styles (base.css .t-* classes) */
+  --type-display-xl: clamp(2.75rem, 11vw, 4.5rem);
+  --type-display: clamp(2.125rem, 8vw, 3rem);
+  --type-title: 1.75rem;
+  --type-heading: 1.375rem;
+  --type-body-lg: 1.125rem;
+  --type-body: 1.0625rem;
+  --type-label: 0.9375rem;
+  --type-caption: 0.8125rem;
+  --type-mono: 0.9375rem;
   --leading-display: 1.15;
   --leading-text: 1.45;
   --leading-devanagari: 1.6;
 
   /* ── Radius: one per component family (controls, objects such as the coupon and the sheet) ── */
-  --radius-control: 0.5rem;
-  --radius-object: 1rem;
-  --radius-pill: 999px; /* status pill, Live/Paused, the testnet rail */
+  --radius-control: 0.75rem;
+  --radius-object: 1.5rem;
+  --radius-card: 1.5rem; /* cards, tickets, the balance card */
+  --radius-input: 0.75rem; /* fields */
+  --radius-sheet: 1.75rem; /* the sheet's top corners */
+  --radius-pill: 999px; /* buttons, pills, chips */
 
   /* ── Space (4 px grid): inside a row 1–2, between rows 3, groups 5, sections 7 / 8 ── */
   --space-1: 0.25rem; /* 4 */
@@ -120,13 +137,16 @@
   --shadow-2: 0 8px 24px light-dark(oklch(0.2 0.012 70 / 0.1), oklch(0.1 0.006 70 / 0.4));
 
   /* ── Motion (§6): animate transform and opacity only ──────────────────── */
-  --duration-micro: 100ms; /* press, toggle (80–120) */
+  --duration-micro: 90ms; /* press scale .97 */
   --duration-state: 180ms; /* hover, selection, tab, tooltip (150–200) */
-  --duration-spatial-in: 260ms; /* sheet, drawer, pane, route (220–300) */
-  --duration-spatial-out: 208ms; /* 0.8 × spatial-in */
+  --duration-spatial-in: 280ms; /* sheet in */
+  --duration-spatial-out: 220ms; /* sheet out */
   --duration-odometer: 400ms; /* the one permitted flourish, hero number only */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-exit: cubic-bezier(0.3, 0, 1, 1);
+  --ease-spring: cubic-bezier(0.2, 0.8, 0.2, 1); /* sheets, the page fade */
+  --duration-route: 180ms;
+  --duration-progress: 300ms;
   --spring-stiffness: 400; /* unitless, for JS springs that track a finger */
   --spring-damping: 35;
 }

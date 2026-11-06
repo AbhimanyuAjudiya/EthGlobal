@@ -6,7 +6,12 @@
  */
 @theme inline {
   --color-*: initial;
+  --color-brand: var(--brand);
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-pale: var(--brand-pale);
+  --color-on-brand: var(--on-brand);
   --color-canvas: var(--bg-canvas);
+  --color-band: var(--bg-band);
   --color-surface: var(--bg-surface);
   --color-sunken: var(--bg-sunken);
   --color-raised: var(--bg-raised);

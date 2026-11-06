@@ -4,6 +4,8 @@ import { useState } from 'react';
 
 import { Button } from '@ethglobal/ui/components';
 
+import { Avatar } from './kit/Avatar';
+import { Notice } from './kit/Notice';
 import { useLang } from '../i18n/lang';
 import { isStandalone, parseDevice } from '../lib/device';
 import { useHydrated } from '../lib/hooks';
@@ -66,13 +68,16 @@ export function AddToHomeScreen({ ready }: { ready: boolean }) {
 
   return (
     <section
-      className="sheet-row a2hs"
+      className="card card--padded a2hs"
       aria-labelledby="a2hs-title"
       data-testid="add-to-home-screen"
     >
-      <p id="a2hs-title" lang={lang}>
-        {state === 'ios' ? t('a2hs.ios') : t('a2hs.android')}
-      </p>
+      <div className="a2hs__head">
+        <Avatar icon="install" />
+        <p id="a2hs-title" className="t-body" lang={lang}>
+          {state === 'ios' ? t('a2hs.ios') : t('a2hs.android')}
+        </p>
+      </div>
       {state === 'ios' ? (
         <p className="a2hs__icons" aria-hidden="true">
           <svg
@@ -126,8 +131,8 @@ export function AddToHomeScreen({ ready }: { ready: boolean }) {
 export function NotificationAsk({ ready }: { ready: boolean }) {
   const { t, lang } = useLang();
   return ready ? (
-    <p className="note" lang={lang} data-testid="notification-unavailable">
+    <Notice tone="info" lang={lang} data-testid="notification-unavailable">
       {t('notify.unavailable')}
-    </p>
+    </Notice>
   ) : null;
 }

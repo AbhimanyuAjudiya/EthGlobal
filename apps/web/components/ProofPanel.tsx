@@ -5,6 +5,7 @@ import { useCallback, type ReactNode } from 'react';
 import { Hash } from '@ethglobal/ui/components';
 
 import { CopyButton } from './InstallSteps';
+import { ListRow } from './kit/ListRow';
 import { useProofShown } from './Shell';
 import { useLang } from '../i18n/lang';
 import { PARTNERS, type Partner, type Proof, type ProofItem } from '../lib/proof';
@@ -54,7 +55,7 @@ function Value({ item }: { item: ProofItem }) {
 
 /**
  * The proof after an action (built and redacted by lib/proof.ts): one group per partner — Hedera, Base, World, Arkiv,
- * ENS — of label · short value · copy · link, then the raw response as JSON with a copy. Shown while "Show proof after
+ * ENS — of ListRows (label · short value · copy · link) inside one Card, then the raw response as JSON with a copy. Shown while "Show proof after
  * each action" is on (the menu; on by default on a testnet), as its own "Proof" disclosure: open from 560 px,
  * collapsed on a phone. `fallback` renders instead when the switch is off or there is nothing to prove. Generic: any
  * screen passes a `Proof` from `buildProof`.
@@ -81,7 +82,7 @@ export function ProofPanel({
   return (
     <details
       ref={openWide}
-      className="proof"
+      className="card proof"
       data-testid="proof-panel"
       data-ok={proof.ok}
       lang={lang}
@@ -91,16 +92,15 @@ export function ProofPanel({
         // a heading per partner, no landmark: a reclaim list shows one panel per gift
         <section key={group.partner} className="proof__group">
           <h3 className="proof__partner">{name(group.partner)}</h3>
-          <dl className="proof__items">
+          <ul className="list-group">
             {group.items.map((item, i) => (
-              <div key={`${item.label}-${String(i)}`}>
-                <dt>{t(item.label)}</dt>
-                <dd>
-                  <Value item={item} />
-                </dd>
-              </div>
+              <ListRow
+                key={`${item.label}-${String(i)}`}
+                title={t(item.label)}
+                value={<Value item={item} />}
+              />
             ))}
-          </dl>
+          </ul>
         </section>
       ))}
       <details className="proof__raw">

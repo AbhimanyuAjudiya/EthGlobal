@@ -16,6 +16,7 @@ import {
 
 import { ScratchDemo } from './demos';
 import { CLAIM_BY, HASH, HASHSCAN, HOST, NOW, PINS, REPLACEMENT_HASH, serialFor } from './fixtures';
+import { KitGallery } from './kit-gallery';
 import { renderQrSlot } from './qr-slot';
 import { ProofPanel } from '../../components/ProofPanel';
 import { buildProof } from '../../lib/proof';
@@ -221,6 +222,9 @@ export default function ComponentGallery() {
           encoder.
         </p>
         <nav className="flex flex-wrap gap-4 font-mono text-13">
+          <Link className="text-accent" href="/ui/kit">
+            Page template (kit)
+          </Link>
           <Link className="text-accent" href="/ui/tokens">
             Token sheet
           </Link>
@@ -235,6 +239,8 @@ export default function ComponentGallery() {
           </Link>
         </nav>
       </header>
+
+      <KitGallery />
 
       <Group id="coupon" title="Coupon" source="design-references §1(a), §1(c), §3">
         <State name="screen" note="live, sponsor line, PIN 4 × 4, usage as of, QR slot">

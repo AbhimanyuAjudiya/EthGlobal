@@ -4,7 +4,7 @@
  * '@ethglobal/ui/print.css' on the print route).
  */
 export { BoardingPass, type BoardingPassProps, type BoardingPassStatus } from './BoardingPass';
-export { Button, type ButtonProps, type ButtonVariant } from './Button';
+export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './Button';
 export { Countdown, useNow, type CountdownProps } from './Countdown';
 export { Coupon, type CouponProps, type CouponQrSlot, type CouponVariant } from './Coupon';
 export { Field, type FieldProps } from './Field';

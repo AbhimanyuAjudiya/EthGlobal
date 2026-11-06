@@ -24,8 +24,8 @@ export function QrCode({ url, label, sizeMm }: CouponQrSlot) {
       shapeRendering="crispEdges"
       style={{ width: `${sizeMm}mm`, height: `${sizeMm}mm` }}
     >
-      <rect width={qr.size} height={qr.size} fill="var(--qr-paper, #fff)" />
-      <path d={d} fill="var(--qr-ink, #000)" />
+      <rect width={qr.size} height={qr.size} fill="var(--qr-paper, white)" />
+      <path d={d} fill="var(--qr-ink, black)" />
     </svg>
   );
 }

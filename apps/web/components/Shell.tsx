@@ -3,9 +3,11 @@
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
 import {
+  createContext,
   lazy,
   Suspense,
   useCallback,
+  useContext,
   useEffect,
   useId,
   useRef,
@@ -17,6 +19,8 @@ import { useAccount, useDisconnect } from 'wagmi';
 
 import { Button, Icon } from '@ethglobal/ui/components';
 
+import { KitIcon, type KitIconName } from './kit/icons';
+import { Sheet } from './kit/Sheet';
 import { LangSwitch, T, useLang, useNetworkName } from '../i18n/lang';
 import { IS_TESTNET } from '../lib/env';
 import { plans } from '../lib/store';
@@ -75,11 +79,6 @@ export const DESTINATIONS: readonly {
   },
 ];
 
-/** The open panel's tab stops, in document order (its links, buttons and the switch; none is ever disabled). */
-const tabStops = (panel: HTMLElement) => [
-  ...panel.querySelectorAll<HTMLElement>('a[href], button, input'),
-];
-
 const PROOF_KEY = 'recharge.proof';
 const proofListeners = new Set<() => void>();
 /** This tab's choice when localStorage is unavailable (private mode). */
@@ -132,104 +131,80 @@ function ProofSwitch() {
   );
 }
 
+/** The four tab roots of the BottomNav; everything else in DESTINATIONS lives in More. */
+const TAB_HREFS = new Set(['/', '/plan', '/pay', '/gift']);
+
 /**
- * The header menu, on every screen whether or not a plan exists: a "Menu" disclosure button and a panel with every
- * destination, the "Show proof after each action" switch and, with `withLang`, the language switch (the phone header
- * has no room for it). Open, the panel holds the focus (Tab and Shift+Tab wrap inside it); Escape or Close shuts it
- * and returns the focus to the button; a tap outside shuts it. Every target is 44 px or more (RT-W-07).
+ * A menu button and its Sheet: every destination of `filter`, the proof switch and, with `withLang`, the language
+ * switch. Open, the sheet holds the focus (Tab and Shift+Tab wrap inside it); Escape or Close shuts it and returns the
+ * focus to the button; a tap on the scrim shuts it. Every target is 44 px or more (RT-W-07).
  */
-export function SiteMenu({ withLang = false }: { withLang?: boolean }) {
+function MenuSheet({
+  label,
+  withLang,
+  filter,
+  className,
+  icon,
+}: {
+  label: string;
+  withLang: boolean;
+  filter?: (href: string) => boolean;
+  className: string;
+  icon?: KitIconName;
+}) {
   const { t, lang } = useLang();
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
-  const panel = useRef<HTMLDivElement>(null);
   const id = useId();
-
-  const shut = useCallback(() => {
-    setOpen(false);
-    button.current?.focus();
-  }, []);
-
-  useEffect(() => {
-    const el = panel.current;
-    if (!open || !el) return;
-    el.querySelector<HTMLElement>('nav a')?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        shut();
-      } else if (e.key === 'Tab') {
-        const stops = tabStops(el);
-        const edge = e.shiftKey ? stops[0] : stops.at(-1);
-        if (el.contains(document.activeElement) && document.activeElement !== edge) return;
-        e.preventDefault();
-        (e.shiftKey ? stops.at(-1) : stops[0])?.focus();
-      }
-    };
-    const onPointer = (e: PointerEvent) => {
-      const target = e.target as Node | null;
-      if (target && !el.contains(target) && !button.current?.contains(target)) setOpen(false);
-    };
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('pointerdown', onPointer);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.removeEventListener('pointerdown', onPointer);
-    };
-  }, [open, shut]);
-
+  const shut = useCallback(() => setOpen(false), []);
+  const groups = DESTINATIONS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !filter || filter(item.href)),
+  })).filter((group) => group.items.length > 0);
   return (
     <>
       <button
         ref={button}
         type="button"
-        className="menu-toggle"
+        className={className}
         aria-expanded={open}
         aria-controls={id}
         onClick={() => setOpen((o) => !o)}
         lang={lang}
       >
-        {t('menu.open')}
+        {icon ? <KitIcon name={icon} size={24} /> : null}
+        <span>{label}</span>
       </button>
-      {open ? <div className="site-menu__scrim" aria-hidden="true" /> : null}
-      <div
-        ref={panel}
+      <Sheet
+        open={open}
+        onClose={shut}
+        title={label}
         id={id}
         className="site-menu"
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('menu.open')}
-        hidden={!open}
-        lang={lang}
+        returnFocusRef={button}
+        initialFocus="nav a"
       >
-        <div className="site-menu__bar">
-          <Link
-            href="/"
-            className="wordmark"
-            lang="en"
-            prefetch={false}
-            onClick={() => setOpen(false)}
-          >
-            Recharge
-          </Link>
-          <button type="button" className="menu-toggle" onClick={shut}>
-            <Icon name="close" size={20} />
-            {t('menu.close')}
-          </button>
-        </div>
         <div className="site-menu__prefs">
           {withLang ? <LangSwitch /> : null}
           <ProofSwitch />
         </div>
         <nav className="site-menu__groups" aria-label={t('hub.title')}>
-          {DESTINATIONS.map((group) => (
+          {groups.map((group) => (
             <div key={group.group}>
-              <h2 className="site-menu__label">{t(group.group)}</h2>
-              <ul>
+              <h3 className="site-menu__label t-caption">{t(group.group)}</h3>
+              <ul className="list-group">
                 {group.items.map((item) => (
-                  <li key={item.href}>
-                    <Link href={item.href} prefetch={false} onClick={() => setOpen(false)}>
-                      {t(item.title)}
+                  <li key={item.href} className="list-row">
+                    <Link
+                      href={item.href}
+                      prefetch={false}
+                      className="list-row__main"
+                      onClick={shut}
+                    >
+                      <span className="list-row__text">
+                        <span className="list-row__title">{t(item.title)}</span>
+                      </span>
+                      <KitIcon name="chevron" className="kit-icon list-row__chevron" />
                     </Link>
                   </li>
                 ))}
@@ -237,12 +212,21 @@ export function SiteMenu({ withLang = false }: { withLang?: boolean }) {
             </div>
           ))}
         </nav>
-      </div>
+      </Sheet>
     </>
   );
 }
 
-/** A plain warning where it applies: the warning triangle and one factual sentence, in the text colours. */
+/**
+ * The TopBar's Menu, on every screen whether or not a plan exists: a "Menu" button and a Sheet with every
+ * destination, the "Show proof after each action" switch and, with `withLang`, the language switch.
+ */
+export function SiteMenu({ withLang = false }: { withLang?: boolean }) {
+  const { t } = useLang();
+  return <MenuSheet label={t('menu.open')} withLang={withLang} className="menu-toggle" />;
+}
+
+/** A plain warning where it applies: the warning triangle and one factual sentence, on a warning tint. */
 export function Caution({ k }: { k: StringKey }) {
   return (
     <p className="note caution">
@@ -252,19 +236,61 @@ export function Caution({ k }: { k: StringKey }) {
   );
 }
 
+/** Inside an AppShell the legacy Screen / AppHeader / TabBar step aside: the shell already draws the chrome. */
+const ShellContext = createContext(false);
+
+export type ShellNav = 'home' | 'plan' | 'add' | 'gift' | 'more';
+
+/** DESIGN.md §7: the tab a path belongs to and, on a sub-screen, where Back goes. */
+export function routeChrome(path: string | null): { nav?: ShellNav; back?: string } {
+  if (path === null) return {};
+  const p = path;
+  if (p === '/') return { nav: 'home' };
+  if (p === '/plan' || p.startsWith('/plan/')) return { nav: 'plan' };
+  if (p === '/pay') return { nav: 'add' };
+  if (p === '/gift') return { nav: 'gift' };
+  if (p === '/gift/claim') return { nav: 'gift', back: '/gift' };
+  if (p.startsWith('/card/')) return { nav: 'more', back: '/card' };
+  if (p === '/receipts' || p === '/install')
+    return { nav: p === '/install' ? 'plan' : 'more', back: '/plan' };
+  if (p === '/card' || p === '/agent') return { nav: 'more', back: '/' };
+  return { back: '/' };
+}
+
+const noSubscribe = () => () => undefined;
 /**
- * One row at 360 px: wordmark · the one wallet control (icon + short address, or Connect) · Menu. From 480 px the
- * language switch joins the row; below that it lives in the menu's sheet (always there too), so nothing wraps or
- * scrolls sideways.
+ * The address bar's path, after hydration (null on the server): only for screens that do not say their own tab /
+ * Back. Read from window so a screen renders outside the App Router (unit tests) too.
  */
-export function AppHeader({ right }: { right?: ReactNode }) {
+const useAddressPath = (): string | null =>
+  useSyncExternalStore(
+    noSubscribe,
+    () => window.location.pathname,
+    () => null,
+  );
+
+/**
+ * TopBar, 48 px: Back (sub-screens) or the wordmark (tab roots) left; right the language switch (from 480 px), the
+ * wallet pill and Menu. At 360 px it is one row; below 480 px the language switch lives in the menu's sheet.
+ */
+function TopBar({ back, title }: { back?: string | undefined; title?: string | undefined }) {
+  const { t, lang } = useLang();
   return (
-    <header className="app-header">
-      <Link href="/" className="wordmark" lang="en">
-        Recharge
-      </Link>
+    <header className="app-header topbar">
+      <div className="topbar__left">
+        {back ? (
+          <Link href={back} className="topbar__back" prefetch={false} lang={lang}>
+            <KitIcon name="back" size={24} />
+            <span className="ui-visually-hidden">{t('nav.back')}</span>
+          </Link>
+        ) : (
+          <Link href="/" className="wordmark" lang="en">
+            Recharge
+          </Link>
+        )}
+        {title ? <span className="topbar__title t-label">{title}</span> : null}
+      </div>
       <div className="app-header__right">
-        {right}
         <LangSwitch />
         <HeaderWallet />
         <SiteMenu withLang />
@@ -273,55 +299,143 @@ export function AppHeader({ right }: { right?: ReactNode }) {
   );
 }
 
-/** Four labelled tabs, shown only once a bundle exists on this device; `active` omitted on a screen none owns. */
-export function TabBar({
-  active,
-  canTopUp = true,
-}: {
-  active?: 'plan' | 'add' | 'gift' | 'receipts';
-  canTopUp?: boolean;
-}) {
+/**
+ * Legacy header. Inside an AppShell it renders nothing (the shell's TopBar is the header); on its own (old pages,
+ * tests) it is the TopBar. `right` is kept for old callers and sits before the wallet.
+ */
+export function AppHeader({ right }: { right?: ReactNode }) {
+  const inShell = useContext(ShellContext);
+  if (inShell) return null;
+  return (
+    <>
+      <TopBar />
+      {right}
+    </>
+  );
+}
+
+/** The current plan's key (the tabs act on it), re-read when a claim or "Make current" changes it. */
+function useLatestPlan(): string | undefined {
   const [key, setKey] = useState<string | undefined>();
   useEffect(() => {
-    // "Make current" on /plan and a fresh claim re-point the tabs without a reload
     const read = () => void plans.latest().then(setKey);
     read();
     return plans.subscribe(read);
   }, []);
-  if (!key) return null;
-  const k = encodeURIComponent(key);
+  return key;
+}
+
+/**
+ * BottomNav, 56 px + safe area, on every consumer screen: Home · Plan · Add · Gift · More (a Sheet with the other
+ * destinations, the language and the proof switch). A left rail from 1024 px. Plan and Add point at this device's
+ * current plan when there is one.
+ */
+export function BottomNav({ active }: { active?: ShellNav | undefined }) {
+  const { t, lang } = useLang();
+  const key = useLatestPlan();
+  const k = key ? encodeURIComponent(key) : undefined;
   const tabs = [
-    { id: 'plan', href: `/plan/${k}`, label: 'tab.plan' },
-    { id: 'add', href: `/pay?key=${k}`, label: 'tab.add' },
-    { id: 'gift', href: '/gift', label: 'tab.gift' },
-    { id: 'receipts', href: `/receipts?key=${k}`, label: 'tab.receipts' },
+    { id: 'home', href: '/', icon: 'home', label: t('nav.home') },
+    { id: 'plan', href: k ? `/plan/${k}` : '/plan', icon: 'plan', label: t('tab.plan') },
+    { id: 'add', href: k ? `/pay?key=${k}` : '/pay', icon: 'add', label: t('tab.add') },
+    { id: 'gift', href: '/gift', icon: 'gift', label: t('tab.gift') },
   ] as const;
   return (
-    <nav className="tab-bar" aria-label="Recharge">
-      {tabs
-        .filter((tab) => canTopUp || tab.id !== 'add')
-        .map((tab) => (
-          <Link
-            key={tab.id}
-            href={tab.href}
-            prefetch={false}
-            aria-current={tab.id === active ? 'page' : undefined}
-          >
-            <T k={tab.label} />
-          </Link>
-        ))}
+    <nav className="bottom-nav tab-bar" aria-label="Recharge" lang={lang}>
+      {tabs.map((tab) => (
+        <Link
+          key={tab.id}
+          href={tab.href}
+          prefetch={false}
+          className="bottom-nav__item"
+          aria-current={tab.id === active ? 'page' : undefined}
+        >
+          <KitIcon name={tab.icon} size={24} />
+          <span>{tab.label}</span>
+        </Link>
+      ))}
+      <span className="bottom-nav__more" data-active={active === 'more' || undefined}>
+        <MenuSheet
+          label={t('nav.more')}
+          withLang
+          filter={(href) => !TAB_HREFS.has(href)}
+          className="bottom-nav__item"
+          icon="more"
+        />
+      </span>
     </nav>
   );
 }
 
+/** Legacy tab bar: inside an AppShell nothing (the shell's BottomNav); on its own, the BottomNav. */
+export function TabBar({
+  active,
+}: {
+  active?: 'plan' | 'add' | 'gift' | 'receipts';
+  canTopUp?: boolean;
+}) {
+  const inShell = useContext(ShellContext);
+  if (inShell) return null;
+  return <BottomNav active={active === 'receipts' ? 'more' : active} />;
+}
+
+export interface AppShellProps {
+  /** Sub-screens: where the TopBar's Back goes. Omitted: from the path (DESIGN.md §7). */
+  back?: string;
+  /** A short label beside Back on sub-screens. */
+  title?: string;
+  /** The BottomNav tab that is current. Omitted: from the path. */
+  nav?: ShellNav;
+  /** The ONE primary pill (and an optional quiet link), in the sticky ActionBar. */
+  action?: ReactNode;
+  /** Money screens: the TESTNET rail under the TopBar. */
+  money?: boolean;
+  /** Hide the BottomNav (print-like or embedded views). */
+  bare?: boolean;
+  children: ReactNode;
+  className?: string;
+}
+
 /**
- * Page frame: one column, 16 px gutters, primary action in the bottom quarter. The TabBar is the frame's last
- * child and sticks to the bottom, so it never covers the screen's own primary action (RT design review #1).
+ * The one page template (DESIGN.md §4): TopBar · Page (30 rem column, 36 rem from 600 px, 20 px gutters) · ActionBar ·
+ * BottomNav. From 1024 px the column sits on the sand band and the BottomNav becomes a 72 px left rail.
+ */
+export function AppShell({
+  back,
+  title,
+  nav,
+  action,
+  money = false,
+  bare = false,
+  children,
+  className,
+}: AppShellProps) {
+  const inShell = useContext(ShellContext);
+  const path = useAddressPath();
+  if (inShell) return <>{children}</>;
+  const chrome = nav === undefined && back === undefined ? routeChrome(path) : { nav, back };
+  return (
+    <ShellContext.Provider value={true}>
+      <div className={`app-shell${bare ? ' app-shell--bare' : ''}`}>
+        <TopBar back={chrome.back} title={title} />
+        {money ? <TestnetStrip /> : null}
+        <main className={`page${className ? ` ${className}` : ''}`}>
+          {children}
+          {action ? <div className="action-bar">{action}</div> : null}
+        </main>
+        {bare ? null : <BottomNav active={chrome.nav} />}
+      </div>
+    </ShellContext.Provider>
+  );
+}
+
+/**
+ * Legacy page frame. Inside an AppShell: the screen's own column (the TESTNET rail first on money screens); on its
+ * own: an AppShell with the chrome read from the path, so old pages already render inside the new template.
  */
 export function Screen({
   children,
   money = false,
-  wide = false,
   className,
 }: {
   children: ReactNode;
@@ -329,12 +443,14 @@ export function Screen({
   wide?: boolean;
   className?: string;
 }) {
-  return (
-    <div className={`screen${wide ? ' screen--wide' : ''}${className ? ` ${className}` : ''}`}>
-      {money ? <TestnetStrip /> : null}
+  const inShell = useContext(ShellContext);
+  const body = (
+    <div className={`screen${className ? ` ${className}` : ''}`}>
+      {money && inShell ? <TestnetStrip /> : null}
       {children}
     </div>
   );
+  return inShell ? body : <AppShell money={money}>{body}</AppShell>;
 }
 
 /** The paying account's name in the page language: "डेमो वॉलेट · Anvil #5"; an injected wallet keeps its brand. */

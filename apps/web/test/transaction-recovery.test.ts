@@ -42,5 +42,59 @@ describe('broadcast recovery', () => {
     ).toBe('finalized');
     expect(await pending.list()).toEqual([]);
     expect(dispatch).toHaveBeenLastCalledWith({ type: 'finalized' });
+    expect(reader.getBlock).toHaveBeenCalledWith({ blockTag: 'safe' });
+  });
+  it.each(['eip155:295', 'eip155:296'])(
+    'finalizes %s from its consensus receipt despite a stale wallet safe block',
+    async (network) => {
+      const getBlock = vi.fn().mockResolvedValue({ number: 1n });
+      const reader = {
+        getTransactionReceipt: vi.fn().mockResolvedValue({ status: 'success', blockNumber: 42n }),
+        getBlock,
+      } as unknown as PublicClient;
+      const dispatch = vi.fn();
+      expect(
+        await followTransaction({
+          hash,
+          network,
+          label: 'approve campaign USDC',
+          reader,
+          dispatch,
+        }),
+      ).toBe('finalized');
+      expect(getBlock).not.toHaveBeenCalled();
+      expect(dispatch.mock.calls).toEqual([
+        [{ type: 'seen' }],
+        [{ type: 'confirmed', confirmations: 1 }],
+        [{ type: 'finalized' }],
+      ]);
+      expect(await pending.list()).toEqual([]);
+    },
+  );
+  it('never treats a reverted Hedera consensus receipt as successful', async () => {
+    const getBlock = vi.fn();
+    const reader = {
+      getTransactionReceipt: vi.fn().mockResolvedValue({
+        status: 'reverted',
+        blockNumber: 42n,
+        gasUsed: 100n,
+        effectiveGasPrice: 100n,
+      }),
+      getBlock,
+    } as unknown as PublicClient;
+    const dispatch = vi.fn();
+    expect(
+      await followTransaction({
+        hash,
+        network: 'eip155:296',
+        label: 'create campaign',
+        reader,
+        dispatch,
+      }),
+    ).toBe('failed');
+    expect(dispatch).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'revert' }));
+    expect(dispatch).not.toHaveBeenCalledWith({ type: 'finalized' });
+    expect(getBlock).not.toHaveBeenCalled();
+    expect(await pending.list()).toEqual([]);
   });
 });

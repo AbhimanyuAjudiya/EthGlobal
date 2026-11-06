@@ -33,7 +33,8 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Follows a broadcast (or settled) transaction to finality: seen → confirmed → finalized, or revert.
- * Anvil: next block; EVM testnets: the `safe` block; Hedera: consensus is final (no EVM read here).
+ * Anvil: next block; other EVM networks: the `safe` block. Hedera consensus receipts are final,
+ * including EVM chains 295/296: wallet providers can cache their `safe` tag behind a confirmed receipt.
  */
 export async function followTransaction(opts: {
   hash: string;
@@ -82,6 +83,11 @@ export async function followTransaction(opts: {
           return 'failed';
         }
         dispatch({ type: 'confirmed', confirmations: 1 });
+        if (network === 'eip155:295' || network === 'eip155:296') {
+          dispatch({ type: 'finalized' });
+          terminal = true;
+          return 'finalized';
+        }
         const tag = network === 'eip155:31337' ? 'latest' : 'safe';
         for (let j = 0; j < 240 && !opts.signal?.cancelled; j += 1) {
           const block = await reader.getBlock({ blockTag: tag }).catch(() => undefined);

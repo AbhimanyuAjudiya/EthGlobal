@@ -2,7 +2,7 @@
   "name": "eSIM Access contract-suite",
   "recordedAt": "2026-11-03T12:00:00Z",
   "source": "docs",
-  "note": "[verify Wed] authored from esimaccess-api@b9421b3 references/api-reference.md (envelope { success, errorCode, errorMsg, obj }, price \u00d710 000, volume bytes). Re-record with the console account: real packageCodes, the real `ac` (LPA) and its fill latency.",
+  "note": "[verify Wed] authored from esimaccess-api@b9421b3 references/api-reference.md (envelope { success, errorCode, errorMsg, obj }, price ×10 000, volume bytes). Re-record with the console account: real packageCodes, the real `ac` (LPA) and its fill latency.",
   "exchanges": [
     {
       "request": {
@@ -10,7 +10,8 @@
         "url": "https://api.esimaccess.com/api/v1/open/package/list",
         "body": {
           "locationCode": "IN",
-          "type": "",
+          "type": "BASE",
+          "dataType": "1",
           "slug": "",
           "packageCode": "",
           "iccid": ""

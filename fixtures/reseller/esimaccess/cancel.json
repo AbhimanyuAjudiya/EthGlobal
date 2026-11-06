@@ -84,6 +84,57 @@
         "body": {
           "orderNo": "",
           "iccid": "89852240000000000001",
+          "esimTranNo": "ESIM-TRAN-1",
+          "pager": {
+            "pageNum": 1,
+            "pageSize": 20
+          }
+        },
+        "expectHeaders": {
+          "RT-AccessCode": "test-access-code",
+          "RT-Timestamp": "*",
+          "RT-RequestID": "*",
+          "RT-Signature": "*"
+        }
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "success": true,
+          "errorCode": null,
+          "errorMsg": null,
+          "obj": {
+            "esimList": [
+              {
+                "esimTranNo": "ESIM-TRAN-1",
+                "orderNo": "B26110300001",
+                "transactionId": "x",
+                "imsi": "",
+                "iccid": "89852240000000000001",
+                "msisdn": "",
+                "ac": "LPA:1$rsp.esimaccess.example$MATCH1ID",
+                "qrCodeUrl": "https://p.qrsim.net/example.png",
+                "shortUrl": "",
+                "smdpStatus": "RELEASED",
+                "esimStatus": "CANCEL",
+                "eid": "",
+                "totalVolume": 1073741824,
+                "orderUsage": 0,
+                "expiredTime": "2026-11-10T12:00:00+0000"
+              }
+            ]
+          }
+        }
+      },
+      "note": "the confirmation read after /esim/cancel: the adapter re-queries by esimTranNo and expects CANCEL (durable unused allocation refunds)"
+    },
+    {
+      "request": {
+        "method": "POST",
+        "url": "https://api.esimaccess.com/api/v1/open/esim/query",
+        "body": {
+          "orderNo": "",
+          "iccid": "89852240000000000001",
           "pager": {
             "pageNum": 1,
             "pageSize": 20

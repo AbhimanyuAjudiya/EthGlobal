@@ -10,7 +10,8 @@
         "url": "https://api.esimaccess.com/api/v1/open/package/list",
         "body": {
           "locationCode": "IN",
-          "type": "",
+          "type": "BASE",
+          "dataType": "1",
           "slug": "",
           "packageCode": "",
           "iccid": ""
@@ -38,7 +39,8 @@
         "url": "https://api.esimaccess.com/api/v1/open/package/list",
         "body": {
           "locationCode": "IN",
-          "type": "",
+          "type": "BASE",
+          "dataType": "1",
           "slug": "",
           "packageCode": "",
           "iccid": ""
@@ -66,7 +68,8 @@
         "url": "https://api.esimaccess.com/api/v1/open/package/list",
         "body": {
           "locationCode": "IN",
-          "type": "",
+          "type": "BASE",
+          "dataType": "1",
           "slug": "",
           "packageCode": "",
           "iccid": ""
@@ -94,7 +97,8 @@
         "url": "https://api.esimaccess.com/api/v1/open/package/list",
         "body": {
           "locationCode": "IN",
-          "type": "",
+          "type": "BASE",
+          "dataType": "1",
           "slug": "",
           "packageCode": "",
           "iccid": ""

@@ -126,6 +126,8 @@ describe('EsimAccessReseller (A-27; T-34, T-39, T-40, T-82, T-83)', () => {
       dataMb: 1073,
       validityDays: 7,
       wholesaleUsd6: 1_140_000n,
+      activation: { startsOn: 'unknown' },
+      cancellation: 'never-installed',
     });
     expect(plans[2]!.name).not.toMatch(/[<>]/);
     expect(plans[2]!.name.length).toBeLessThanOrEqual(64);
@@ -138,6 +140,8 @@ describe('EsimAccessReseller (A-27; T-34, T-39, T-40, T-82, T-83)', () => {
     expect(profile).toEqual({
       iccid: '89852240000000000001',
       lpa: 'LPA:1$rsp.esimaccess.example$MATCH1ID',
+      providerRef: 'ESIM-TRAN-1',
+      lifecycle: { installBy: 1794312000000, startsOn: 'unknown' },
       planId: 'P-IN-1G-7D',
       provider: 'esimaccess',
       orderId: 'B26110300001',
@@ -182,6 +186,8 @@ describe('EsimAccessReseller (A-27; T-34, T-39, T-40, T-82, T-83)', () => {
       totalMb: 1073,
       asOf: T0,
       status: 'active',
+      providerRef: 'ESIM-TRAN-1',
+      lifecycle: { serviceExpiresAt: 1794312000000, startsOn: 'unknown' },
     });
     await expect(
       esim('query-other-iccid').reseller.usage('89852240000000000001'),
@@ -226,7 +232,8 @@ describe('EsimAccessReseller (A-27; T-34, T-39, T-40, T-82, T-83)', () => {
     await expect(
       reseller.cancel('89852240000000000001', { idempotencyKey: 'c1' }),
     ).resolves.toBeUndefined();
-    expect(calls).toEqual(['/esim/query', '/esim/cancel']);
+    // the eligibility read, the cancel, then the confirmation read by esimTranNo
+    expect(calls).toEqual(['/esim/query', '/esim/cancel', '/esim/query']);
     await expect(reseller.usage('89852240000000000001')).resolves.toMatchObject({
       status: 'expired',
     });
@@ -535,9 +542,9 @@ describe('FallbackReseller', () => {
     await expect(chain.topUp(profile.iccid, 100, { idempotencyKey: 't' })).rejects.toMatchObject({
       code: 'not_found',
     });
-    // cancel never reaches the fallback (no refund from the reseller that issued it, here or from inventory)
+    // cancel never reaches the fallback: its evidence is never eligible, so the chain refuses before any cancel call
     await expect(chain.cancel(profile.iccid, { idempotencyKey: 'c' })).rejects.toMatchObject({
-      code: 'not_found',
+      code: 'invalid_request',
     });
     await expect(fallback.usage(profile.iccid)).resolves.toMatchObject({ status: 'ready' });
     await expect(chain.order('nope', { idempotencyKey: 'z' })).rejects.toMatchObject({

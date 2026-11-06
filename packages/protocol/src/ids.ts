@@ -70,6 +70,13 @@ export const PLAN_MB = 1000;
 export const MAX_BUNDLE_MB = PLAN_MB;
 export const MAX_MB_PER_PURCHASE = 3000;
 export const DEFAULT_VALIDITY_DAYS = 7;
+/**
+ * ENSv2 campaign names (ens/README.md): every registered campaign gets `<slug>.<parent>` on Sepolia with its own
+ * PermissionedResolver. Recharge writes every record; the sponsor may set exactly these text keys, nothing else.
+ */
+export const ENS_SPONSOR_TEXT_KEYS = ['avatar', 'description', 'com.twitter'] as const;
+/** A campaign name's label: [a-z0-9-], 3–40, no leading/trailing or doubled hyphen. */
+export const ENS_SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9]|-(?!-)){1,38}[a-z0-9]$/;
 export const CHALLENGE_TTL_S = 120;
 /**
  * Lifetime of a consumed-nonce entity (A-37, RT-O-04): ≥ the longest acceptance window (TTL + 5 s skew guard) plus

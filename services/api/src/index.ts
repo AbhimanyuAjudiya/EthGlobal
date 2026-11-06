@@ -18,6 +18,8 @@ const deps = await buildDeps(process.env, {
 const app = createApp(deps, localClock ? { localClock } : {});
 // RT-A-11: pending-profile deliveries that survived a restart are retried once now (then on /me, ≤ 1/min)
 void retryPendingOnBoot(deps);
+// ENSv2 campaign names left `pending` by the last process continue (flows/ens.ts)
+void deps.ens?.resumeOnBoot();
 
 // RT-P-01: an explicit listen address — loopback unless HOST says otherwise (live only; env.ts refuses it locally)
 const server = serve({ fetch: app.fetch, port: env.PORT, hostname: env.HOST }, (info) => {

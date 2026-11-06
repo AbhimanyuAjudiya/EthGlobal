@@ -251,6 +251,23 @@ export const envSchema = z
 
     /** One topic per deployment (INTERFACES §9); local: a mock topic id. */
     HCS_TOPIC_ID: hederaAccountSchema.default('0.0.1001'),
+
+    /**
+     * ENSv2 campaign names (ens/README.md): after POST /sponsor answers 201, a background job gives the campaign
+     * `<slug>.<ENS_PARENT_NAME>` on Sepolia, signed by ATTESTOR_PRIVATE_KEY (the registrar of ENS_USER_REGISTRY).
+     * Off unless ENS_ENABLED; MODE=local uses an in-memory registrar. ENS_RPC_URL stays the mainnet name resolver's.
+     */
+    ENS_ENABLED: flag,
+    ENS_SEPOLIA_RPC_URL: z.url().default('https://ethereum-sepolia-rpc.publicnode.com'),
+    ENS_PARENT_NAME: z
+      .string()
+      .regex(/^[a-z0-9-]+(\.[a-z0-9-]+)+$/)
+      .default('re-charge.eth'),
+    ENS_USER_REGISTRY: evmAddressSchema.optional(),
+    ENS_VERIFIABLE_FACTORY: evmAddressSchema.default('0xda70306c98e97ece36f997a21368e53298572991'),
+    ENS_RESOLVER_IMPL: evmAddressSchema.default('0x115eb53f0c60696633855f90b138178fb40b2b2c'),
+    /** Each name's `url` record is `<ENS_APP_URL>/c/<slug>` (the claim-by-name page). */
+    ENS_APP_URL: z.url().default('https://app.recharge.ajudiya.com'),
   })
   .superRefine((env, ctx) => {
     const fail = (path: string, message: string) =>
@@ -337,6 +354,8 @@ export const envSchema = z
     }
     if (!env.WORLD_AGENT_PASS_ISSUER.startsWith('https://'))
       fail('WORLD_AGENT_PASS_ISSUER', 'WORLD_AGENT_PASS_ISSUER must be https in live');
+    if (env.ENS_ENABLED && env.ENS_USER_REGISTRY === undefined)
+      fail('ENS_USER_REGISTRY', 'ENS_ENABLED needs ENS_USER_REGISTRY in live');
     if (env.RESELLER === 'esimaccess' && env.ESIMACCESS_WEBHOOK_TOKEN === undefined) {
       fail(
         'ESIMACCESS_WEBHOOK_TOKEN',

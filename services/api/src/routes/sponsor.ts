@@ -122,6 +122,8 @@ export function registerSponsor(app: Hono<AppEnv>, deps: Deps): void {
       if (!(await firstTime(deps, 'registered', id, campaign.expiresAt)))
         throw fail('campaign_exists', { detail: 'already registered' });
       deps.logger.info({ event: 'ledger.op', op: 'campaign.put' }, 'campaign registered');
+      // its ENSv2 name is registered in the background (flows/ens.ts): never delays or fails this 201
+      deps.ens?.enqueue(id);
       return c.json({ id, auditKey: bytesToHex(auditKey(deps.secret, id)) }, 201);
     });
   });

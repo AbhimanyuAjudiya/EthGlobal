@@ -86,8 +86,23 @@ export const campaignSchema = z.object({
   contract: evmAddressSchema,
   createdAt: msSchema,
   expiresAt: msSchema,
+  /**
+   * The campaign's ENSv2 name on Sepolia (ens/README.md), kept by the API's background job after registration; never
+   * accepted from a client (sponsorRegisterSchema omits it). `txs`: the Sepolia transactions, oldest first.
+   */
+  ens: z
+    .object({
+      name: z.string().max(255),
+      resolver: evmAddressSchema.optional(),
+      status: z.enum(['pending', 'registered', 'failed']),
+      txs: z
+        .array(z.object({ step: z.enum(['resolver', 'register', 'grant']), hash: hex32Schema }))
+        .max(16),
+    })
+    .optional(),
 });
 export type CampaignPayload = z.infer<typeof campaignSchema>;
+export type CampaignEns = NonNullable<CampaignPayload['ens']>;
 // annotations: { type:'campaign', key: keys.campaign(id), sponsor, expiresAt } ; expiresIn: secondsUntil(expiresAt)
 
 export const giftSchema = z.object({

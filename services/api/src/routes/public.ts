@@ -9,6 +9,7 @@ import {
 } from '@ethglobal/protocol/ids';
 import {
   challengeRequestSchema,
+  plansQuerySchema,
   rpContextRequestSchema,
   type ChallengeRequest,
   type PlansResponse,
@@ -16,6 +17,7 @@ import {
 import { usd6ToWire } from '@ethglobal/protocol/units';
 
 import { inputOf, type AppEnv } from '../context.js';
+import { fail } from '../errors.js';
 import { campaignState } from '../middleware/octroi.js';
 import { validateJson } from '../middleware/validate.js';
 
@@ -45,11 +47,19 @@ export function registerPublic(app: Hono<AppEnv>, deps: Deps): void {
     }
   });
 
-  let plans: { at: number; body: PlansResponse } | undefined;
+  // one cache entry per campaign asked for (`?campaign=`: claim by ENS name, /c/<slug>), '' = the default campaign
+  const plans = new Map<string, { at: number; body: PlansResponse }>();
   app.get('/plans', async (c) => {
-    if (!plans || deps.now() - plans.at >= ENTITLEMENT_CACHE_S * 1000)
-      plans = { at: deps.now(), body: await buildPlans(deps) };
-    return c.json(plans.body);
+    const query = plansQuerySchema.safeParse({ campaign: c.req.query('campaign') });
+    if (!query.success) throw fail('invalid_request', [{ path: 'campaign', message: 'bytes32' }]);
+    const id = query.data.campaign?.toLowerCase() ?? '';
+    let hit = plans.get(id);
+    if (!hit || deps.now() - hit.at >= ENTITLEMENT_CACHE_S * 1000) {
+      hit = { at: deps.now(), body: await buildPlans(deps, id === '' ? undefined : (id as Hex)) };
+      if (plans.size >= PLANS_CACHE_MAX) plans.clear();
+      plans.set(id, hit);
+    }
+    return c.json(hit.body);
   });
 
   // No ledger write at issue time: the MAC makes the nonce unforgeable (D-3, T-45).
@@ -70,8 +80,11 @@ export function registerPublic(app: Hono<AppEnv>, deps: Deps): void {
   );
 }
 
-async function buildPlans(deps: Deps): Promise<PlansResponse> {
-  const id = deps.env.CAMPAIGN_ID ?? (await deps.stores.campaigns.list())[0]?.payload.id;
+/** Distinct `?campaign=` answers kept (the global rate limit bounds how fast new ones arrive). */
+const PLANS_CACHE_MAX = 256;
+
+async function buildPlans(deps: Deps, asked?: Hex): Promise<PlansResponse> {
+  const id = asked ?? deps.env.CAMPAIGN_ID ?? (await deps.stores.campaigns.list())[0]?.payload.id;
   let campaign: PlansResponse['campaign'] = null;
   if (id !== undefined) {
     const { campaign: c, counters } = await campaignState(deps, id as Hex);

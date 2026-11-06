@@ -6,8 +6,15 @@
 import { createWalletClient, getAddress, http, type Address } from 'viem';
 import { nonceManager, privateKeyToAccount } from 'viem/accounts';
 
-import { createAdapters, type Adapters, type PaymentRail } from '@ethglobal/adapters';
 import {
+  createAdapters,
+  MockCampaignNames,
+  type Adapters,
+  type CampaignNames,
+  type PaymentRail,
+} from '@ethglobal/adapters';
+import {
+  createEnsCampaigns,
   createLiveAdapters,
   createRpContextSigner,
   liveConfigSchema,
@@ -42,6 +49,7 @@ import {
   type DataDropClient,
 } from './chain.js';
 import { evmNetworks, parseEnv, resolveFacilitator, type Env } from './env.js';
+import { EnsJobs } from './flows/ens.js';
 import { createLogger, type Logger } from './logger.js';
 import { Metrics } from './metrics.js';
 import { DurableState, type DurableMap } from './state.js';
@@ -126,6 +134,8 @@ export interface Deps {
   intents: DurableMap<ClaimIntent>;
   /** World ID Agent Pass (docs/WORLD_AGENT_PASS.md); undefined = off (no WORLD_AGENT_PASS_CLIENT_ID). */
   agentPass: AgentPass | undefined;
+  /** ENSv2 campaign names (flows/ens.ts, ens/README.md); undefined = off (ENS_ENABLED unset). */
+  ens: EnsJobs | undefined;
   /** Set when deps seeded a campaign (tests and the local seed). */
   seedCampaignId?: Hex;
 }
@@ -143,6 +153,10 @@ export interface DepsOverrides {
   fetch?: typeof fetch;
   /** Local: does ANVIL_RPC_URL answer? (decides X402_FACILITATOR when unset). */
   anvilAnswers?: () => Promise<boolean>;
+  /** The ENS registrar (tests); turns the ENS job on whatever ENS_ENABLED says. */
+  ensNames?: CampaignNames;
+  /** The ENS job's retry waits (tests). */
+  ensRetryMs?: readonly number[];
 }
 
 export async function buildDeps(
@@ -207,7 +221,9 @@ export async function buildDeps(
     nonceCache,
   };
   const dataDrop = overrides.dataDrop ?? wired.dataDrop();
-  return {
+  const ensNames =
+    overrides.ensNames ?? (env.ENS_ENABLED ? ensRegistrar(env, now, overrides.fetch) : undefined);
+  const deps: Deps = {
     env,
     logger,
     now,
@@ -241,7 +257,28 @@ export async function buildDeps(
       logger,
       state,
     }),
+    ens: undefined,
   };
+  if (ensNames) deps.ens = new EnsJobs(deps, ensNames, overrides.ensRetryMs);
+  return deps;
+}
+
+/**
+ * The ENSv2 registrar (ens/README.md): live signs with the ATTESTOR key — the registrar of ENS_USER_REGISTRY — on
+ * Sepolia over ENS_SEPOLIA_RPC_URL; MODE=local keeps the names in memory.
+ */
+function ensRegistrar(env: Env, now: () => number, fetchFn?: typeof fetch): CampaignNames {
+  if (env.MODE !== 'live') return new MockCampaignNames({ parent: env.ENS_PARENT_NAME, now });
+  return createEnsCampaigns({
+    rpcUrl: env.ENS_SEPOLIA_RPC_URL,
+    privateKey: env.ATTESTOR_PRIVATE_KEY as Hex,
+    parent: env.ENS_PARENT_NAME,
+    userRegistry: getAddress(env.ENS_USER_REGISTRY ?? ''),
+    factory: getAddress(env.ENS_VERIFIABLE_FACTORY),
+    resolverImpl: getAddress(env.ENS_RESOLVER_IMPL),
+    ...(fetchFn === undefined ? {} : { fetch: fetchFn }),
+    now,
+  });
 }
 
 const isParsed = (source: Env | Record<string, unknown>): source is Env =>

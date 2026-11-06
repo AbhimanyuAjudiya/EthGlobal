@@ -82,6 +82,19 @@ export { HcsLog, HEDERA_MIRROR } from './hcs-log.js';
 export { createHederaClient, type HederaClientLike } from './hedera-sdk.js';
 export { hcs14Uaid, type Hcs14Input } from './hcs14.js';
 export { EnsResolver, type EnsClient } from './ens-resolver.js';
+export {
+  EnsCampaigns,
+  createEnsCampaigns,
+  dnsName,
+  textResource,
+  API_RESOLVER_ROLES,
+  ENS_SEPOLIA,
+  FACTORY_ABI,
+  RESOLVER_ABI,
+  USER_REGISTRY_ABI,
+  type EnsCampaignsConfig,
+  type EnsCampaignsOptions,
+} from './ens-campaigns.js';
 export { SwarmBlobStore } from './swarm-blobs.js';
 export { EvmTreasury } from './evm-treasury.js';
 export { HederaTreasury } from './hedera-treasury.js';

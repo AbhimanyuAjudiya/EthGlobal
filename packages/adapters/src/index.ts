@@ -34,6 +34,7 @@ export {
 export { MockConsensusLog, type MockConsensusLogOptions } from './mocks/consensus-log.js';
 export { MemoryBlobStore } from './mocks/blob-store.js';
 export { MockTreasury, type MockTreasuryOptions } from './mocks/treasury.js';
+export { MockCampaignNames, type MockCampaignName } from './mocks/campaign-names.js';
 export {
   MockNameResolver,
   anvilAccounts,

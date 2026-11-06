@@ -167,6 +167,41 @@ export interface NameResolver {
   getText(name: string, key: string): Promise<string | null>;
 }
 
+// ───────────────────────────── CampaignNames (ENSv2 subnames per sponsor campaign) ─────────────────────────────
+
+export type CampaignNameStep = 'resolver' | 'register' | 'grant';
+
+export interface CampaignNameInput {
+  campaignId: Hex;
+  /** The label of `<slug>.<parent>` (ENS_SLUG_PATTERN). */
+  slug: string;
+  /** Owns the name token with no roles (non-transferable) and may set only ENS_SPONSOR_TEXT_KEYS. */
+  sponsor: Address;
+  /** ms; the name expires with the campaign. */
+  expiresAt: number;
+  /** Text records Recharge writes into the new resolver (key → value). */
+  records: Readonly<Record<string, string>>;
+  /** Called once per transaction, after its receipt, before the next step. */
+  onTx?: (step: CampaignNameStep, hash: Hex) => Promise<void> | void;
+}
+
+export interface CampaignNameResult {
+  name: string;
+  resolver: Address;
+  /** The transactions this call sent: none when an earlier call already did everything. */
+  txs: { step: CampaignNameStep; hash: Hex }[];
+}
+
+/** One ENSv2 name per campaign (ens/README.md): the API is the registrar of `<parent>`'s UserRegistry. */
+export interface CampaignNames {
+  /** "re-charge.eth". */
+  readonly parent: string;
+  /** True when `<label>.<parent>` can be registered now (never registered, or expired). */
+  isAvailable(label: string): Promise<boolean>;
+  /** Idempotent: deploys, registers and grants only what is missing; one transaction at a time. */
+  ensureCampaignName(input: CampaignNameInput): Promise<CampaignNameResult>;
+}
+
 // ───────────────────────────── Reseller (eSIM Access; MegaeSIM fixture-only) ─────────────────────────────
 
 export type ResellerName = 'mock' | 'esimaccess' | 'megaesim' | 'inventory';

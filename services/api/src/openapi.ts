@@ -28,6 +28,7 @@ import {
   paymentRequiredSchema,
   planCancelRequestSchema,
   planCancelResponseSchema,
+  plansQuerySchema,
   plansResponseSchema,
   provisionQuerySchema,
   receiptsResponseSchema,
@@ -71,8 +72,10 @@ export const OPERATIONS: readonly Operation[] = [
   {
     method: 'get',
     path: '/plans',
-    summary: 'Campaign, paid terms and gift sizes (cached 60 s)',
-    responses: { 200: plansResponseSchema },
+    summary:
+      'Campaign, paid terms and gift sizes (cached 60 s); ?campaign=<id> answers for that registered campaign',
+    query: plansQuerySchema,
+    responses: { 200: plansResponseSchema, 400: errorBodySchema },
   },
   {
     method: 'post',

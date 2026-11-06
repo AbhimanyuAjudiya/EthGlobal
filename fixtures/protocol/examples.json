@@ -437,6 +437,9 @@
       "key": "ent:v1:0xe1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1",
       "mb": "100"
     },
+    "plansQuerySchema": {
+      "campaign": "0xc0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0"
+    },
     "giftRequestSchema": {
       "name": "alice.eth",
       "mb": 500,

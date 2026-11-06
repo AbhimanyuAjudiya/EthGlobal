@@ -311,6 +311,8 @@ export const receiptPublicSchema = receiptSchema.omit({ entitlementKeyHash: true
 export const receiptsResponseSchema = z.object({ receipts: z.array(receiptPublicSchema) });
 
 const bundleMbSchema = z.object({ orb: mbSchema, document: mbSchema, device: z.literal(0) });
+/** GET /plans?campaign=<id>: that registered campaign instead of the default one (claim by ENS name, /c/<slug>). */
+export const plansQuerySchema = z.object({ campaign: hex32Schema.optional() });
 export const plansResponseSchema = z.object({
   mode: z.enum(['local', 'live']),
   campaign: z
@@ -344,7 +346,7 @@ export const plansResponseSchema = z.object({
 
 const signedAuth = { issuedAt: msSchema, signature: hexSchema };
 export const sponsorRegisterSchema = z.object({
-  campaign: campaignSchema.omit({ v: true, createdAt: true }),
+  campaign: campaignSchema.omit({ v: true, createdAt: true, ens: true }),
   auth: z.object(signedAuth),
 });
 /** POST /sponsor/:id/cards (A-43): campaign-funded scratch cards, signed `SponsorCards` by the on-chain sponsor. */

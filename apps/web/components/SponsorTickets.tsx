@@ -133,7 +133,7 @@ export function SponsorTickets({
           </label>
           <textarea
             id="ticket-references"
-            className="ui-field__input min-h-32 resize-y"
+            className="ui-field__input ui-field__input--mono"
             value={refs}
             maxLength={26000}
             disabled={busy || closed || !allowed}

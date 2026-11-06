@@ -1776,6 +1776,13 @@ input.ui-field__input[type='time'] {
   font-family: var(--font-text);
   font-variant-numeric: tabular-nums;
 }
+/* a multi-line field (ticket references): the input's padding is horizontal only, so lines need their own */
+textarea.ui-field__input {
+  min-height: 7rem;
+  padding: var(--space-3) var(--space-4);
+  line-height: var(--leading-text);
+  resize: vertical;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .page,

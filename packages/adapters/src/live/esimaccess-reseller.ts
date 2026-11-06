@@ -50,6 +50,7 @@ export const ESIMACCESS_WEBHOOK_IPS = [
   '18.136.190.97',
   '18.136.60.197',
   '18.136.19.137',
+  '52.76.129.149', // observed 2026-11-06: the vendor's save-time test notification (not in the docs' list); founder-approved
 ];
 /** Pseudo-headers the API route sets from `?token=` and the socket address (never trusted from the client, T-82). */
 export const WEBHOOK_TOKEN_HEADER = 'x-recharge-url-token';

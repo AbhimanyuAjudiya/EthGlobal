@@ -154,12 +154,18 @@ unit web 'web (Next.js)' "$APP/apps/web" "$WEB_ENV" '' \
 
 # ── 7. Caddy: HTTPS for every host, upstreams on loopback. Caddy writes X-Forwarded-For; with TRUST_PROXY=1 the API
 #       takes its RIGHT-most hop (what Caddy saw) for rate limits and the webhook IP allow-list (basics.ts clientIp).
-#       With APP_HOST, $DOMAIN answers only a 308 to the app host ({uri} keeps the path and the query): printed cards
-#       and old links still land on the app, and the app has one origin for CORS and its own storage.
+#       With APP_HOST, $DOMAIN serves the landing page from marketing/site at / (and its assets) and answers a 308
+#       to the app host for every other path ({uri} keeps the path and the query): printed cards and old links still
+#       land on the app, and the app has one origin for CORS and its own storage.
 {
   echo "# written by ops/vps/bootstrap.sh (DOMAIN=$DOMAIN${APP_HOST:+ APP_HOST=$APP_HOST}); edits are overwritten on the next run"
   printf '%s {\n\treverse_proxy 127.0.0.1:%s\n}\n' "$WEB_HOST" "$WEB_PORT"
-  [[ -z $APP_HOST ]] || printf '%s {\n\tredir https://%s{uri} 308\n}\n' "$DOMAIN" "$APP_HOST"
+  if [[ -n $APP_HOST && -f $APP/marketing/site/index.html ]]; then
+    # the marketing landing page at the apex; every other path (printed cards, old links) still 308s to the app
+    printf '%s {\n\troot * %s/marketing/site\n\t@landing path / /index.html /assets/* /fonts/* /images/* /favicon*\n\thandle @landing {\n\t\tfile_server\n\t}\n\thandle {\n\t\tredir https://%s{uri} 308\n\t}\n}\n' "$DOMAIN" "$APP" "$APP_HOST"
+  elif [[ -n $APP_HOST ]]; then
+    printf '%s {\n\tredir https://%s{uri} 308\n}\n' "$DOMAIN" "$APP_HOST"
+  fi
   printf 'api.%s {\n\treverse_proxy 127.0.0.1:%s\n}\n' "$DOMAIN" "$PORT"
 } > /etc/caddy/Caddyfile
 caddy fmt --overwrite /etc/caddy/Caddyfile

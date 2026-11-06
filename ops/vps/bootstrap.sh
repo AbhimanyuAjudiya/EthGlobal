@@ -27,6 +27,7 @@ STATE=/var/lib/recharge
 ENV_FILE=/etc/recharge/.env
 WEB_ENV=/etc/recharge/web.env
 WEB_PORT=3000
+LANDING=/var/www/recharge-landing
 DRY=0; [[ "${1:-}" == "--no-systemd" ]] && DRY=1
 
 die() { echo "bootstrap: $*" >&2; exit 1; }
@@ -161,8 +162,10 @@ unit web 'web (Next.js)' "$APP/apps/web" "$WEB_ENV" '' \
   echo "# written by ops/vps/bootstrap.sh (DOMAIN=$DOMAIN${APP_HOST:+ APP_HOST=$APP_HOST}); edits are overwritten on the next run"
   printf '%s {\n\treverse_proxy 127.0.0.1:%s\n}\n' "$WEB_HOST" "$WEB_PORT"
   if [[ -n $APP_HOST && -f $APP/marketing/site/index.html ]]; then
-    # the marketing landing page at the apex; every other path (printed cards, old links) still 308s to the app
-    printf '%s {\n\troot * %s/marketing/site\n\t@landing path / /index.html /assets/* /fonts/* /images/* /favicon*\n\thandle @landing {\n\t\tfile_server\n\t}\n\thandle {\n\t\tredir https://%s{uri} 308\n\t}\n}\n' "$DOMAIN" "$APP" "$APP_HOST"
+    # the marketing landing page at the apex; every other path (printed cards, old links) still 308s to the app.
+    # Caddy runs as `caddy` and cannot traverse the 0750 release dir, so the site is copied to a world-readable folder.
+    install -d -m 0755 "$LANDING"; rm -rf "${LANDING:?}"/*; cp -a "$APP/marketing/site/." "$LANDING/"; chmod -R a+rX "$LANDING"
+    printf '%s {\n\troot * %s\n\t@landing path / /index.html /assets/* /fonts/* /images/* /favicon*\n\thandle @landing {\n\t\tfile_server\n\t}\n\thandle {\n\t\tredir https://%s{uri} 308\n\t}\n}\n' "$DOMAIN" "$LANDING" "$APP_HOST"
   elif [[ -n $APP_HOST ]]; then
     printf '%s {\n\tredir https://%s{uri} 308\n}\n' "$DOMAIN" "$APP_HOST"
   fi

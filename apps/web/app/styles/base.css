@@ -1,0 +1,100 @@
+/*
+ * App layer (apps/web): layout and the few app-only pieces. Tokens only; one radius per family
+ * (controls --radius-control, objects/sheets --radius-object); motion = transform/opacity at token durations.
+ */
+:root {
+  /* the tab bar's height: sticky bars and docks above it offset by this */
+  --tab-h: 3.5rem;
+}
+
+body {
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  overflow-x: hidden;
+}
+
+:where(a, button, input, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+a {
+  color: inherit;
+}
+
+/* ── Frame ───────────────────────────────────────────────────────────────── */
+.screen {
+  /* the page column; the header menu's panel lines its content up with it */
+  --page-w: 44rem;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: 100%;
+  max-width: var(--page-w);
+  margin: 0 auto;
+  padding: 0 1rem calc(1.5rem + env(safe-area-inset-bottom));
+  min-height: 100dvh;
+}
+/* With the TabBar the frame ends in the bar itself (sticky, in flow): nothing ever sits under it. */
+.screen:has(> .tab-bar) {
+  padding-bottom: 0;
+}
+.screen--wide {
+  --page-w: 72rem;
+}
+.screen__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-32);
+  font-weight: 700;
+  font-variation-settings: 'wdth' 110;
+  line-height: var(--leading-display);
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 4.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 0.5rem;
+}
+/* one row on a phone (360 px): wordmark · wallet · Menu; the language switch joins it from 480 px (it is in the menu) */
+.app-header__right {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.app-header__right > .lang-switch {
+  display: none;
+}
+@media (min-width: 480px) {
+  .app-header__right > .lang-switch {
+    display: inline-flex;
+  }
+}
+.site-menu__prefs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  padding-bottom: 0.5rem;
+}
+.proof-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  font-size: var(--text-14);
+  cursor: pointer;
+}
+.proof-switch input {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  accent-color: var(--accent);
+}

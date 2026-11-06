@@ -1,0 +1,87 @@
+/* ── Agent, gift, receipts ───────────────────────────────────────────────── */
+.agent__sentence {
+  margin: 0;
+  font-size: var(--text-20);
+  line-height: var(--leading-text);
+}
+.ledger-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ledger-rows li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--text-14);
+  font-variant-numeric: tabular-nums;
+}
+.ghost-row {
+  margin: 0;
+  padding: 0.75rem 0;
+  border-top: 1px dashed var(--border-subtle);
+  border-bottom: 1px dashed var(--border-subtle);
+  color: var(--text-tertiary);
+  font-size: var(--text-14);
+}
+.gift {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.resolve-line {
+  margin: 0;
+  min-height: 1.5rem;
+  font-family: var(--font-text);
+  font-size: var(--text-14);
+  color: var(--text-secondary);
+}
+.gift__rule {
+  margin: 0;
+  font-size: var(--text-14);
+}
+.gift__result {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow-x: auto;
+}
+.reclaim h2 {
+  font-size: var(--text-16);
+  margin: 0;
+}
+.pin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+.card__state {
+  margin: 0;
+  font-size: var(--text-14);
+  color: var(--text-secondary);
+}
+.receipt-day {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.receipt-day__head {
+  position: sticky;
+  top: 0;
+  display: flex;
+  justify-content: space-between;
+  margin: 0;
+  padding: 0.5rem 0;
+  background: var(--bg-canvas);
+  font-size: var(--text-14);
+  font-weight: 600;
+  z-index: 1;
+}
+.receipt-row {
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 0.5rem;
+}

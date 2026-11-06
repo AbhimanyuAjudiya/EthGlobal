@@ -1,0 +1,469 @@
+/* The travel desk: paper objects beside useful instructions, then the quieter ledger. */
+.eyebrow {
+  margin: 0 0 0.5rem;
+  font-size: var(--text-13);
+  font-weight: 600;
+  color: var(--accent);
+}
+.section-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-20);
+  font-weight: 600;
+  line-height: var(--leading-display);
+}
+.flow-heading {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding-block: 0.5rem;
+}
+.flow-heading .eyebrow {
+  margin: 0;
+}
+.flow-heading__intro {
+  margin: 0;
+  max-width: 58ch;
+  color: var(--text-secondary);
+  font-size: var(--text-16);
+  line-height: 1.6;
+}
+.offer-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 1.5rem 0 0;
+  padding-block: 1rem;
+  border-block: 1px solid var(--border-subtle);
+}
+.offer-facts dt {
+  color: var(--text-secondary);
+  font-size: var(--text-13);
+}
+.offer-facts dd {
+  margin: 0.25rem 0 0;
+  font-size: var(--text-20);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.offer-facts small {
+  display: block;
+  font-size: var(--text-12);
+  font-weight: 400;
+}
+.compatibility-link {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: 44px;
+  font-size: var(--text-14);
+  color: var(--accent);
+  text-underline-offset: 4px;
+}
+#compatibility {
+  scroll-margin-top: 1.5rem;
+}
+.plan-overview,
+.plan-support,
+.checkout-grid,
+.verify-layout,
+.agent-layout,
+.gift-layout,
+.card-layout,
+.campaign-builder {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+.plan-overview > *,
+.plan-support > *,
+.checkout-grid > *,
+.verify-layout > *,
+.agent-layout > *,
+.gift-layout > *,
+.card-layout > *,
+.campaign-builder > * {
+  min-width: 0;
+}
+.plan-summary,
+.plan-manage,
+.plan-details__body,
+.checkout-payment,
+.agent-history,
+.gift-context,
+.card-entry,
+.campaign-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+.plan-summary .action-dock {
+  position: static;
+  margin: 0;
+  padding: 0;
+}
+.plan-summary > .ui-button {
+  text-decoration: none;
+}
+.plan-support {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-subtle);
+}
+.plan-details > summary {
+  font-weight: 600;
+}
+.plan-details__body {
+  padding-block: 0.75rem 1rem;
+}
+.plan-details .issuing {
+  margin-top: 0;
+}
+.plan-manage {
+  padding-block: 0.75rem;
+}
+.checkout-summary {
+  position: relative;
+  padding: 1.5rem;
+  border: 1px solid var(--border-strong);
+  border-top: 4px solid var(--accent);
+  background: var(--bg-surface);
+}
+.checkout-summary > .note {
+  margin-block: 0.75rem;
+}
+.checkout-summary .caution {
+  margin-top: 1rem;
+}
+.checkout-amount {
+  margin: 0.25rem 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(40px, 5vw, 64px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+.checkout-price {
+  margin: 1rem 0;
+  font-size: var(--text-24);
+  font-weight: 600;
+}
+.checkout-price span {
+  font-size: var(--text-14);
+  font-weight: 400;
+}
+.pay__option {
+  padding-top: 1rem;
+  border-top: 1px dashed var(--border-strong);
+  font-size: var(--text-14);
+}
+.checkout-summary .pay__meter {
+  margin-block: 1rem;
+}
+.verify-layout .sheet {
+  padding: 1.5rem;
+}
+.verify__coupon {
+  opacity: 1;
+}
+.verify__coupon .coupon {
+  width: 100%;
+}
+.gift-guide {
+  padding-block: 1rem;
+  border-block: 1px solid var(--border-subtle);
+}
+.gift-guide p {
+  max-width: 48ch;
+}
+.card-object {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.card-object .coupon {
+  width: 100%;
+}
+.card-entry .pin-form {
+  padding-block: 0.5rem;
+}
+.install-screen > .caution {
+  max-width: 68ch;
+}
+.install-screen .plan__actions {
+  max-width: 28rem;
+}
+.install-screen .install-ways > li {
+  min-width: 0;
+  padding-block: 1rem;
+}
+.install-screen .install-ways h3 {
+  font-size: var(--text-20);
+}
+.receipts-screen .receipt-day {
+  gap: 1rem;
+}
+.receipt-day__head {
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding-block: 1rem;
+}
+.receipts-screen .receipt-row {
+  padding: 1rem 0;
+}
+.receipts-screen .ghost-row {
+  padding: 1.5rem 0;
+}
+.console {
+  max-width: 90rem;
+  margin-inline: auto;
+}
+.console__main {
+  padding-bottom: calc(2rem + env(safe-area-inset-bottom));
+}
+.console__title {
+  font-size: var(--text-32);
+}
+.campaign-form {
+  gap: 1.25rem;
+}
+.campaign-form .pane__title {
+  font-size: var(--text-20);
+  color: var(--text-primary);
+}
+.campaign-progress {
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
+}
+.sponsor-view > .pane,
+.sponsor-view > .analytics {
+  padding-block: 1.25rem;
+  border-top: 1px solid var(--border-subtle);
+}
+.sponsor-hero {
+  padding-block: 0.5rem;
+}
+.sponsor-hero__name {
+  font-size: var(--text-20);
+}
+.sponsor-hero__figure {
+  font-size: clamp(36px, 5vw, 56px);
+}
+.data-table th,
+.data-table td {
+  height: 2.75rem;
+  padding: 0.5rem;
+}
+.data-table td a {
+  text-underline-offset: 3px;
+}
+.table-scroll:focus-visible {
+  outline-offset: 4px;
+}
+.budget-legend {
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+@media (min-width: 768px) {
+  .screen,
+  .landing {
+    padding-inline: 2rem;
+  }
+  .screen {
+    gap: 1.5rem;
+  }
+  .screen > .tab-bar {
+    margin-inline: -2rem;
+    padding-inline: 2rem;
+  }
+  .landing__grid {
+    padding-block: 3rem;
+  }
+  .landing__coupon {
+    max-width: 32rem;
+  }
+  .plan-overview,
+  .checkout-grid,
+  .verify-layout,
+  .card-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    gap: 2rem;
+  }
+  .plan-overview {
+    padding-block: 1rem 2rem;
+  }
+  .plan-overview .plan__hero {
+    align-self: center;
+  }
+  .plan-support {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 3rem;
+  }
+  .checkout-grid {
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  }
+  .checkout-summary {
+    position: sticky;
+    top: 1.5rem;
+  }
+  .verify-layout {
+    padding-block: 1rem 2rem;
+  }
+  .verify-layout:not(:has(.verify__coupon)) {
+    grid-template-columns: minmax(0, 42rem);
+  }
+  .verify__coupon {
+    align-self: center;
+  }
+  .agent-layout,
+  .gift-layout {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 2rem;
+    padding-block: 1rem;
+  }
+  .agent-layout > .sheet {
+    padding: 1.5rem;
+  }
+  .agent-history > .sheet {
+    border: 0;
+    border-radius: 0;
+    padding: 0.5rem 0;
+    background: transparent;
+  }
+  .gift-context {
+    border-left: 1px solid var(--border-subtle);
+    padding-left: 2rem;
+  }
+  .gift-guide {
+    border: 0;
+    padding-top: 0;
+  }
+  .card-layout {
+    padding-block: 1.5rem 3rem;
+  }
+  .card-object {
+    align-self: center;
+  }
+  .install-screen .install-ways {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    column-gap: 3rem;
+  }
+  .install-screen .install-ways > li:first-child {
+    grid-row: span 2;
+  }
+  .receipts-screen {
+    --page-w: 62rem;
+  }
+  .receipts-screen .receipt-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 2rem;
+    align-items: start;
+  }
+  .claim-screen {
+    --page-w: 48rem;
+  }
+  .claim-screen > .sheet {
+    margin-block: 1.5rem;
+    padding: 2rem;
+  }
+}
+@media (min-width: 1100px) {
+  .plan-overview,
+  .checkout-grid,
+  .verify-layout,
+  .card-layout {
+    gap: 4rem;
+  }
+  .plan-summary {
+    gap: 1.25rem;
+  }
+  .console__main {
+    padding: 2rem 3rem;
+  }
+  .campaign-builder {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    gap: 2.5rem;
+  }
+  .campaign-progress {
+    position: sticky;
+    top: 2rem;
+    padding-top: 0;
+    border-top: 0;
+  }
+  .console__rail {
+    padding-top: 2rem;
+  }
+}
+@media (max-width: 599px) {
+  .offer-facts dd {
+    font-size: var(--text-20);
+  }
+  .plan-summary .screen__title {
+    font-size: var(--text-24);
+  }
+  .mobile-records thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .mobile-records,
+  .mobile-records tbody,
+  .mobile-records tr {
+    display: block;
+  }
+  .mobile-records tr {
+    padding-block: 0.75rem;
+    border-bottom: 1px solid var(--border-strong);
+  }
+  .mobile-records td[data-label] {
+    display: grid;
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: center;
+    height: auto;
+    min-height: 2.5rem;
+    padding: 0.25rem 0;
+    border: 0;
+    white-space: normal;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+  .mobile-records td[data-label]::before {
+    content: attr(data-label);
+    font-size: var(--text-12);
+    color: var(--text-secondary);
+  }
+  .mobile-records td[colspan] {
+    display: block;
+    height: auto;
+    white-space: normal;
+  }
+}
+
+/* Devanagari: leading 1.6, no letter-spacing (design-references §6); beats any single-class line-height */
+body [lang='hi'],
+body [lang='mr'] {
+  line-height: var(--leading-devanagari);
+  letter-spacing: 0;
+}
+
+@media print {
+  .app-header,
+  .tab-bar,
+  .action-dock,
+  .testnet-strip,
+  .demo-wallet,
+  .onchain-action,
+  .row-actions,
+  .gift .ui-field,
+  .segmented {
+    display: none;
+  }
+}

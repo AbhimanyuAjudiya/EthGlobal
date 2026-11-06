@@ -1,0 +1,245 @@
+/* ── Landing ─────────────────────────────────────────────────────────────── */
+.landing {
+  --page-w: 72rem;
+  box-sizing: border-box;
+  max-width: var(--page-w);
+  margin: 0 auto;
+  padding: 0 1rem calc(2rem + env(safe-area-inset-bottom));
+}
+/* Phone: the hero fills the first screen with the button in its bottom quarter; the rest follows below. */
+.landing__grid {
+  display: grid;
+  gap: 1.5rem;
+  padding-block: 1.5rem 2.5rem;
+  box-sizing: border-box;
+  align-content: start;
+  grid-template-areas: 'copy' 'coupon' 'actions';
+}
+.landing__copy {
+  grid-area: copy;
+}
+.landing__coupon {
+  grid-area: coupon;
+}
+.landing__actions {
+  grid-area: actions;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.landing__title {
+  margin: 1rem 0 0.5rem;
+  font-family: var(--font-display);
+  font-size: clamp(36px, 6vw, 64px);
+  font-weight: 700;
+  font-variation-settings: 'wdth' 110;
+  line-height: var(--leading-display);
+}
+.landing__sub {
+  margin: 0;
+  font-size: var(--text-16);
+  color: var(--text-secondary);
+  max-width: 46ch;
+  line-height: 1.6;
+}
+/* Stacked full-width at phone width (no two-line CTA at 360 px), side by side from 560 px. */
+.paths {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+@media (min-width: 560px) {
+  .paths {
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  }
+}
+.paths .ui-button {
+  text-decoration: none;
+  text-align: center;
+  padding: 0.5rem 0.75rem;
+  line-height: 1.25;
+}
+.preflight {
+  margin: 0;
+  font-size: var(--text-13);
+  color: var(--text-tertiary);
+}
+.quiet-rows {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.25rem;
+  margin: 0;
+}
+.quiet-rows a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 3rem;
+  color: var(--text-secondary);
+  text-underline-offset: 3px;
+}
+/* a chevron says "this goes somewhere" (RT design review: quiet rows read as body text) */
+.quiet-rows a::after,
+.hub a::after,
+.disclosure summary::after {
+  content: '';
+  flex: none;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--duration-state) var(--ease-standard);
+}
+
+/* Below the hero: ruled, numbered and listed text — no cards, no icons. */
+.landing__section {
+  display: grid;
+  gap: 1rem;
+  padding-block: 2rem;
+  border-top: 1px solid var(--border-subtle);
+}
+.landing__h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-24);
+  font-weight: 700;
+  font-variation-settings: 'wdth' 110;
+  line-height: var(--leading-display);
+}
+/* How it works: five numbered steps; the numbers are the list's own markers */
+.how {
+  display: grid;
+  gap: 1.5rem;
+  margin: 0;
+  padding-left: 2.25rem;
+  list-style: decimal;
+}
+.how > li::marker {
+  font-family: var(--font-display);
+  font-size: var(--text-20);
+  font-weight: 700;
+  color: var(--text-tertiary);
+}
+.how__title {
+  margin: 0;
+  font-size: var(--text-20);
+  font-weight: 600;
+  line-height: var(--leading-display);
+}
+.how__body {
+  margin: 0.25rem 0 0;
+  font-size: var(--text-16);
+  color: var(--text-secondary);
+  max-width: 60ch;
+}
+.how__ways {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.25rem;
+  font-size: var(--text-14);
+  color: var(--text-secondary);
+  list-style: disc;
+}
+/* How the eSIM works: term | fact, one ruled row each */
+.facts {
+  margin: 0;
+}
+.facts > div {
+  display: grid;
+  grid-template-columns: minmax(6rem, 1fr) 3fr;
+  gap: 0.25rem 1rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.facts dt {
+  font-size: var(--text-14);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.facts dd {
+  margin: 0;
+  font-size: var(--text-16);
+}
+/* Everything Recharge does: the menu's destinations with one line each */
+.hub {
+  display: grid;
+  gap: 1.5rem;
+}
+.hub__label {
+  margin: 0 0 0.25rem;
+  font-size: var(--text-13);
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+.hub a {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 1rem;
+  min-height: 3rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.hub a::after {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  color: var(--text-tertiary);
+}
+.hub__title {
+  font-size: var(--text-16);
+  font-weight: 600;
+}
+.hub__line {
+  grid-column: 1;
+  font-size: var(--text-14);
+  color: var(--text-secondary);
+}
+.hub a:hover .hub__title {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Desk: hero copy and buttons stacked beside the coupon, one group around a shared middle; 5/7 as the sections. */
+@media (min-width: 900px) {
+  .landing__grid {
+    min-height: 0;
+    padding-block: clamp(1.5rem, 7vh, 4.5rem);
+    grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+    grid-template-areas: 'copy coupon' 'actions coupon';
+    column-gap: clamp(3rem, 7vw, 7rem);
+    row-gap: 2rem;
+    align-content: center;
+  }
+  .landing__copy {
+    align-self: end;
+  }
+  .landing__actions {
+    align-self: start;
+  }
+  .landing__coupon {
+    align-self: center;
+  }
+  .landing__coupon .coupon {
+    width: 100%;
+    max-width: 29rem;
+  }
+  .landing__section {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    column-gap: 3rem;
+    padding-block: 3rem;
+  }
+  /* the section's name stays beside its rows while they scroll past */
+  .landing__h2 {
+    position: sticky;
+    top: 1.5rem;
+    align-self: start;
+  }
+  .hub {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 2rem;
+  }
+}

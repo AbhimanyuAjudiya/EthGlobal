@@ -1,0 +1,171 @@
+/* ── Install ─────────────────────────────────────────────────────────────── */
+.install__title {
+  margin: 0.5rem 0 0;
+  font-size: var(--text-16);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+/* The hero: the OS's own words at display size (design-references §1d, RT design review #8). */
+.status-pill {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0.5rem 1.125rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  font-family: var(--font-display);
+  font-size: var(--text-32);
+  font-variation-settings: 'wdth' 110;
+  font-weight: 700;
+  line-height: var(--leading-display);
+  color: var(--text-tertiary);
+}
+.status-pill__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-disabled);
+  transform: scale(0.6);
+  transition: transform var(--duration-state) var(--ease-standard);
+}
+.status-pill[data-state='active'] {
+  color: var(--text-primary);
+}
+.status-pill[data-state='active'] .status-pill__dot {
+  background: var(--accent);
+  transform: scale(1);
+}
+.status-pill__text {
+  animation: fade-in var(--duration-state) var(--ease-standard) both;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+.steps {
+  margin: 0;
+  padding-left: 1.5rem;
+  display: grid;
+  gap: 0.5rem;
+  font-size: var(--text-16);
+  /* the system's order, numbered (Tailwind's preflight drops list markers) */
+  list-style: decimal;
+}
+.lpa-code {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 0.75rem;
+  background: var(--bg-sunken);
+  border-radius: var(--radius-control);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-size: var(--text-14);
+  overflow-wrap: anywhere;
+}
+.intent-link {
+  margin: 0;
+  font-size: var(--text-14);
+}
+.unverified {
+  color: var(--text-tertiary);
+  font-size: var(--text-12);
+}
+.second-device {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+.warning-line {
+  margin: 0;
+  color: var(--warning);
+  font-size: var(--text-14);
+}
+/* The three ways to install, side by side as ruled rows: this phone, a QR for another screen, by hand. */
+.install__ways {
+  margin: 0.5rem 0 0;
+  font-size: var(--text-20);
+  font-weight: 600;
+}
+.install-ways {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.install-ways > li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.install-ways h3 {
+  margin: 0;
+  font-size: var(--text-16);
+  font-weight: 600;
+}
+.install-ways .ui-button {
+  align-self: flex-start;
+}
+.install-ways .ui-button--block {
+  align-self: stretch;
+}
+.receipt-proof-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.lpa-details {
+  margin: 0;
+  width: 100%;
+}
+.lpa-details > div {
+  padding: 0.25rem 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.lpa-details dt {
+  font-size: var(--text-13);
+  color: var(--text-secondary);
+}
+.lpa-details dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 0.5rem;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-size: var(--text-14);
+  overflow-wrap: anywhere;
+}
+.lpa-details dd .ui-button {
+  font-family: var(--font-text);
+}
+.connection-check {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+.connection-check__result {
+  margin: 0;
+  animation: sheet-in var(--duration-state) var(--ease-standard) both;
+}
+.connection-check__result[data-result='mobile'] {
+  color: var(--positive);
+}
+.trouble h2 {
+  font-size: var(--text-16);
+  margin: 0 0 0.25rem;
+}
+.trouble ul {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: var(--text-14);
+}

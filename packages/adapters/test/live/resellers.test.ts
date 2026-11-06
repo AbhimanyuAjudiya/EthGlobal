@@ -202,9 +202,13 @@ describe('EsimAccessReseller (A-27; T-34, T-39, T-40, T-82, T-83)', () => {
       orderId: sha256Hex('topup:topup-key-1').slice(2, 34),
       totalMb: 2147,
     });
+    // the plan still fits the profile's own 1 GB: no vendor purchase, only the profile read
     await expect(
-      esim('topup').reseller.topUp('89852240000000000001', 42, { idempotencyKey: 'k' }),
-    ).rejects.toMatchObject({ code: 'invalid_request' });
+      esim('topup').reseller.topUp('89852240000000000001', 100, {
+        idempotencyKey: 'k3',
+        totalMb: 400,
+      }),
+    ).resolves.toEqual({ orderId: sha256Hex('topup:k3').slice(2, 34), totalMb: 1073 });
     await expect(
       esim('topup').reseller.topUp('89852240000000000001', 0, { idempotencyKey: 'k2' }),
     ).rejects.toMatchObject({ code: 'invalid_request' });

@@ -350,11 +350,11 @@ export class EsimAccessReseller implements Reseller {
   topUp(
     iccid: string,
     mb: number,
-    opts: { idempotencyKey: string },
+    opts: { idempotencyKey: string; totalMb?: number },
   ): Promise<{ orderId: string; totalMb: number }> {
     const existing = this.#topUps.get(opts.idempotencyKey);
     if (existing) return existing;
-    const pending = this.#topUp(iccid, mb, opts.idempotencyKey);
+    const pending = this.#topUp(iccid, mb, opts.idempotencyKey, opts.totalMb);
     this.#topUps.set(opts.idempotencyKey, pending);
     pending.catch(() => this.#topUps.delete(opts.idempotencyKey));
     return pending;
@@ -364,24 +364,32 @@ export class EsimAccessReseller implements Reseller {
     iccid: string,
     mb: number,
     idempotencyKey: string,
+    totalMb?: number,
   ): Promise<{ orderId: string; totalMb: number }> {
     if (!Number.isSafeInteger(mb) || mb <= 0)
       throw new AdapterError('reseller', 'invalid_request', 'mb must be a positive integer');
-    const { esimTranNo } = await this.#esim(iccid);
-    // [verify Wed] `type: "TOPUP"` with `iccid` lists the compatible top-up packages.
+    const { esimTranNo, totalVolume } = await this.#esim(iccid);
+    const transactionId = sha256Hex(`topup:${idempotencyKey}`).slice(2, 34);
+    const profileMb = mbFromBytes(totalVolume ?? 0);
+    // ponytail: the profile's own volume serves 100 MB steps until the plan outgrows it (vendor top-ups start at 1 GB);
+    // a plan with no known total buys at least `mb`. Upgrade: a per-ICCID volume ledger if steps ever race the vendor.
+    if (totalMb !== undefined && totalMb <= profileMb) return { orderId: transactionId, totalMb: profileMb };
+    const need = totalMb === undefined ? mb : totalMb - profileMb;
+    // `type: "TOPUP"` with `iccid` lists the profile's compatible top-ups (live: supportTopUpType 1, 1 GB and up).
     const { packageList: list } = await this.#call(
       '/package/list',
       { locationCode: '', type: 'TOPUP', slug: '', packageCode: '', iccid },
       packageList,
     );
-    const pkg = list.find((p) => p.supportTopUpType === 2 && mbFromBytes(p.volume) === mb);
+    const pkg = [...list]
+      .sort((a, b) => a.volume - b.volume)
+      .find((p) => mbFromBytes(p.volume) >= need);
     if (!pkg)
       throw new AdapterError(
         'reseller',
         'invalid_request',
-        `no ${mb} MB top-up package for this profile`,
+        `no top-up package of at least ${need} MB for this profile`,
       );
-    const transactionId = sha256Hex(`topup:${idempotencyKey}`).slice(2, 34);
     try {
       await this.#call(
         '/esim/topup',

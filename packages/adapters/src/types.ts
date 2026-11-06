@@ -202,10 +202,14 @@ export interface Reseller {
   plans(country: 'IN'): Promise<EsimPlan[]>;
   /** One profile per order. A second call with the same idempotencyKey returns the same profile, never a second one (T-40). */
   order(planId: string, opts: { idempotencyKey: string }): Promise<EsimProfile>;
+  /**
+   * Adds `mb` to a plan. `totalMb` is the plan's total after this top-up: vendors sell top-ups in 1 GB+ packages and
+   * Recharge in 100 MB steps, so a reseller that knows it buys vendor volume only once the plan outgrows the profile.
+   */
   topUp(
     iccid: string,
     mb: number,
-    opts: { idempotencyKey: string },
+    opts: { idempotencyKey: string; totalMb?: number },
   ): Promise<{ orderId: string; totalMb: number }>;
   usage(iccid: string): Promise<EsimUsage>;
   /** Pure: checks headers + HMAC + skew + its own replay cache. Never throws. */

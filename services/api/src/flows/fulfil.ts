@@ -233,7 +233,11 @@ export async function fulfilTopUp(
   const iccid = openFromServer(deps.sealKey, existing.iccidEnc as CryptoBox, utf8(existing.key));
   await deps.metrics.timed(
     'reseller_ms',
-    () => deps.adapters.reseller.topUp(iccid, mb, { idempotencyKey: nonce }),
+    () =>
+      deps.adapters.reseller.topUp(iccid, mb, {
+        idempotencyKey: nonce,
+        totalMb: existing.mbTotal + mb,
+      }),
     { op: 'topUp' },
   );
   const expiresAt = Math.max(existing.expiresAt, deps.now() + deps.env.VALIDITY_DAYS * DAY_MS);

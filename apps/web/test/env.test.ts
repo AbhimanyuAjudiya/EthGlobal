@@ -5,6 +5,7 @@ const NAMES = [
   'NEXT_PUBLIC_MODE',
   'NEXT_PUBLIC_EXPLORER_EVM',
   'NEXT_PUBLIC_EXPLORER_HEDERA',
+  'NEXT_PUBLIC_ARKIV_EXPLORER',
 ] as const;
 
 // lib/env.ts reads process.env at module load: stub, drop the module cache, import afresh.
@@ -49,5 +50,29 @@ describe('IS_TESTNET and the explorer defaults follow NEXT_PUBLIC_CHAIN_ID', () 
     }));
     expect(config.explorerEvm).toBe('https://evm.test');
     expect(config.explorerHedera).toBe('https://hedera.test');
+  });
+});
+
+describe("explorer links follow the transaction's own network, not the app's chain", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('Hedera EVM (DataDrop) is a HashScan page, Base a Basescan one; Arkiv links only real entity keys', async () => {
+    const env = await load({ NEXT_PUBLIC_CHAIN_ID: '84532' });
+    const hashscan = 'https://hashscan.io/testnet';
+    expect(env.explorerTemplate('eip155:296')).toBe(`${hashscan}/transaction/{hash}`);
+    expect(env.explorerName('eip155:296')).toBe('HashScan');
+    expect(env.explorerTemplate('hedera:testnet')).toBe(`${hashscan}/transaction/{hash}`);
+    expect(env.explorerTemplate('eip155:84532')).toBe('https://sepolia.basescan.org/tx/{hash}');
+    expect(env.contractUrl('eip155:296', '0xabc')).toBe(`${hashscan}/contract/0xabc`);
+    expect(env.contractUrl('eip155:84532', '0xabc')).toBe(
+      'https://sepolia.basescan.org/address/0xabc',
+    );
+    expect(env.hcsTopicUrl('0.0.11322448')).toBe(`${hashscan}/topic/0.0.11322448`);
+    const key = `0x${'ab'.repeat(32)}`;
+    expect(env.arkivEntityUrl(key)).toBe(`https://rabdi.explorer.arkiv.network/entity/${key}`);
+    expect(env.arkivEntityUrl('ent_000001')).toBeUndefined();
+    expect(env.arkivEntityUrl(`gift:${key}`)).toBeUndefined();
+    const local = await load({ NEXT_PUBLIC_MODE: 'local' });
+    expect(local.explorerTemplate('eip155:31337')).toBeUndefined();
   });
 });

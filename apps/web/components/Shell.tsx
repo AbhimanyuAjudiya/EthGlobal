@@ -12,7 +12,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { useDisconnect, useSwitchChain } from 'wagmi';
+import { useAccount, useDisconnect, useSwitchChain } from 'wagmi';
 
 import { Button, Icon } from '@ethglobal/ui/components';
 
@@ -194,7 +194,10 @@ export function Caution({ k }: { k: StringKey }) {
   );
 }
 
-/** Wordmark top-left; language switch and the menu top-right. */
+/**
+ * Wordmark top-left; language switch, the menu and the one wallet control top-right. On a phone the wallet control
+ * wraps under the other two, right-aligned, so the header never scrolls sideways.
+ */
 export function AppHeader({ right }: { right?: ReactNode }) {
   return (
     <header className="app-header">
@@ -205,6 +208,7 @@ export function AppHeader({ right }: { right?: ReactNode }) {
         {right}
         <LangSwitch />
         <SiteMenu />
+        <HeaderWallet />
       </div>
     </header>
   );
@@ -284,8 +288,11 @@ const LocalDemoPanel =
     ? lazy(() => import('../lib/local/demo-wallet-panel'))
     : null;
 
+/** What the wallet controls show of a wallet: a whole Wallet, or the header's reading of wagmi's connection. */
+type WalletLabel = Pick<Wallet, 'kind' | 'name' | 'address'>;
+
 /** The demo-wallet banner in MODE=local; nothing for an injected wallet or in a live build. */
-export function WalletBanner({ wallet }: { wallet: Wallet | undefined }) {
+function WalletBanner({ wallet }: { wallet: WalletLabel | undefined }) {
   if (LocalDemoPanel === null || wallet?.kind !== 'demo') return null;
   return (
     <Suspense fallback={null}>
@@ -308,8 +315,8 @@ export interface WalletControlProps {
 }
 
 /**
- * The connect control, in our own ui-button styles (48 px targets, RT-W-07): Connect opens RainbowKit's modal;
- * connected shows the name or shortened address, the wrong-network warning with a switch, and Disconnect.
+ * The header's wallet control, in the menu button's style (44 px targets, RT-W-07): "Connect" opens RainbowKit's modal;
+ * connected, the name or shortened address opens a small panel with the wrong-network warning and switch, and Disconnect.
  */
 export function WalletControl({
   mounted,
@@ -320,29 +327,49 @@ export function WalletControl({
   onDisconnect,
 }: WalletControlProps) {
   const { t, lang } = useLang();
+  const [open, setOpen] = useState(false);
+  const id = useId();
   if (!mounted || !account)
     return (
-      <div className="wallet-connect" aria-hidden={mounted ? undefined : true}>
-        <Button variant="secondary" onClick={onConnect} disabled={!mounted}>
-          <T k="pay.chooseWallet" />
-        </Button>
-      </div>
+      <button
+        type="button"
+        className="menu-toggle wallet-toggle"
+        onClick={onConnect}
+        disabled={!mounted}
+        aria-hidden={mounted ? undefined : true}
+        lang={lang}
+      >
+        <Icon name="wallet" size={20} />
+        {t('wallet.connect')}
+      </button>
     );
   return (
-    <div className="wallet-status" role="group" aria-label={t('wallet.connected')}>
-      <p className="wallet-status__who">
-        <span>{t('wallet.connected')}</span>
+    <div className="wallet-menu">
+      <button
+        type="button"
+        className="menu-toggle wallet-toggle"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <Icon name={wrongNetwork ? 'warning' : 'wallet'} size={20} />
         <span lang="en" data-hash title={account.address}>
           {account.displayName}
         </span>
+      </button>
+      <div
+        id={id}
+        className="wallet-status"
+        role="group"
+        aria-label={t('wallet.connected')}
+        hidden={!open}
+      >
         {wrongNetwork ? (
-          <span className="wallet-status__network" role="status" lang={lang}>
+          <p className="wallet-status__network" role="status" lang={lang}>
             <Icon name="warning" />
             {t('wallet.wrongNetwork', { network: wrongNetwork.have })}
-          </span>
+          </p>
         ) : null}
-      </p>
-      <div className="wallet-status__actions">
         {wrongNetwork ? (
           <Button variant="secondary" onClick={onSwitchNetwork}>
             <T k="wallet.switchTo" params={{ network: wrongNetwork.want }} />
@@ -356,8 +383,21 @@ export function WalletControl({
   );
 }
 
+/**
+ * The one wallet control, top-right on every screen (AppHeader, the sponsor console): whatever wagmi has connected. It
+ * never connects a wallet itself; in MODE=local a screen that signs connects its demo role through useWallet.
+ */
+export function HeaderWallet() {
+  const { address, connector } = useAccount();
+  const demo =
+    address && connector?.id.startsWith('demo-')
+      ? { kind: 'demo' as const, name: connector.name, address }
+      : undefined;
+  return <WalletButton wallet={demo} />;
+}
+
 /** RainbowKit's ConnectButton, rendered as WalletControl; the demo wallet (MODE=local) shows its banner instead. */
-export function WalletButton({ wallet }: { wallet: Wallet | undefined }) {
+export function WalletButton({ wallet }: { wallet: WalletLabel | undefined }) {
   const netName = useNetworkName();
   const { switchChain } = useSwitchChain();
   const { disconnect } = useDisconnect();

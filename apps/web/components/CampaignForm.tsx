@@ -1,14 +1,14 @@
 'use client';
 
+import { useConnectModal } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
 import { useCallback, useState } from 'react';
 
 import { Button, Field, Hash } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
-import { WalletButton } from './Shell';
 import { api, ApiError } from '../lib/api';
-import { networkName } from '../lib/env';
+import { contractUrl, explorerName, networkName } from '../lib/env';
 import { moneyUsdc } from '../lib/format';
 import { useHydrated, useWallet } from '../lib/hooks';
 import {
@@ -95,11 +95,18 @@ async function send(
  */
 export function CampaignForm() {
   const { wallet } = useWallet('sponsor');
+  const { openConnectModal } = useConnectModal();
   const approve = useOnchainAction();
   const create = useOnchainAction();
   const [draft, setDraft] = useState<Draft>(initial);
   const [error, setError] = useState<string>();
-  const [registered, setRegistered] = useState<{ id: string; auditKey: string; name: string }>();
+  const [registered, setRegistered] = useState<{
+    id: string;
+    auditKey: string;
+    name: string;
+    network: string;
+    contract: string;
+  }>();
   const [running, setRunning] = useState(false);
 
   const hydrated = useHydrated();
@@ -167,7 +174,12 @@ export function CampaignForm() {
         auth: { issuedAt: login.issuedAt, signature: login.signature },
       });
       myCampaigns.add({ id: res.id, name: draft.name.trim() });
-      setRegistered({ ...res, name: draft.name.trim() });
+      setRegistered({
+        ...res,
+        name: draft.name.trim(),
+        network: wallet.network,
+        contract: dataDropAddress(),
+      });
     } catch (e) {
       setError(
         e instanceof ApiError
@@ -182,6 +194,8 @@ export function CampaignForm() {
   }, [wallet, draft, approve.dispatch, create.dispatch]);
 
   const network = wallet?.network ?? 'eip155:31337';
+  const contractHref = registered && contractUrl(registered.network, registered.contract);
+  const contractExplorer = registered && explorerName(registered.network);
   // money says its unit and two decimals, grouped en-IN: "$1,000.00 USDC" (RT design review #9)
   let budgetText = `${draft.budgetUsd} USDC`;
   try {
@@ -192,7 +206,6 @@ export function CampaignForm() {
 
   return (
     <div className="sponsor-create">
-      <WalletButton wallet={wallet} />
       <section aria-label="Your campaigns">
         <table className="data-table">
           <thead>
@@ -247,9 +260,14 @@ export function CampaignForm() {
           {field('validityDays', 'Plan validity (days)')}
           {field('expiresDays', 'Campaign ends in (days)')}
         </div>
-        <Button type="submit" disabled={!wallet || running} data-testid="campaign-submit">
-          {`Fund ${budgetText} and create`}
-        </Button>
+        {wallet ? (
+          <Button type="submit" disabled={running} data-testid="campaign-submit">
+            {`Fund ${budgetText} and create`}
+          </Button>
+        ) : (
+          // no second wallet widget: the action itself opens the header's connect modal
+          <Button onClick={() => openConnectModal?.()}>Connect wallet to fund and create</Button>
+        )}
       </form>
       <ActionView
         row={approve.row}
@@ -292,6 +310,15 @@ export function CampaignForm() {
             again.
           </p>
           <Hash value={registered.auditKey} kind="audit key" />
+          <p className="note">
+            {'DataDrop contract '}
+            <Hash
+              value={registered.contract}
+              kind="contract address"
+              {...(contractHref ? { explorerHref: contractHref } : {})}
+              {...(contractExplorer ? { explorerName: contractExplorer } : {})}
+            />
+          </p>
           <Link
             href={`/sponsor/${registered.id}`}
             className="ui-button"

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { EntitledResponse, PlansResponse } from '@ethglobal/protocol/schemas';
 
 import { SLOW_CLAIM_MS, VerifySheet } from '../components/VerifySheet';
+import { Wallets } from '../components/Wallets';
 import { ApiError } from '../lib/api';
 
 import type * as ApiModule from '../lib/api';
@@ -91,7 +92,7 @@ async function mount() {
   vi.stubEnv('NEXT_PUBLIC_MODE', 'local');
   mocks.challenge.mockResolvedValue(CHALLENGE);
   mocks.rpContext.mockResolvedValue({});
-  const view = render(<VerifySheet />);
+  const view = render(<VerifySheet />, { wrapper: Wallets });
   const button = await screen.findByRole('button', { name: 'Simulated World ID' });
   return { ...view, button };
 }
@@ -164,7 +165,7 @@ describe('VerifySheet — World App on the same phone is one tap', () => {
     mocks.challenge.mockResolvedValue(CHALLENGE);
     mocks.rpContext.mockResolvedValue({});
     mocks.poll.mockReturnValue(new Promise(() => undefined));
-    render(<VerifySheet />);
+    render(<VerifySheet />, { wrapper: Wallets });
     await click(await screen.findByRole('button', { name: 'Open World App' }));
     await screen.findByText(/^Waiting for World App/);
   }

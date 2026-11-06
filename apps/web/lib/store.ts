@@ -135,7 +135,7 @@ export const plans = {
   /** The claiming session's public key (A-35): sent with the first PUT /agent/policy of a free entitlement. */
   holder: (key: string) => get<string>(`holder:${key}`),
   saveHolder: (key: string, publicKey: string) => set(`holder:${key}`, publicKey),
-  /** The bundle-issued facts the /plan IssuingRows replay once (hash, arkiv key), set by /verify. */
+  /** The bundle-issued facts the /plan IssuingRows replay once (hash, arkiv key, HCS receipt), set by `deliver`. */
   issued: (key: string) => get<IssuedFacts>(`issued:${key}`),
   saveIssued: (key: string, facts: IssuedFacts) => set(`issued:${key}`, facts),
   markIssuedShown: async (key: string) => {
@@ -149,6 +149,8 @@ export interface IssuedFacts {
   network?: string;
   arkivKey: string;
   settlement?: string;
+  /** The issue's HCS receipt, when the API logged one (`receipt.hcs`). */
+  hcs?: { topic: string; sequence: number };
   you: string;
   sponsor?: string;
   shown?: boolean;

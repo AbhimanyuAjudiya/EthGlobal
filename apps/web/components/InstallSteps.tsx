@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 
 import type { MeResponse } from '@ethglobal/protocol/schemas';
@@ -9,6 +10,7 @@ import { QrCode } from './QrCode';
 import { AppHeader, Caution, Screen, TabBar } from './Shell';
 import { useLang } from '../i18n/lang';
 import { api } from '../lib/api';
+import { planHref } from '../lib/deliver';
 import { parseDevice, type DeviceInfo } from '../lib/device';
 import { config } from '../lib/env';
 import { formatMb } from '../lib/format';
@@ -59,7 +61,7 @@ function CodeBlock({ lpa }: { lpa: string }) {
 }
 
 /** Copies one value to the clipboard (never a URL, a log or storage) and says so on the button. */
-function CopyButton({
+export function CopyButton({
   value,
   label,
   testId,
@@ -386,6 +388,17 @@ export function InstallSteps() {
           </ul>
         </section>
       ) : null}
+      {/* the install ends where the plan lives: data left, expiry, top-ups */}
+      <div className="plan__actions">
+        <Link
+          href={me ? planHref(me.entitlementKey) : '/plan'}
+          className="ui-button ui-button--block"
+          data-variant="secondary"
+          prefetch={false}
+        >
+          {t('landing.open')}
+        </Link>
+      </div>
       <TabBar active="plan" />
     </Screen>
   );

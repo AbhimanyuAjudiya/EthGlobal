@@ -16,13 +16,82 @@ import {
 } from '@ethglobal/ui/components';
 
 import { AddToHomeScreen, NotificationAsk } from './AddToHomeScreen';
+import { CopyButton } from './InstallSteps';
 import { IssuingRows, useOdometer } from './IssuingRows';
+import { QrCode } from './QrCode';
 import { AppHeader, Caution, Screen, TabBar } from './Shell';
 import { useLang } from '../i18n/lang';
 import { api, ApiError } from '../lib/api';
-import { clockIst, dayLabel, formatMb, money } from '../lib/format';
+import { arkivEntityUrl } from '../lib/env';
+import { clockIst, dayLabel, formatMb, money, moneyUsdc } from '../lib/format';
 import { useClock, usePlans } from '../lib/hooks';
 import { plans as store, type IssuedFacts } from '../lib/store';
+
+type Translate = ReturnType<typeof useLang>['t'];
+
+/**
+ * Where the plan came from, for the card's line and the first issuing row (/me's kind and tier, its receipts): a World
+ * ID claim is "because you're human" and "Verified · Orb"; a paid plan says what was paid; a gift or a card says so.
+ */
+function origin(m: MeResponse, receipts: readonly ReceiptPublic[], t: Translate) {
+  if (m.kind === 'paid') {
+    const usd6 = receipts.find((r) => r.kind === 'provision')?.usd6;
+    return {
+      reason: usd6 ? t('plan.kindPaid', { amount: moneyUsdc(usd6) }) : t('plan.kindBought'),
+    };
+  }
+  if (m.kind === 'gift') return { reason: t('plan.kindGift') };
+  if (m.kind === 'card') return { reason: t('plan.kindCard') };
+  const tier = m.tier === 'orb' ? 'Orb' : m.tier === 'document' ? 'Document' : undefined;
+  return { verified: tier ? `${t('issuing.verified')} · ${tier}` : t('issuing.verified') };
+}
+
+/** No plan to show: the two ways to get one, and how to bring over one that lives on another device. */
+export function NoPlanSteps() {
+  const { t, lang } = useLang();
+  return (
+    <div className="plan__actions" data-testid="no-plan">
+      <Link
+        href="/verify"
+        className="ui-button ui-button--block"
+        data-variant="primary"
+        prefetch={false}
+      >
+        {t('hub.free')}
+      </Link>
+      <Link
+        href="/pay"
+        className="ui-button ui-button--block"
+        data-variant="secondary"
+        prefetch={false}
+      >
+        {t('hub.buy')}
+      </Link>
+      <p className="note" lang={lang}>
+        {t('plan.elsewhere')}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * "Open on another device": this plan's own URL as a QR code and a copy, behind a tap, under its warning. The other
+ * device opens it read-only and keeps it with "Keep this plan on this phone"; the activation code never travels.
+ */
+function OtherDevice({ entitlementKey }: { entitlementKey: string }) {
+  const { t } = useLang();
+  const url = `${window.location.origin}/plan/${encodeURIComponent(entitlementKey)}`;
+  return (
+    <details className="disclosure" data-testid="other-device">
+      <summary>{t('plan.otherDevice')}</summary>
+      <div className="second-device">
+        <Caution k="plan.otherDeviceWarn" />
+        <QrCode url={url} sizeMm={40} label={t('plan.otherDevice')} />
+        <CopyButton value={url} label={t('plan.copyLink')} testId="copy-plan-link" />
+      </div>
+    </details>
+  );
+}
 
 type Load =
   | { kind: 'loading' }
@@ -76,10 +145,12 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
   const [receipts, setReceipts] = useState<ReceiptPublic[]>([]);
   const [firstView, setFirstView] = useState(false);
   const [owned, setOwned] = useState<boolean | undefined>();
+  const [hasLpa, setHasLpa] = useState<boolean | undefined>();
 
   useEffect(() => {
     let alive = true;
     void store.owns(entitlementKey).then((own) => alive && setOwned(own));
+    void store.lpa(entitlementKey).then((lpa) => alive && setHasLpa(Boolean(lpa)));
     void store.issued(entitlementKey).then((f) => {
       if (!alive) return;
       setFacts(f);
@@ -137,14 +208,8 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
         <p className="plan-empty" role="status">
           {load.kind === 'expired' ? t('plan.gone') : t('plan.unknown')}
         </p>
-        <Link
-          href={`/pay?key=${k}`}
-          className="ui-button ui-button--block"
-          data-variant="primary"
-          prefetch={false}
-        >
-          {t('plan.add', { price })}
-        </Link>
+        {/* a plan /me no longer knows cannot be topped up: the next step is a new one */}
+        <NoPlanSteps />
       </Screen>
     );
 
@@ -155,6 +220,9 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
   const sponsor = m.sponsorName;
   const ready = Boolean(facts) && odometer.done && owned === true;
   const foreign = owned === false;
+  const from = origin(m, receipts, t);
+  const tx = facts?.claimTx ?? facts?.settlement;
+  const arkivUrl = arkivEntityUrl(m.arkivKey);
 
   return (
     <Screen>
@@ -187,6 +255,7 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
         <Coupon
           mb={expired ? 0 : firstView ? odometer.value : m.mbTotal}
           {...(sponsor ? { sponsor } : {})}
+          {...(from.reason ? { reason: from.reason } : {})}
           lang={uiLang}
           {...(expired ? { status: t('plan.expired', { when: dayLabel(m.expiresAt, lang) }) } : {})}
           {...(m.status === 'pending-profile' ? { status: t('plan.pendingProfile') } : {})}
@@ -196,13 +265,12 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
       {facts ? (
         <IssuingRows
           facts={{
-            verified: true,
-            ...((facts.claimTx ?? facts.settlement)
-              ? { tx: facts.claimTx ?? facts.settlement }
-              : {}),
+            ...(from.verified ? { verified: from.verified } : {}),
+            ...(tx ? { tx } : {}),
             ...(facts.network ? { network: facts.network } : {}),
             paidBySponsor: Boolean(facts.claimTx),
             arkivKey: m.arkivKey,
+            ...(facts.hcs ? { hcs: facts.hcs } : {}),
           }}
         />
       ) : null}
@@ -232,7 +300,12 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
         />
       </p>
       <Caution k="esim.expiry" />
-      {!foreign ? (
+      {foreign ? null : hasLpa === false && m.status === 'ready' ? (
+        // the activation code was opened in another browser (it never travels): install from there
+        <p className="note" role="note" lang={lang} data-testid="install-elsewhere">
+          {t('install.noLpa')}
+        </p>
+      ) : (
         <div className="action-dock">
           <Link
             href="/install"
@@ -244,14 +317,21 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
           </Link>
           <p className="note">{t('plan.later')}</p>
         </div>
-      ) : null}
+      )}
       <details className="disclosure">
         <summary>{t('plan.whyExpires')}</summary>
         <p>{t('plan.whyBody')}</p>
         <p className="mono-key" data-hash title={m.arkivKey} data-testid="arkiv-key" lang="en">
-          {m.arkivKey}
+          {arkivUrl ? (
+            <a href={arkivUrl} target="_blank" rel="noreferrer">
+              {m.arkivKey}
+            </a>
+          ) : (
+            m.arkivKey
+          )}
         </p>
       </details>
+      {foreign ? null : <OtherDevice entitlementKey={entitlementKey} />}
       <Receipt
         heading={
           latest

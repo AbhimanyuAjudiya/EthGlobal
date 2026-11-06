@@ -8,7 +8,11 @@
 import { T } from '../../i18n/lang';
 import { demoIndex, type Wallet } from '../wallet';
 
-export default function DemoWalletPanel({ wallet }: { wallet: Wallet }) {
+export default function DemoWalletPanel({
+  wallet,
+}: {
+  wallet: Pick<Wallet, 'kind' | 'name' | 'address'>;
+}) {
   if (process.env.NEXT_PUBLIC_MODE !== 'local' || wallet.kind !== 'demo') return null;
   return (
     <p className="demo-wallet" role="note" data-testid="demo-wallet">

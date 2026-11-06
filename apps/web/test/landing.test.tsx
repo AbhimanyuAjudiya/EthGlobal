@@ -6,6 +6,7 @@ import type { PlansResponse } from '@ethglobal/protocol/schemas';
 
 import { ClaimPaths } from '../components/ClaimPaths';
 import { AppHeader } from '../components/Shell';
+import { Wallets } from '../components/Wallets';
 import { ApiError } from '../lib/api';
 import { clockIst } from '../lib/format';
 import { del, set } from '../lib/store';
@@ -68,7 +69,7 @@ afterEach(async () => {
 describe('the landing is the hub', () => {
   it('"Everything Recharge does" links every flow, each with one sentence', async () => {
     mocks.plans.mockResolvedValue(plansWith(true));
-    render(<ClaimPaths />);
+    render(<ClaimPaths />, { wrapper: Wallets });
     const hub = await screen.findByRole('region', { name: 'Everything Recharge does' });
     const links = within(hub).getAllByRole('link');
     expect(hrefs(links).sort()).toEqual(EVERY_FLOW);
@@ -81,7 +82,7 @@ describe('the landing is the hub', () => {
 
   it('"How it works" walks the five steps to their routes, with all three install ways and the warnings', async () => {
     mocks.plans.mockResolvedValue(plansWith(true));
-    render(<ClaimPaths />);
+    render(<ClaimPaths />, { wrapper: Wallets });
     const how = await screen.findByRole('region', { name: 'How it works' });
     const steps = [...how.querySelectorAll<HTMLElement>('ol.how > li')];
     expect(steps.map((li) => li.querySelector('h3')?.textContent)).toEqual([
@@ -112,7 +113,7 @@ describe('the landing is the hub', () => {
 
 describe('the header menu', () => {
   it('opens, holds the focus inside, closes on Escape and gives the focus back', async () => {
-    render(<AppHeader />);
+    render(<AppHeader />, { wrapper: Wallets });
     const toggle = screen.getByRole('button', { name: 'Menu' });
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -156,7 +157,7 @@ describe('the landing never shows a stored /plans reading as current (stale land
   it('online: every load asks GET /plans, and the fresh reading drives the coupon and the button', async () => {
     await saveReadingWithoutCampaign();
     mocks.plans.mockResolvedValue(plansWith(true));
-    const first = render(<ClaimPaths />);
+    const first = render(<ClaimPaths />, { wrapper: Wallets });
     const claim = await screen.findByRole('link', { name: CLAIM });
     expect(claim.getAttribute('href')).toBe('/verify');
     expect(screen.getByText('1,214 of 2,000 sponsor bundles left')).toBeTruthy();
@@ -164,7 +165,7 @@ describe('the landing never shows a stored /plans reading as current (stale land
     expect(screen.queryByText(/No sponsor bundle is live/)).toBeNull();
     first.unmount();
     // coming back to the landing in the same session asks again: no reading is kept past its load
-    render(<ClaimPaths />);
+    render(<ClaimPaths />, { wrapper: Wallets });
     await screen.findByRole('link', { name: CLAIM });
     expect(mocks.plans).toHaveBeenCalledTimes(2);
   });
@@ -174,7 +175,7 @@ describe('the landing never shows a stored /plans reading as current (stale land
     mocks.plans
       .mockRejectedValueOnce(new ApiError(0, 'network', 'Failed to fetch'))
       .mockResolvedValue(plansWith(true));
-    render(<ClaimPaths />);
+    render(<ClaimPaths />, { wrapper: Wallets });
     expect(await screen.findByText(`as of ${clockIst(SAVED_AT)}`)).toBeTruthy();
     const pay = screen.getByRole('link', { name: /^Pay \$1\.20 for 300\sMB$/ });
     expect(pay.getAttribute('href')).toBe('/pay?mb=300');
@@ -193,7 +194,7 @@ describe('the landing never shows a stored /plans reading as current (stale land
   it('an API error is not a network failure: no saved reading comes back, and the count is omitted', async () => {
     await saveReadingWithoutCampaign();
     mocks.plans.mockRejectedValue(new ApiError(503, 'internal_error', 'degraded'));
-    render(<ClaimPaths />);
+    render(<ClaimPaths />, { wrapper: Wallets });
     await screen.findByRole('link', { name: CLAIM });
     expect(screen.queryByText(/as of/)).toBeNull();
     expect(screen.queryByText(/sponsor bundles left/)).toBeNull();

@@ -1,16 +1,17 @@
 'use client';
 
-import Link from 'next/link';
-import { useCallback, useEffect, useState, type CSSProperties } from 'react';
+import { useConnectModal } from '@rainbow-me/rainbowkit';
+import { useCallback, useEffect, useState, type CSSProperties, type MouseEvent } from 'react';
 
 import { GIFT_RECLAIM_WINDOW_S } from '@ethglobal/protocol/ids';
 import type { GiftResponse } from '@ethglobal/protocol/schemas';
 import { BoardingPass, Button, Field, Hash } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
+import { ProofRows } from './IssuingRows';
 import { renderQr } from './QrCode';
 import { saveCardPng } from './save-card';
-import { useWalletLabel, WalletButton } from './Shell';
+import { useWalletLabel } from './Shell';
 import { useLang, useNetworkName } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
@@ -54,11 +55,13 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
   const walletLabel = useWalletLabel();
   const { plans } = usePlans();
   const { wallet } = useWallet('human');
+  const { openConnectModal } = useConnectModal();
   const { row, dispatch, now } = useOnchainAction();
   const [name, setName] = useState('');
   const [mb, setMb] = useState(1000);
   const [resolved, setResolved] = useState<{ name: string; mb: number; result: Resolution }>();
   const [gift, setGift] = useState<GiftResponse | undefined>();
+  const [copied, setCopied] = useState(false);
   const typed = name.trim().toLowerCase();
   const wellFormed = typed.length >= 3 && typed.includes('.');
   const resolution: Resolution = !wellFormed
@@ -141,10 +144,22 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
 
   const origin = typeof window === 'undefined' ? '' : window.location.origin;
   const network = wallet?.network ?? plans?.paid.accepts[0]?.network ?? '';
+  const connectFirst = resolution === 'resolves' && !wallet;
+
+  /** The claim link goes to the recipient: the phone's share sheet where there is one, else the clipboard. */
+  const shareClaim = (e: MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    const url = e.currentTarget.href;
+    if (typeof navigator.share === 'function') void navigator.share({ url }).catch(() => undefined);
+    else
+      void navigator.clipboard?.writeText(url).then(
+        () => setCopied(true),
+        () => undefined,
+      );
+  };
 
   return (
     <section className="gift" aria-labelledby="gift-title">
-      <WalletButton wallet={wallet} />
       <h1 id="gift-title" className="screen__title" lang={lang}>
         {t('gift.title')}
       </h1>
@@ -221,10 +236,18 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
           claimBy: dayLabel(claimBy, lang),
           reclaimUntil: dayLabel(reclaimUntil, lang),
         })}
-        actionLabel={t('pay.button', { price: moneyUsdc(price) })}
+        actionLabel={
+          connectFirst ? t('wallet.connectToPay') : t('pay.button', { price: moneyUsdc(price) })
+        }
         walletName={walletLabel(wallet)}
         result={
-          gift ? t('gift.sent', { name: gift.name, claimBy: dayLabel(gift.claimBy, lang) }) : ''
+          gift
+            ? t('gift.sent', {
+                name: gift.name,
+                claimBy: dayLabel(gift.claimBy, lang),
+                reclaimUntil: dayLabel(gift.claimBy + GIFT_RECLAIM_WINDOW_S * 1000, lang),
+              })
+            : ''
         }
         {...(resolution !== 'resolves'
           ? {
@@ -235,14 +258,20 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
             }
           : {})}
         expectedMs={expectedMsFor(network)}
-        onConfirm={() => void send()}
+        onConfirm={() => {
+          if (connectFirst) openConnectModal?.();
+          else void send();
+        }}
         onRetry={() => dispatch({ type: 'retry' })}
         lang={lang}
       />
       {gift ? (
         <section className="gift__result" data-testid="gift-result">
           <p className="resolve-line">
-            {gift.name} → <Hash value={gift.to} kind="address" />
+            <a href={`https://app.ens.domains/${gift.name}`} target="_blank" rel="noreferrer">
+              {gift.name}
+            </a>{' '}
+            → <Hash value={gift.to} kind="address" />
           </p>
           <BoardingPass
             to={gift.name}
@@ -254,7 +283,19 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
             qrUrl={`${origin}/card/${gift.serial}`}
             renderQr={renderQr}
           />
+          <p className="note" lang={lang}>
+            {t('gift.shareHow', { name: gift.name })}
+          </p>
           <div className="row-actions">
+            {/* the recipient's claim page; a tap shares (or copies) it rather than opening it here */}
+            <a
+              href={`${origin}/gift/claim?id=${gift.giftId}&name=${encodeURIComponent(gift.name)}`}
+              className="ui-button"
+              data-variant="primary"
+              onClick={shareClaim}
+            >
+              {copied ? t('install.android.copied') : t('gift.share')}
+            </a>
             <Button
               variant="secondary"
               onClick={() => void saveCardPng(gift, `${origin}/card/${gift.serial}`)}
@@ -264,15 +305,8 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
             <Button variant="quiet" onClick={() => window.print()}>
               {t('gift.print')}
             </Button>
-            <Link
-              href={`/gift/claim?id=${gift.giftId}&name=${encodeURIComponent(gift.name)}`}
-              className="ui-button"
-              data-variant="quiet"
-              prefetch={false}
-            >
-              {t('gift.claimTitle')}
-            </Link>
           </div>
+          <ProofRows receipt={gift.receipt} />
         </section>
       ) : null}
     </section>

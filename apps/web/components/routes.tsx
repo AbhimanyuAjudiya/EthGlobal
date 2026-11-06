@@ -11,7 +11,7 @@ import { useEffect, useState } from 'react';
 import { ClaimGift, ReclaimGift } from './ClaimGift';
 import { GiftForm } from './GiftForm';
 import { PaySheet } from './PaySheet';
-import { PlanView } from './PlanView';
+import { NoPlanSteps, PlanView } from './PlanView';
 import { ReceiptList } from './ReceiptList';
 import { ScratchRedeem } from './ScratchRedeem';
 import { AppHeader, Screen, TabBar } from './Shell';
@@ -61,9 +61,12 @@ export function PlanIndex() {
     <Screen>
       <AppHeader />
       {none ? (
-        <p className="note" role="status" lang={lang}>
-          {t('plan.unknown')}
-        </p>
+        <>
+          <p className="plan-empty" role="status" lang={lang}>
+            {t('plan.none')}
+          </p>
+          <NoPlanSteps />
+        </>
       ) : (
         <div className="skeleton skeleton--coupon" aria-label="Opening your plan" />
       )}

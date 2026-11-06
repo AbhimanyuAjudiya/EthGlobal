@@ -1,16 +1,23 @@
 'use client';
 
+import { useConnectModal } from '@rainbow-me/rainbowkit';
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { Hex } from '@ethglobal/protocol/ids';
 import type { SponsorView } from '@ethglobal/protocol/schemas';
-import { Hash } from '@ethglobal/ui/components';
+import { Button, Hash } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
-import { WalletBanner } from './Shell';
 import { SlideToConfirm } from './SlideToConfirm';
 import { api, ApiError } from '../lib/api';
-import { explorerName, explorerTemplate, networkName } from '../lib/env';
+import {
+  arkivEntityUrl,
+  contractUrl,
+  explorerName,
+  explorerTemplate,
+  networkName,
+} from '../lib/env';
 import { clockIst, dayLabel, formatMb, money } from '../lib/format';
 import { useClock, useWallet } from '../lib/hooks';
 import { pauseCall, refundCall, sponsorLogin } from '../lib/sponsor';
@@ -83,6 +90,7 @@ function csv(view: SponsorView): string {
 /** `/sponsor/[id]` — a table that is the product: "1,214 claims" beside spend, cap and rate; Pause by slide. */
 export function SponsorTable({ id }: { id: string }) {
   const { wallet } = useWallet('sponsor');
+  const { openConnectModal } = useConnectModal();
   const [view, setView] = useState<SponsorView | undefined>();
   const [auditKey, setAuditKey] = useState<string | undefined>();
   const [error, setError] = useState<string | undefined>();
@@ -167,10 +175,22 @@ export function SponsorTable({ id }: { id: string }) {
   if (!view)
     return (
       <div className="sponsor-view">
-        <WalletBanner wallet={wallet} />
         <p className="note" role="status">
-          {error ?? 'Signing in with the sponsor wallet…'}
+          {error ??
+            (wallet
+              ? 'Signing in with the sponsor wallet…'
+              : 'Connect the sponsor wallet to see this campaign.')}
         </p>
+        {wallet ? null : (
+          <Button onClick={() => openConnectModal?.()}>Connect the sponsor wallet</Button>
+        )}
+        {error ? (
+          <p className="quiet-rows">
+            <Link href="/sponsor" prefetch={false}>
+              Back to campaigns
+            </Link>
+          </p>
+        ) : null}
       </div>
     );
 
@@ -182,6 +202,7 @@ export function SponsorTable({ id }: { id: string }) {
   const soon = view.expiring.filter((e) => e.expiresAt - now <= 86_400_000).length;
   const template = explorerTemplate(campaign.network);
   const xName = explorerName(campaign.network);
+  const contractHref = contractUrl(campaign.network, campaign.contract);
 
   const download = () => {
     const url = URL.createObjectURL(new Blob([csv(view)], { type: 'text/csv' }));
@@ -194,7 +215,6 @@ export function SponsorTable({ id }: { id: string }) {
 
   return (
     <div className="sponsor-view">
-      <WalletBanner wallet={wallet} />
       <header className="sponsor-hero">
         <h1 className="sponsor-hero__name">
           {campaign.name}{' '}
@@ -211,6 +231,15 @@ export function SponsorTable({ id }: { id: string }) {
         </p>
         <p className="note">
           This hour: {chain.claimsThisHour} claims · ends {dayLabel(campaign.expiresAt)}
+        </p>
+        <p className="note">
+          {'DataDrop '}
+          <Hash
+            value={campaign.contract}
+            kind="contract address"
+            {...(contractHref ? { explorerHref: contractHref } : {})}
+            {...(xName ? { explorerName: xName } : {})}
+          />
         </p>
       </header>
       {auditKey ? (
@@ -285,18 +314,27 @@ export function SponsorTable({ id }: { id: string }) {
                 <td colSpan={4}>No plan expires yet.</td>
               </tr>
             ) : (
-              view.expiring.map((e) => (
-                <tr key={e.arkivKey}>
-                  <td className="mono-key" data-hash title={e.arkivKey}>
-                    {e.arkivKey.slice(0, 14)}…
-                  </td>
-                  <td className="num">{formatMb(e.remainingMb)}</td>
-                  <td>
-                    expires {dayLabel(e.expiresAt)} {clockIst(e.expiresAt)}
-                  </td>
-                  <td>{e.tier}</td>
-                </tr>
-              ))
+              view.expiring.map((e) => {
+                const entity = arkivEntityUrl(e.arkivKey);
+                return (
+                  <tr key={e.arkivKey}>
+                    <td className="mono-key" data-hash title={e.arkivKey}>
+                      {entity ? (
+                        <a href={entity} target="_blank" rel="noreferrer">
+                          {e.arkivKey.slice(0, 14)}…
+                        </a>
+                      ) : (
+                        `${e.arkivKey.slice(0, 14)}…`
+                      )}
+                    </td>
+                    <td className="num">{formatMb(e.remainingMb)}</td>
+                    <td>
+                      expires {dayLabel(e.expiresAt)} {clockIst(e.expiresAt)}
+                    </td>
+                    <td>{e.tier}</td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

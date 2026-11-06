@@ -4,7 +4,7 @@ import type { SVGProps } from 'react';
  * The allowed icon set (design-references §4), drawn from Lucide's paths at stroke-width 1.5, 16 px inline
  * and 20 px in controls, currentColor, never in a tinted circle. Decorative: the adjacent text carries meaning.
  */
-type IconName = 'copy' | 'external' | 'check' | 'warning' | 'close';
+type IconName = 'copy' | 'external' | 'check' | 'warning' | 'close' | 'wallet';
 
 const paths: Record<IconName, readonly string[]> = {
   copy: [
@@ -23,6 +23,11 @@ const paths: Record<IconName, readonly string[]> = {
     'M12 17h.01',
   ],
   close: ['M18 6 6 18', 'm6 6 12 12'],
+  // the header's wallet control (founder, 6 Nov): Lucide `wallet`
+  wallet: [
+    'M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1',
+    'M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4',
+  ],
 };
 
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'children'> {

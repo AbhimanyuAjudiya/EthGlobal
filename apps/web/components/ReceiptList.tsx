@@ -5,10 +5,11 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ReceiptPublic } from '@ethglobal/protocol/schemas';
 import { Hash, Receipt } from '@ethglobal/ui/components';
 
+import { NoPlanSteps } from './PlanView';
 import { AppHeader, Screen, TabBar } from './Shell';
 import { useLang, useNetworkName } from '../i18n/lang';
 import { api } from '../lib/api';
-import { explorerName, explorerTemplate } from '../lib/env';
+import { explorerName, explorerTemplate, hcsTopicUrl } from '../lib/env';
 import { clockIst, dayLabel, formatMb, money } from '../lib/format';
 import { plans } from '../lib/store';
 
@@ -48,10 +49,12 @@ export function ReceiptList({ entitlementKey }: { entitlementKey?: string }) {
   const netName = useNetworkName();
   const [receipts, setReceipts] = useState<ReceiptPublic[] | undefined>();
   const [foreign, setForeign] = useState(false);
+  const [noPlan, setNoPlan] = useState(false);
 
   useEffect(() => {
     void (async () => {
       const key = entitlementKey ?? (await plans.latest());
+      setNoPlan(!key);
       if (!key) return setReceipts([]);
       setForeign(!(await plans.owns(key)));
       setReceipts(await api.receipts(key).catch(() => []));
@@ -137,7 +140,9 @@ export function ReceiptList({ entitlementKey }: { entitlementKey?: string }) {
                       ) : null}
                       {r.hcs ? (
                         <p className="mono-key" data-hash>
-                          HCS {r.hcs.topic} · #{r.hcs.sequence}
+                          <a href={hcsTopicUrl(r.hcs.topic)} target="_blank" rel="noreferrer">
+                            HCS {r.hcs.topic} · #{r.hcs.sequence}
+                          </a>
                         </p>
                       ) : null}
                       {r.uaid ? (
@@ -158,6 +163,7 @@ export function ReceiptList({ entitlementKey }: { entitlementKey?: string }) {
           {t('receipts.csv')}
         </button>
       ) : null}
+      {noPlan ? <NoPlanSteps /> : null}
       <TabBar active="receipts" />
     </Screen>
   );

@@ -1,5 +1,6 @@
 'use client';
 
+import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -9,12 +10,14 @@ import type { GiftReclaimResponse } from '@ethglobal/protocol/schemas';
 import { Button, Hash, Receipt } from '@ethglobal/ui/components';
 
 import { sentGifts, type SentGift } from './GiftForm';
+import { ProofRows } from './IssuingRows';
 import { PinField } from './PinField';
-import { Caution, WalletButton } from './Shell';
+import { Caution } from './Shell';
 import { useLang } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { ApiError } from '../lib/api';
 import { planHref } from '../lib/deliver';
+import { explorerName, explorerTemplate } from '../lib/env';
 import { dayLabel, formatMb, money } from '../lib/format';
 import { useClock, useWallet } from '../lib/hooks';
 import { claimGiftBySignature, reclaimGift, redeemPin } from '../lib/redeem';
@@ -28,6 +31,7 @@ export function ClaimGift({ giftId, name }: { giftId?: string; name?: string }) 
   const { t, lang } = useLang();
   const router = useRouter();
   const { wallet } = useWallet('recipient');
+  const { openConnectModal } = useConnectModal();
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState<string>();
   const [status, setStatus] = useState<string>();
@@ -52,17 +56,17 @@ export function ClaimGift({ giftId, name }: { giftId?: string; name?: string }) 
       <Caution k="warn.thisBrowser" />
       {giftId && name ? (
         <>
-          <WalletButton wallet={wallet} />
           <p lang={lang}>{t('gift.claimSign')}</p>
           <Button
             block
-            disabled={!wallet || working}
-            onClick={() =>
-              wallet && void run(() => claimGiftBySignature(wallet, giftId as Hex, name))
-            }
+            disabled={working}
+            onClick={() => {
+              if (!wallet) openConnectModal?.();
+              else void run(() => claimGiftBySignature(wallet, giftId as Hex, name));
+            }}
             data-testid="claim-by-signature"
           >
-            {`${t('gift.claimButton')} · ${name}`}
+            {wallet ? `${t('gift.claimButton')} · ${name}` : t('wallet.connectToClaim')}
           </Button>
         </>
       ) : null}
@@ -99,6 +103,7 @@ export function ReclaimGift({ refreshKey = 0 }: { refreshKey?: number }) {
   const { t, lang } = useLang();
   const now = useClock(30_000);
   const { wallet } = useWallet('human');
+  const { openConnectModal } = useConnectModal();
   const [gifts, setGifts] = useState<SentGift[]>([]);
   const [done, setDone] = useState<Record<string, GiftReclaimResponse>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -117,6 +122,10 @@ export function ReclaimGift({ refreshKey = 0 }: { refreshKey?: number }) {
         {gifts.map((g) => {
           const refunded = done[g.giftId];
           const open = now >= g.claimBy;
+          const refundTx = refunded
+            ? explorerTemplate(refunded.network)?.replace('{hash}', refunded.tx)
+            : undefined;
+          const xName = explorerName(refunded?.network);
           return (
             <li key={g.giftId} data-testid="reclaim-row">
               <span>
@@ -132,19 +141,35 @@ export function ReclaimGift({ refreshKey = 0 }: { refreshKey?: number }) {
               ) : (
                 <Button
                   variant="secondary"
-                  disabled={!wallet || !open}
+                  disabled={!open}
                   onClick={() => {
-                    if (!wallet) return;
+                    if (!wallet) {
+                      openConnectModal?.();
+                      return;
+                    }
                     reclaimGift(wallet, g.giftId as Hex).then(
                       (r) => setDone((d) => ({ ...d, [g.giftId]: r })),
                       (e: unknown) => setErrors((x) => ({ ...x, [g.giftId]: errText(t, e) })),
                     );
                   }}
                 >
-                  {open ? t('gift.reclaimButton') : t('gift.reclaimTooEarly')}
+                  {!open
+                    ? t('gift.reclaimTooEarly')
+                    : wallet
+                      ? t('gift.reclaimButton')
+                      : t('wallet.connectToReclaim')}
                 </Button>
               )}
-              {refunded ? <Hash value={refunded.tx} kind="refund transaction" /> : null}
+              {refunded ? (
+                <Hash
+                  value={refunded.tx}
+                  kind="refund transaction"
+                  {...(refundTx ? { explorerHref: refundTx } : {})}
+                  {...(xName ? { explorerName: xName } : {})}
+                  lang={lang}
+                />
+              ) : null}
+              {refunded ? <ProofRows receipt={refunded.receipt} /> : null}
               {errors[g.giftId] ? <span className="note">{errors[g.giftId]}</span> : null}
             </li>
           );

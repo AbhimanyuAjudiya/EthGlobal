@@ -21,6 +21,8 @@ export interface CouponProps {
   mb: number;
   /** Who paid, named like a donor on a plaque: "Hedera". Omitted for a bundle the traveller paid for. */
   sponsor?: string;
+  /** Why the plan exists, after the amount: "Paid · $1.20 USDC", "Scratch card". Default: "because you're human". */
+  reason?: string;
   /** 16 digits (15 random + Verhoeff check). Rendered 4 × 4 in Chivo Mono; omitted until known. */
   pin?: string;
   /** When usage was measured (ms); renders "usage as of 14:02". */
@@ -72,6 +74,7 @@ function Amount({ mb }: { mb: number }) {
 export function Coupon({
   mb,
   sponsor,
+  reason,
   pin,
   usageAsOf,
   timeZone = DEFAULT_TIME_ZONE,
@@ -110,7 +113,7 @@ export function Coupon({
           {from ? `${SEP}${from}` : null}
         </p>
         <p className="coupon__line">
-          {strings.human}.{note ? ` ${note}` : null}
+          {reason ?? strings.human}.{note ? ` ${note}` : null}
         </p>
       </article>
     );
@@ -148,7 +151,7 @@ export function Coupon({
         <span className="coupon__line">
           <span className="ui-visually-hidden">{SEP}</span>
           {from ? `${from}${SEP}` : null}
-          {strings.human}
+          {reason ?? strings.human}
         </span>
       </p>
       {variant === 'print' && lang !== 'hi' ? (

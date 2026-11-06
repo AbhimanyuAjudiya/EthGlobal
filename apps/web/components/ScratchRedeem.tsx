@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -99,6 +100,17 @@ export function ScratchRedeem({ serial }: { serial?: string }) {
       {preview ? (
         <p className="card__state" data-testid="card-state" data-state={preview.state} lang={lang}>
           {formatMb(preview.mb)} · {t(`card.state.${preview.state}`)}
+        </p>
+      ) : null}
+      {closed ? (
+        // a redeemed or expired card is not a dead end: the plan it became, or data to buy
+        <p className="quiet-rows" lang={lang}>
+          <Link href="/plan" prefetch={false}>
+            {t('landing.open')}
+          </Link>
+          <Link href="/pay" prefetch={false}>
+            {t('hub.buy')}
+          </Link>
         </p>
       ) : null}
       {!closed ? (

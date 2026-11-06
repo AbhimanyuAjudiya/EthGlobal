@@ -30,7 +30,7 @@ async function sendGift(page: Page, mb: '300' | '1' = '1') {
     .replace(/^PIN\s*/, '')
     .trim();
   const serial = (await result.locator('.boarding-pass__serial').innerText()).trim();
-  const href = await result.getByRole('link', { name: 'Claim a gift' }).getAttribute('href');
+  const href = await result.getByRole('link', { name: 'Share claim link' }).getAttribute('href');
   return { pin, serial, claimHref: href ?? '' };
 }
 

@@ -54,19 +54,38 @@ export const config = {
   chainId,
 } as const;
 
+/** Hedera and Hedera's EVM (295 / 296, where DataDrop lives): HashScan, which takes `0.0.x@s.n` ids and 0x hashes alike. */
+const onHashScan = (network: string | undefined): boolean =>
+  Boolean(network?.startsWith('hedera:')) || network === 'eip155:295' || network === 'eip155:296';
+
 /** Explorer URL template for a transaction on `network` (CAIP-2), `{hash}` placeholder; undefined → no link. */
 export function explorerTemplate(network: string | undefined): string | undefined {
-  if (network?.startsWith('hedera:')) return `${config.explorerHedera}/transaction/{hash}`;
+  if (onHashScan(network)) return `${config.explorerHedera}/transaction/{hash}`;
   if (network?.startsWith('eip155:') && config.explorerEvm)
     return `${config.explorerEvm}/tx/{hash}`;
   return undefined;
 }
 
 export function explorerName(network: string | undefined): string | undefined {
-  if (network?.startsWith('hedera:')) return 'HashScan';
+  if (onHashScan(network)) return 'HashScan';
   if (network?.startsWith('eip155:') && config.explorerEvm) return 'Explorer';
   return undefined;
 }
+
+/** A contract's explorer page (the sponsor's DataDrop); undefined → no link (local chain). */
+export function contractUrl(network: string | undefined, address: string): string | undefined {
+  if (onHashScan(network)) return `${config.explorerHedera}/contract/${address}`;
+  if (network?.startsWith('eip155:') && config.explorerEvm)
+    return `${config.explorerEvm}/address/${address}`;
+  return undefined;
+}
+
+/** An Arkiv entity's explorer page; only a real entity key (0x + 64 hex) has one — not a local ledger or logical key. */
+export const arkivEntityUrl = (key: string): string | undefined =>
+  /^0x[0-9a-fA-F]{64}$/.test(key) ? `${config.arkivExplorer}/entity/${key}` : undefined;
+
+/** The HCS topic a receipt was logged to, on HashScan (`0.0.x`). */
+export const hcsTopicUrl = (topic: string): string => `${config.explorerHedera}/topic/${topic}`;
 
 /** Network name for travellers — never a chain id (design-references §7 #7). */
 export function networkName(network: string | undefined): string {

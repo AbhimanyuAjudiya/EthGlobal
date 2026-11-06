@@ -1,5 +1,6 @@
 'use client';
 
+import { useConnectModal } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
@@ -11,14 +12,16 @@ import type {
   EntitledResponse,
   MeResponse,
   PaymentRequirements,
+  ReceiptRef,
   TopUpResponse,
 } from '@ethglobal/protocol/schemas';
 import { sessionNonce, type PaymentSigner } from '@ethglobal/protocol/x402';
 import { Button, MbMeter, RuledList } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
+import { ProofRows } from './IssuingRows';
 import { QrCode } from './QrCode';
-import { AppHeader, Caution, Screen, TabBar, useWalletLabel, WalletButton } from './Shell';
+import { AppHeader, Caution, Screen, TabBar, useWalletLabel } from './Shell';
 import { useLang, useNetworkName } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
@@ -54,6 +57,10 @@ import type { HashPackSession } from '../lib/hedera-wc';
 
 const BALANCE_ABI = parseAbi(['function balanceOf(address) view returns (uint256)']);
 const SIZES = [100, 200, 300];
+
+/** A Hedera offer on an LPA-delivering route: HashPack cannot carry the session key yet, so it pays top-ups only (RT-W-14). */
+const sessionBound = (a: PaymentRequirements | undefined): boolean =>
+  Boolean(a?.network.startsWith('hedera:')) && a?.extra?.sessionKeyRequired === true;
 
 /** MODE=local only: the e2e tamper hook, compiled out of a live build (lib/local/test-hooks.ts, RT-W-12). */
 async function tamperAmount(): Promise<boolean> {
@@ -226,6 +233,7 @@ function PaySheetBody({
   const router = useRouter();
   const { plans } = usePlans();
   const { wallet } = useWallet('human');
+  const { openConnectModal } = useConnectModal();
   const { row, dispatch, now } = useOnchainAction();
   const clock = useClock(1000);
   const [mb, setMb] = useState(
@@ -237,6 +245,7 @@ function PaySheetBody({
   const [balances, setBalances] = useState<Record<string, bigint>>({});
   const [me, setMe] = useState<MeResponse | undefined>();
   const [result, setResult] = useState<string | undefined>();
+  const [receipt, setReceipt] = useState<ReceiptRef | undefined>();
   const [doneKey, setDoneKey] = useState<string | undefined>();
   const [hp, setHp] = useState<HashPackState>({});
 
@@ -256,7 +265,11 @@ function PaySheetBody({
         if (!alive) return;
         setQuoteError(undefined);
         setQ(next);
-        setNetwork((current) => current ?? next.required.accepts[0]?.network);
+        // a new plan starts on a network that can pay for it, not on Hedera (RT-W-14: the API lists Hedera first)
+        const offers = next.required.accepts;
+        setNetwork(
+          (current) => current ?? (offers.find((a) => !sessionBound(a)) ?? offers[0])?.network,
+        );
       },
       (e: unknown) =>
         alive && setQuoteError(t(errorKey(e instanceof ApiError ? e.code : 'network'))),
@@ -301,13 +314,14 @@ function PaySheetBody({
   const balance = chosen ? balances[chosen.network] : undefined;
 
   // an LPA-delivering route binds the session key, which a Hedera payload cannot carry yet (octroi refuses it)
-  const hederaSessionBound = isHedera && chosen?.extra?.sessionKeyRequired === true;
+  const hederaSessionBound = sessionBound(chosen);
+  const payableInstead = hederaSessionBound ? accepts.find((a) => !sessionBound(a)) : undefined;
   let blocked: string | undefined;
   if (quoteError) blocked = quoteError;
   else if (hederaSessionBound) blocked = t('pay.hederaTopupOnly');
   else if (isHedera && hp.session?.chain !== chosen?.network) blocked = t('pay.hashpackNeeded');
-  else if (isHedera) blocked = undefined;
-  else if (!wallet) blocked = t('pay.noWallet');
+  // no wallet yet: the pay button itself opens the connect modal
+  else if (isHedera || !wallet) blocked = undefined;
   else if (chosen && wallet.network !== chosen.network)
     blocked = t('pay.wrongNetwork', {
       wallet: walletLabel(wallet),
@@ -316,6 +330,7 @@ function PaySheetBody({
     });
   else if (chosen && balance !== undefined && balance < BigInt(chosen.amount))
     blocked = t('pay.lowBalance', { balance: usdcBalance(balance), price });
+  const connectFirst = !blocked && !isHedera && !wallet;
 
   const onConnect = useCallback(async () => {
     if (!chosen) return;
@@ -366,6 +381,7 @@ function PaySheetBody({
       if (entitlementKey) {
         const body = paid.data as TopUpResponse;
         setResult(t('pay.result', { mb: formatMb(mb), total: formatMb(body.mbTotal) }));
+        setReceipt(body.receipt);
         setMe((m) =>
           m
             ? {
@@ -384,6 +400,7 @@ function PaySheetBody({
           you: money(chosen.amount),
         });
         setResult(t('pay.resultNew', { mb: formatMb(mb) }));
+        setReceipt(body.receipt);
         setDoneKey(key);
       }
       await followTransaction({
@@ -442,7 +459,6 @@ function PaySheetBody({
   return (
     <Screen money>
       <AppHeader />
-      <WalletButton wallet={wallet} />
       {!entitlementKey ? (
         <>
           <p className="note" lang={lang}>
@@ -515,13 +531,16 @@ function PaySheetBody({
         networkLabel={netName(chosen?.network)}
         review={review}
         worstCase={t('pay.worst', { mmss: mmss(approvalLeft) })}
-        actionLabel={t('pay.button', { price })}
+        actionLabel={connectFirst ? t('wallet.connectToPay') : t('pay.button', { price })}
         walletName={isHedera ? 'HashPack' : walletLabel(wallet)}
         simulation={t('pay.simulation', { price, mb: formatMb(mb) })}
         {...(result ? { result } : {})}
         {...(blocked ? { blocked } : {})}
         expectedMs={expectedMsFor(chosen?.network)}
-        onConfirm={() => void onConfirm()}
+        onConfirm={() => {
+          if (connectFirst) openConnectModal?.();
+          else void onConfirm();
+        }}
         onRetry={() => {
           dispatch({ type: 'retry' });
           setQuoteRound((n) => n + 1);
@@ -529,7 +548,21 @@ function PaySheetBody({
         lang={lang}
         className="pay__sheet"
       />
-      {doneKey && (row.state === 'confirmed' || row.state === 'finalized') ? (
+      {quoteError && row.state === 'idle' ? (
+        // the price did not load (network, API): ask again rather than leave a disabled button
+        <Button block variant="secondary" onClick={() => setQuoteRound((n) => n + 1)}>
+          {t('verify.retry')}
+        </Button>
+      ) : null}
+      {payableInstead && row.state === 'idle' ? (
+        // a new plan cannot be paid on Hedera: one tap moves the buyer to the network that can (RT-W-14)
+        <Button block variant="secondary" onClick={() => setNetwork(payableInstead.network)}>
+          {t('pay.useNetwork', { network: netName(payableInstead.network) })}
+        </Button>
+      ) : null}
+      {receipt && row.state !== 'failed' ? <ProofRows receipt={receipt} /> : null}
+      {/* the plan exists once the API settled, even while the chain read is still catching up */}
+      {doneKey && row.state !== 'failed' ? (
         <button
           type="button"
           className="ui-button ui-button--block"

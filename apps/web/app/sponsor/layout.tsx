@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { SiteMenu, TestnetStrip } from '../../components/Shell';
+import { HeaderWallet, SiteMenu, TestnetStrip } from '../../components/Shell';
 
 import type { ReactNode } from 'react';
 
@@ -24,7 +24,13 @@ export default function SponsorLayout({ children }: { children: ReactNode }) {
           <a href="#expiring-title">Quotas</a>
           <a href="#controls-title">Settings</a>
         </nav>
-        <main className="console__main">{children}</main>
+        <main className="console__main">
+          {/* the sponsor wallet: the same one control as every traveller screen, top-right */}
+          <div className="console__wallet">
+            <HeaderWallet />
+          </div>
+          {children}
+        </main>
       </div>
     </div>
   );

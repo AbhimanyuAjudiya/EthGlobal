@@ -34,6 +34,7 @@ export async function deliver(
     arkivKey: res.receipt.arkivKey,
     ...(res.claimTx ? { claimTx: res.claimTx } : {}),
     ...(res.settlement?.success ? { settlement: res.settlement.transaction } : {}),
+    ...(res.receipt.hcs ? { hcs: res.receipt.hcs } : {}),
   });
   return key;
 }

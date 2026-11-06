@@ -453,10 +453,12 @@ export function CampaignForm() {
     hint?: string,
     type = 'text',
     describedBy?: string,
+    error?: string,
   ) => (
     <Field
       label={label}
       {...(hint ? { hint } : {})}
+      {...(error ? { error } : {})}
       {...(describedBy ? { 'aria-describedby': describedBy } : {})}
       value={draft[key]}
       disabled={running || Boolean(resume)}
@@ -474,6 +476,18 @@ export function CampaignForm() {
       data-testid={`campaign-${key}`}
     />
   );
+
+  // the hourly limit is a share of the cap; more per hour than in total is a typo the contract would accept
+  const capN = /^\d{1,9}$/.test(draft.maxClaims.trim())
+    ? Number(draft.maxClaims.trim())
+    : undefined;
+  const perHourN = /^\d{1,9}$/.test(draft.perHour.trim())
+    ? Number(draft.perHour.trim())
+    : undefined;
+  const perHourError =
+    capN !== undefined && perHourN !== undefined && perHourN > capN
+      ? `At most the claims cap (${capN}): the hourly limit cannot exceed the total.`
+      : undefined;
 
   const run = useCallback(async () => {
     if (!wallet) return;
@@ -496,6 +510,7 @@ export function CampaignForm() {
         const price = usd6(draft.priceUsd);
         if (!selectedPlan || !supportedPackage(selectedPlan.mb))
           throw new Error(t('event.choosePlan'));
+        if (perHourError) throw new Error(perHourError);
         const startsAt = new Date(draft.startsAt).getTime();
         const endsAt = new Date(draft.endsAt).getTime();
         // a blank claim deadline is the event end, as a blank review date is
@@ -688,7 +703,7 @@ export function CampaignForm() {
       if (txs.length || evidence.response || evidence.error !== undefined)
         setProof(buildProof({ ...evidence, txs }));
     }
-  }, [wallet, ensureChain, draft, running, approve, create, hedera, selectedPlan, t]);
+  }, [wallet, ensureChain, draft, running, approve, create, hedera, selectedPlan, t, perHourError]);
 
   /** Set the saved draft aside (ARCHIVE keeps it: it names locked funds) and open a fresh form. */
   const startNew = () => {
@@ -1129,7 +1144,7 @@ export function CampaignForm() {
               <div className="grid items-start gap-4 sm:grid-cols-2">
                 {field('priceUsd', 'Paid per claim (USDC)', priceHint)}
                 {field('maxClaims', 'Claims cap')}
-                {field('perHour', 'Claims per hour')}
+                {field('perHour', 'Claims per hour', undefined, undefined, undefined, perHourError)}
                 {field('budgetUsd', 'Budget (USDC)')}
               </div>
               {totalLine ? (
@@ -1232,7 +1247,9 @@ export function CampaignForm() {
                 type="submit"
                 size="lg"
                 block
-                disabled={running || fundingBlocked || (!resume && !selectedPlan)}
+                disabled={
+                  running || fundingBlocked || (!resume && !selectedPlan) || Boolean(perHourError)
+                }
                 data-testid="campaign-submit"
               >
                 {resume ? 'Resume this campaign' : `Create campaign · ${budgetText}`}

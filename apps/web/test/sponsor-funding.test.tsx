@@ -169,6 +169,13 @@ describe('Hedera campaign funding readiness', () => {
     fireEvent.change(screen.getByTestId('campaign-budgetUsd'), { target: { value: '20' } });
     fireEvent.change(screen.getByTestId('campaign-maxClaims'), { target: { value: '5' } });
     expect(screen.getByTestId<HTMLInputElement>('campaign-budgetUsd').value).toBe('20');
+    // the hourly limit may not exceed the cap: the field says so and the create button waits
+    fireEvent.change(screen.getByTestId('campaign-perHour'), { target: { value: '1000' } });
+    expect(screen.getByTestId('campaign-perHour').getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByText(/At most the claims cap \(5\)/)).toBeTruthy();
+    expect(screen.getByTestId('campaign-submit').hasAttribute('disabled')).toBe(true);
+    fireEvent.change(screen.getByTestId('campaign-perHour'), { target: { value: '5' } });
+    expect(screen.getByTestId('campaign-perHour').getAttribute('aria-invalid')).toBeNull();
   });
   it('queries the actual pool token using the sponsor as the HRC719 caller', async () => {
     expect(await readSponsorFunding(mocks.wallet as unknown as Wallet)).toEqual({

@@ -112,6 +112,20 @@ const click = (button: HTMLElement) =>
     await Promise.resolve();
   });
 
+it('is one kit screen: Stepper at Prove, the title, "What you get" from /plans and the per-human notice', async () => {
+  const { button } = await mount();
+  expect(
+    screen.getByRole('list', { name: 'Steps' }).querySelector('[aria-current="step"]')?.textContent,
+  ).toBe('1Prove');
+  expect(screen.getByRole('heading', { level: 1 }).textContent).toBe("Prove you're one human");
+  const tiers = screen.getByTestId('tier-ledger');
+  expect(tiers.textContent).toContain('What you get');
+  expect(tiers.textContent).toMatch(/Orb.*300\sMB free.*Document.*150\sMB free/);
+  expect(screen.getByText('One free bundle per human, not per phone.')).toBeTruthy();
+  expect(button.closest('.action-bar')).toBeTruthy();
+  vi.unstubAllEnvs();
+});
+
 describe('VerifySheet — a slow or lost claim answer (RT-W-13)', () => {
   afterEach(() => {
     vi.useRealTimers();

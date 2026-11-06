@@ -1,16 +1,30 @@
 'use client';
 
 import { useConnectModal } from '@rainbow-me/rainbowkit';
-import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { Hex } from '@ethglobal/protocol/ids';
 import type { SponsorView } from '@ethglobal/protocol/schemas';
-import { Button, Hash } from '@ethglobal/ui/components';
+import { Hash } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
 import { CampaignAnalytics } from './CampaignAnalytics';
 import { EnsCampaign } from './EnsCampaign';
+import {
+  Button,
+  ButtonLink,
+  Card,
+  EmptyState,
+  ListGroup,
+  ListRow,
+  Notice,
+  PageHeader,
+  Pill,
+  Section,
+  Skeleton,
+  StatTile,
+  Table,
+} from './kit';
 import { ProofPanel } from './ProofPanel';
 import { SlideToConfirm } from './SlideToConfirm';
 import { SponsorTickets } from './SponsorTickets';
@@ -37,7 +51,7 @@ const enIN = new Intl.NumberFormat('en-IN');
 const TIERS = ['orb', 'document', 'device'] as const;
 const HOURS = 24;
 
-/** One line of claims per hour, --series-1, no fill, the hourly cap as a dashed rule, axes labelled. */
+/** One line of claims per hour (brand, no fill), the hourly cap as a dashed rule, axes labelled. */
 function ClaimsPerHour({
   claims,
   cap,
@@ -57,30 +71,49 @@ function ClaimsPerHour({
   const x = (i: number) => 32 + (i / (HOURS - 1)) * (w - 40);
   const y = (v: number) => h - 20 - (v / max) * (h - 32);
   const points = buckets.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const label = 'fill-ink-tertiary';
   return (
     <figure
-      className="chart"
+      className="m-0 grid gap-2"
       aria-label={`Claims per hour, last ${HOURS} hours; hourly cap ${cap}`}
     >
-      <svg viewBox={`0 0 ${w} ${h}`} role="img" aria-hidden="true">
-        <line x1="32" x2={w - 8} y1={y(cap)} y2={y(cap)} className="chart__cap" />
-        <line x1="32" x2={w - 8} y1={h - 20} y2={h - 20} className="chart__axis" />
-        <line x1="32" x2="32" y1="12" y2={h - 20} className="chart__axis" />
-        <text x="4" y={h - 17} className="chart__label">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        role="img"
+        aria-hidden="true"
+        className="h-auto w-full"
+        fontSize="8"
+      >
+        <line
+          x1="32"
+          x2={w - 8}
+          y1={y(cap)}
+          y2={y(cap)}
+          className="chart__cap stroke-ink-tertiary"
+          strokeDasharray="4 3"
+        />
+        <line x1="32" x2={w - 8} y1={h - 20} y2={h - 20} className="stroke-border-strong" />
+        <line x1="32" x2="32" y1="12" y2={h - 20} className="stroke-border-strong" />
+        <text x="4" y={h - 17} className={label}>
           0
         </text>
-        <polyline points={points} className="chart__line" />
-        <text x="4" y={y(cap) + 4} className="chart__label">
+        <polyline
+          points={points}
+          className="chart__line fill-none stroke-brand"
+          strokeWidth="2"
+          strokeLinejoin="round"
+        />
+        <text x="4" y={y(cap) + 4} className={label}>
           {cap}/h
         </text>
-        <text x="32" y={h - 4} className="chart__label">
+        <text x="32" y={h - 4} className={label}>
           −24 h
         </text>
-        <text x={w - 8} y={h - 4} textAnchor="end" className="chart__label">
+        <text x={w - 8} y={h - 4} textAnchor="end" className={label}>
           now
         </text>
       </svg>
-      <figcaption className="note">
+      <figcaption className="note note--quiet">
         Claims per hour, last 24 h · dashed rule = hourly cap
       </figcaption>
     </figure>
@@ -242,25 +275,40 @@ export function SponsorTable({ id }: { id: string }) {
 
   if (!view)
     return (
-      <div className="sponsor-view">
-        <p className="note" role="status">
-          {error ??
-            (wallet
-              ? 'Signing in with the sponsor wallet…'
-              : 'Connect the sponsor wallet to see this campaign.')}
-        </p>
-        {wallet ? null : (
-          <Button onClick={() => openConnectModal?.()}>Connect the sponsor wallet</Button>
-        )}
-        {wallet && error ? <Button onClick={() => void signIn()}>Sign in again</Button> : null}
+      <>
+        <PageHeader title="Campaign" />
         {error ? (
-          <p className="quiet-rows">
-            <Link href="/sponsor" prefetch={false}>
-              Back to campaigns
-            </Link>
-          </p>
-        ) : null}
-      </div>
+          <Notice
+            tone="negative"
+            action={
+              <div className="flex flex-wrap gap-2">
+                {wallet ? <Button onClick={() => void signIn()}>Sign in again</Button> : null}
+                <ButtonLink href="/sponsor" variant="quiet">
+                  Back to campaigns
+                </ButtonLink>
+              </div>
+            }
+          >
+            <p role="status">{error}</p>
+          </Notice>
+        ) : wallet ? (
+          <>
+            <p className="note" role="status">
+              Signing in with the sponsor wallet…
+            </p>
+            <Skeleton shape="card" />
+          </>
+        ) : (
+          <Notice
+            tone="info"
+            action={
+              <Button onClick={() => openConnectModal?.()}>Connect the sponsor wallet</Button>
+            }
+          >
+            <p role="status">Connect the sponsor wallet to see this campaign.</p>
+          </Notice>
+        )}
+      </>
     );
 
   const { campaign, chain } = view;
@@ -285,71 +333,300 @@ export function SponsorTable({ id }: { id: string }) {
   };
 
   return (
-    <div className="sponsor-view">
-      <header className="pane sponsor-hero" aria-label="Campaign summary">
-        <h1 className="sponsor-hero__name">
-          {campaign.name}{' '}
-          <span className="pill" data-state={expired ? 'closed' : chain.paused ? 'paused' : 'live'}>
-            {expired ? t('event.closed') : chain.paused ? 'Paused' : 'Live'}
-          </span>
-        </h1>
-        <div className="sponsor-hero__figures">
-          <p className="sponsor-hero__figure" data-testid="sponsor-claims">
-            {enIN.format(chain.claims)} claims
-          </p>
-          <p className="sponsor-hero__line">
+    <>
+      <PageHeader
+        title={
+          <>
+            {campaign.name}{' '}
+            <Pill tone={expired ? 'neutral' : chain.paused ? 'warning' : 'positive'} dot>
+              {expired ? t('event.closed') : chain.paused ? 'Paused' : 'Live'}
+            </Pill>
+          </>
+        }
+        lead={
+          <>
+            <span data-testid="sponsor-claims">{enIN.format(chain.claims)} claims</span> ·{' '}
             {money(spent)} of {money(budget)} · {enIN.format(campaign.maxClaims)} cap ·{' '}
             {campaign.claimsPerHour}/h · {networkName(campaign.network)}
-          </p>
-        </div>
-        {/* the one delta: a line under the hero, never a "+12.5 %" chip */}
-        <p className="sponsor-hero__delta">
-          This hour: {chain.claimsThisHour} claims · ends {dayLabel(campaign.expiresAt)}
-        </p>
-        <p className="note">
-          {'DataDrop '}
-          <Hash
-            value={campaign.contract}
-            kind="contract address"
-            {...(contractHref ? { explorerHref: contractHref } : {})}
-            {...(xName ? { explorerName: xName } : {})}
-          />
-        </p>
-      </header>
-      {campaign.event ? (
-        <section className="pane" lang={lang} aria-label={t('event.details')}>
-          <h2 className="pane__title">{t('event.details')}</h2>
-          <p>
-            {campaign.event.destinationCountry} · {dayLabel(campaign.event.startsAt)} —{' '}
-            {dayLabel(campaign.event.endsAt)}
-          </p>
-          <p className="note">
-            {t('event.dashboardPackage', {
-              id: campaign.planId,
-              mb: formatMb(campaign.bundleMb.orb),
-              days: campaign.validityDays,
-            })}
-          </p>
-          <p className="note">{t('event.ticketNotice')}</p>
-          <p className="note">
-            {t(campaign.event.reclaimUnused ? 'event.reclaimTerms' : 'event.reclaimOff')}
-          </p>
-          {campaign.event.reclaimUnused ? (
-            <p className="note">
-              {t('event.reclaimScheduled', {
-                date: `${dayLabel(campaign.event.reclaimAfter)} ${clockIst(campaign.event.reclaimAfter)}`,
-              })}
-            </p>
-          ) : null}
-        </section>
-      ) : null}
+          </>
+        }
+      />
       {auditKey ? (
-        <section className="audit-key" data-testid="audit-key">
-          <h2 className="pane__title">Audit key · shown once</h2>
+        <Notice tone="positive" data-testid="audit-key" title="Audit key · shown once">
           <Hash value={auditKey} kind="audit key" />
-        </section>
+        </Notice>
       ) : null}
-      <EnsCampaign campaign={campaign} />
+      {!login || error ? (
+        <Notice
+          tone="warning"
+          action={!login ? <Button onClick={() => void signIn()}>Sign in again</Button> : undefined}
+        >
+          {error ? <p role="status">{error}</p> : <p>Sign in to refresh this campaign.</p>}
+        </Notice>
+      ) : null}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatTile
+          label="Claims"
+          value={enIN.format(chain.claims)}
+          hint={`of ${enIN.format(campaign.maxClaims)} cap`}
+        />
+        <StatTile label="Spent" value={money(spent)} hint={`${spentPct} % of ${money(budget)}`} />
+        <StatTile
+          label="Remaining"
+          value={money(budget - spent)}
+          hint={`ends ${dayLabel(campaign.expiresAt)}`}
+        />
+        <StatTile
+          label="Claims/h"
+          value={enIN.format(chain.claimsThisHour)}
+          hint={`this hour · cap ${campaign.claimsPerHour}/h`}
+        />
+      </div>
+      <Card as="section" aria-label="Claims per hour">
+        <ClaimsPerHour claims={view.claims} cap={campaign.claimsPerHour} now={now} />
+      </Card>
+      <Section title="Claims by credential level">
+        <Table
+          caption="Claims by credential level"
+          columns={[
+            { key: 'level', label: 'Level' },
+            { key: 'claims', label: 'Claims', numeric: true },
+            { key: 'mb', label: 'MB issued', numeric: true },
+            { key: 'cost', label: 'Cost (USDC)', numeric: true },
+            { key: 'avg', label: 'Avg MB', numeric: true },
+          ]}
+          rows={byTier.map((r) => ({
+            level: r.tier === 'orb' ? 'Orb' : r.tier === 'document' ? 'Document' : 'Device',
+            claims: r.claims,
+            mb: enIN.format(r.mb),
+            cost: money(r.cost),
+            avg: r.avg,
+          }))}
+        />
+      </Section>
+      <Section title={`Expiring quotas · ${soon} plans expire in 24 h`} id="expiring-title">
+        {view.expiring.length === 0 ? (
+          <Card>
+            <EmptyState title="No plan expires yet" body="Plans show here a day before they end." />
+          </Card>
+        ) : (
+          <Table
+            caption="Expiring quotas"
+            columns={[
+              { key: 'key', label: 'Arkiv key' },
+              { key: 'mb', label: 'MB left', numeric: true },
+              { key: 'expires', label: 'Expires' },
+              { key: 'tier', label: 'Tier' },
+            ]}
+            rowKey={(_, i) => view.expiring[i]?.arkivKey ?? String(i)}
+            rows={view.expiring.map((e) => {
+              const entity = arkivEntityUrl(e.arkivKey);
+              return {
+                key: (
+                  <span className="mono-key" data-hash title={e.arkivKey}>
+                    {entity ? (
+                      <a href={entity} target="_blank" rel="noreferrer">
+                        {e.arkivKey.slice(0, 14)}…
+                      </a>
+                    ) : (
+                      `${e.arkivKey.slice(0, 14)}…`
+                    )}
+                  </span>
+                ),
+                mb: formatMb(e.remainingMb),
+                expires: `expires ${dayLabel(e.expiresAt)} ${clockIst(e.expiresAt)}`,
+                tier: e.tier,
+              };
+            })}
+          />
+        )}
+      </Section>
+      <Section title="Claims" id="claims-title">
+        {view.claims.length === 0 ? (
+          <Card>
+            <EmptyState
+              title="No claims yet"
+              body="Claims appear here as travellers prove they are human."
+            />
+          </Card>
+        ) : (
+          <Table
+            caption="Claims"
+            data-testid="claims-table"
+            columns={[
+              { key: 'time', label: 'Time' },
+              { key: 'key', label: 'Claim key (HMAC)' },
+              { key: 'tier', label: 'Tier' },
+              { key: 'mb', label: 'MB', numeric: true },
+              { key: 'cost', label: 'Cost', numeric: true },
+              { key: 'tx', label: 'Tx' },
+              { key: 'status', label: 'Status' },
+            ]}
+            rowKey={(_, i) => {
+              const c = view.claims[i];
+              return c ? `${c.campaignClaimKey}-${c.at}` : String(i);
+            }}
+            rows={view.claims.map((c) => ({
+              time: (
+                <span data-testid="claim-row">
+                  {dayLabel(c.at)} {clockIst(c.at)}
+                </span>
+              ),
+              key: <Hash value={c.campaignClaimKey} kind="claim key" />,
+              tier: c.tier,
+              mb: c.mb,
+              cost: money(c.usd6),
+              tx: c.tx ? (
+                <Hash
+                  value={c.tx}
+                  kind="transaction hash"
+                  {...(template ? { explorerHref: template.replace('{hash}', c.tx) } : {})}
+                  {...(xName ? { explorerName: xName } : {})}
+                />
+              ) : (
+                '—'
+              ),
+              status: c.status,
+            }))}
+          />
+        )}
+      </Section>
+      <Section title="Exports" id="exports-title">
+        <Card className="grid gap-3">
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={download}>
+              Export claims CSV (HMAC&apos;d keys)
+            </Button>
+            <Button
+              variant="quiet"
+              data-testid="arkiv-query"
+              onClick={() => {
+                void navigator.clipboard?.writeText(arkivQuery).then(
+                  () => setCopied(true),
+                  () => setCopied(false),
+                );
+              }}
+            >
+              Copy Arkiv query
+            </Button>
+          </div>
+          <p className="note">
+            <code data-hash>{arkivQuery}</code>
+          </p>
+          <p className="note" role="status">
+            {copied === true
+              ? 'Arkiv query copied.'
+              : copied === false
+                ? 'Copy failed: select the query above.'
+                : ''}
+          </p>
+        </Card>
+      </Section>
+      <Section title="Controls" id="controls-title">
+        <Card className="grid gap-4">
+          <p className="note" lang={lang}>
+            {t('event.unspentTerms')}
+          </p>
+          {chain.paused ? (
+            <Button
+              variant="secondary"
+              onClick={() =>
+                void runTx(
+                  'Resume the campaign',
+                  pauseCall(campaign.id as Hex, false),
+                  'proof.pauseTx',
+                )
+              }
+            >
+              Resume claims
+            </Button>
+          ) : (
+            <SlideToConfirm
+              label="Slide to pause claims"
+              releaseLabel="Release to pause"
+              disabled={!wallet}
+              onConfirm={() =>
+                void runTx(
+                  'Pause the campaign',
+                  pauseCall(campaign.id as Hex, true),
+                  'proof.pauseTx',
+                )
+              }
+            />
+          )}
+          <Button
+            variant="quiet"
+            disabled={!expired}
+            onClick={() =>
+              void runTx(
+                'Refund the unspent budget',
+                refundCall(campaign.id as Hex),
+                'proof.refundTx',
+              )
+            }
+          >
+            {expired
+              ? `Refund ${money(budget - spent)}`
+              : `Refund opens after ${dayLabel(campaign.expiresAt)}`}
+          </Button>
+          {actionTitle ? (
+            <ActionView
+              row={action.row}
+              now={action.now}
+              title={actionTitle}
+              network={campaign.network}
+              networkLabel={networkName(campaign.network)}
+              actionLabel={actionTitle}
+              walletName={wallet?.name ?? 'your wallet'}
+              result={chain.paused ? 'Campaign paused · no new claims' : 'Done'}
+              expectedMs={expectedMsFor(campaign.network)}
+            />
+          ) : null}
+          <ProofPanel proof={proof} />
+        </Card>
+      </Section>
+      <Section title={campaign.event ? t('event.details') : 'Details'} lang={lang}>
+        <ListGroup label="Campaign details">
+          {campaign.event ? (
+            <>
+              <ListRow
+                title={campaign.event.destinationCountry}
+                subtitle={`${dayLabel(campaign.event.startsAt)} — ${dayLabel(campaign.event.endsAt)}`}
+              />
+              <ListRow
+                title={t('event.dashboardPackage', {
+                  id: campaign.planId,
+                  mb: formatMb(campaign.bundleMb.orb),
+                  days: campaign.validityDays,
+                })}
+                subtitle={t('event.ticketNotice')}
+              />
+              <ListRow
+                title={t(campaign.event.reclaimUnused ? 'event.reclaimTerms' : 'event.reclaimOff')}
+                {...(campaign.event.reclaimUnused
+                  ? {
+                      subtitle: t('event.reclaimScheduled', {
+                        date: `${dayLabel(campaign.event.reclaimAfter)} ${clockIst(campaign.event.reclaimAfter)}`,
+                      }),
+                    }
+                  : {})}
+              />
+            </>
+          ) : null}
+          <ListRow
+            title="DataDrop"
+            subtitle={networkName(campaign.network)}
+            value={
+              <Hash
+                value={campaign.contract}
+                kind="contract address"
+                {...(contractHref ? { explorerHref: contractHref } : {})}
+                {...(xName ? { explorerName: xName } : {})}
+              />
+            }
+          />
+        </ListGroup>
+      </Section>
       {campaign.event?.ticketRequired ? (
         <SponsorTickets
           key={identity}
@@ -359,308 +636,30 @@ export function SponsorTable({ id }: { id: string }) {
           closed={expired || chain.paused}
         />
       ) : null}
-      <section className="pane" aria-labelledby="budget-title">
-        <h2 id="budget-title" className="pane__title">
-          Budget burn
-        </h2>
-        <div
-          className="budget-bar"
-          role="img"
-          aria-label={`Spent ${money(spent)} (${spentPct} %), remaining ${money(budget - spent)}`}
-        >
-          <span className="budget-bar__spent" style={{ width: `${spentPct}%` }} />
-        </div>
-        <p className="budget-legend">
-          <span data-part="spent">Spent {money(spent)}</span>
-          <span data-part="remaining">Remaining {money(budget - spent)}</span>
-        </p>
-        <ClaimsPerHour claims={view.claims} cap={campaign.claimsPerHour} now={now} />
-      </section>
-      {!login ? <Button onClick={() => void signIn()}>Sign in again</Button> : null}
-      {error ? <p role="status">{error}</p> : null}
-      <CampaignAnalytics id={id} login={login} />
       {view.reclaim ? (
-        <section className="pane" lang={lang} aria-labelledby="reclaim-summary-title">
-          <h2 id="reclaim-summary-title" className="pane__title">
-            {t('event.returnsTitle')}
-          </h2>
-          <p className="note">{t('event.reclaimTerms')}</p>
-          <dl className="offer-facts">
-            <div>
-              <dt>{t('event.scheduled')}</dt>
-              <dd>{view.reclaim.scheduled}</dd>
-            </div>
-            <div>
-              <dt>{t('event.pending')}</dt>
-              <dd>{view.reclaim.pending}</dd>
-            </div>
-            <div>
-              <dt>{t('event.completed')}</dt>
-              <dd>{view.reclaim.completed}</dd>
-            </div>
-            <div>
-              <dt>{t('event.ineligible')}</dt>
-              <dd>{view.reclaim.ineligible}</dd>
-            </div>
-          </dl>
-          <p>
-            {t('event.refundAmounts', {
-              pending: money(view.reclaim.refundPendingUsd6),
-              refunded: money(view.reclaim.refundedUsd6),
-            })}
-          </p>
-          <Button variant="quiet" disabled={!login} onClick={() => void load()}>
-            {t('event.refresh')}
-          </Button>
-        </section>
+        <Section title={t('event.returnsTitle')} lang={lang}>
+          <Card className="grid gap-3">
+            <p className="note">{t('event.reclaimTerms')}</p>
+            <ListGroup label={t('event.returnsTitle')} flush>
+              <ListRow title={t('event.scheduled')} value={view.reclaim.scheduled} />
+              <ListRow title={t('event.pending')} value={view.reclaim.pending} />
+              <ListRow title={t('event.completed')} value={view.reclaim.completed} />
+              <ListRow title={t('event.ineligible')} value={view.reclaim.ineligible} />
+            </ListGroup>
+            <p>
+              {t('event.refundAmounts', {
+                pending: money(view.reclaim.refundPendingUsd6),
+                refunded: money(view.reclaim.refundedUsd6),
+              })}
+            </p>
+            <Button variant="quiet" disabled={!login} onClick={() => void load()}>
+              {t('event.refresh')}
+            </Button>
+          </Card>
+        </Section>
       ) : null}
-      <section className="pane pane--half" aria-labelledby="tiers-title">
-        <h2 id="tiers-title" className="pane__title">
-          Claims by credential level
-        </h2>
-        <div className="table-scroll" tabIndex={0}>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th scope="col">Level</th>
-                <th scope="col" className="num">
-                  Claims
-                </th>
-                <th scope="col" className="num">
-                  MB issued
-                </th>
-                <th scope="col" className="num">
-                  Cost (USDC)
-                </th>
-                <th scope="col" className="num">
-                  Avg MB
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {byTier.map((r) => (
-                <tr key={r.tier}>
-                  <td>
-                    {r.tier === 'orb' ? 'Orb' : r.tier === 'document' ? 'Document' : 'Device'}
-                  </td>
-                  <td className="num">{r.claims}</td>
-                  <td className="num">{enIN.format(r.mb)}</td>
-                  <td className="num">{money(r.cost)}</td>
-                  <td className="num">{r.avg}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-      <section className="pane pane--half" aria-labelledby="expiring-title">
-        <h2 id="expiring-title" className="pane__title">
-          Expiring quotas · {soon} plans expire in 24 h
-        </h2>
-        <div className="table-scroll" tabIndex={0}>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th scope="col">Arkiv key</th>
-                <th scope="col" className="num">
-                  MB left
-                </th>
-                <th scope="col">Expires</th>
-                <th scope="col">Tier</th>
-              </tr>
-            </thead>
-            <tbody>
-              {view.expiring.length === 0 ? (
-                <tr className="ghost">
-                  <td colSpan={4}>No plan expires yet.</td>
-                </tr>
-              ) : (
-                view.expiring.map((e) => {
-                  const entity = arkivEntityUrl(e.arkivKey);
-                  return (
-                    <tr key={e.arkivKey}>
-                      <td className="mono-key" data-hash title={e.arkivKey}>
-                        {entity ? (
-                          <a href={entity} target="_blank" rel="noreferrer">
-                            {e.arkivKey.slice(0, 14)}…
-                          </a>
-                        ) : (
-                          `${e.arkivKey.slice(0, 14)}…`
-                        )}
-                      </td>
-                      <td className="num">{formatMb(e.remainingMb)}</td>
-                      <td>
-                        expires {dayLabel(e.expiresAt)} {clockIst(e.expiresAt)}
-                      </td>
-                      <td>{e.tier}</td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-      <section className="pane" aria-labelledby="claims-title">
-        <h2 id="claims-title" className="pane__title">
-          Claims
-        </h2>
-        <div className="table-scroll">
-          <table className="data-table mobile-records" data-testid="claims-table">
-            <thead>
-              <tr>
-                <th scope="col">Time</th>
-                <th scope="col">Claim key (HMAC)</th>
-                <th scope="col">Tier</th>
-                <th scope="col" className="num">
-                  MB
-                </th>
-                <th scope="col" className="num">
-                  Cost
-                </th>
-                <th scope="col">Tx</th>
-                <th scope="col">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {view.claims.length === 0 ? (
-                <tr className="ghost">
-                  <td colSpan={7}>Claims appear here as travellers prove they are human.</td>
-                </tr>
-              ) : (
-                view.claims.map((c) => (
-                  <tr key={`${c.campaignClaimKey}-${c.at}`} data-testid="claim-row">
-                    <td data-label="Time">
-                      {dayLabel(c.at)} {clockIst(c.at)}
-                    </td>
-                    <td data-label="Claim key">
-                      <Hash value={c.campaignClaimKey} kind="claim key" />
-                    </td>
-                    <td data-label="Level">{c.tier}</td>
-                    <td className="num" data-label="Data (MB)">
-                      {c.mb}
-                    </td>
-                    <td className="num" data-label="Cost">
-                      {money(c.usd6)}
-                    </td>
-                    <td data-label="Transaction">
-                      {c.tx ? (
-                        <Hash
-                          value={c.tx}
-                          kind="transaction hash"
-                          {...(template ? { explorerHref: template.replace('{hash}', c.tx) } : {})}
-                          {...(xName ? { explorerName: xName } : {})}
-                        />
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td data-label="Status">{c.status}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-      <section className="pane" aria-labelledby="exports-title">
-        <h2 id="exports-title" className="pane__title">
-          Exports
-        </h2>
-        <div className="row-actions">
-          <button type="button" className="ui-button" data-variant="secondary" onClick={download}>
-            Export claims CSV (HMAC&apos;d keys)
-          </button>
-          <button
-            type="button"
-            className="ui-button"
-            data-variant="quiet"
-            data-testid="arkiv-query"
-            onClick={() => {
-              void navigator.clipboard?.writeText(arkivQuery).then(
-                () => setCopied(true),
-                () => setCopied(false),
-              );
-            }}
-          >
-            Copy Arkiv query
-          </button>
-        </div>
-        <p className="note arkiv-query-text">
-          <code data-hash>{arkivQuery}</code>
-        </p>
-        <p className="note" role="status">
-          {copied === true
-            ? 'Arkiv query copied.'
-            : copied === false
-              ? 'Copy failed: select the query above.'
-              : ''}
-        </p>
-      </section>
-      <section className="pane" aria-labelledby="controls-title">
-        <h2 id="controls-title" className="pane__title">
-          Controls
-        </h2>
-        <p className="note" lang={lang}>
-          {t('event.unspentTerms')}
-        </p>
-        {chain.paused ? (
-          <button
-            type="button"
-            className="ui-button"
-            data-variant="secondary"
-            onClick={() =>
-              void runTx(
-                'Resume the campaign',
-                pauseCall(campaign.id as Hex, false),
-                'proof.pauseTx',
-              )
-            }
-          >
-            Resume claims
-          </button>
-        ) : (
-          <SlideToConfirm
-            label="Slide to pause claims"
-            releaseLabel="Release to pause"
-            disabled={!wallet}
-            onConfirm={() =>
-              void runTx('Pause the campaign', pauseCall(campaign.id as Hex, true), 'proof.pauseTx')
-            }
-          />
-        )}
-        <button
-          type="button"
-          className="ui-button"
-          data-variant="quiet"
-          disabled={!expired}
-          onClick={() =>
-            void runTx(
-              'Refund the unspent budget',
-              refundCall(campaign.id as Hex),
-              'proof.refundTx',
-            )
-          }
-        >
-          {expired
-            ? `Refund ${money(budget - spent)}`
-            : `Refund opens after ${dayLabel(campaign.expiresAt)}`}
-        </button>
-        {actionTitle ? (
-          <ActionView
-            row={action.row}
-            now={action.now}
-            title={actionTitle}
-            network={campaign.network}
-            networkLabel={networkName(campaign.network)}
-            actionLabel={actionTitle}
-            walletName={wallet?.name ?? 'your wallet'}
-            result={chain.paused ? 'Campaign paused · no new claims' : 'Done'}
-            expectedMs={expectedMsFor(campaign.network)}
-          />
-        ) : null}
-        <ProofPanel proof={proof} />
-      </section>
-    </div>
+      <EnsCampaign campaign={campaign} />
+      <CampaignAnalytics id={id} login={login} />
+    </>
   );
 }

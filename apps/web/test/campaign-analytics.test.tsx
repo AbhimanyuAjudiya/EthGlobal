@@ -120,7 +120,8 @@ const show = async (data = fixture()) => {
   return screen.findByTestId('campaign-analytics');
 };
 /** The value under a KPI tile's label. */
-const tile = (label: string) => screen.getByText(label).parentElement?.textContent ?? '';
+const tile = (label: string) =>
+  screen.getByText(label).closest('.stat-tile, .list-row')?.textContent ?? '';
 
 beforeEach(() => vi.mocked(call).mockReset());
 afterEach(() => vi.useRealTimers());
@@ -140,11 +141,11 @@ describe('CampaignAnalytics', () => {
     expect(tile('Projected run-out')).toContain('0.17 claims/h · campaign ends in 5 d');
     expect(section.querySelectorAll('svg rect.chart__bar')).toHaveLength(14);
     expect(section.querySelector('line.chart__cap')).not.toBeNull();
-    const notInstalledStage = section.querySelector('[data-stage="notInstalled"]');
+    const notInstalledStage = section.querySelector('[data-testid="funnel-notInstalled"]');
     expect(notInstalledStage?.textContent).toContain('2 · 50%');
     expect(screen.getByText('Paid top-ups by your claimers: 1 · $4.00')).toBeTruthy();
-    expect(section.querySelector('.analytics-status')?.getAttribute('aria-label')).toContain(
-      'Not installed: 1 preparing, 1 ready: 2',
+    expect(section.querySelector('[data-testid="status-notInstalled"]')?.textContent).toBe(
+      'Not installed: 1 preparing, 1 ready2',
     );
   });
 
@@ -157,21 +158,23 @@ describe('CampaignAnalytics', () => {
     expect(rows).toHaveLength(2);
     const [soon, later] = rows;
     // flagged: expires within 48 h
-    expect(soon?.hasAttribute('data-soon')).toBe(true);
+    expect(Boolean(soon?.querySelector('[data-soon]'))).toBe(true);
     expect(soon?.textContent).toContain('Ready');
     expect(soon?.textContent).toContain('144 h');
     expect(soon?.textContent).toMatch(/expires unused on Sat 7 Nov 12:00/);
     expect(soon?.textContent).toMatch(/as of Fri 6 Nov 11:00/);
-    expect(soon?.querySelector('.analytics-expiry .ui-icon')).not.toBeNull();
+    expect(soon?.querySelector('[data-soon] .ui-icon')).not.toBeNull();
     // not flagged: a week left
-    expect(later?.hasAttribute('data-soon')).toBe(false);
+    expect(Boolean(later?.querySelector('[data-soon]'))).toBe(false);
     expect(later?.textContent).toContain('Preparing');
     expect(later?.textContent).toContain('Document');
-    expect(later?.querySelector('.analytics-expiry .ui-icon')).toBeNull();
+    expect(later?.querySelector('[data-soon] .ui-icon')).toBeNull();
     expect(rows.every((r) => r.querySelectorAll('.hash').length === 2)).toBe(true);
     // the latest claims, with their proof counters
     expect(within(screen.getByTestId('latest-claims')).getAllByRole('row')).toHaveLength(3);
-    expect(screen.getByText(/^On-chain claims/).textContent).toBe('On-chain claims · 4');
+    expect(screen.getByText('On-chain claims').closest('.list-row')?.textContent).toBe(
+      'On-chain claims4',
+    );
     cleanup();
 
     // the boundary: exactly 48 h left is flagged, a minute more is not
@@ -189,8 +192,8 @@ describe('CampaignAnalytics', () => {
     );
     const [edge, past] = within(screen.getByTestId('not-installed')).getAllByRole('row').slice(1);
     expect(SOON_MS).toBe(48 * H);
-    expect(edge?.hasAttribute('data-soon')).toBe(true);
-    expect(past?.hasAttribute('data-soon')).toBe(false);
+    expect(Boolean(edge?.querySelector('[data-soon]'))).toBe(true);
+    expect(Boolean(past?.querySelector('[data-soon]'))).toBe(false);
   });
 
   it('zero, one and many not-installed rows', async () => {

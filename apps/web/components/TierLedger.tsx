@@ -1,36 +1,44 @@
 'use client';
 
 import type { PlansResponse } from '@ethglobal/protocol/schemas';
-import { RuledList } from '@ethglobal/ui/components';
 
+import { Avatar, ListGroup, ListRow, type KitIconName } from './kit';
 import { useLang } from '../i18n/lang';
 import { formatMb, money, soldPlan } from '../lib/format';
 
-/** The honest tier table, from /plans campaign.bundleMb — never hard-coded (design-references §1b). */
+/** "What you get": the honest tier table, from /plans campaign.bundleMb — never hard-coded (design-references §1b). */
 export function TierLedger({ plans }: { plans: PlansResponse }) {
   const { t, lang } = useLang();
   const bundle = plans.campaign?.bundleMb;
   if (!bundle) return null;
   const sold = soldPlan(plans);
-  const rows = [
-    { label: 'Orb', text: t('tier.orb', { mb: formatMb(bundle.orb) }) },
-    { label: 'Document', text: t('tier.document', { mb: formatMb(bundle.document) }) },
-    { label: 'Device', text: t('tier.device', { mb: formatMb(sold.mb), price: money(sold.usd6) }) },
+  const rows: readonly { label: string; icon: KitIconName; text: string }[] = [
+    { label: 'Orb', icon: 'human', text: t('tier.orb', { mb: formatMb(bundle.orb) }) },
+    {
+      label: 'Document',
+      icon: 'card',
+      text: t('tier.document', { mb: formatMb(bundle.document) }),
+    },
+    {
+      label: 'Device',
+      icon: 'install',
+      text: t('tier.device', { mb: formatMb(sold.mb), price: money(sold.usd6) }),
+    },
   ];
   return (
-    <div className="tier-ledger" data-testid="tier-ledger">
-      <RuledList
-        rows={rows.map((row) => {
-          const [name, ...rest] = row.text.split(' · ');
-          return {
-            label: <span lang={lang}>{name ?? row.label}</span>,
-            value: <span lang={lang}>{rest.join(' · ')}</span>,
-          };
-        })}
-      />
-      <p className="note" lang={lang}>
-        {t('verify.footnote')}
-      </p>
-    </div>
+    <ListGroup title={t('verify.whatYouGet')} data-testid="tier-ledger">
+      {rows.map((row) => {
+        const [name, ...rest] = row.text.split(' · ');
+        return (
+          <ListRow
+            key={row.label}
+            lang={lang}
+            leading={<Avatar icon={row.icon} />}
+            title={name ?? row.label}
+            value={rest.join(' · ')}
+          />
+        );
+      })}
+    </ListGroup>
   );
 }

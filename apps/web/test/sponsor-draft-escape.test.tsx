@@ -101,7 +101,7 @@ describe('a funded draft the live API can no longer register', () => {
     const name = screen.getByTestId<HTMLInputElement>('campaign-name');
     expect(name.hasAttribute('disabled')).toBe(false);
     expect(name.value).toBe('');
-    expect(screen.getByTestId('campaign-submit').textContent).toBe('Fund $12.00 USDC and create');
+    expect(screen.getByTestId('campaign-submit').textContent).toBe('Create campaign · $12.00 USDC');
     expect(mocks.register).not.toHaveBeenCalled();
   });
 });

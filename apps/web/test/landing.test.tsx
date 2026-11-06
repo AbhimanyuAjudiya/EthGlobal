@@ -62,7 +62,6 @@ const EVERY_FLOW = [
   '/verify',
 ];
 const CLAIM = /^Prove I.m human → 1\sGB$/;
-const PAID_PLAN = 'Optional self-paid India data plan';
 /** The reading this phone saved at 19:53 IST, before the sponsor's campaign went live. */
 const SAVED_AT = Date.UTC(2026, 10, 5, 14, 23);
 
@@ -81,75 +80,68 @@ describe('the landing is the hub', () => {
     mocks.plans.mockResolvedValue(plans);
     render(<ClaimPaths />, { wrapper: Wallets });
     await screen.findByRole('link', { name: /^Prove I.m human → 300\sMB$/ });
-    // the coupon carries the sponsor's size; the paid offer beside it keeps its own
-    expect(document.querySelector('#landing-coupon')?.getAttribute('aria-label')).toContain(
-      '300 MB',
+    // the BalanceCard carries the sponsor's size; the paid top-up keeps its own
+    expect(document.querySelector('#landing-coupon')?.getAttribute('aria-label')).toMatch(
+      /300\sMB/,
     );
-    expect(screen.getByRole('region', { name: 'How it works' }).textContent).toContain(
-      'your first bundle',
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
+      'Land in India. Be online in two minutes.',
     );
-    expect(screen.getByLabelText(PAID_PLAN).textContent).toMatch(/1\sGB/);
+    const how = screen.getByRole('region', { name: 'How it works' });
+    expect(within(how).getByRole('link', { name: /^Top up/ }).textContent).toMatch(
+      /1\sGB for \$4\.00/,
+    );
   });
-  it('shows the paid data, validity and price from the current offer apart from the sponsor coupon', async () => {
+  it('shows the paid price from the current offer apart from the sponsor bundle, and the quick actions', async () => {
     const plans = plansWith(true);
-    plans.paid.validityDays = 14;
     plans.paid.priceUsd6PerStep = '500000';
     mocks.plans.mockResolvedValue(plans);
     render(<ClaimPaths />, { wrapper: Wallets });
     await screen.findByRole('link', { name: CLAIM });
-    const offer = screen.getByLabelText(PAID_PLAN);
-    expect(offer.textContent).toContain('14 days');
-    expect(offer.textContent).toContain('$5.00');
-    expect(offer.textContent).toContain('USDC');
-    expect(document.querySelector('#landing-coupon')?.textContent).not.toContain('14 days');
-    expect(
-      screen
-        .getByRole('link', { name: 'Check phone compatibility and coverage' })
-        .getAttribute('href'),
-    ).toBe('#compatibility');
+    const how = screen.getByRole('region', { name: 'How it works' });
+    expect(within(how).getByRole('link', { name: /^Top up/ }).textContent).toContain(
+      '$5.00 in USDC',
+    );
+    expect(document.querySelector('#landing-coupon')?.textContent).not.toContain('$5.00');
+    const quick = screen.getByRole('list', { name: 'Quick actions' });
+    expect(hrefs(within(quick).getAllByRole('link'))).toEqual([
+      '/verify',
+      '/pay',
+      '/card',
+      '/sponsor',
+    ]);
+    expect(screen.getByTestId('preflight')).toBeTruthy();
   });
 
-  it('"Everything Recharge does" links every flow, each with one sentence', async () => {
+  it('"Everything else" links every flow, each with one sentence', async () => {
     mocks.plans.mockResolvedValue(plansWith(true));
     render(<ClaimPaths />, { wrapper: Wallets });
-    const hub = await screen.findByRole('region', { name: 'Everything Recharge does' });
+    const hub = await screen.findByRole('region', { name: 'Everything else' });
     const links = within(hub).getAllByRole('link');
     expect(hrefs(links).sort()).toEqual(EVERY_FLOW);
     for (const link of links)
-      expect(link.querySelector('.hub__line')?.textContent).toMatch(/^\S.{24,}\.$/);
-    expect(within(hub).getByRole('link', { name: /^Buy data 1\sGB for \$4\.00 in USDC/ })).toBe(
+      expect(link.querySelector('.list-row__subtitle')?.textContent).toMatch(/^\S.{24,}\.$/);
+    expect(within(hub).getByRole('link', { name: /^Buy data\s?1\sGB for \$4\.00 in USDC/ })).toBe(
       links.find((a) => a.getAttribute('href') === '/pay'),
     );
   });
 
-  it('"How it works" walks the five steps to their routes, with all three install ways and the warnings', async () => {
+  it('"How it works" walks the three steps to their routes, with the warnings', async () => {
     mocks.plans.mockResolvedValue(plansWith(true));
     render(<ClaimPaths />, { wrapper: Wallets });
     const how = await screen.findByRole('region', { name: 'How it works' });
-    const steps = [...how.querySelectorAll<HTMLElement>('ol.how > li')];
-    expect(steps.map((li) => li.querySelector('h3')?.textContent)).toEqual([
+    const steps = within(how).getAllByRole('link');
+    expect(steps.map((a) => a.querySelector('.list-row__title')?.textContent)).toEqual([
       'Verify',
       'Install',
       'Top up',
-      'Gift',
-      'Agent',
     ]);
-    expect(steps.map((li) => hrefs(within(li).getAllByRole('link')))).toEqual([
-      ['/verify'],
-      ['/install'],
-      ['/pay'],
-      ['/gift', '/gift/claim'],
-      ['/agent'],
-    ]);
-    const [verify, install, topUp] = steps.map((li) => li.textContent);
-    expect(verify).toContain('the activation code opens only in the browser that claims it');
-    expect(install).toMatch(/On this phone.*QR code.*SM-DP\+ address/);
+    expect(hrefs(steps)).toEqual(['/verify', '/install', '/pay']);
+    const [verify, install, topUp] = steps.map((a) => a.textContent);
+    expect(verify).toContain('the code opens only in the browser that claims it');
+    expect(install).toMatch(/On this phone, by QR or by hand/);
     expect(install).toContain('carrier-unlocked');
     expect(topUp).toContain('Data stops when the plan expires.');
-    const esim = screen.getByRole('region', { name: 'How the eSIM works' }).textContent;
-    expect(esim).toContain('no phone number');
-    expect(esim).toContain('keeps your calls and SMS');
-    expect(esim).toContain('carrier-unlocked');
   });
 });
 
@@ -236,13 +228,13 @@ describe('the AppShell (DESIGN.md §4)', () => {
 describe('the landing never shows a stored /plans reading as current (stale landing, 5 Nov)', () => {
   const saveReadingWithoutCampaign = () => set('plans', { at: SAVED_AT, plans: plansWith(false) });
 
-  it('online: every load asks GET /plans, and the fresh reading drives the coupon and the button', async () => {
+  it('online: every load asks GET /plans, and the fresh reading drives the card and the button', async () => {
     await saveReadingWithoutCampaign();
     mocks.plans.mockResolvedValue(plansWith(true));
     const first = render(<ClaimPaths />, { wrapper: Wallets });
     const claim = await screen.findByRole('link', { name: CLAIM });
     expect(claim.getAttribute('href')).toBe('/verify');
-    expect(screen.getByText('1,214 of 2,000 sponsor bundles left')).toBeTruthy();
+    expect(screen.getByText('free · 1,214 of 2,000 left')).toBeTruthy();
     expect(screen.queryByText(/as of/)).toBeNull();
     expect(screen.queryByText(/No sponsor bundle is live/)).toBeNull();
     first.unmount();
@@ -259,10 +251,10 @@ describe('the landing never shows a stored /plans reading as current (stale land
       .mockResolvedValue(plansWith(true));
     render(<ClaimPaths />, { wrapper: Wallets });
     expect(await screen.findByText(`as of ${clockIst(SAVED_AT)}`)).toBeTruthy();
-    const pay = screen.getByRole('link', { name: /^Pay \$4\.00 for 1\sGB$/ });
+    const pay = screen.getByRole('link', { name: /^Buy 1\sGB · \$4\.00$/ });
     expect(pay.getAttribute('href')).toBe('/pay');
-    // one way to pay when no sponsor bundle is open: the 1 GB plan, not a second button for it
-    expect(screen.queryByRole('link', { name: /^I.ll pay/ })).toBeNull();
+    // one primary pill: with no sponsor bundle open it sells the 1 GB plan, and the claim pill is gone
+    expect(screen.queryByRole('link', { name: /^Prove I.m human →/ })).toBeNull();
     // "right now" is never said of a saved reading
     expect(screen.queryByText(/No sponsor bundle is live right now/)).toBeNull();
 
@@ -271,8 +263,8 @@ describe('the landing never shows a stored /plans reading as current (stale land
     });
     expect((await screen.findByRole('link', { name: CLAIM })).getAttribute('href')).toBe('/verify');
     expect(screen.queryByText(/as of/)).toBeNull();
-    expect(screen.queryByRole('link', { name: /^Pay \$4\.00/ })).toBeNull();
-    expect(screen.getByRole('link', { name: /^I.ll pay · 1\sGB for \$4\.00$/ })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /^Buy 1\sGB/ })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Pay instead' }).getAttribute('href')).toBe('/pay');
     expect(mocks.plans).toHaveBeenCalledTimes(2);
   });
 
@@ -282,7 +274,7 @@ describe('the landing never shows a stored /plans reading as current (stale land
     render(<ClaimPaths />, { wrapper: Wallets });
     await screen.findByRole('link', { name: CLAIM });
     expect(screen.queryByText(/as of/)).toBeNull();
-    expect(screen.queryByText(/sponsor bundles left/)).toBeNull();
+    expect(screen.queryByText(/of 2,000 left/)).toBeNull();
     expect(screen.queryByText(/No sponsor bundle is live/)).toBeNull();
   });
 });

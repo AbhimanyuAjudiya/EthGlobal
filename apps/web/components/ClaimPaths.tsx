@@ -1,21 +1,32 @@
 'use client';
 
-import Link from 'next/link';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 
 import { PLAN_MB } from '@ethglobal/protocol/ids';
 import type { PlansResponse } from '@ethglobal/protocol/schemas';
-import { Coupon } from '@ethglobal/ui/components';
 
 import { captureInstallPrompt } from './AddToHomeScreen';
-import { AppHeader, DESTINATIONS } from './Shell';
+import {
+  AppShell,
+  Avatar,
+  BalanceCard,
+  ButtonLink,
+  ListGroup,
+  ListRow,
+  Notice,
+  PageHeader,
+  Pill,
+  QuickActions,
+  Section,
+  Skeleton,
+} from './kit';
+import { DESTINATIONS } from './Shell';
 import { useLang } from '../i18n/lang';
+import { planHref } from '../lib/deliver';
 import { parseDevice } from '../lib/device';
 import { clockIst, formatMb, money, soldPlan } from '../lib/format';
 import { useHydrated, usePlans } from '../lib/hooks';
 import { get, plans as store, set } from '../lib/store';
-
-import type { StringKey } from '../i18n/strings';
 
 const enIN = new Intl.NumberFormat('en-IN');
 
@@ -25,7 +36,13 @@ interface Saved {
   plans: PlansResponse;
 }
 
-/** Pre-flight line under the button (the Airalo borrow), from the UA only. */
+/** "1 GB" → ["1", "GB"] (formatMb joins them with a no-break space). */
+const split = (mb: number) => {
+  const [figure = '', unit = ''] = formatMb(mb).split(' ');
+  return { figure, unit };
+};
+
+/** Pre-flight line under the hero (the Airalo borrow), from the UA only. */
 function Preflight() {
   const { t, lang } = useLang();
   const hydrated = useHydrated();
@@ -35,165 +52,18 @@ function Preflight() {
     ? `${device.os === 'other' ? '' : `${device.label} · `}${t('preflight.unknown')}`
     : undefined;
   return (
-    <p className="preflight" data-testid="preflight" lang={lang}>
+    <p className="t-caption" data-testid="preflight" lang={lang}>
       {line ?? ' '}
     </p>
   );
 }
 
-/** One numbered ruled row of "How it works": a title, a sentence or two, and the route(s) that do it. */
-function Step({
-  title,
-  body,
-  links,
-  children,
-}: {
-  title: string;
-  body: string;
-  links: readonly { href: string; label: string }[];
-  children?: ReactNode;
-}) {
-  return (
-    <li>
-      <h3 className="how__title">{title}</h3>
-      <p className="how__body">{body}</p>
-      {children}
-      <p className="how__links">
-        {links.map((link) => (
-          <Link key={link.href} href={link.href} prefetch={false}>
-            {link.label}
-          </Link>
-        ))}
-      </p>
-    </li>
-  );
-}
-
-/** "How it works": verify, install (all three ways), top up, gift, agent, with the warnings where they apply. */
-function HowItWorks({ price, mb }: { price: string; mb: string }) {
-  const { t, lang } = useLang();
-  const [key, setKey] = useState<string>();
-  useEffect(() => {
-    void store.latest().then(setKey);
-  }, []);
-  // a plan on this phone is topped up (as the Add data tab does); without one, /pay sells the first bundle
-  const topUp = key ? `/pay?key=${encodeURIComponent(key)}` : '/pay';
-  return (
-    <section className="landing__section" aria-labelledby="how-title" lang={lang}>
-      <h2 id="how-title" className="landing__h2">
-        {t('how.title')}
-      </h2>
-      <ol className="how">
-        <Step
-          title={t('how.verify')}
-          body={t('how.verifyBody')}
-          links={[{ href: '/verify', label: t('how.verifyLink') }]}
-        />
-        <Step
-          title={t('how.install')}
-          body={t('how.installBody')}
-          links={[{ href: '/install', label: t('how.installLink') }]}
-        >
-          <ul className="how__ways">
-            <li>{t('how.installHere')}</li>
-            <li>{t('how.installQr')}</li>
-            <li>{t('how.installManual')}</li>
-          </ul>
-        </Step>
-        <Step
-          title={t('how.topup')}
-          body={t('how.topupBody', { price, mb })}
-          links={[{ href: topUp, label: t('tab.add') }]}
-        />
-        <Step
-          title={t('tab.gift')}
-          body={t('how.giftBody')}
-          links={[
-            { href: '/gift', label: t('how.giftLink') },
-            { href: '/gift/claim', label: t('gift.claimTitle') },
-          ]}
-        />
-        <Step
-          title={t('how.agent')}
-          body={t('how.agentBody', { mb })}
-          links={[{ href: '/agent', label: t('how.agentLink') }]}
-        />
-      </ol>
-    </section>
-  );
-}
-
-/** Below the fold: every flow with one plain sentence — ruled rows, the same list as the header menu. */
-function Everything({ price, mb }: { price: string; mb: string }) {
-  const { t, lang } = useLang();
-  return (
-    <section className="landing__section" aria-labelledby="hub-title" lang={lang}>
-      <h2 id="hub-title" className="landing__h2">
-        {t('hub.title')}
-      </h2>
-      <div className="hub">
-        {DESTINATIONS.map((group) => (
-          <div key={group.group}>
-            <h3 className="hub__label">{t(group.group)}</h3>
-            <ul>
-              {group.items.map((item) => (
-                <li key={item.href}>
-                  <Link href={item.href} prefetch={false}>
-                    <span className="hub__title">{t(item.title)}</span>{' '}
-                    <span className="hub__line">{t(item.line, { price, mb })}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-const ESIM_FACTS: readonly (readonly [StringKey, StringKey])[] = [
-  ['esim.coverageTerm', 'esim.coverage'],
-  ['esim.dataTerm', 'esim.data'],
-  ['esim.simTerm', 'esim.sim'],
-  ['esim.appsTerm', 'esim.apps'],
-  ['esim.phoneTerm', 'esim.phone'],
-  ['esim.installTerm', 'esim.install'],
-  ['esim.topupTerm', 'esim.topup'],
-  ['esim.expiryTerm', 'esim.expiry'],
-];
-
-/** "How the eSIM works": the facts a traveller asks before paying, one line each. */
-function EsimFacts() {
-  const { t, lang } = useLang();
-  return (
-    <section
-      id="compatibility"
-      className="landing__section"
-      aria-labelledby="esim-title"
-      lang={lang}
-    >
-      <h2 id="esim-title" className="landing__h2">
-        {t('esim.title')}
-      </h2>
-      <dl className="facts">
-        {ESIM_FACTS.map(([term, fact]) => (
-          <div key={term}>
-            <dt>{t(term)}</dt>
-            <dd>{t(fact)}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
-  );
-}
-
 /**
- * `/` — one question, the coupon, one button; then ruled sections for organizers, the paid offer, the eSIM facts,
- * the steps and every flow (no tiles, no mockups). The live, unscratched coupon carries the real count from
- * this load's own GET /plans ("1,214 of 2,000 sponsor bundles left · Hedera"); while it is on its way the coupon and
- * the button are skeletons, never a stored reading presented as current. Only a network failure brings back the
- * last reading this phone saved, labelled "as of 14:02" (and the button follows it); an API error omits the count.
+ * `/` Home (DESIGN.md §7): PageHeader → the sponsor bundle as a BalanceCard → QuickActions → How it works → every
+ * other flow → the ONE primary pill. The live card carries the real count from this load's own GET /plans ("free ·
+ * 1,214 of 2,000 left"); while it is on its way the card is a skeleton and the ActionBar is empty, never a stored
+ * reading presented as current. Only a network failure brings back the last reading this phone saved, labelled "as of
+ * 14:02" (and the button follows it); an API error omits the count. A device that already holds a plan goes to it.
  */
 export function ClaimPaths() {
   const { t, lang } = useLang();
@@ -203,6 +73,8 @@ export function ClaimPaths() {
   useEffect(() => {
     captureInstallPrompt();
     void get<Saved>('plans').then(setSaved);
+    // DESIGN.md §7: Home with a plan on this device is that plan; the server-rendered landing stays the shell
+    void store.latest().then((key) => key && window.location.replace(planHref(key)));
   }, []);
   useEffect(() => {
     if (live && liveAt) void set('plans', { at: liveAt, plans: live });
@@ -215,6 +87,7 @@ export function ClaimPaths() {
   const pending = !live && !error;
   const campaign = plans?.campaign ?? null;
   const freeMb = campaign?.bundleMb.orb ?? PLAN_MB;
+  const free = formatMb(freeMb);
   // the paid lane sells one size: 1 GB · $4.00 (its list price until a /plans reading says otherwise)
   const sold = soldPlan(plans);
   const planMb = formatMb(sold.mb);
@@ -225,132 +98,107 @@ export function ClaimPaths() {
   // claim-first unless the reading shown says no sponsor bundle is open
   const claimable = !plans || liveMode || (campaign !== null && !exhausted);
 
-  let status: string | undefined;
-  if (stale) status = t('landing.asOf', { time: clockIst(stale.at) });
-  else if (exhausted) status = t('landing.exhausted');
-  else if (campaign)
-    // the sponsor is already named on the coupon's line; the stub carries only the count
-    status = t('landing.left', {
-      left: enIN.format(campaign.remainingClaims),
-      max: enIN.format(campaign.maxClaims),
-    });
+  // the count only from a live reading; a saved one says when it was read, an exhausted one says so
+  const status = stale ? (
+    <Pill tone="warning">{t('landing.asOf', { time: clockIst(stale.at) })}</Pill>
+  ) : exhausted ? (
+    <Pill tone="warning">{t('landing.exhausted')}</Pill>
+  ) : undefined;
+  const note =
+    campaign && !stale && !exhausted
+      ? t('home.left', {
+          left: enIN.format(campaign.remainingClaims),
+          max: enIN.format(campaign.maxClaims),
+        })
+      : t('home.free');
+  const { figure, unit } = split(freeMb);
+
+  const action = pending ? undefined : claimable ? (
+    <ButtonLink href="/verify" size="lg" block lang={lang}>
+      {liveMode && !campaign ? t('claim.withPass') : t('landing.human', { mb: free })}
+    </ButtonLink>
+  ) : (
+    <ButtonLink href="/pay" size="lg" block lang={lang}>
+      {t('home.buy', { mb: planMb, price: planPrice })}
+    </ButtonLink>
+  );
 
   return (
-    <main className="landing">
-      <AppHeader />
-      {/* the hero: one question, the live coupon, one teal button carrying the number (design-references §1a) */}
-      <div className="landing__grid">
-        <section className="landing__copy">
-          <p className="landing__label" lang={lang}>
-            {t('landing.eyebrow')}
-          </p>
-          <h1 className="landing__title" lang={lang}>
-            {t('landing.title')}
-          </h1>
-          <p className="landing__sub" lang={lang}>
-            {t('landing.sub', { mb: formatMb(freeMb) })}
-          </p>
-        </section>
-        {/* no validity line: /plans does not carry the campaign's validity, and a guess is fake specificity */}
-        <section className="landing__coupon" aria-live="polite">
-          <p className="landing__label" lang={lang}>
-            {t('landing.sponsored')}
-          </p>
-          {pending ? (
-            <div className="skeleton skeleton--coupon" aria-label="Loading the sponsor bundle" />
-          ) : (
-            <Coupon
-              mb={freeMb}
-              {...(campaign ? { sponsor: campaign.name } : {})}
-              {...(status ? { status } : {})}
-              sealed
-              lang={lang}
-              id="landing-coupon"
-            />
-          )}
-          {plans && !stale && !campaign && !liveMode ? (
-            <p className="note" lang={lang}>
-              {t('landing.noCampaign')}
-            </p>
-          ) : null}
-        </section>
-        <section className="landing__actions">
-          {pending ? (
-            <div className="skeleton skeleton--button" aria-hidden="true" />
-          ) : claimable ? (
-            <Link
-              href="/verify"
-              className="ui-button ui-button--block"
-              data-variant="primary"
-              prefetch={false}
-            >
-              <span lang={lang}>
-                {liveMode && !campaign
-                  ? t('claim.withPass')
-                  : t('landing.human', { mb: formatMb(freeMb) })}
-              </span>
-            </Link>
-          ) : (
-            <Link
-              href="/pay"
-              className="ui-button ui-button--block"
-              data-variant="primary"
-              prefetch={false}
-            >
-              <span lang={lang}>{t('landing.payInstead', { price: planPrice, mb: planMb })}</span>
-            </Link>
-          )}
+    <AppShell nav="home" action={action}>
+      <PageHeader
+        size="display"
+        title={t('home.title')}
+        lead={t('home.lead', { mb: free })}
+        lang={lang}
+      />
+      {pending ? (
+        <Skeleton shape="balance" label="Loading the sponsor bundle" />
+      ) : (
+        // no validity line: /plans does not carry the campaign's validity, and a guess is fake specificity
+        <BalanceCard
+          id="landing-coupon"
+          tone="brand"
+          lang={lang}
+          aria-label={t('home.bundleLabel', { mb: free })}
+          amount={figure}
+          unit={unit}
+          note={note}
+          status={status}
+          caption={campaign ? t('home.from', { sponsor: campaign.name }) : t('landing.sponsored')}
+        >
           <Preflight />
-          <nav className="landing__rows" aria-label="More ways in">
-            <Link href="/card" prefetch={false}>
-              <span lang={lang}>{t('landing.pin')}</span>
-            </Link>
-            {/* with no sponsor bundle open the primary button already sells the 1 GB plan */}
-            {claimable ? (
-              <Link href="/pay" prefetch={false}>
-                <span lang={lang}>{t('landing.pay', { price: planPrice, mb: planMb })}</span>
-              </Link>
-            ) : null}
-            <Link href="/plan" prefetch={false}>
-              <span lang={lang}>{t('landing.open')}</span>
-            </Link>
-            <a className="landing__anchor" href="#compatibility" lang={lang}>
-              {t('landing.compatibility')}
-            </a>
-          </nav>
-        </section>
-      </div>
-      <section className="landing__section" lang={lang}>
-        <h2 className="landing__h2">{t('hub.sponsors')}</h2>
-        <div className="landing__body">
-          <p className="landing__prose">{t('landing.ticketIntro')}</p>
-          <Link href="/sponsor" className="ui-button" data-variant="secondary" prefetch={false}>
-            <span lang={lang}>{t('landing.organize')}</span>
-          </Link>
-        </div>
-      </section>
-      <section className="landing__section" lang={lang}>
-        <h2 className="landing__h2">{t('landing.paidPlan')}</h2>
-        <dl className="landing__offer" aria-label={t('landing.paidPlan')}>
-          <div>
-            <dt>{t('offer.data')}</dt>
-            <dd>{planMb}</dd>
-          </div>
-          <div>
-            <dt>{t('offer.validity')}</dt>
-            <dd>{t('offer.days', { days: plans?.paid.validityDays ?? 7 })}</dd>
-          </div>
-          <div>
-            <dt>{t('offer.price')}</dt>
-            <dd>
-              {planPrice} <small>USDC</small>
-            </dd>
-          </div>
-        </dl>
-      </section>
-      <EsimFacts />
-      <HowItWorks price={planPrice} mb={planMb} />
-      <Everything price={planPrice} mb={planMb} />
-    </main>
+        </BalanceCard>
+      )}
+      <QuickActions
+        label={t('home.actions')}
+        items={[
+          { icon: 'human', label: t('home.qa.prove'), href: '/verify' },
+          { icon: 'add', label: t('home.qa.pay'), href: '/pay' },
+          { icon: 'card', label: t('home.qa.card'), href: '/card' },
+          { icon: 'organizers', label: t('home.qa.organizers'), href: '/sponsor' },
+        ]}
+      />
+      {plans && !stale && !campaign && !liveMode ? (
+        <Notice tone="info" lang={lang}>
+          {t('landing.noCampaign')}
+        </Notice>
+      ) : null}
+      <Section title={t('how.title')} lang={lang}>
+        <ListGroup label={t('how.title')}>
+          <ListRow
+            leading={<Avatar label="1" />}
+            title={t('how.verify')}
+            subtitle={t('home.how.prove')}
+            href="/verify"
+          />
+          <ListRow
+            leading={<Avatar label="2" />}
+            title={t('how.install')}
+            subtitle={t('home.how.install')}
+            href="/install"
+          />
+          <ListRow
+            leading={<Avatar label="3" />}
+            title={t('how.topup')}
+            subtitle={t('home.how.topup', { mb: planMb, price: planPrice })}
+            href="/pay"
+          />
+        </ListGroup>
+      </Section>
+      <Section title={t('home.everything')} lang={lang}>
+        {DESTINATIONS.map((group) => (
+          <ListGroup key={group.group} title={t(group.group)}>
+            {group.items.map((item) => (
+              <ListRow
+                key={item.href}
+                href={item.href}
+                title={t(item.title)}
+                subtitle={t(item.line, { price: planPrice, mb: planMb })}
+              />
+            ))}
+          </ListGroup>
+        ))}
+      </Section>
+    </AppShell>
   );
 }

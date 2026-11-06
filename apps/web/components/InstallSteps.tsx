@@ -1,14 +1,27 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 
 import { PLAN_MB } from '@ethglobal/protocol/ids';
 import type { MeResponse } from '@ethglobal/protocol/schemas';
-import { Button, Icon } from '@ethglobal/ui/components';
+import { Icon } from '@ethglobal/ui/components';
 
+import {
+  AppShell,
+  Avatar,
+  Button,
+  ButtonLink,
+  Card,
+  ListGroup,
+  ListRow,
+  Notice,
+  PageHeader,
+  Pill,
+  Section,
+  Skeleton,
+  Stepper,
+} from './kit';
 import { QrCode } from './QrCode';
-import { AppHeader, Caution, Screen, TabBar } from './Shell';
 import { useLang } from '../i18n/lang';
 import { activationBlocked, type ActivationPolicy } from '../lib/activation-policy';
 import { api, ApiError } from '../lib/api';
@@ -24,8 +37,8 @@ import { get, plans, type PlanMetadata } from '../lib/store';
 const REVEAL_MS = 60_000;
 const TROUBLE_AFTER_MS = 3 * 60_000;
 
-/** The OS's own words as a status pill: "No Service" → "Searching…" → "LTE · …" (role=status). */
-function StatusPill({
+/** The OS's own words as a status pill: "No Service" → "Searching…" → "LTE · …" (role=status), with a one-line hint. */
+function StatusCard({
   status,
   handheld,
 }: {
@@ -33,7 +46,7 @@ function StatusPill({
   /** A computer has no cellular status: "No Service" there reads as a fault, not as "not installed yet". */
   handheld: boolean;
 }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const text =
     status === 'active'
       ? t('status.lte', { carrier: 'Recharge' })
@@ -43,31 +56,51 @@ function StatusPill({
           ? t('status.noService')
           : t('status.notInstalled');
   return (
-    <p
-      className="status-pill"
-      role="status"
-      data-state={status ?? 'ready'}
-      data-testid="status-pill"
-    >
-      <span className="status-pill__dot" aria-hidden="true" />
-      <span key={text} className="status-pill__text">
+    <Card>
+      <Pill
+        className="status-pill"
+        tone={status === 'active' ? 'positive' : status === 'installed' ? 'warning' : 'neutral'}
+        dot
+        role="status"
+        data-state={status ?? 'ready'}
+        data-testid="status-pill"
+      >
         {text}
-      </span>
-    </p>
+      </Pill>
+      <p className="t-body" lang={lang}>
+        {t(
+          status === 'active'
+            ? 'install.hintActive'
+            : status === 'installed'
+              ? 'install.hintInstalled'
+              : 'install.hintReady',
+        )}
+      </p>
+    </Card>
   );
 }
 
-function CodeBlock({ lpa }: { lpa: string }) {
-  const { t } = useLang();
+/** The activation code split on `$`, in mono, with its own copy. */
+function CodeCard({ lpa }: { lpa: string }) {
+  const { t, lang } = useLang();
   return (
-    <div className="lpa-code" aria-label={t('install.code')}>
-      {splitLpa(lpa).map((part, i) => (
-        <span key={i} data-hash>
-          {i > 0 ? '$' : ''}
-          {part}
-        </span>
-      ))}
-    </div>
+    <Section title={t('install.code')} lang={lang}>
+      <ListGroup label={t('install.code')}>
+        <ListRow
+          title={
+            <span className="t-mono" lang="en">
+              {splitLpa(lpa).map((part, i) => (
+                <span key={i} data-hash>
+                  {i > 0 ? '$' : ''}
+                  {part}
+                </span>
+              ))}
+            </span>
+          }
+          trailing={<CopyButton value={lpa} label={t('install.copy')} testId="copy-lpa" />}
+        />
+      </ListGroup>
+    </Section>
   );
 }
 
@@ -112,13 +145,15 @@ export function CopyButton({
  * hidden again after 60 s (T-61). A shared laptop never prints the code on load (RT-W-01).
  */
 function Reveal({
-  show,
+  title,
+  body,
   warn,
   buttonId,
   panelId,
   children,
 }: {
-  show: string;
+  title: string;
+  body: string;
   warn: string;
   buttonId: string;
   panelId: string;
@@ -133,20 +168,26 @@ function Reveal({
   }, [shown]);
   if (!shown)
     return (
-      <Button variant="secondary" onClick={() => setShown(true)} data-testid={buttonId}>
-        {show}
-      </Button>
+      <ListGroup>
+        <ListRow
+          title={title}
+          subtitle={body}
+          onClick={() => setShown(true)}
+          lang={lang}
+          data-testid={buttonId}
+        />
+      </ListGroup>
     );
   return (
-    <div className="second-device" data-testid={panelId}>
-      <p className="warning-line caution" lang={lang}>
-        <Icon name="warning" /> {warn}
-      </p>
+    <Card data-testid={panelId}>
+      <Notice tone="warning" lang={lang}>
+        {warn}
+      </Notice>
       {children}
       <Button variant="quiet" onClick={() => setShown(false)}>
         {t('install.anotherHide')}
       </Button>
-    </div>
+    </Card>
   );
 }
 
@@ -161,22 +202,27 @@ function ManualDetails({ lpa }: { lpa: string }) {
     { id: 'full', label: t('install.full'), value: lpa },
   ];
   return (
-    <dl className="lpa-details">
+    <ListGroup flush>
       {rows.map((row) => (
-        <div key={row.id}>
-          <dt id={`${id}-${row.id}`}>{row.label}</dt>
-          <dd>
-            <span data-hash>{row.value}</span>
+        <ListRow
+          key={row.id}
+          title={<span id={`${id}-${row.id}`}>{row.label}</span>}
+          subtitle={
+            <span className="t-mono" data-hash lang="en">
+              {row.value}
+            </span>
+          }
+          trailing={
             <CopyButton
               value={row.value}
               label={t('install.copy')}
               testId={`copy-${row.id}`}
               describedBy={`${id}-${row.id}`}
             />
-          </dd>
-        </div>
+          }
+        />
       ))}
-    </dl>
+    </ListGroup>
   );
 }
 
@@ -207,63 +253,40 @@ export function ConnectionCheck() {
             ? t('check.online')
             : undefined;
   return (
-    <section className="connection-check">
-      <Button variant="secondary" onClick={() => void run()} disabled={result === 'checking'}>
+    <Card>
+      <Button variant="secondary" block onClick={() => void run()} disabled={result === 'checking'}>
         {t('check.button')}
       </Button>
       {line ? (
-        <p className="connection-check__result" data-result={result} role="status" lang={lang}>
+        <p
+          className="connection-check__result t-body"
+          data-result={result}
+          role="status"
+          lang={lang}
+        >
           {line}
         </p>
       ) : null}
-      <p className="note" lang={lang}>
+      <p className="t-caption" lang={lang}>
         {config.attachMedianS
           ? t('check.expectMedian', { s: config.attachMedianS })
           : t('check.expect')}
       </p>
-    </section>
+    </Card>
   );
 }
 
-function IosSteps({ mb }: { mb: number }) {
+/** The numbered rows in the order the system asks: iOS's five, Android's four. */
+function StepRows({ steps }: { steps: readonly string[] }) {
   const { t, lang } = useLang();
   return (
-    <ol className="steps" lang={lang}>
-      <li>{t('install.ios.1')}</li>
-      <li>{t('install.ios.2', { mb: formatMb(mb) })}</li>
-      <li>{t('install.ios.3')}</li>
-      <li>{t('install.ios.4')}</li>
-      <li>{t('install.ios.5')}</li>
-    </ol>
-  );
-}
-
-function AndroidSteps({ lpa }: { lpa: string }) {
-  const { t, lang } = useLang();
-  return (
-    <>
-      <CopyButton
-        value={lpa}
-        label={t('install.android.copy')}
-        testId="copy-activation-code"
-        primary
-      />
-      <CodeBlock lpa={lpa} />
-      <ol className="steps" lang={lang}>
-        <li>{t('install.android.1')}</li>
-        <li>{t('install.android.2')}</li>
-        <li>{t('install.android.3')}</li>
-        <li>{t('install.android.4')}</li>
-      </ol>
-      <p className="intent-link">
-        <a href={ANDROID_EUICC_INTENT} rel="noreferrer" data-testid="android-intent">
-          {t('install.android.intent')}
-        </a>{' '}
-        <span className="unverified" lang={lang}>
-          {t('install.android.unverified')}
-        </span>
-      </p>
-    </>
+    <Section title={t('install.stepsTitle')} lang={lang}>
+      <ListGroup label={t('install.stepsTitle')}>
+        {steps.map((step, i) => (
+          <ListRow key={step} leading={<Avatar label={String(i + 1)} size={32} />} title={step} />
+        ))}
+      </ListGroup>
+    </Section>
   );
 }
 
@@ -405,33 +428,70 @@ export function InstallSteps() {
   const handheld = hydrated && isHandheld(window);
   // a computer cannot hold the eSIM: it gets the two ways that reach the phone, not an empty "on this phone"
   const phone = device?.os === 'ios' || device?.os === 'android';
+  const usable =
+    lpa !== undefined && lpa !== null && device !== undefined && !removed && !installed && !blocked;
+  const ios = usable && device.os === 'ios' && device.universalLink;
+  const android = usable && device.os === 'android';
+  const action = ios ? (
+    <>
+      <ButtonLink
+        href={iosUniversalLink(lpa)}
+        native
+        size="lg"
+        block
+        rel="noreferrer"
+        target="_top"
+        data-testid="ios-universal-link"
+      >
+        {t('install.button')}
+      </ButtonLink>
+      <p className="t-caption" lang={lang}>
+        {t('install.tapAgain')}
+      </p>
+    </>
+  ) : android ? (
+    <>
+      <CopyButton
+        value={lpa}
+        label={t('install.android.copy')}
+        testId="copy-activation-code"
+        primary
+      />
+      <p className="t-caption" lang={lang}>
+        <a href={ANDROID_EUICC_INTENT} rel="noreferrer" data-testid="android-intent">
+          {t('install.android.intent')}
+        </a>{' '}
+        <span>{t('install.android.unverified')}</span>
+      </p>
+    </>
+  ) : undefined;
   return (
-    <Screen wide className="install-screen">
-      <AppHeader />
-      <header className="flow-heading">
-        <p className="eyebrow" lang={lang} data-testid="install-plan">
-          {eyebrow}
-        </p>
-        <h1 className="install__title" lang={lang}>
-          {t('install.title')}
-        </h1>
-        <StatusPill status={me?.status} handheld={handheld} />
-        {trip?.several ? (
-          <p className="quiet-rows">
-            <Link href="/plan" prefetch={false} lang={lang}>
-              {t('install.switchPlan')}
-            </Link>
-          </p>
-        ) : null}
-      </header>
+    <AppShell back="/plan" nav="plan" {...(action ? { action } : {})}>
+      <Stepper
+        steps={[t('install.stepProve'), t('install.stepIssue'), t('install.stepInstall')]}
+        current={3}
+        label={t('install.stepsLabel')}
+        lang={lang}
+      />
+      <PageHeader
+        eyebrow={<span data-testid="install-plan">{eyebrow}</span>}
+        title={t('install.title')}
+        lang={lang}
+      />
+      <StatusCard status={me?.status} handheld={handheld} />
+      {trip?.several ? (
+        <ListGroup>
+          <ListRow title={t('install.switchPlan')} href="/plan" lang={lang} />
+        </ListGroup>
+      ) : null}
       {lpa === undefined || !device ? (
-        <div className="skeleton skeleton--line" aria-hidden="true" />
+        <Skeleton shape="row" count={3} />
       ) : removed || installed ? (
-        <p className="note" role="status" lang={lang} data-testid="lpa-removed">
+        <Notice tone="positive" role="status" lang={lang} data-testid="lpa-removed">
           {t('install.done')}
-        </p>
+        </Notice>
       ) : blocked ? (
-        <p className="note" role="status" lang={lang} data-testid="install-blocked">
+        <Notice tone="warning" role="status" lang={lang} data-testid="install-blocked">
           {reclaim &&
           reclaim.state !== 'ineligible' &&
           (reclaim.state !== 'scheduled' || reclaim.reclaimAfter <= now)
@@ -445,101 +505,88 @@ export function InstallSteps() {
             : policy?.cancelledAt !== undefined
               ? t('plan.cancelledState')
               : t('install.noLpa')}
-        </p>
+        </Notice>
       ) : lpa === null ? (
-        <p className="note" role="status" lang={lang}>
+        <Notice tone="info" role="status" lang={lang}>
           {t('install.noLpa')}
-        </p>
+        </Notice>
       ) : (
         <>
-          <Caution k="install.onlyHere" />
-          <Caution k="warn.unlocked" />
-          <h2 className="install__ways" lang={lang}>
-            {t(phone ? 'install.ways' : 'install.waysComputer')}
-          </h2>
-          {phone ? null : (
-            <p className="note" lang={lang}>
+          <Notice tone="warning" lang={lang}>
+            <p>{t('install.onlyHere')}</p>
+            <p>{t('warn.unlocked')}</p>
+          </Notice>
+          {ios ? (
+            <StepRows
+              steps={[
+                t('install.ios.1'),
+                t('install.ios.2', { mb: formatMb(mb) }),
+                t('install.ios.3'),
+                t('install.ios.4'),
+                t('install.ios.5'),
+              ]}
+            />
+          ) : android ? (
+            <>
+              <StepRows
+                steps={[
+                  t('install.android.1'),
+                  t('install.android.2'),
+                  t('install.android.3'),
+                  t('install.android.4'),
+                ]}
+              />
+              <CodeCard lpa={lpa} />
+            </>
+          ) : (
+            <Notice tone="info" lang={lang}>
               {t('install.other')}
-            </p>
+            </Notice>
           )}
-          <ul className="install-ways" lang={lang}>
-            {phone ? (
-              <li>
-                <h3>{t('install.wayHere')}</h3>
-                {device.os === 'ios' && device.universalLink ? (
-                  <>
-                    <a
-                      className="ui-button ui-button--block"
-                      data-variant="primary"
-                      href={iosUniversalLink(lpa)}
-                      rel="noreferrer"
-                      target="_top"
-                      data-testid="ios-universal-link"
-                    >
-                      {t('install.button')}
-                    </a>
-                    <p className="note">{t('install.tapAgain')}</p>
-                    <IosSteps mb={mb} />
-                  </>
-                ) : device.os === 'android' ? (
-                  <AndroidSteps lpa={lpa} />
-                ) : (
-                  <p className="note">{t('install.other')}</p>
-                )}
-              </li>
-            ) : null}
-            <li>
-              <h3>{t('install.wayQr')}</h3>
-              <p className="note">{t('install.wayQrBody')}</p>
+          <Section
+            title={phone ? t('install.anotherTitle') : t('install.waysComputer')}
+            lang={lang}
+          >
+            <div data-testid="other-device">
               <Reveal
-                show={t('install.another')}
+                title={t('install.wayQr')}
+                body={t('install.wayQrBody')}
                 warn={t('install.anotherWarn')}
                 buttonId="another-phone"
                 panelId="second-device-qr"
               >
                 <QrCode url={lpa} sizeMm={40} label={t('install.code')} />
               </Reveal>
-            </li>
-            <li>
-              <h3>{t('install.wayManual')}</h3>
-              <p className="note">{t('install.wayManualBody')}</p>
               <Reveal
-                show={t('install.showDetails')}
+                title={t('install.wayManual')}
+                body={t('install.wayManualBody')}
                 warn={t('install.detailsWarn')}
                 buttonId="show-details"
                 panelId="manual-details"
               >
                 <ManualDetails lpa={lpa} />
               </Reveal>
-            </li>
-          </ul>
+            </div>
+          </Section>
         </>
       )}
-      <ConnectionCheck />
       {late && me?.status !== 'active' ? (
-        <section className="trouble" aria-labelledby="trouble-title">
-          <h2 id="trouble-title" lang={lang}>
-            {t('trouble.title')}
-          </h2>
-          <ul lang={lang}>
-            <li>{t('trouble.roaming')}</li>
-            <li>{t('trouble.line')}</li>
-            <li>{t('trouble.airplane')}</li>
-          </ul>
-        </section>
+        <Notice tone="warning" title={t('trouble.title')} lang={lang}>
+          <p>{t('trouble.roaming')}</p>
+          <p>{t('trouble.line')}</p>
+          <p>{t('trouble.airplane')}</p>
+        </Notice>
       ) : null}
+      <ConnectionCheck />
       {/* the install ends where the plan lives: data left, expiry, top-ups */}
-      <div className="plan__actions">
-        <Link
+      <ListGroup>
+        <ListRow
+          leading={<Avatar icon="plan" size={32} />}
+          title={t('landing.open')}
           href={me ? planHref(me.entitlementKey) : '/plan'}
-          className="ui-button ui-button--block"
-          data-variant="secondary"
-          prefetch={false}
-        >
-          {t('landing.open')}
-        </Link>
-      </div>
-      <TabBar active="plan" />
-    </Screen>
+          lang={lang}
+        />
+      </ListGroup>
+    </AppShell>
   );
 }

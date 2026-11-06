@@ -1,20 +1,27 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import type { MeResponse } from '@ethglobal/protocol/schemas';
-import { Button } from '@ethglobal/ui/components';
 
-import styles from './MyPlans.module.css';
-import { NoPlanSteps, PlanView } from './PlanView';
-import { AppHeader, Screen, TabBar } from './Shell';
+import {
+  Avatar,
+  ButtonLink,
+  EmptyState,
+  ListGroup,
+  ListRow,
+  Notice,
+  PageHeader,
+  Pill,
+  Skeleton,
+} from './kit';
+import { PlanView } from './PlanView';
 import { useLang } from '../i18n/lang';
 import { activationBlocked } from '../lib/activation-policy';
 import { api, ApiError } from '../lib/api';
 import { planHref } from '../lib/deliver';
-import { formatMb } from '../lib/format';
+import { dayLabel, formatMb } from '../lib/format';
 import { useClock, useHydrated } from '../lib/hooks';
 import { plans, type PlanMetadata } from '../lib/store';
 
@@ -120,32 +127,22 @@ function SavedPlansList() {
   }, []);
 
   return (
-    <Screen wide>
-      <AppHeader />
-      <header className="flow-heading" lang={lang}>
-        <h1 className="screen__title">{t('plans.title')}</h1>
-        <p>{t('plans.subtitle')}</p>
-        <p className="note">{t('plans.deviceOnly')}</p>
-      </header>
+    <>
+      <PageHeader title={t('plans.yourPlans')} lead={t('plans.deviceOnly')} lang={lang} />
       {rows === undefined ? (
-        <ul className={styles.list} aria-label={t('plans.loading')}>
-          {[0, 1].map((i) => (
-            <li key={i} className={styles.row} aria-hidden="true">
-              <div className={styles.main}>
-                <span className={`skeleton ${styles.ghostName}`} />
-                <span className={`skeleton ${styles.ghostMeta}`} />
-              </div>
-              <span className={`skeleton ${styles.ghostData}`} />
-            </li>
-          ))}
-        </ul>
+        <Skeleton shape="row" count={2} label={t('plans.loading')} />
       ) : rows.length === 0 ? (
-        <>
-          <p role="status">{t('plans.empty')}</p>
-          <NoPlanSteps />
-        </>
+        <EmptyState
+          title={t('plans.empty')}
+          body={t('plan.elsewhere')}
+          action={
+            <ButtonLink href="/" size="lg">
+              {t('plans.getBundle')}
+            </ButtonLink>
+          }
+        />
       ) : (
-        <ul className={styles.list}>
+        <ListGroup label={t('plans.yourPlans')}>
           {rows.map((row) => {
             const me = row.me;
             const expired =
@@ -181,70 +178,60 @@ function SavedPlansList() {
                           ? 'plans.pending'
                           : 'plans.ready';
             const isCurrent = row.key === current;
+            const name =
+              row.metadata?.eventName ??
+              me?.event?.name ??
+              row.metadata?.planName ??
+              me?.sponsorName ??
+              t('plans.saved');
             return (
-              <li key={row.key} className={styles.row} data-current={isCurrent || undefined}>
-                <div className={styles.main}>
-                  <h2 className={styles.name}>
-                    {row.metadata?.eventName ??
-                      me?.event?.name ??
-                      row.metadata?.planName ??
-                      me?.sponsorName ??
-                      t('plans.saved')}
-                  </h2>
-                  <p className={styles.meta}>
+              <ListRow
+                key={row.key}
+                leading={<Avatar label={destination} />}
+                title={
+                  <>
+                    <span>{name}</span>
+                    {isCurrent ? (
+                      <>
+                        {' '}
+                        <Pill tone="brand">{t('plans.current')}</Pill>
+                      </>
+                    ) : null}
+                  </>
+                }
+                subtitle={
+                  <>
                     <span>{destination}</span>
                     <span aria-hidden="true"> · </span>
                     <span role="status">{t(status)}</span>
-                    {isCurrent ? (
-                      <>
-                        <span aria-hidden="true"> · </span>
-                        <span className={styles.selected}>{t('plans.current')}</span>
-                      </>
+                    {me && !expired && !cancelled ? (
+                      <span>{` · ${t('plans.until', { date: dayLabel(me.expiresAt, lang) })}`}</span>
                     ) : null}
-                  </p>
-                  {row.offline ? <p className={styles.offline}>{t('plans.offline')}</p> : null}
-                </div>
-                <div className={styles.side}>
-                  {me ? (
-                    <p className={styles.data}>
-                      {t('plans.data', {
-                        remaining: formatMb(expired || cancelled ? 0 : me.remainingMb),
-                        total: formatMb(me.mbTotal),
-                      })}
-                    </p>
-                  ) : null}
-                  <div className={styles.actions}>
-                    {!isCurrent ? (
-                      <Button
-                        variant="quiet"
-                        onClick={() => {
-                          void plans.setCurrent(row.key).then((owned) => {
-                            if (owned) router.push(planHref(row.key));
-                          });
-                        }}
-                      >
-                        {t('plans.select')}
-                      </Button>
-                    ) : null}
-                    <Link
-                      href={planHref(row.key)}
-                      className="ui-button"
-                      data-variant="secondary"
-                      prefetch={false}
-                    >
-                      {t('plans.open')}
-                    </Link>
-                  </div>
-                </div>
-              </li>
+                    {row.offline ? <span>{` · ${t('plans.offline')}`}</span> : null}
+                  </>
+                }
+                {...(me ? { value: formatMb(expired || cancelled ? 0 : me.remainingMb) } : {})}
+                lang={lang}
+                // the current plan opens; another one becomes current first (the plan Install and Add act on)
+                {...(isCurrent
+                  ? { href: planHref(row.key) }
+                  : {
+                      onClick: () => {
+                        void plans.setCurrent(row.key).then((owned) => {
+                          if (owned) router.push(planHref(row.key));
+                        });
+                      },
+                    })}
+              />
             );
           })}
-        </ul>
+        </ListGroup>
       )}
-      <p className="note" lang={lang}>
-        {t('plans.switchNote')}
-      </p>
-      <TabBar active="plan" canTopUp={false} />
-    </Screen>
+      {rows?.length ? (
+        <Notice tone="info" lang={lang}>
+          {t('plans.switchNote')}
+        </Notice>
+      ) : null}
+    </>
   );
 }

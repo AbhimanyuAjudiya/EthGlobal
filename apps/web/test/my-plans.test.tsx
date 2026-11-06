@@ -24,7 +24,7 @@ vi.mock('../lib/api', async (importOriginal) => {
 });
 
 describe('/plan · My plans', () => {
-  it('lists every saved plan by destination and "Make current" re-points plans.latest()', async () => {
+  it('lists every saved plan by destination and tapping another plan re-points plans.latest()', async () => {
     await plans.adopt('plan-in');
     await plans.saveMetadata('plan-in', { destinationCountry: 'IN', eventName: 'ETHIndia' });
     await plans.adopt('plan-jp');
@@ -37,9 +37,12 @@ describe('/plan · My plans', () => {
     expect(screen.getByText('ETHIndia')).toBeTruthy();
     expect(screen.getByText('ETHTokyo')).toBeTruthy();
 
-    // only the plan that is not current offers the switch
-    const select = screen.getAllByRole('button', { name: 'Make current' });
+    // the current plan is a link marked Current; only the other one is a row that switches to it
+    const current = screen.getByRole('link', { name: /ETHTokyo/ });
+    expect(current.textContent).toContain('Current');
+    const select = screen.getAllByRole('button');
     expect(select).toHaveLength(1);
+    expect(select[0]!.textContent).toContain('ETHIndia');
     fireEvent.click(select[0]!);
     await waitFor(async () => expect(await plans.latest()).toBe('plan-in'));
     expect(mocks.push).toHaveBeenCalledWith('/plan/plan-in');

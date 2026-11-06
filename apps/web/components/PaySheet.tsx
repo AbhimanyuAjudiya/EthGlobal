@@ -1,7 +1,6 @@
 'use client';
 
 import { useConnectModal } from '@rainbow-me/rainbowkit';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { parseAbi, type Address } from 'viem';
@@ -16,13 +15,26 @@ import type {
   TopUpResponse,
 } from '@ethglobal/protocol/schemas';
 import { sessionNonce, type PaymentSigner } from '@ethglobal/protocol/x402';
-import { Button, MbMeter, RuledList } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
 import { HashPackConnection, type HashPackState } from './HashPackConnection';
 import { ProofRows } from './IssuingRows';
+import {
+  ActionBar,
+  Avatar,
+  Button,
+  ButtonLink,
+  Card,
+  ChoiceChips,
+  ListGroup,
+  ListRow,
+  Notice,
+  PageHeader,
+  Section,
+  Skeleton,
+} from './kit';
 import { ProofPanel } from './ProofPanel';
-import { AppHeader, Caution, Screen, TabBar, useWalletLabel } from './Shell';
+import { useWalletLabel } from './Shell';
 import { useLang, useNetworkName } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
@@ -99,29 +111,28 @@ function HederaPanel({
   const netName = useNetworkName();
   const terms = hederaTerms(req);
   return (
-    <section className="hedera-panel" data-testid="hedera-panel">
-      <h2 lang={lang}>{t('pay.hederaTitle')}</h2>
-      <p lang={lang}>{t('pay.hederaBody')}</p>
-      <RuledList
-        rows={[
-          { label: t('pay.hNetwork'), value: netName(terms.network) },
-          { label: t('pay.hAsset'), value: <span data-hash>{terms.asset}</span>, mono: true },
-          {
-            label: t('pay.hAmount'),
-            value: `${moneyUsdc(BigInt(terms.amount))} · ${terms.amount}`,
-            mono: true,
-          },
-          { label: t('pay.hPayTo'), value: <span data-hash>{terms.payTo}</span>, mono: true },
-          {
-            label: t('pay.hFeePayer'),
-            value: <span data-hash>{terms.feePayer ?? '—'}</span>,
-            mono: true,
-          },
-          { label: t('pay.hValidFor'), value: `${terms.validForS} s`, mono: true },
-        ]}
-      />
-      <HashPackConnection state={hp} onConnect={onConnect} />
-    </section>
+    <Section title={t('pay.hederaTitle')} lang={lang}>
+      <Card as="section" data-testid="hedera-panel" aria-label={t('pay.hederaTitle')}>
+        <Notice tone="info">{t('pay.hederaBody')}</Notice>
+        <ListGroup flush label={t('pay.hederaTitle')}>
+          <ListRow title={t('pay.hNetwork')} value={netName(terms.network)} />
+          <ListRow title={t('pay.hAsset')} value={<span data-hash>{terms.asset}</span>} mono />
+          <ListRow
+            title={t('pay.hAmount')}
+            value={`${moneyUsdc(BigInt(terms.amount))} · ${terms.amount}`}
+            mono
+          />
+          <ListRow title={t('pay.hPayTo')} value={<span data-hash>{terms.payTo}</span>} mono />
+          <ListRow
+            title={t('pay.hFeePayer')}
+            value={<span data-hash>{terms.feePayer ?? '—'}</span>}
+            mono
+          />
+          <ListRow title={t('pay.hValidFor')} value={`${terms.validForS} s`} mono />
+        </ListGroup>
+        <HashPackConnection state={hp} onConnect={onConnect} />
+      </Card>
+    </Section>
   );
 }
 
@@ -142,29 +153,30 @@ function ForeignPlanGate({
     api.me(entitlementKey).then(setMe, () => setMe(null));
   }, [entitlementKey]);
   return (
-    <Screen money className="pay-screen">
-      <AppHeader />
+    <>
+      <PageHeader title={t('pay.addTitle')} lead={t('pay.addLead')} lang={lang} />
       {me === undefined ? (
-        <div className="skeleton skeleton--line" aria-hidden="true" />
+        <Skeleton shape="card" />
       ) : me === null ? (
-        <p className="note" role="status" data-testid="pay-foreign">
+        <Notice tone="warning" role="status" data-testid="pay-foreign" lang={lang}>
           {t('pay.notHereUnknown')}
-        </p>
+        </Notice>
       ) : (
-        <section className="pay-gate" data-testid="pay-foreign">
-          <p lang={lang}>
+        <>
+          <Notice tone="warning" data-testid="pay-foreign" lang={lang}>
             {t('pay.notHere', {
               mb: formatMb(me.mbTotal),
               when: `${dayLabel(me.expiresAt, lang)} ${clockIst(me.expiresAt)}`,
             })}
-          </p>
-          <Button block onClick={onConfirm} data-testid="pay-foreign-confirm">
-            {t('pay.notHereButton')}
-          </Button>
-        </section>
+          </Notice>
+          <ActionBar>
+            <Button block size="lg" onClick={onConfirm} data-testid="pay-foreign-confirm">
+              {t('pay.notHereButton')}
+            </Button>
+          </ActionBar>
+        </>
       )}
-      <TabBar active="add" />
-    </Screen>
+    </>
   );
 }
 
@@ -444,197 +456,163 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
     title,
   ]);
 
-  const validRow = me
-    ? {
-        label: t('pay.rowValid'),
-        value: doneKey
-          ? t('pay.validUntil', {
-              when: `${dayLabel(me.expiresAt, lang)} ${clockIst(me.expiresAt)}`,
-            })
-          : t('pay.topupValid', { days: plans?.paid.validityDays ?? 7 }),
-      }
-    : {
-        label: t('pay.rowValid'),
-        value: t('pay.validDays', { days: plans?.paid.validityDays ?? 7 }),
-      };
-  const review = [
-    validRow,
-    { label: t('pay.rowFee'), value: t('pay.feeFacilitator') },
-    ...(isHedera
-      ? hp.session
-        ? [
-            {
-              label: t('pay.rowFrom'),
-              value: t('pay.hashpackAccount', { account: hp.session.accountId }),
-            },
-          ]
-        : []
-      : wallet
-        ? [{ label: t('pay.rowFrom'), value: walletLabel(wallet) }]
-        : []),
-  ];
+  const validValue = me
+    ? doneKey
+      ? t('pay.validUntil', {
+          when: `${dayLabel(me.expiresAt, lang)} ${clockIst(me.expiresAt)}`,
+        })
+      : t('pay.topupValid', { days: plans?.paid.validityDays ?? 7 })
+    : t('pay.validDays', { days: plans?.paid.validityDays ?? 7 });
+  const fromValue = isHedera
+    ? hp.session
+      ? t('pay.hashpackAccount', { account: hp.session.accountId })
+      : undefined
+    : wallet
+      ? walletLabel(wallet)
+      : undefined;
+  const worstCase =
+    q && chosen && !quoteError && !q.recovery && row.state === 'idle' && approvalLeft > 0
+      ? t('pay.worst', { mmss: mmss(approvalLeft) })
+      : undefined;
+  const days = plans?.paid.validityDays ?? 7;
+  const sizeLabel = t('pay.option', { mb: formatMb(mb), days, price: money(planUsd6) });
 
   return (
-    <Screen money wide className="pay-screen">
-      <AppHeader />
-      <div className="pay-desk">
-        <section className="pay-desk__object">
-          <h1 className="pay-title" lang={lang}>
-            {t(entitlementKey ? 'pay.topupHeading' : 'pay.heading')}
-          </h1>
-          {accepts.length > 0 && row.state === 'idle' ? (
-            <div
-              className="segmented"
-              role="radiogroup"
-              aria-label={t('pay.payFrom')}
-              data-testid="pay-from"
-            >
-              {accepts.map((a) => (
-                <button
-                  key={a.network}
-                  type="button"
-                  role="radio"
-                  aria-checked={a.network === chosen?.network}
-                  onClick={() => setNetwork(a.network)}
-                >
-                  {netName(a.network)}
-                  {balances[a.network] !== undefined
-                    ? ` · ${usdcBalance(balances[a.network] ?? 0n)}`
-                    : ''}
-                </button>
-              ))}
-            </div>
-          ) : null}
-          {isHedera && chosen && !hederaSessionBound ? (
-            <HederaPanel
-              req={chosen}
-              hp={{
-                ...hp,
-                connecting: hp.connecting === true || !['idle', 'failed'].includes(row.state),
-              }}
-              onConnect={() => void onConnect()}
-            />
-          ) : null}
-          <ActionView
-            row={row}
-            now={now}
-            title={title}
-            network={chosen?.network ?? ''}
-            networkLabel={netName(chosen?.network)}
-            review={review}
-            {...(q &&
-            chosen &&
-            !quoteError &&
-            !q.recovery &&
-            row.state === 'idle' &&
-            approvalLeft > 0
-              ? { worstCase: t('pay.worst', { mmss: mmss(approvalLeft) }) }
-              : {})}
-            actionLabel={connectFirst ? t('wallet.connectToPay') : t('pay.button', { price })}
-            walletName={isHedera ? 'HashPack' : walletLabel(wallet)}
-            simulation={t('pay.simulation', { price, mb: formatMb(mb) })}
-            {...(result ? { result } : {})}
-            {...(blocked ? { blocked } : {})}
-            expectedMs={expectedMsFor(chosen?.network)}
-            onConfirm={() => {
-              if (connectFirst) openConnectModal?.();
-              else void onConfirm();
-            }}
-            onRetry={() => {
-              if (row.outcomeUnknown && row.hash && doneKey) {
-                router.push('/receipts');
-                return;
-              }
-              if (row.outcomeUnknown)
-                setQ((current) => (current ? { ...current, recovery: true } : current));
-              dispatch({ type: 'retry' });
-              setProof(undefined);
-              if (!row.outcomeUnknown) setQuoteRound((n) => n + 1);
-            }}
-            lang={lang}
-            className="pay__sheet"
+    <>
+      <PageHeader
+        title={t('pay.addTitle')}
+        lead={t(entitlementKey ? 'pay.topupIntro' : 'pay.addLead', { days })}
+        lang={lang}
+      />
+      <ChoiceChips
+        label={t('gift.size')}
+        options={[
+          {
+            value: String(mb),
+            // one size is sold (/plans paid.sizesMb); a new plan names its validity and price
+            label:
+              !entitlementKey && row.state === 'idle' ? (
+                <span data-testid="pay-option" lang={lang}>
+                  {sizeLabel}
+                </span>
+              ) : (
+                formatMb(mb)
+              ),
+            ...(entitlementKey ? { sub: shortPrice } : {}),
+          },
+        ]}
+        value={String(mb)}
+        onChange={() => undefined}
+      />
+      <Card lang={lang}>
+        {accepts.length > 0 && row.state === 'idle' ? (
+          <ChoiceChips
+            label={t('pay.payFrom')}
+            showLabel
+            data-testid="pay-from"
+            options={accepts.map((a) => ({
+              value: a.network,
+              label: netName(a.network),
+              ...(balances[a.network] !== undefined
+                ? { sub: usdcBalance(balances[a.network] ?? 0n) }
+                : {}),
+            }))}
+            value={chosen?.network}
+            onChange={setNetwork}
           />
-          {quoteError && row.state === 'idle' ? (
-            // the price did not load (network, API): ask again rather than leave a disabled button
-            <Button block variant="secondary" onClick={() => setQuoteRound((n) => n + 1)}>
-              {t('verify.retry')}
-            </Button>
-          ) : null}
-          {payableInstead && row.state === 'idle' ? (
-            // A legacy API may not support native purchases yet.
-            <Button block variant="secondary" onClick={() => setNetwork(payableInstead.network)}>
-              {t('pay.useNetwork', { network: netName(payableInstead.network) })}
-            </Button>
-          ) : null}
-          <ProofPanel
-            proof={proof}
-            fallback={receipt && row.state !== 'failed' ? <ProofRows receipt={receipt} /> : null}
+        ) : null}
+        <ListGroup flush label={t('pay.review')}>
+          <ListRow title={t('pay.rowData')} value={formatMb(mb)} />
+          <ListRow title={t('pay.rowValid')} subtitle={validValue} />
+          {fromValue ? <ListRow title={t('pay.rowFrom')} value={fromValue} /> : null}
+          <ListRow title={t('pay.rowFee')} value={t('pay.feeFacilitator')} />
+          {worstCase ? <ListRow title={t('pay.rowWorst')} subtitle={worstCase} /> : null}
+        </ListGroup>
+      </Card>
+      {isHedera && chosen && !hederaSessionBound ? (
+        <HederaPanel
+          req={chosen}
+          hp={{
+            ...hp,
+            connecting: hp.connecting === true || !['idle', 'failed'].includes(row.state),
+          }}
+          onConnect={() => void onConnect()}
+        />
+      ) : null}
+      <ActionView
+        row={row}
+        now={now}
+        title={title}
+        network={chosen?.network ?? ''}
+        networkLabel={netName(chosen?.network)}
+        actionLabel={connectFirst ? t('wallet.connectToPay') : t('pay.button', { price })}
+        walletName={isHedera ? 'HashPack' : walletLabel(wallet)}
+        simulation={t('pay.simulation', { price, mb: formatMb(mb) })}
+        {...(result ? { result } : {})}
+        {...(blocked ? { blocked } : {})}
+        expectedMs={expectedMsFor(chosen?.network)}
+        onConfirm={() => {
+          if (connectFirst) openConnectModal?.();
+          else void onConfirm();
+        }}
+        onRetry={() => {
+          if (row.outcomeUnknown && row.hash && doneKey) {
+            router.push('/receipts');
+            return;
+          }
+          if (row.outcomeUnknown)
+            setQ((current) => (current ? { ...current, recovery: true } : current));
+          dispatch({ type: 'retry' });
+          setProof(undefined);
+          if (!row.outcomeUnknown) setQuoteRound((n) => n + 1);
+        }}
+        lang={lang}
+      />
+      {quoteError && row.state === 'idle' ? (
+        // the price did not load (network, API): ask again rather than leave a disabled button
+        <Button block variant="secondary" onClick={() => setQuoteRound((n) => n + 1)}>
+          {t('verify.retry')}
+        </Button>
+      ) : null}
+      {payableInstead && row.state === 'idle' ? (
+        // A legacy API may not support native purchases yet.
+        <Button block variant="secondary" onClick={() => setNetwork(payableInstead.network)}>
+          {t('pay.useNetwork', { network: netName(payableInstead.network) })}
+        </Button>
+      ) : null}
+      <ProofPanel
+        proof={proof}
+        fallback={receipt && row.state !== 'failed' ? <ProofRows receipt={receipt} /> : null}
+      />
+      {/* the plan exists once the API settled, even while the chain read is still catching up */}
+      {doneKey && row.state !== 'failed' ? (
+        <ButtonLink href={planHref(doneKey)} variant="secondary" block>
+          {t('pay.openPlan')}
+        </ButtonLink>
+      ) : null}
+      {entitlementKey ? (
+        <ListGroup label={t('agent.autoTitle')}>
+          <ListRow
+            leading={<Avatar icon="agent" />}
+            title={t('agent.autoTitle')}
+            subtitle={t('pay.agentLine')}
+            href="/agent"
           />
-          {/* the plan exists once the API settled, even while the chain read is still catching up */}
-          {doneKey && row.state !== 'failed' ? (
-            <button
-              type="button"
-              className="ui-button ui-button--block"
-              data-variant="secondary"
-              onClick={() => router.push(planHref(doneKey))}
-            >
-              {t('pay.openPlan')}
-            </button>
-          ) : null}
-        </section>
-        <aside className="pay-desk__details" aria-label={t('landing.paidPlan')}>
-          <p className="pay-intro" lang={lang}>
-            {t(entitlementKey ? 'pay.topupIntro' : 'pay.intro', {
-              days: plans?.paid.validityDays ?? 7,
-            })}
-          </p>
-          {me ? (
-            <MbMeter
-              remainingMb={me.remainingMb}
-              totalMb={me.mbTotal}
-              usageAsOf={me.usageAsOf}
-              lang={lang}
-              className="pay__meter"
-            />
-          ) : null}
-          <dl className="pay-facts">
-            <div>
-              <dt lang={lang}>{t('flow.coverage')}</dt>
-              <dd>{formatMb(mb)}</dd>
-            </div>
-          </dl>
-          <p className="note" lang={lang}>
-            {t('flow.dataOnly')}
-          </p>
-          {!entitlementKey && row.state === 'idle' ? (
-            <p className="pay__option" data-testid="pay-option" lang={lang}>
-              {t('pay.option', {
-                mb: formatMb(mb),
-                days: plans?.paid.validityDays ?? 7,
-                price: money(planUsd6),
-              })}
-            </p>
-          ) : null}
-          {!entitlementKey ? (
-            <>
-              <p className="note" lang={lang}>
-                {t('pay.noPlan')}
-              </p>
-              {/* a new plan's activation code is sealed to this browser's session */}
-              <Caution k="warn.thisBrowser" />
-            </>
-          ) : null}
-          <Caution k="warn.unlocked" />
-          {entitlementKey ? (
-            <p className="pay-desk__links">
-              <Link href={`/agent`} prefetch={false}>
-                {t('agent.title')}
-              </Link>
-            </p>
-          ) : null}
-        </aside>
-      </div>
-      <TabBar active="add" />
-    </Screen>
+        </ListGroup>
+      ) : null}
+      <Notice tone="info" lang={lang}>
+        {t('flow.dataOnly')}
+        {!entitlementKey ? ` · ${t('pay.noPlan')}` : ''}
+      </Notice>
+      {/* a new plan's activation code is sealed to this browser's session */}
+      {!entitlementKey ? (
+        <Notice tone="warning" lang={lang}>
+          {t('warn.thisBrowser')}
+        </Notice>
+      ) : null}
+      <Notice tone="warning" lang={lang}>
+        {t('warn.unlocked')}
+      </Notice>
+    </>
   );
 }

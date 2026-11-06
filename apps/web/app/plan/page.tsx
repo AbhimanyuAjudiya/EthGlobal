@@ -1,7 +1,12 @@
+import { AppShell } from '../../components/kit';
 import { MyPlans } from '../../components/MyPlans';
 
-export const metadata = { title: 'My plans' };
+export const metadata = { title: 'Your plans' };
 
 export default function Plan() {
-  return <MyPlans />;
+  return (
+    <AppShell nav="plan">
+      <MyPlans />
+    </AppShell>
+  );
 }

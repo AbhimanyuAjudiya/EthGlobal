@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 
-import { Button, Hash } from '@ethglobal/ui/components';
+import { Hash } from '@ethglobal/ui/components';
 
+import { Button, ListGroup, ListRow, Notice, Section } from './kit';
 import { useLang } from '../i18n/lang';
 import { explorerTemplate, networkName } from '../lib/env';
 import { useEnsureChain, useWallet } from '../lib/hooks';
@@ -53,32 +54,41 @@ export function PendingTransactions() {
     }
   };
   return (
-    <section className="pane" aria-label={t('pending.title')} lang={lang}>
-      <h2 className="pane__title">{t('pending.title')}</h2>
-      <p className="note">{t('pending.intro')}</p>
-      {transactions.map((tx) => (
-        <div className="sheet-row" key={tx.hash}>
-          <p>
-            {tx.label} · {networkName(tx.network)}
-          </p>
-          <Hash
-            value={tx.hash}
-            kind="transaction hash"
-            {...(explorerTemplate(tx.network)
-              ? { explorerHref: explorerTemplate(tx.network)!.replace('{hash}', tx.hash) }
-              : {})}
+    <Section title={t('pending.title')} lang={lang}>
+      <Notice tone="info">{t('pending.intro')}</Notice>
+      <ListGroup label={t('pending.title')}>
+        {transactions.map((tx) => (
+          <ListRow
+            key={tx.hash}
+            title={`${tx.label} · ${networkName(tx.network)}`}
+            subtitle={
+              <Hash
+                value={tx.hash}
+                kind="transaction hash"
+                {...(explorerTemplate(tx.network)
+                  ? { explorerHref: explorerTemplate(tx.network)!.replace('{hash}', tx.hash) }
+                  : {})}
+              />
+            }
+            trailing={
+              <Button
+                variant="secondary"
+                size="md"
+                disabled={!wallet || Boolean(checking)}
+                onClick={() => void check(tx)}
+              >
+                {t(checking === tx.hash ? 'pending.checking' : 'pending.check')}
+              </Button>
+            }
           />
-          <Button
-            variant="secondary"
-            disabled={!wallet || Boolean(checking)}
-            onClick={() => void check(tx)}
-          >
-            {t(checking === tx.hash ? 'pending.checking' : 'pending.check')}
-          </Button>
-        </div>
-      ))}
-      {!wallet ? <p className="note">{t('pending.connect')}</p> : null}
-      {message ? <p role="status">{message}</p> : null}
-    </section>
+        ))}
+      </ListGroup>
+      {!wallet ? <Notice tone="warning">{t('pending.connect')}</Notice> : null}
+      {message ? (
+        <Notice tone="info" role="status">
+          {message}
+        </Notice>
+      ) : null}
+    </Section>
   );
 }

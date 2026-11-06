@@ -1,33 +1,39 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import type { MeResponse, ReceiptPublic } from '@ethglobal/protocol/schemas';
-import {
-  Button,
-  Countdown,
-  Coupon,
-  dateLocale,
-  MbMeter,
-  Receipt,
-  uiStrings,
-  type CouponLang,
-} from '@ethglobal/ui/components';
+import { Countdown, dataAmount, dateLocale, uiStrings, UsageAsOf } from '@ethglobal/ui/components';
 
 import { AddToHomeScreen, NotificationAsk } from './AddToHomeScreen';
 import { CopyButton } from './InstallSteps';
 import { IssuingRows, useOdometer } from './IssuingRows';
+import {
+  ActionBar,
+  AppShell,
+  Avatar,
+  BalanceCard,
+  Button,
+  ButtonLink,
+  Card,
+  EmptyState,
+  ListGroup,
+  ListRow,
+  Notice,
+  Pill,
+  QuickActions,
+  Section,
+  Skeleton,
+} from './kit';
 import { PlanActions } from './PlanActions';
 import { ProofPanel } from './ProofPanel';
 import { QrCode } from './QrCode';
-import { AppHeader, Caution, Screen, TabBar } from './Shell';
-import { useLang } from '../i18n/lang';
+import { useLang, useNetworkName } from '../i18n/lang';
 import { activationBlocked } from '../lib/activation-policy';
 import { api, ApiError } from '../lib/api';
 import { recoverActivation } from '../lib/deliver';
 import { arkivEntityUrl } from '../lib/env';
-import { clockIst, dayLabel, formatMb, money, moneyUsdc, soldPlan } from '../lib/format';
+import { clockIst, dayLabel, formatMb, money, moneyUsdc } from '../lib/format';
 import { useClock, usePlans } from '../lib/hooks';
 import { plans as store, type IssuedFacts } from '../lib/store';
 
@@ -54,27 +60,20 @@ function origin(m: MeResponse, receipts: readonly ReceiptPublic[], t: Translate)
 export function NoPlanSteps() {
   const { t, lang } = useLang();
   return (
-    <div className="plan__actions" data-testid="no-plan">
-      <Link
-        href="/verify"
-        className="ui-button ui-button--block"
-        data-variant="primary"
-        prefetch={false}
-      >
-        {t('hub.free')}
-      </Link>
-      <Link
-        href="/pay"
-        className="ui-button ui-button--block"
-        data-variant="secondary"
-        prefetch={false}
-      >
-        {t('hub.buy')}
-      </Link>
-      <p className="note" lang={lang}>
+    <>
+      <ListGroup data-testid="no-plan">
+        <ListRow
+          leading={<Avatar icon="human" />}
+          title={t('hub.free')}
+          href="/verify"
+          lang={lang}
+        />
+        <ListRow leading={<Avatar icon="card" />} title={t('hub.buy')} href="/pay" lang={lang} />
+      </ListGroup>
+      <Notice tone="info" lang={lang}>
         {t('plan.elsewhere')}
-      </p>
-    </div>
+      </Notice>
+    </>
   );
 }
 
@@ -83,17 +82,30 @@ export function NoPlanSteps() {
  * device opens it read-only and keeps it with "Keep this plan on this phone"; the activation code never travels.
  */
 function OtherDevice({ entitlementKey }: { entitlementKey: string }) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
+  const [open, setOpen] = useState(false);
   const url = `${window.location.origin}/plan/${encodeURIComponent(entitlementKey)}`;
   return (
-    <details className="disclosure" data-testid="other-device">
-      <summary>{t('plan.otherDevice')}</summary>
-      <div className="second-device">
-        <Caution k="plan.otherDeviceWarn" />
-        <QrCode url={url} sizeMm={40} label={t('plan.otherDevice')} />
-        <CopyButton value={url} label={t('plan.copyLink')} testId="copy-plan-link" />
-      </div>
-    </details>
+    <>
+      <ListGroup>
+        <ListRow
+          leading={<Avatar icon="share" size={32} />}
+          title={t('plan.otherDevice')}
+          onClick={() => setOpen((o) => !o)}
+          lang={lang}
+          data-testid="other-device"
+        />
+      </ListGroup>
+      {open ? (
+        <Card>
+          <Notice tone="warning" lang={lang}>
+            {t('plan.otherDeviceWarn')}
+          </Notice>
+          <QrCode url={url} sizeMm={40} label={t('plan.otherDevice')} />
+          <CopyButton value={url} label={t('plan.copyLink')} testId="copy-plan-link" />
+        </Card>
+      ) : null}
+    </>
   );
 }
 
@@ -229,252 +241,255 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
     if (INSTALLED.has(me.status)) void store.forgetLpa(entitlementKey);
   }, [live, owned, me, entitlementKey]);
 
-  const odometer = useOdometer(me?.mbTotal ?? 0, firstView && Boolean(me));
-  // a top-up is the paid lane's one size: "+1 GB · $4.00"
-  const price = money(soldPlan(plans).usd6);
+  // the one permitted flourish: data left ticks 0 → its value once, on the bundle's first view
+  const odometer = useOdometer(me?.remainingMb ?? 0, firstView && Boolean(me));
+  const netName = useNetworkName();
   const k = encodeURIComponent(entitlementKey);
-  const uiLang: CouponLang = lang;
 
   if (load.kind === 'loading')
     return (
-      <Screen>
-        <AppHeader />
-        <div className="skeleton skeleton--coupon" aria-label="Loading your plan" />
-        <div className="skeleton skeleton--line" aria-hidden="true" />
-      </Screen>
+      <AppShell nav="plan">
+        <Skeleton shape="balance" label="Loading your plan" />
+        <Skeleton shape="row" count={4} />
+      </AppShell>
     );
   if (load.kind === 'offline')
     return (
-      <Screen>
-        <AppHeader />
-        <section className="offline-card" role="status" data-testid="plan-offline">
-          <h1 className="screen__title">{t('offline.title')}</h1>
-          <p className="note">{t('plan.offlineNone')}</p>
-        </section>
-        <TabBar active="plan" />
-      </Screen>
+      <AppShell nav="plan">
+        <Notice
+          tone="warning"
+          role="status"
+          title={t('offline.title')}
+          lang={lang}
+          data-testid="plan-offline"
+        >
+          {t('plan.offlineNone')}
+        </Notice>
+      </AppShell>
     );
   if (load.kind === 'unknown' || load.kind === 'expired')
     return (
-      <Screen>
-        <AppHeader />
-        <p className="plan-empty" role="status">
-          {load.kind === 'expired' ? t('plan.gone') : t('plan.unknown')}
-        </p>
+      <AppShell nav="plan">
+        <EmptyState title={load.kind === 'expired' ? t('plan.gone') : t('plan.unknown')} />
         {/* a plan /me no longer knows cannot be topped up: the next step is a new one */}
         <NoPlanSteps />
-      </Screen>
+      </AppShell>
     );
 
   const m = load.me;
   const mobileExpiry = m.lifecycle?.serviceExpiresAt;
   const expired = m.expiresAt <= now || (mobileExpiry !== undefined && mobileExpiry <= now);
-  const terminal = expired || cancelled || Boolean(m.cancelledAt);
+  const isCancelled = cancelled || Boolean(m.cancelledAt);
+  const terminal = expired || isCancelled;
   const activationUnavailable = activationBlocked(m, now);
   const lines = receiptLines(receipts.find((r) => r.kind === 'claim') ?? receipts[0], facts);
   const latest = receipts[0];
-  const sponsor = m.sponsorName;
   const ready = Boolean(facts) && odometer.done && owned === true;
   const foreign = owned === false;
   const from = origin(m, receipts, t);
   const tx = facts?.claimTx ?? facts?.settlement;
   const arkivUrl = arkivEntityUrl(m.arkivKey);
-  // the issue moment: the three facts sit under the number on the first view, then fold into the details
-  const issuing = facts ? (
-    <IssuingRows
-      facts={{
-        ...(from.verified ? { verified: from.verified } : {}),
-        ...(tx ? { tx } : {}),
-        ...(facts.network ? { network: facts.network } : {}),
-        paidBySponsor: Boolean(facts.claimTx),
-        arkivKey: m.arkivKey,
-        ...(facts.hcs ? { hcs: facts.hcs } : {}),
-      }}
+  const installed = INSTALLED.has(m.status);
+  const canTopUp = !terminal && m.topUpAvailable !== false;
+  const installable = !(
+    foreign ||
+    terminal ||
+    activationUnavailable ||
+    installed ||
+    m.status === 'pending-profile'
+  );
+  // the activation code was opened in another browser (it never travels): install from there
+  const installElsewhere = installable && hasLpa === false && m.status === 'ready';
+  const left = dataAmount(terminal ? 0 : firstView ? odometer.value : m.remainingMb);
+  const simulated =
+    m.usageSource === 'simulated' ||
+    (process.env.NEXT_PUBLIC_MODE === 'local' &&
+      m.usageSource === 'none' &&
+      plans?.simulated.usage);
+  const status = isCancelled ? (
+    <Pill tone="negative">{t('plans.cancelled')}</Pill>
+  ) : expired ? (
+    <Pill tone="negative">{t('plans.expired')}</Pill>
+  ) : m.status === 'pending-profile' || (firstView && !odometer.done) ? (
+    <Pill tone="warning" dot>
+      {t('plan.pillIssuing')}
+    </Pill>
+  ) : installed ? (
+    <Pill tone="positive" dot>
+      {m.status === 'active' ? t('plans.active') : t('plans.installed')}
+    </Pill>
+  ) : (
+    <Pill tone="neutral" dot>
+      {t('plan.pillReady')}
+    </Pill>
+  );
+  // the issue moment: the facts sit under the number on the first view, then fold into the details
+  const issuing = (title?: string) =>
+    facts ? (
+      <IssuingRows
+        {...(title ? { title } : {})}
+        facts={{
+          ...(from.verified ? { verified: from.verified } : {}),
+          ...(tx ? { tx } : {}),
+          ...(facts.network ? { network: facts.network } : {}),
+          paidBySponsor: Boolean(facts.claimTx),
+          arkivKey: m.arkivKey,
+          ...(facts.hcs ? { hcs: facts.hcs } : {}),
+        }}
+      />
+    ) : null;
+  const when = (ms: number) => `${dayLabel(ms, lang)} ${clockIst(ms)}`;
+  const expiry = m.lifecycle ? (
+    [
+      mobileExpiry !== undefined
+        ? t('plan.serviceExpiry', { date: when(mobileExpiry) })
+        : t(
+            m.lifecycle.startsOn === 'first-network'
+              ? 'plan.lifecycleNetwork'
+              : m.lifecycle.startsOn === 'installation'
+                ? 'plan.lifecycleInstall'
+                : 'plan.lifecycleUnknown',
+          ),
+      m.lifecycle.validityDays && mobileExpiry === undefined
+        ? t('plan.serviceValidity', { days: m.lifecycle.validityDays })
+        : undefined,
+      m.lifecycle.installBy !== undefined && m.lifecycle.activatedAt === undefined && !installed
+        ? t('plan.installDeadline', { date: when(m.lifecycle.installBy) })
+        : undefined,
+    ]
+      .filter(Boolean)
+      .join(' · ')
+  ) : (
+    <Countdown
+      until={m.expiresAt}
+      lead=""
+      ended={t('plan.ended')}
+      template={(l, at) => t('plan.expiresIn', { left: l, at })}
+      units={uiStrings[lang].units}
+      locale={dateLocale(lang)}
     />
-  ) : null;
+  );
 
   return (
-    <Screen wide className="plan-screen">
-      <AppHeader />
+    <AppShell nav="plan">
+      <BalanceCard
+        id="plan-coupon"
+        amount={left.value}
+        unit={left.unit}
+        eyebrow={t('plan.dataLeft')}
+        status={status}
+        {...(simulated ? { note: t('plan.simulated') } : {})}
+        meter={{
+          used: terminal ? m.mbTotal : m.mbTotal - m.remainingMb,
+          total: m.mbTotal,
+          label: t('plan.dataLeft'),
+        }}
+        caption={<UsageAsOf at={m.usageAsOf} lang={lang} />}
+        lang={lang}
+      />
+      <QuickActions
+        label={t('plan.manageTitle')}
+        items={[
+          {
+            icon: 'install',
+            label: t('plan.qaInstall'),
+            href: '/install',
+            disabled: !installable || installElsewhere,
+          },
+          { icon: 'add', label: t('tab.add'), href: `/pay?key=${k}`, disabled: !canTopUp },
+          { icon: 'gift', label: t('tab.gift'), href: '/gift' },
+          { icon: 'receipt', label: t('receipts.title'), href: '/receipts' },
+        ]}
+      />
+      {firstView ? issuing() : null}
       {m.degraded ? (
-        <p className="banner" role="status" data-testid="degraded-banner">
+        <Notice tone="warning" role="status" lang={lang} data-testid="degraded-banner">
           {t('plan.degraded')}
-        </p>
+        </Notice>
       ) : null}
       {load.offlineAt ? (
-        <p className="banner" role="status" data-testid="plan-offline-banner">
+        <Notice tone="warning" role="status" lang={lang} data-testid="plan-offline-banner">
           {t('plan.offline', { time: clockIst(load.offlineAt) })}
-        </p>
+        </Notice>
+      ) : null}
+      {m.status === 'pending-profile' ? (
+        <Notice tone="info" role="status" lang={lang}>
+          {t('plan.pendingProfile')}
+        </Notice>
+      ) : null}
+      {isCancelled ? (
+        <Notice tone="negative" role="status" lang={lang}>
+          {t('plan.cancelledState')}
+        </Notice>
       ) : null}
       {foreign ? (
-        <section className="foreign-plan" data-testid="foreign-plan">
-          <p className="note">{t('plan.notHere')}</p>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              void store.adopt(entitlementKey).then(() => setOwned(true));
-            }}
-            data-testid="keep-plan"
-          >
-            {t('plan.keep')}
-          </Button>
-        </section>
-      ) : null}
-      <div className="plan-overview">
-        <section className="plan__hero">
-          <Coupon
-            mb={terminal ? 0 : firstView ? odometer.value : m.mbTotal}
-            {...(sponsor ? { sponsor } : {})}
-            {...(from.reason ? { reason: from.reason } : {})}
-            lang={uiLang}
-            {...(expired
-              ? { status: t('plan.expired', { when: dayLabel(mobileExpiry ?? m.expiresAt, lang) }) }
-              : {})}
-            {...(m.status === 'pending-profile' ? { status: t('plan.pendingProfile') } : {})}
-            {...(cancelled || m.cancelledAt ? { status: t('plan.cancelledState') } : {})}
-            id="plan-coupon"
-          />
-        </section>
-        <section className="plan-summary" aria-labelledby="plan-summary-title">
-          <p className="eyebrow" lang={lang}>
-            {t('flow.coverage')}
-          </p>
-          <h1 id="plan-summary-title" className="plan-summary__title" lang={lang}>
-            {t('plan.summary')}
-          </h1>
-          {firstView ? issuing : null}
-          <MbMeter
-            remainingMb={m.remainingMb}
-            totalMb={m.mbTotal}
-            usageAsOf={m.usageAsOf}
-            {...(m.usageSource === 'simulated' ||
-            (process.env.NEXT_PUBLIC_MODE === 'local' &&
-              m.usageSource === 'none' &&
-              plans?.simulated.usage)
-              ? { source: t('plan.simulated') }
-              : {})}
-            lang={uiLang}
-            quietWhenFull
-            fillOnce={firstView}
-            className="plan__meter"
-          />
-          <div className="plan__expiry" data-testid="plan-expiry">
-            {m.lifecycle ? (
-              <>
-                <p>
-                  {mobileExpiry !== undefined
-                    ? t('plan.serviceExpiry', {
-                        date: `${dayLabel(mobileExpiry, lang)} ${clockIst(mobileExpiry)}`,
-                      })
-                    : t(
-                        m.lifecycle.startsOn === 'first-network'
-                          ? 'plan.lifecycleNetwork'
-                          : m.lifecycle.startsOn === 'installation'
-                            ? 'plan.lifecycleInstall'
-                            : 'plan.lifecycleUnknown',
-                      )}
-                </p>
-                {m.lifecycle.validityDays && mobileExpiry === undefined ? (
-                  <p>{t('plan.serviceValidity', { days: m.lifecycle.validityDays })}</p>
-                ) : null}
-                {m.lifecycle.installBy !== undefined &&
-                m.lifecycle.activatedAt === undefined &&
-                !INSTALLED.has(m.status) ? (
-                  <p>
-                    {t('plan.installDeadline', {
-                      date: `${dayLabel(m.lifecycle.installBy, lang)} ${clockIst(m.lifecycle.installBy)}`,
-                    })}
-                  </p>
-                ) : null}
-              </>
-            ) : (
-              <Countdown
-                until={m.expiresAt}
-                lead=""
-                ended={t('plan.ended')}
-                template={(left, at) => t('plan.expiresIn', { left, at })}
-                units={uiStrings[lang].units}
-                locale={dateLocale(lang)}
-              />
-            )}
-          </div>
-          {cancelled || m.cancelledAt ? (
-            <p className="banner" role="status">
-              {t('plan.cancelledState')}
-            </p>
-          ) : !m.lifecycle ? (
-            <Caution k="esim.expiry" />
-          ) : null}
-          {m.campaignReclaim ? (
-            <p className="note" role="status">
-              {t(
-                m.campaignReclaim.state === 'scheduled'
-                  ? 'plan.eventScheduled'
-                  : m.campaignReclaim.state === 'refunded'
-                    ? 'plan.eventRefunded'
-                    : m.campaignReclaim.state === 'manual'
-                      ? 'plan.eventManual'
-                      : m.campaignReclaim.state === 'ineligible'
-                        ? 'plan.eventIneligible'
-                        : 'plan.eventPending',
-                {
-                  date: `${dayLabel(m.campaignReclaim.reclaimAfter, lang)} ${clockIst(m.campaignReclaim.reclaimAfter)}`,
-                },
-              )}
-            </p>
-          ) : null}
-          {foreign ||
-          terminal ||
-          activationUnavailable ||
-          INSTALLED.has(m.status) ||
-          m.status === 'pending-profile' ? null : hasLpa === false && m.status === 'ready' ? (
-            // the activation code was opened in another browser (it never travels): install from there
-            <p className="note" role="note" lang={lang} data-testid="install-elsewhere">
-              {t('install.noLpa')}
-            </p>
-          ) : (
-            <div className="action-dock">
-              <Link
-                href="/install"
-                className="ui-button ui-button--block"
-                data-variant="primary"
-                prefetch={false}
-              >
-                {t('plan.install')}
-              </Link>
-              <p className="note">{t('plan.later')}</p>
-            </div>
-          )}
-          {!terminal && m.topUpAvailable !== false ? (
-            <Link
-              href={`/pay?key=${k}`}
-              className="ui-button ui-button--block"
-              data-variant="secondary"
-              prefetch={false}
+        <Notice
+          tone="info"
+          lang={lang}
+          data-testid="foreign-plan"
+          action={
+            <Button
+              variant="secondary"
+              onClick={() => {
+                void store.adopt(entitlementKey).then(() => setOwned(true));
+              }}
+              data-testid="keep-plan"
             >
-              {t('plan.add', { price })}
-            </Link>
-          ) : m.topUpAvailable === false ? (
-            <p className="note">{t('plan.eventBundleOnly')}</p>
+              {t('plan.keep')}
+            </Button>
+          }
+        >
+          {t('plan.notHere')}
+        </Notice>
+      ) : null}
+      {installElsewhere ? (
+        <Notice tone="info" role="note" lang={lang} data-testid="install-elsewhere">
+          {t('install.noLpa')}
+        </Notice>
+      ) : null}
+      {m.campaignReclaim ? (
+        <Notice tone="info" role="status" lang={lang}>
+          {t(
+            m.campaignReclaim.state === 'scheduled'
+              ? 'plan.eventScheduled'
+              : m.campaignReclaim.state === 'refunded'
+                ? 'plan.eventRefunded'
+                : m.campaignReclaim.state === 'manual'
+                  ? 'plan.eventManual'
+                  : m.campaignReclaim.state === 'ineligible'
+                    ? 'plan.eventIneligible'
+                    : 'plan.eventPending',
+            { date: when(m.campaignReclaim.reclaimAfter) },
+          )}
+        </Notice>
+      ) : null}
+      {m.topUpAvailable === false ? (
+        <Notice tone="info" lang={lang}>
+          {t('plan.eventBundleOnly')}
+        </Notice>
+      ) : null}
+      <Section title={t('plan.detailsTitle')} lang={lang}>
+        <ListGroup>
+          <ListRow
+            title={t('plan.rowExpires')}
+            subtitle={expiry}
+            lang={lang}
+            data-testid="plan-expiry"
+          />
+          <ListRow
+            title={t('plan.rowFrom')}
+            value={m.sponsorName ?? from.reason ?? from.verified}
+            lang={lang}
+          />
+          {facts?.network ? (
+            <ListRow title={t('plan.rowNetwork')} value={netName(facts.network)} lang={lang} />
           ) : null}
-        </section>
-      </div>
-      <div className="plan-support">
-        <details className="disclosure plan-details">
-          <summary lang={lang}>{t('plan.details')}</summary>
-          <div className="plan-details__body">
-            {firstView ? null : issuing}
-            <ProofPanel proof={facts?.proof} />
-            <details className="disclosure">
-              <summary>{t('plan.whyExpires')}</summary>
-              <p>{t('plan.whyBody')}</p>
-              <p
-                className="mono-key"
-                data-hash
-                title={m.arkivKey}
-                data-testid="arkiv-key"
-                lang="en"
-              >
+          <ListRow
+            title={t('plan.rowArkiv')}
+            subtitle={t('plan.whyBody')}
+            mono
+            value={
+              <span data-hash title={m.arkivKey} data-testid="arkiv-key" lang="en">
                 {arkivUrl ? (
                   <a href={arkivUrl} target="_blank" rel="noreferrer">
                     {m.arkivKey}
@@ -482,46 +497,56 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
                 ) : (
                   m.arkivKey
                 )}
-              </p>
+              </span>
+            }
+            trailing={
               <CopyButton value={m.arkivKey} label={t('install.copy')} testId="copy-arkiv-key" />
-            </details>
-            {foreign || terminal || activationUnavailable ? null : (
-              <OtherDevice entitlementKey={entitlementKey} />
-            )}
-            <Receipt
-              heading={
-                latest
-                  ? `${latest.mb && latest.mb !== m.mbTotal ? `+${formatMb(latest.mb)}` : t('plan.bundle')} · ${dayLabel(latest.at, lang)} ${clockIst(latest.at)} · ${t('receipts.final')}`
-                  : t('plan.bundle')
-              }
-              you={lines.you}
-              sponsor={lines.sponsor}
-              networkFee="$0.00"
-              lang={uiLang}
-            />
-          </div>
-        </details>
-        <section className="plan-manage" aria-labelledby="plan-manage-title">
-          <h2 id="plan-manage-title" className="section-title" lang={lang}>
-            {t('plan.manage')}
-          </h2>
-          <div className="plan__actions">
-            <AddToHomeScreen ready={ready} />
-            <NotificationAsk ready={ready} />
-          </div>
-          {!activationUnavailable ? (
-            <PlanActions
-              entitlementKey={entitlementKey}
-              me={m}
-              onCancelled={() => {
-                setCancelled(true);
-                void readPlan(entitlementKey, true).then(setLoad);
-              }}
-            />
-          ) : null}
-        </section>
-      </div>
-      <TabBar active="plan" canTopUp={!terminal && m.topUpAvailable !== false} />
-    </Screen>
+            }
+            lang={lang}
+          />
+        </ListGroup>
+        <ListGroup
+          title={t('plan.rowReceipt')}
+          meta={
+            latest
+              ? `${latest.mb && latest.mb !== m.mbTotal ? `+${formatMb(latest.mb)}` : t('plan.bundle')} · ${when(latest.at)} · ${t('receipts.final')}`
+              : t('plan.bundle')
+          }
+        >
+          <ListRow title={t('plan.rowYou')} value={lines.you} lang={lang} />
+          <ListRow title={t('plan.rowSponsor')} value={lines.sponsor} lang={lang} />
+          <ListRow title={t('plan.rowFee')} value="$0.00" lang={lang} />
+        </ListGroup>
+        {firstView ? null : issuing(t('plan.issuedTitle'))}
+        <ProofPanel proof={facts?.proof} />
+      </Section>
+      <Section title={t('plan.manageTitle')} lang={lang}>
+        <AddToHomeScreen ready={ready} />
+        <NotificationAsk ready={ready} />
+        {foreign || terminal || activationUnavailable ? null : (
+          <OtherDevice entitlementKey={entitlementKey} />
+        )}
+        {!activationUnavailable ? (
+          <PlanActions
+            entitlementKey={entitlementKey}
+            me={m}
+            onCancelled={() => {
+              setCancelled(true);
+              void readPlan(entitlementKey, true).then(setLoad);
+            }}
+          />
+        ) : null}
+      </Section>
+      {installable && !installElsewhere ? (
+        <ActionBar>
+          <ButtonLink href="/install" size="lg" block>
+            {t('plan.install')}
+          </ButtonLink>
+          <p className="t-caption" lang={lang}>
+            {t('plan.later')}
+          </p>
+        </ActionBar>
+      ) : null}
+    </AppShell>
   );
 }

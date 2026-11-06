@@ -11,10 +11,18 @@ export function ConsoleSectionLinks() {
   if (!id) return null;
   return (
     <>
-      <a href="#claims-title">Claims</a>
-      <a href="#expiring-title">Quotas</a>
-      <a href="#exports-title">Exports</a>
-      <a href="#controls-title">Settings</a>
+      <a className="console-shell__link" href="#claims-title">
+        Claims
+      </a>
+      <a className="console-shell__link" href="#expiring-title">
+        Quotas
+      </a>
+      <a className="console-shell__link" href="#exports-title">
+        Exports
+      </a>
+      <a className="console-shell__link" href="#controls-title">
+        Settings
+      </a>
     </>
   );
 }

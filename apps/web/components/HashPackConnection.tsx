@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 
-import { Button } from '@ethglobal/ui/components';
-
+import { Avatar, Button, ButtonLink, ListGroup, ListRow, Notice } from './kit';
 import { QrCode } from './QrCode';
 import { useLang } from '../i18n/lang';
 import { isHandheld } from '../lib/device';
@@ -28,7 +27,7 @@ export function HashPackConnection({
   onConnect: () => void;
   connectLabel?: string;
 }) {
-  const { t, lang } = useLang();
+  const { t } = useLang();
   const [copiedUri, setCopiedUri] = useState<string>();
   const [copyFailed, setCopyFailed] = useState(false);
   const handheld = typeof window !== 'undefined' && isHandheld(window);
@@ -43,32 +42,40 @@ export function HashPackConnection({
     }
   };
   return (
-    <div className="hashpack" lang={lang}>
+    <>
       {state.session ? (
-        <>
-          <p className="hashpack__account" data-testid="hashpack-account">
-            {t('pay.hashpackAccount', { account: state.session.accountId })}
-          </p>
-          <Button variant="quiet" onClick={onConnect} disabled={state.connecting}>
-            {t('pay.hashpackReconnect')}
-          </Button>
-        </>
+        <ListGroup flush label="HashPack">
+          <ListRow
+            leading={<Avatar icon="wallet" tone="positive" />}
+            title={
+              <span data-testid="hashpack-account">
+                {t('pay.hashpackAccount', { account: state.session.accountId })}
+              </span>
+            }
+            trailing={
+              <Button variant="quiet" onClick={onConnect} disabled={state.connecting}>
+                {t('pay.hashpackReconnect')}
+              </Button>
+            }
+          />
+        </ListGroup>
       ) : state.uri ? (
         <>
-          <p className="note">{t('pay.hashpackScan')}</p>
+          <Notice tone="info">{t('pay.hashpackScan')}</Notice>
           <QrCode url={state.uri} label={t('pay.hashpackScan')} sizeMm={48} />
-          <Button variant="secondary" onClick={() => void copy()}>
+          <Button variant="secondary" block onClick={() => void copy()}>
             {copiedUri === state.uri ? t('pay.hashpackCopied') : t('pay.hashpackCopy')}
           </Button>
           {copyFailed ? (
-            <p className="note" role="status">
+            <Notice tone="warning" role="status">
               {t('pay.hashpackCopyFailed')}
-            </p>
+            </Notice>
           ) : null}
         </>
       ) : (
         <Button
           block
+          variant="secondary"
           onClick={onConnect}
           disabled={state.connecting}
           data-testid="hashpack-connect"
@@ -77,15 +84,15 @@ export function HashPackConnection({
         </Button>
       )}
       {handheld && state.link ? (
-        <a className="ui-button ui-button--block" data-variant="secondary" href={state.link}>
+        <ButtonLink href={state.link} variant="secondary" block native>
           {t('pay.hashpackOpen')}
-        </a>
+        </ButtonLink>
       ) : null}
       {state.failed ? (
-        <p className="note" role="alert">
+        <Notice tone="negative" role="alert">
           {t('pay.hashpackFailed')}
-        </p>
+        </Notice>
       ) : null}
-    </div>
+    </>
   );
 }

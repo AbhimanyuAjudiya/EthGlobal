@@ -93,15 +93,15 @@ describe('interaction state stays aligned with confirmed data', () => {
     }));
     render(<AgentSheet />);
     const enable = await screen.findByRole('button', { name: 'Save and enable policy' });
-    expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
+    expect(screen.queryByRole('switch', { name: 'Pause' })).toBeNull();
     expect(screen.getByTestId('agent-sentence').textContent).toMatch(/^Set up/);
     expect(
       screen.getByText(/An operator must enroll this plan and fund the agent's wallet/),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole('radio', { name: '≤ $20 / day' }));
+    fireEvent.click(screen.getByRole('radio', { name: '$20' }));
     expect(mocks.savePolicy).not.toHaveBeenCalled();
     fireEvent.click(enable);
-    await screen.findByRole('button', { name: 'Pause' });
+    await screen.findByRole('switch', { name: 'Pause' });
     expect(mocks.savePolicy.mock.calls[0]?.[0].policy).toMatchObject({
       paused: false,
       maxUsd6PerDay: '20000000',
@@ -122,7 +122,7 @@ describe('interaction state stays aligned with confirmed data', () => {
     render(<AgentSheet />);
     await screen.findByRole('button', { name: 'Try again' });
     expect(screen.queryByRole('button', { name: 'Save and enable policy' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
+    expect(screen.queryByRole('switch', { name: 'Pause' })).toBeNull();
     expect(mocks.savePolicy).not.toHaveBeenCalled();
   });
   it('a rejected Pause leaves the agent visibly running', async () => {
@@ -131,11 +131,11 @@ describe('interaction state stays aligned with confirmed data', () => {
       message: 'User rejected the request',
     });
     render(<AgentSheet />);
-    const pause = await screen.findByRole('button', { name: 'Pause' });
+    const pause = await screen.findByRole<HTMLInputElement>('switch', { name: 'Pause' });
     const sentence = screen.getByTestId('agent-sentence').textContent;
     fireEvent.click(pause);
     await waitFor(() => expect(pause.hasAttribute('disabled')).toBe(false));
-    expect(screen.queryByRole('button', { name: 'Resume' })).toBeNull();
+    expect(pause.checked).toBe(false);
     expect(screen.getByTestId('agent-sentence').textContent).toBe(sentence);
     expect(mocks.savePolicy).not.toHaveBeenCalled();
   });

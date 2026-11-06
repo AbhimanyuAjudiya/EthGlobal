@@ -1,21 +1,26 @@
 'use client';
 
 import { useConnectModal } from '@rainbow-me/rainbowkit';
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type MouseEvent,
-} from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { GIFT_RECLAIM_WINDOW_S, PLAN_MB } from '@ethglobal/protocol/ids';
 import type { GiftResponse } from '@ethglobal/protocol/schemas';
-import { BoardingPass, Button, Field, Hash } from '@ethglobal/ui/components';
+import { BoardingPass, Hash } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
 import { ProofRows } from './IssuingRows';
+import {
+  Avatar,
+  ChoiceChips,
+  Field,
+  ListGroup,
+  ListRow,
+  Notice,
+  PageHeader,
+  QuickActions,
+  Stepper,
+  Ticket,
+} from './kit';
 import { ProofPanel } from './ProofPanel';
 import { renderQr } from './QrCode';
 import { saveCardPng } from './save-card';
@@ -23,7 +28,7 @@ import { useWalletLabel } from './Shell';
 import { useLang, useNetworkName } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
-import { dayLabel, formatMb, money, moneyUsdc, priceFor } from '../lib/format';
+import { dayLabel, formatMb, money, priceFor } from '../lib/format';
 import { useEnsureChain, usePlans, useWallet, WrongChainError } from '../lib/hooks';
 import {
   completePayment,
@@ -238,104 +243,96 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
   const origin = typeof window === 'undefined' ? '' : window.location.origin;
   const network = evmOffer(plans?.paid.accepts ?? [], wallet?.network)?.network ?? '';
   const connectFirst = resolution === 'resolves' && !wallet;
+  const busy = locked || row.state === 'signing';
+  const claimUrl = gift
+    ? `${origin}/gift/claim?id=${gift.giftId}&name=${encodeURIComponent(gift.name)}`
+    : '';
+  const title =
+    shownName && resolution === 'resolves'
+      ? t('gift.button', { mb: formatMb(mb), name: shownName, price: money(price) })
+      : t('gift.buttonNoName', { mb: formatMb(mb), price: money(price) });
 
   /** The claim link goes to the recipient: the phone's share sheet where there is one, else the clipboard. */
-  const shareClaim = (e: MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault();
-    const url = e.currentTarget.href;
-    if (typeof navigator.share === 'function') void navigator.share({ url }).catch(() => undefined);
+  const shareClaim = () => {
+    if (typeof navigator.share === 'function')
+      void navigator.share({ url: claimUrl }).catch(() => undefined);
     else
-      void navigator.clipboard?.writeText(url).then(
+      void navigator.clipboard?.writeText(claimUrl).then(
         () => setCopied(true),
         () => undefined,
       );
   };
 
   return (
-    <section className="gift" aria-labelledby="gift-title">
-      <h1 id="gift-title" className="gift__question" lang={lang}>
-        {t('gift.title')}
-      </h1>
+    <>
+      <Stepper
+        steps={[t('gift.stepWho'), t('gift.size'), t('gift.stepPay')]}
+        current={gift ? 3 : resolution === 'resolves' ? 2 : 1}
+        lang={lang}
+      />
+      <PageHeader id="gift-title" size="display" title={t('gift.title')} lang={lang} />
       {!gift ? (
         <>
           <Field
             label={t('gift.name')}
             mono
             value={name}
-            disabled={locked || row.state === 'signing'}
+            disabled={busy}
             onChange={(e) => setName(e.target.value)}
             placeholder="rahul.eth"
             autoComplete="off"
             spellCheck={false}
             data-testid="gift-name"
           />
-          <p
-            className="resolve-line"
-            role="status"
-            data-state={resolution}
-            data-testid="gift-resolution"
-            lang={lang}
-          >
-            {resolution === 'resolving'
-              ? t('gift.resolving')
-              : resolution === 'resolves'
-                ? t('gift.resolves', { name: shownName })
-                : resolution === 'unresolved'
-                  ? t('gift.unresolved', { name: shownName })
-                  : ' '}
-          </p>
-          {sizes.length > 1 ? (
-            <div
-              className="segmented segmented--even"
-              role="radiogroup"
-              aria-label={t('gift.size')}
-              style={{ '--segments': sizes.length } as CSSProperties}
+          {resolution !== 'idle' ? (
+            <Notice
+              tone={
+                resolution === 'resolves'
+                  ? 'positive'
+                  : resolution === 'unresolved'
+                    ? 'warning'
+                    : 'info'
+              }
+              role="status"
+              data-state={resolution}
+              data-testid="gift-resolution"
+              lang={lang}
             >
-              {sizes.map((size) => (
-                <button
-                  key={size}
-                  type="button"
-                  role="radio"
-                  aria-checked={size === mb}
-                  disabled={locked || row.state === 'signing'}
-                  onClick={() => setMb(size)}
-                >
-                  <span className="segmented__main">{formatMb(size)}</span>
-                  <span className="ui-visually-hidden"> · </span>
-                  <span className="segmented__sub">{money(priceFor(size, step))}</span>
-                </button>
-              ))}
-            </div>
+              {resolution === 'resolving'
+                ? t('gift.resolving')
+                : resolution === 'resolves'
+                  ? t('gift.resolves', { name: shownName })
+                  : resolution === 'unresolved'
+                    ? t('gift.unresolved', { name: shownName })
+                    : t('gift.needName')}
+            </Notice>
           ) : null}
-          <p className="gift__rule" data-testid="gift-rule" lang={lang}>
+          <ChoiceChips
+            label={t('gift.size')}
+            options={sizes.map((size) => ({
+              value: String(size),
+              label: formatMb(size),
+              sub: money(priceFor(size, step)),
+              disabled: busy,
+            }))}
+            value={String(mb)}
+            onChange={(v) => setMb(Number(v))}
+          />
+          <Notice tone="info" data-testid="gift-rule" lang={lang}>
             {t('gift.rule', {
               claimBy: dayLabel(claimBy, lang),
               reclaimUntil: dayLabel(reclaimUntil, lang),
             })}
-          </p>
+          </Notice>
         </>
       ) : null}
       <ActionView
         row={row}
         now={now}
-        title={
-          shownName && resolution === 'resolves'
-            ? t('gift.button', { mb: formatMb(mb), name: shownName, price: money(price) })
-            : t('gift.buttonNoName', { mb: formatMb(mb), price: money(price) })
-        }
+        title={title}
         network={network}
         networkLabel={netName(network)}
-        review={[
-          { label: t('pay.rowTo'), value: <span data-hash>{shownName || '—'}</span> },
-          { label: t('pay.rowFee'), value: t('pay.feeFacilitator') },
-        ]}
-        worstCase={t('gift.rule', {
-          claimBy: dayLabel(claimBy, lang),
-          reclaimUntil: dayLabel(reclaimUntil, lang),
-        })}
-        actionLabel={
-          connectFirst ? t('wallet.connectToPay') : t('pay.button', { price: moneyUsdc(price) })
-        }
+        actionLabel={connectFirst ? t('wallet.connectToPay') : title}
         walletName={walletLabel(wallet)}
         result={
           gift
@@ -361,54 +358,57 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
         }}
         {...(gift && row.outcomeUnknown ? {} : { onRetry: () => dispatch({ type: 'retry' }) })}
         lang={lang}
-        className="gift__sheet"
       />
       {gift ? null : <ProofPanel proof={proof} />}
       {gift ? (
-        <section className="gift__result" data-testid="gift-result">
-          <p className="resolve-line" data-state="resolves">
-            <a href={`https://app.ens.domains/${gift.name}`} target="_blank" rel="noreferrer">
-              {gift.name}
-            </a>{' '}
-            → <Hash value={gift.to} kind="address" />
-          </p>
-          <BoardingPass
-            to={gift.name}
-            from="you"
-            mb={gift.mb}
-            claimBy={gift.claimBy}
-            pin={gift.pin}
-            serial={gift.serial}
-            qrUrl={`${origin}/card/${gift.serial}`}
-            renderQr={renderQr}
+        <div className="section" data-testid="gift-result">
+          <Ticket>
+            <BoardingPass
+              to={gift.name}
+              from="you"
+              mb={gift.mb}
+              claimBy={gift.claimBy}
+              pin={gift.pin}
+              serial={gift.serial}
+              qrUrl={`${origin}/card/${gift.serial}`}
+              renderQr={renderQr}
+            />
+          </Ticket>
+          <QuickActions
+            label={t('gift.share')}
+            items={[
+              {
+                icon: 'share',
+                label: copied ? t('install.android.copied') : t('gift.share'),
+                onClick: shareClaim,
+                primary: true,
+              },
+              {
+                icon: 'download',
+                label: t('gift.save'),
+                onClick: () => void saveCardPng(gift, `${origin}/card/${gift.serial}`),
+              },
+              { icon: 'print', label: t('gift.print'), onClick: () => window.print() },
+            ]}
           />
-          <p className="note" lang={lang}>
-            {t('gift.shareHow', { name: gift.name })}
-          </p>
-          <div className="row-actions gift__actions">
-            {/* the recipient's claim page; a tap shares (or copies) it rather than opening it here */}
-            <a
-              href={`${origin}/gift/claim?id=${gift.giftId}&name=${encodeURIComponent(gift.name)}`}
-              className="ui-button"
-              data-variant="primary"
-              onClick={shareClaim}
-            >
-              {copied ? t('install.android.copied') : t('gift.share')}
-            </a>
-            <Button
-              variant="secondary"
-              onClick={() => void saveCardPng(gift, `${origin}/card/${gift.serial}`)}
-            >
-              {t('gift.save')}
-            </Button>
-            <Button variant="quiet" onClick={() => window.print()}>
-              {t('gift.print')}
-            </Button>
-          </div>
+          <ListGroup label={gift.name}>
+            <ListRow
+              leading={<Avatar label={gift.name} />}
+              title={gift.name}
+              value={<Hash value={gift.to} kind="address" />}
+            />
+            {/* the recipient's claim page, to read or long-press-copy; Share sends it */}
+            <ListRow
+              leading={<Avatar icon="send" />}
+              title={t('gift.claimLink')}
+              subtitle={t('gift.shareHow', { name: gift.name })}
+              href={claimUrl}
+            />
+          </ListGroup>
           <ProofPanel proof={proof} fallback={<ProofRows receipt={gift.receipt} />} />
-        </section>
+        </div>
       ) : null}
-    </section>
+    </>
   );
 }
 

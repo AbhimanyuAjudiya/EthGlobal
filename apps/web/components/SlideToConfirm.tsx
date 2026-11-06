@@ -65,11 +65,14 @@ export function SlideToConfirm({
 
   return (
     <div
-      className="slide-confirm"
+      className="grid max-w-sm gap-1"
       data-disabled={disabled || undefined}
       data-armed={armed || undefined}
     >
-      <label htmlFor={id} className="slide-confirm__label">
+      <label
+        htmlFor={id}
+        className={`t-label ${disabled ? 'text-ink-disabled' : armed ? 'text-brand' : 'text-ink'}`}
+      >
         {armed ? releaseLabel : label}
       </label>
       <input
@@ -108,9 +111,10 @@ export function SlideToConfirm({
           if (e.key === 'ArrowRight' || e.key === 'ArrowUp') keyUp();
         }}
         onBlur={reset}
+        className="m-0 min-h-12 w-full accent-brand"
         data-testid="slide-to-confirm"
       />
-      <p id={hintId} className="slide-confirm__hint">
+      <p id={hintId} className="note note--quiet">
         Drag to the end, or press → ten times, then let go.
       </p>
     </div>

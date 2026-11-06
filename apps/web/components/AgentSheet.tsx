@@ -1,7 +1,7 @@
 'use client';
 
 import { useConnectModal } from '@rainbow-me/rainbowkit';
-import { useCallback, useEffect, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toBytes } from 'viem';
 
 import { keccak256 } from '@ethglobal/crypto';
@@ -14,11 +14,27 @@ import type {
 } from '@ethglobal/protocol/schemas';
 import { AGENT_POLICY_TYPES, canonicalJson, rechargeDomain } from '@ethglobal/protocol/typed-data';
 import { priceUsd6, usd6FromWire } from '@ethglobal/protocol/units';
-import { Button, Hash } from '@ethglobal/ui/components';
+import { Hash } from '@ethglobal/ui/components';
 
+import {
+  ActionBar,
+  Amount,
+  Avatar,
+  Button,
+  ButtonLink,
+  Card,
+  ChoiceChips,
+  EmptyState,
+  ListGroup,
+  ListRow,
+  Notice,
+  PageHeader,
+  Section,
+  Sheet,
+  Skeleton,
+} from './kit';
 import { ProofPanel } from './ProofPanel';
 import { QrCode } from './QrCode';
-import { AppHeader, Screen, TabBar } from './Shell';
 import { useLang, useNetworkName } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
@@ -282,69 +298,61 @@ export function AgentSheet() {
 
   if (key === null || unavailableReason)
     return (
-      <Screen>
-        <AppHeader />
-        <section className="sheet" lang={lang}>
-          <h1 className="sheet__title">{t('agent.title')}</h1>
-          <p className="note" role="status" data-testid="agent-unavailable">
-            {t(
-              key === null
-                ? 'agent.noPlan'
-                : unavailableReason === 'ended'
-                  ? 'agent.planEnded'
-                  : 'agent.planMissing',
-            )}
-          </p>
-          <div className="row-actions">
-            <a className="ui-button" data-variant="primary" href="/pay">
-              {t('agent.buyNewPlan')}
-            </a>
-            {key && unavailableReason === 'ended' ? (
-              <a className="ui-button" data-variant="secondary" href={planHref(key)}>
-                {t('agent.viewPlan')}
-              </a>
-            ) : null}
-          </div>
-        </section>
-        <TabBar />
-      </Screen>
+      <>
+        <PageHeader title={t('agent.autoTitle')} lang={lang} />
+        <Notice tone="warning" role="status" data-testid="agent-unavailable" lang={lang}>
+          {t(
+            key === null
+              ? 'agent.noPlan'
+              : unavailableReason === 'ended'
+                ? 'agent.planEnded'
+                : 'agent.planMissing',
+          )}
+        </Notice>
+        {key && unavailableReason === 'ended' ? (
+          <ListGroup label={t('agent.viewPlan')}>
+            <ListRow title={t('agent.viewPlan')} href={planHref(key)} />
+          </ListGroup>
+        ) : null}
+        <ActionBar>
+          <ButtonLink href="/pay" block size="lg" native>
+            {t('agent.buyNewPlan')}
+          </ButtonLink>
+        </ActionBar>
+      </>
     );
 
   if (eventUnavailable && key)
     return (
-      <Screen>
-        <AppHeader />
-        <section className="sheet" lang={lang}>
-          <h1 className="sheet__title">{t('agent.title')}</h1>
-          <p className="note" role="status">
-            {t('plan.eventBundleOnly')}
-          </p>
-          <a className="ui-button" data-variant="secondary" href={planHref(key)}>
-            {t('agent.viewPlan')}
-          </a>
-          <a className="ui-button" data-variant="quiet" href="/pay">
+      <>
+        <PageHeader title={t('agent.autoTitle')} lang={lang} />
+        <Notice tone="info" role="status" lang={lang}>
+          {t('plan.eventBundleOnly')}
+        </Notice>
+        <ListGroup label={t('agent.viewPlan')}>
+          <ListRow title={t('agent.viewPlan')} href={planHref(key)} />
+        </ListGroup>
+        <ActionBar>
+          <ButtonLink href="/pay" block size="lg" native>
             {t('agent.buyNewPlan')}
-          </a>
-        </section>
-        <TabBar />
-      </Screen>
+          </ButtonLink>
+        </ActionBar>
+      </>
     );
 
   if (nativePaid && key)
     return (
-      <Screen>
-        <AppHeader />
-        <section className="sheet" lang={lang}>
-          <h1 className="sheet__title">{t('agent.title')}</h1>
-          <p className="note" role="status">
-            {t('agent.nativeUnavailable')}
-          </p>
-          <a className="ui-button" href={`/pay?key=${encodeURIComponent(key)}`}>
+      <>
+        <PageHeader title={t('agent.autoTitle')} lang={lang} />
+        <Notice tone="info" role="status" lang={lang}>
+          {t('agent.nativeUnavailable')}
+        </Notice>
+        <ActionBar>
+          <ButtonLink href={`/pay?key=${encodeURIComponent(key)}`} block size="lg" native>
             {t('agent.manualTopup')}
-          </a>
-        </section>
-        <TabBar />
-      </Screen>
+          </ButtonLink>
+        </ActionBar>
+      </>
     );
 
   const step = plans?.paid.priceUsd6PerStep ?? '400000';
@@ -367,204 +375,170 @@ export function AgentSheet() {
           network: netName(agentNetwork),
           cap: money(capUsd6),
         });
+  const statusText =
+    status === 'checking'
+      ? t('agent.checkingPlan')
+      : status === 'signing'
+        ? t('agent.save')
+        : status === 'saved' && view
+          ? t('agent.saved', { address: `${view.owner.slice(0, 6)}…${view.owner.slice(-4)}` })
+          : message;
+  const pass = view?.pass && view.pass.state !== 'none' ? view.pass : undefined;
+  const passUrl = pass?.verificationUriComplete ?? pass?.verificationUri;
 
   return (
-    <Screen money wide className="agent-screen">
-      <AppHeader />
-      <div className="agent-desk">
-        <section className="sheet agent-sheet" aria-labelledby="agent-title">
-          <h1 id="agent-title" className="agent-sheet__title" lang={lang}>
-            {t('agent.title')}
-          </h1>
-          <p className="agent__sentence" data-testid="agent-sentence" lang={lang}>
-            {loadError ? t(loadError) : sentence}
-          </p>
-          {loadError ? (
-            <Button variant="secondary" onClick={() => setLoadRound((n) => n + 1)}>
-              {t('verify.retry')}
-            </Button>
+    <>
+      <PageHeader
+        title={t('agent.autoTitle')}
+        lead={<span data-testid="agent-sentence">{loadError ? t(loadError) : sentence}</span>}
+        lang={lang}
+      />
+      {loadError ? (
+        <Button variant="secondary" block onClick={() => setLoadRound((n) => n + 1)}>
+          {t('verify.retry')}
+        </Button>
+      ) : null}
+      {policy ? (
+        <Card lang={lang}>
+          {/* $4 · $8 · $20, the "/ day" said once in the caption */}
+          <ChoiceChips
+            label={t('agent.capLegend')}
+            showLabel
+            data-testid="agent-cap"
+            options={CAPS_USD.map((usd) => ({
+              value: String(usd),
+              label: `$${usd}`,
+              disabled: busy || !wallet,
+            }))}
+            value={CAPS_USD.find((usd) => capUsd6 === BigInt(usd * USD6))?.toString()}
+            onChange={(usd) => {
+              const next = {
+                ...policy,
+                stepMb: sold.mb,
+                maxUsd6PerDay: String(Number(usd) * USD6),
+              };
+              if (view) void save(next);
+              else setPolicy(next);
+            }}
+          />
+          {view ? (
+            <ListGroup flush label={t('agent.capLegend')}>
+              <ListRow
+                title={t('agent.pause')}
+                trailing="switch"
+                checked={policy.paused}
+                disabled={busy || !wallet}
+                onCheckedChange={() =>
+                  void save({ ...policy, stepMb: sold.mb, paused: !policy.paused })
+                }
+              />
+            </ListGroup>
           ) : null}
-          {policy ? (
-            <>
-              {/* one row of three equal segments: "$4 · $8 · $20", the "/ day" said once (no orphan chip) */}
-              <div className="agent-controls">
-                <p className="segmented__legend" id="agent-cap-legend">
-                  {t('agent.capLegend')}
-                </p>
-                <div
-                  className="segmented segmented--even"
-                  role="radiogroup"
-                  aria-labelledby="agent-cap-legend"
-                  data-testid="agent-cap"
-                  style={{ '--segments': CAPS_USD.length } as CSSProperties}
-                >
-                  {CAPS_USD.map((usd) => (
-                    <button
-                      key={usd}
-                      type="button"
-                      role="radio"
-                      aria-label={t('agent.capAria', { cap: `$${usd}` })}
-                      aria-checked={capUsd6 === BigInt(usd * USD6)}
-                      disabled={busy || !wallet}
-                      onClick={() => {
-                        const next = {
-                          ...policy,
-                          stepMb: sold.mb,
-                          maxUsd6PerDay: String(usd * USD6),
-                        };
-                        if (view) void save(next);
-                        else setPolicy(next);
-                      }}
-                    >
-                      {`$${usd}`}
-                    </button>
-                  ))}
-                </div>
-                {/* the one wallet control is the header's; saving without a wallet opens its modal from here */}
-                {wallet ? (
-                  <Button
-                    variant="secondary"
-                    disabled={busy}
-                    onClick={() =>
-                      void save({
-                        ...policy,
-                        stepMb: sold.mb,
-                        paused: view ? !policy.paused : false,
-                      })
-                    }
-                    {...(view ? { 'aria-pressed': policy.paused } : {})}
-                  >
-                    {!view
-                      ? t('agent.enable')
-                      : policy.paused
-                        ? t('agent.resume')
-                        : t('agent.pause')}
-                  </Button>
-                ) : (
-                  <Button
-                    variant="secondary"
-                    disabled={!openConnectModal}
-                    onClick={openConnectModal}
-                  >
-                    {t('agent.connectToSave')}
-                  </Button>
-                )}
-              </div>
-            </>
-          ) : !loadError ? (
-            <div className="skeleton skeleton--line" aria-hidden="true" />
-          ) : null}
-          <p className="note" role="status" data-testid="agent-status" lang={lang}>
-            {status === 'checking'
-              ? t('agent.checkingPlan')
-              : status === 'signing'
-                ? t('agent.save')
-                : status === 'saved' && view
-                  ? t('agent.saved', {
-                      address: `${view.owner.slice(0, 6)}…${view.owner.slice(-4)}`,
-                    })
-                  : (message ?? ' ')}
-          </p>
-          {view && capUsd6 > 0n ? (
-            <p className="agent-spent" lang={lang}>
-              {spent >= capUsd6
-                ? t('agent.capReached', {
-                    cap: money(capUsd6),
-                    mb: formatMb(sold.mb),
-                    price: money(sold.usd6),
-                  })
-                : t('agent.spent', { spent: money(spent), cap: money(capUsd6) })}
-            </p>
-          ) : null}
-          {view?.pass && view.pass.state !== 'none' ? (
-            <div
-              className="agent__pass"
-              data-testid="agent-pass"
-              data-state={view.pass.state}
-              lang={lang}
-            >
-              {view.pass.state === 'pending' ? (
-                <>
-                  <p className="note">
-                    {t('agent.passPending', { code: view.pass.userCode ?? '' })}
-                  </p>
-                  <QrCode
-                    url={view.pass.verificationUriComplete ?? view.pass.verificationUri ?? ''}
-                    label={t('agent.passQr')}
-                    sizeMm={40}
+        </Card>
+      ) : !loadError ? (
+        <Skeleton shape="card" />
+      ) : null}
+      {view && capUsd6 > 0n ? (
+        <Section title={t('agent.spentToday')} lang={lang}>
+          <Amount value={money(spent)} unit={`/ ${money(capUsd6)}`} size="title" />
+        </Section>
+      ) : null}
+      {process.env.NEXT_PUBLIC_MODE === 'local' ? (
+        <Section title={t('agent.history')} lang={lang}>
+          {rows.length === 0 ? (
+            <EmptyState title={t('agent.empty')} />
+          ) : (
+            <ListGroup label="Agent top-ups">
+              {rows.map((r) => {
+                const template = explorerTemplate(r.network);
+                return (
+                  <ListRow
+                    key={`${r.tx}-${r.at}`}
+                    data-testid="agent-row"
+                    leading={<Avatar icon="agent" />}
+                    title={r.mb ? `+${formatMb(r.mb)}` : 'agent'}
+                    subtitle={`${clockIst(r.at)} · ${r.uaid ? `agent ${r.uaid.slice(0, 18)}…` : 'agent'}`}
+                    {...(r.usd6 ? { value: money(r.usd6) } : {})}
+                    {...(r.tx && template
+                      ? { href: template.replace('{hash}', r.tx), external: true }
+                      : {})}
                   />
-                  <p className="mono-key" data-testid="agent-pass-code">
-                    {view.pass.userCode}
-                  </p>
-                  <a
-                    className="note"
-                    href={view.pass.verificationUriComplete ?? view.pass.verificationUri}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {t('agent.passOpen')}
-                  </a>
-                </>
-              ) : view.pass.state === 'armed' ? (
-                <p className="note">
-                  {t('agent.passArmed', { until: clockIst(view.pass.passUntil ?? 0) })}
-                </p>
-              ) : view.pass.state === 'denied' ? (
-                <p className="note">{t('agent.passDenied', { reason: view.pass.reason ?? '' })}</p>
-              ) : (
-                <p className="note">{t('agent.passExpired')}</p>
-              )}
-            </div>
-          ) : null}
-          <p className="note" lang={lang}>
-            {t('agent.enrollmentNote')}
-          </p>
-          <ProofPanel proof={proof} />
-        </section>
-        <div className="agent-ledger">
-          {process.env.NEXT_PUBLIC_MODE === 'local' ? (
-            <section className="agent__rows" aria-label="Agent top-ups">
-              {rows.length === 0 ? (
-                <p className="ghost-row" lang={lang}>
-                  {t('agent.empty')}
-                </p>
-              ) : (
-                <ul className="ledger-rows">
-                  {rows.map((r) => {
-                    const template = explorerTemplate(r.network);
-                    return (
-                      <li key={`${r.tx}-${r.at}`} data-testid="agent-row">
-                        <span className="ledger-rows__time">{clockIst(r.at)}</span>
-                        {r.mb ? <span>{`+${formatMb(r.mb)}`}</span> : null}
-                        {r.usd6 ? <span>{money(r.usd6)}</span> : null}
-                        <span className="ledger-rows__who" data-hash title={r.uaid}>
-                          {r.uaid ? `agent ${r.uaid.slice(0, 18)}…` : 'agent'}
-                        </span>
-                        {r.tx ? (
-                          <Hash
-                            value={r.tx}
-                            kind="transaction hash"
-                            {...(template
-                              ? {
-                                  explorerHref: template.replace('{hash}', r.tx),
-                                  explorerName: 'HashScan',
-                                }
-                              : {})}
-                          />
-                        ) : null}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </section>
-          ) : null}
-          {key ? <ArkivHistory planKey={key} policy={view ? policy : undefined} /> : null}
-        </div>
-      </div>
-      {/* the agent is its own screen, not the Add-data tab (RT design review: wrong active tab) */}
-      <TabBar />
-    </Screen>
+                );
+              })}
+            </ListGroup>
+          )}
+        </Section>
+      ) : null}
+      {key ? <ArkivHistory planKey={key} policy={view ? policy : undefined} /> : null}
+      {statusText ? (
+        <Notice
+          tone={status === 'error' ? 'negative' : status === 'saved' ? 'positive' : 'info'}
+          role="status"
+          data-testid="agent-status"
+          lang={lang}
+        >
+          {statusText}
+        </Notice>
+      ) : null}
+      {view && capUsd6 > 0n && spent >= capUsd6 ? (
+        <Notice tone="warning" lang={lang}>
+          {t('agent.capReached', {
+            cap: money(capUsd6),
+            mb: formatMb(sold.mb),
+            price: money(sold.usd6),
+          })}
+        </Notice>
+      ) : null}
+      {pass ? (
+        <Card data-testid="agent-pass" data-state={pass.state} lang={lang}>
+          {pass.state === 'pending' ? (
+            <>
+              <Notice tone="info">{t('agent.passPending', { code: pass.userCode ?? '' })}</Notice>
+              <QrCode url={passUrl ?? ''} label={t('agent.passQr')} sizeMm={40} />
+              <ListGroup flush label={t('agent.passQr')}>
+                <ListRow
+                  title={t('agent.passOpen')}
+                  value={<span data-testid="agent-pass-code">{pass.userCode}</span>}
+                  mono
+                  {...(passUrl ? { href: passUrl, external: true } : {})}
+                />
+              </ListGroup>
+            </>
+          ) : pass.state === 'armed' ? (
+            <Notice tone="positive">
+              {t('agent.passArmed', { until: clockIst(pass.passUntil ?? 0) })}
+            </Notice>
+          ) : pass.state === 'denied' ? (
+            <Notice tone="warning">{t('agent.passDenied', { reason: pass.reason ?? '' })}</Notice>
+          ) : (
+            <Notice tone="warning">{t('agent.passExpired')}</Notice>
+          )}
+        </Card>
+      ) : null}
+      <Notice tone="info" lang={lang}>
+        {t('agent.enrollmentNote')}
+      </Notice>
+      <ProofPanel proof={proof} />
+      {policy && !wallet ? (
+        // the one wallet control is the header's; saving without a wallet opens its modal from here
+        <ActionBar>
+          <Button block size="lg" disabled={!openConnectModal} onClick={openConnectModal}>
+            {t('agent.connectToSave')}
+          </Button>
+        </ActionBar>
+      ) : policy && !view ? (
+        <ActionBar>
+          <Button
+            block
+            size="lg"
+            disabled={busy}
+            onClick={() => void save({ ...policy, stepMb: sold.mb, paused: false })}
+          >
+            {t('agent.enable')}
+          </Button>
+        </ActionBar>
+      ) : null}
+    </>
   );
 }
 
@@ -585,6 +559,8 @@ function ArkivHistory({
   const [history, setHistory] = useState<{ rows: AgentTopUp[]; spentToday: bigint } | undefined>();
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [selected, setSelected] = useState<string>();
+  const [how, setHow] = useState(false);
 
   // on mount, on Retry, when the page is shown again and every 30 s while it is visible; one read at a time
   useEffect(() => {
@@ -626,94 +602,146 @@ function ArkivHistory({
     };
   }, [planKey, attempt]);
 
+  const open = history?.rows.find((r) => r.entityKey === selected);
+  const openTx = open?.tx ? explorerTemplate(open.network)?.replace('{hash}', open.tx) : undefined;
+  const openTxName = explorerName(open?.network);
+
   return (
-    <section
-      className="agent-history"
-      aria-labelledby="arkiv-history-title"
-      data-testid="arkiv-history"
-    >
-      <h2 id="arkiv-history-title" className="agent-history__title" lang={lang}>
-        {t('agent.historyTitle')}
-      </h2>
-      {history && policy ? (
-        <p className="note" lang={lang}>
-          {t('agent.spent', {
-            spent: money(history.spentToday),
-            cap: money(BigInt(policy.maxUsd6PerDay)),
-          })}
-        </p>
-      ) : null}
-      {failed ? (
-        <div className="row-actions agent-history__error">
-          <p className="note" role="status" lang={lang}>
+    <Section title={t('agent.historyTitle')} lang={lang}>
+      <div data-testid="arkiv-history">
+        {failed ? (
+          <Notice
+            tone="warning"
+            role="status"
+            lang={lang}
+            action={
+              <Button variant="quiet" onClick={() => setAttempt((n) => n + 1)}>
+                {t('verify.retry')}
+              </Button>
+            }
+          >
             {t('agent.historyError')}
-          </p>
-          <Button variant="quiet" onClick={() => setAttempt((n) => n + 1)}>
-            {t('verify.retry')}
-          </Button>
-        </div>
-      ) : null}
-      {!history ? (
-        failed ? null : (
-          <div className="skeleton skeleton--line" aria-hidden="true" />
-        )
-      ) : history.rows.length === 0 ? (
-        <p className="ghost-row" lang={lang}>
-          {policy
-            ? t('agent.historyEmpty', {
-                step: formatMb(policy.stepMb),
-                threshold: formatMb(policy.thresholdMb),
-              })
-            : t('agent.empty')}
-        </p>
-      ) : (
-        <ul className="ledger-rows">
-          {history.rows.map((r) => {
-            const template = explorerTemplate(r.network);
-            const name = explorerName(r.network);
-            return (
-              <li key={r.entityKey} data-testid="arkiv-row">
-                <span className="ledger-rows__time">{`${dayLabel(r.at, lang)} ${clockIst(r.at)}`}</span>
-                {r.mb ? <span>{`+${formatMb(r.mb)}`}</span> : null}
-                {r.usd6 ? <span>{moneyUsdc(r.usd6)}</span> : null}
-                <span>{netName(r.network)}</span>
-                {r.uaid ? <Hash value={r.uaid} kind="agent UAID" lang={lang} /> : null}
-                {r.tx ? (
+          </Notice>
+        ) : null}
+        {!history ? (
+          failed ? null : (
+            <Skeleton shape="row" count={2} />
+          )
+        ) : history.rows.length === 0 ? (
+          <EmptyState
+            title={t('agent.empty')}
+            {...(policy
+              ? {
+                  body: t('agent.historyEmpty', {
+                    step: formatMb(policy.stepMb),
+                    threshold: formatMb(policy.thresholdMb),
+                  }),
+                }
+              : {})}
+          />
+        ) : (
+          <ListGroup
+            label={t('agent.historyTitle')}
+            {...(policy
+              ? {
+                  meta: t('agent.spent', {
+                    spent: money(history.spentToday),
+                    cap: money(BigInt(policy.maxUsd6PerDay)),
+                  }),
+                }
+              : {})}
+          >
+            {history.rows.map((r) => (
+              <ListRow
+                key={r.entityKey}
+                data-testid="arkiv-row"
+                leading={<Avatar label={netName(r.network)} />}
+                title={r.mb ? `+${formatMb(r.mb)}` : t('agent.history')}
+                subtitle={`${dayLabel(r.at, lang)} ${clockIst(r.at)} · ${netName(r.network)}`}
+                {...(r.usd6 ? { value: moneyUsdc(r.usd6) } : {})}
+                onClick={() => setSelected(r.entityKey)}
+              />
+            ))}
+          </ListGroup>
+        )}
+        {hash ? (
+          <ListGroup label={t('agent.historyHow')}>
+            <ListRow title={t('agent.historyHow')} onClick={() => setHow(true)} />
+          </ListGroup>
+        ) : null}
+      </div>
+      <Sheet
+        open={open !== undefined}
+        onClose={() => setSelected(undefined)}
+        title={t('receipts.details')}
+      >
+        {open ? (
+          <ListGroup flush label={t('receipts.details')}>
+            {open.tx ? (
+              <ListRow
+                title={t('receipts.rowTx')}
+                value={
                   <Hash
-                    value={r.tx}
+                    value={open.tx}
                     kind="transaction hash"
-                    {...(template ? { explorerHref: template.replace('{hash}', r.tx) } : {})}
-                    {...(name ? { explorerName: name } : {})}
+                    {...(openTx ? { explorerHref: openTx } : {})}
+                    {...(openTxName ? { explorerName: openTxName } : {})}
                   />
-                ) : null}
+                }
+              />
+            ) : null}
+            {open.uaid ? (
+              <ListRow
+                title={t('receipts.rowAgent')}
+                value={<Hash value={open.uaid} kind="agent UAID" lang={lang} />}
+              />
+            ) : null}
+            <ListRow
+              title="Arkiv"
+              value={
                 <Hash
-                  value={r.entityKey}
+                  value={open.entityKey}
                   kind="Arkiv entity key"
-                  explorerHref={`${config.arkivExplorer}/entity/${r.entityKey}`}
+                  explorerHref={`${config.arkivExplorer}/entity/${open.entityKey}`}
                   explorerName="Arkiv"
                 />
-                {r.hcs ? (
+              }
+            />
+            {open.hcs ? (
+              <ListRow
+                title="HCS"
+                value={
                   <Hash
-                    value={r.hcs.topic}
+                    value={open.hcs.topic}
                     kind="HCS topic"
-                    explorerHref={`${config.explorerHedera}/topic/${r.hcs.topic}`}
-                    explorerName={`HCS #${r.hcs.sequence}`}
+                    explorerHref={`${config.explorerHedera}/topic/${open.hcs.topic}`}
+                    explorerName={`HCS #${open.hcs.sequence}`}
                   />
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      {hash ? (
-        <details className="disclosure">
-          <summary lang={lang}>{t('agent.historyHow')}</summary>
-          <p lang={lang}>{t('agent.historyHowBody', { rpc: config.arkivRpc })}</p>
-          <pre className="mono-key" lang="en" data-testid="arkiv-query">
-            {JSON.stringify(topUpsRequest(hash))}
-          </pre>
-        </details>
-      ) : null}
-    </section>
+                }
+              />
+            ) : null}
+          </ListGroup>
+        ) : null}
+      </Sheet>
+      <Sheet
+        open={how && hash !== undefined}
+        onClose={() => setHow(false)}
+        title={t('agent.historyHow')}
+      >
+        <Notice tone="info" lang={lang}>
+          {t('agent.historyHowBody', { rpc: config.arkivRpc })}
+        </Notice>
+        {hash ? (
+          <ListGroup flush label={t('agent.historyHow')}>
+            <ListRow
+              title="Arkiv query"
+              mono
+              lang="en"
+              value={<span data-testid="arkiv-query">{JSON.stringify(topUpsRequest(hash))}</span>}
+            />
+          </ListGroup>
+        ) : null}
+      </Sheet>
+    </Section>
   );
 }

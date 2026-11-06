@@ -20,9 +20,10 @@ import {
   nativePayerBinding,
   rechargeDomain,
 } from '@ethglobal/protocol/typed-data';
-import { Button, Hash, Icon } from '@ethglobal/ui/components';
+import { Hash } from '@ethglobal/ui/components';
 
 import { HashPackConnection, type HashPackState } from './HashPackConnection';
+import { Avatar, Button, Card, ListGroup, ListRow, Notice } from './kit';
 import { useLang, useNetworkName } from '../i18n/lang';
 import { errorKey, type StringKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
@@ -62,7 +63,9 @@ export function PlanActions({
   if (me.status !== 'ready' || me.expiresAt <= now) return null;
   return (
     <>
-      <SendPlan entitlementKey={entitlementKey} />
+      <ListGroup>
+        <SendPlan entitlementKey={entitlementKey} />
+      </ListGroup>
       {me.refundable ? (
         <CancelPlan
           entitlementKey={entitlementKey}
@@ -116,36 +119,39 @@ function SendPlan({ entitlementKey }: { entitlementKey: string }) {
 
   if (lpa === undefined) return null;
   return (
-    <section className="sheet-row" aria-labelledby="plan-send-title" data-testid="plan-send">
-      <h2 id="plan-send-title" className="sheet__kicker" lang={lang}>
-        {t('plan.sendTitle')}
-      </h2>
-      {lpa === null ? (
-        <p className="note" lang={lang}>
-          {t('plan.sendElsewhere')}
-        </p>
-      ) : (
-        <>
-          <p className="warning-line caution" lang={lang}>
-            <Icon name="warning" /> {t('plan.sendWarn')}
-          </p>
-          <div className="row-actions">
-            <Button
-              variant="secondary"
-              onClick={() => void send(lpa)}
-              data-testid="plan-send-button"
-            >
-              {t('plan.send')}
-            </Button>
-          </div>
-          {outcome ? (
-            <p className="note" role="status" lang={lang}>
-              {t(outcome === 'copied' ? 'plan.sendCopied' : 'plan.sendFailed')}
-            </p>
-          ) : null}
-        </>
-      )}
-    </section>
+    <ListRow
+      leading={<Avatar icon="send" size={32} />}
+      title={t('plan.sendTitle')}
+      subtitle={
+        lpa === null ? (
+          t('plan.sendElsewhere')
+        ) : (
+          <>
+            {t('plan.sendWarn')}
+            {outcome ? (
+              <span role="status">
+                {' '}
+                {t(outcome === 'copied' ? 'plan.sendCopied' : 'plan.sendFailed')}
+              </span>
+            ) : null}
+          </>
+        )
+      }
+      trailing={
+        lpa === null ? null : (
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={() => void send(lpa)}
+            data-testid="plan-send-button"
+          >
+            {t('plan.send')}
+          </Button>
+        )
+      }
+      lang={lang}
+      data-testid="plan-send"
+    />
   );
 }
 
@@ -271,30 +277,28 @@ function CancelPlan({
 
   if (step === 'idle')
     return (
-      <section className="sheet-row" data-testid="plan-cancel">
-        <div className="row-actions">
-          <Button
-            variant="quiet"
-            onClick={() => setStep('confirm')}
-            data-testid="plan-cancel-button"
-          >
-            {t('plan.cancel', { amount })}
-          </Button>
-        </div>
-      </section>
+      <ListGroup>
+        <ListRow
+          leading={<Avatar icon="close" size={32} tone="negative" />}
+          title={t('plan.cancel', { amount })}
+          onClick={() => setStep('confirm')}
+          lang={lang}
+          data-testid="plan-cancel"
+        />
+      </ListGroup>
     );
 
   const isPayer = native
     ? hp.session?.chain === offer.network && hp.session.accountId === offer.to
     : wallet?.address.toLowerCase() === offer.to.toLowerCase();
   return (
-    <section
-      className="sheet-row"
+    <Card
+      as="section"
       role="group"
       aria-labelledby="plan-cancel-ask"
       data-testid="plan-cancel-confirm"
     >
-      <p id="plan-cancel-ask" lang={lang}>
+      <p id="plan-cancel-ask" className="t-body" lang={lang}>
         {t('plan.cancelConfirm', {
           amount,
           payer: short(offer.to),
@@ -308,14 +312,15 @@ function CancelPlan({
           connectLabel={t('plan.cancelHashpackConnect')}
         />
       ) : null}
-      <div className="row-actions">
+      <>
         {!native && !wallet ? (
-          <Button variant="secondary" disabled={!openConnectModal} onClick={openConnectModal}>
+          <Button variant="secondary" block disabled={!openConnectModal} onClick={openConnectModal}>
             {t('plan.cancelConnect')}
           </Button>
         ) : isPayer ? (
           <Button
             variant="secondary"
+            block
             disabled={busy}
             onClick={() => void (native ? cancelNative() : wallet && cancel(wallet))}
             data-testid="plan-cancel-yes"
@@ -327,21 +332,21 @@ function CancelPlan({
                 : t('plan.cancelYes', { amount })}
           </Button>
         ) : null}
-        <Button variant="quiet" disabled={busy} onClick={() => setStep('idle')}>
+        <Button variant="quiet" block disabled={busy} onClick={() => setStep('idle')}>
           {t('plan.cancelNo')}
         </Button>
-      </div>
+      </>
       {(native ? hp.session : wallet) && !isPayer ? (
-        <p className="note" role="status" lang={lang}>
+        <Notice tone="warning" role="status" lang={lang}>
           {t('plan.cancelWrongWallet', { payer: short(offer.to) })}
-        </p>
+        </Notice>
       ) : null}
       {error ? (
-        <p className="note" role="alert" lang={lang}>
+        <Notice tone="negative" role="alert" lang={lang}>
           {error}
-        </p>
+        </Notice>
       ) : null}
-    </section>
+    </Card>
   );
 }
 
@@ -352,14 +357,19 @@ function Cancelled({ refund }: { refund: PlanRefund }) {
   const template = explorerTemplate(refund.network);
   const name = explorerName(refund.network);
   return (
-    <section className="sheet-row" role="status" data-testid="plan-cancelled">
-      <p lang={lang}>
-        {refund.tx
+    <Notice
+      tone={refund.tx ? 'positive' : 'warning'}
+      role="status"
+      lang={lang}
+      data-testid="plan-cancelled"
+      title={
+        refund.tx
           ? t('plan.cancelled', { amount })
           : refund.recovery === 'manual'
             ? t('plan.refundManual')
-            : t('plan.refundPending', { amount })}
-      </p>
+            : t('plan.refundPending', { amount })
+      }
+    >
       {refund.tx ? (
         <Hash
           value={refund.tx}
@@ -369,10 +379,8 @@ function Cancelled({ refund }: { refund: PlanRefund }) {
           {...(name ? { explorerName: name } : {})}
         />
       ) : (
-        <p className="note" lang={lang}>
-          {t(refund.recovery === 'automatic' ? 'plan.refundAutomatic' : 'plan.refundSupport')}
-        </p>
+        t(refund.recovery === 'automatic' ? 'plan.refundAutomatic' : 'plan.refundSupport')
       )}
-    </section>
+    </Notice>
   );
 }

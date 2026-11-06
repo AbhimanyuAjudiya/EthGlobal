@@ -10,9 +10,22 @@ import {
   type CatalogResponse,
   type SponsorRegister,
 } from '@ethglobal/protocol/schemas';
-import { Button, Field, Hash } from '@ethglobal/ui/components';
+import { Hash } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
+import {
+  Button,
+  ButtonLink,
+  Card,
+  EmptyState,
+  Field,
+  ListGroup,
+  ListRow,
+  Notice,
+  Section,
+  StatTile,
+  Table,
+} from './kit';
 import { ProofPanel } from './ProofPanel';
 import { useLang } from '../i18n/lang';
 import { api, ApiError } from '../lib/api';
@@ -674,457 +687,471 @@ export function CampaignForm() {
       currentFunding.data.balance < budgetAmount ||
       currentFunding.busy === true);
 
+  const dash = '—';
+  const campaignRows = list.map((c) => ({
+    id: c.id,
+    name: (
+      <Link href={`/sponsor/${c.id}`} prefetch={false}>
+        {c.name}
+      </Link>
+    ),
+    // the saved list holds names only; status and figures load on the campaign page after sign-in
+    status: dash,
+    claims: dash,
+    spend: dash,
+    expires: dash,
+  }));
+  const perCampaign = 'Opens on each campaign after sign-in';
+
   return (
-    <div className="sponsor-create" lang={lang}>
-      <section className="pane" aria-labelledby="campaigns-title">
-        <h2 id="campaigns-title" className="pane__title">
-          Your campaigns
-        </h2>
-        <div className="table-scroll">
-          <table className="data-table campaign-list">
-            <thead>
-              <tr>
-                <th scope="col">Name</th>
-                <th scope="col">Network</th>
-                <th scope="col">Campaign id</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.length === 0 ? (
-                <>
-                  {/* the empty state teaches: the real columns, ghost rows and one verb */}
-                  <tr className="ghost">
-                    <td colSpan={3}>
-                      <a href="#create-title">Create a campaign</a> — name, destination package,
-                      budget, hourly cap.
-                    </td>
-                  </tr>
-                  <tr className="ghost" aria-hidden="true">
-                    <td>—</td>
-                    <td>—</td>
-                    <td>—</td>
-                  </tr>
-                </>
-              ) : (
-                list.map((c) => (
-                  <tr key={c.id}>
-                    <td>
-                      <Link href={`/sponsor/${c.id}`} prefetch={false}>
-                        {c.name}
-                      </Link>
-                    </td>
-                    <td>{networkName(c.network ?? network)}</td>
-                    <td>
-                      <Hash value={c.id} kind="campaign id" />
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-      <div className="campaign-builder">
-        <form
-          className="campaign-form"
-          aria-labelledby="create-title"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void run();
-          }}
-        >
-          <h2 id="create-title" className="pane__title">
-            {t('event.create')}
-          </h2>
-          {resume ? (
-            <p role="status">
-              This campaign is saved on this device. Resume to check its existing transactions and
-              finish registration without funding a new campaign.{' '}
-              <Hash value={resume.campaign.id} kind="campaign id" />
-            </p>
-          ) : null}
-          {resume && unregistrable ? (
-            <section
-              className="sheet-row"
-              aria-label="Draft cannot be registered"
-              data-testid="draft-stuck"
-            >
-              <p className="note" role="status">
-                This draft can’t be registered any more: the campaign was funded before event terms
-                were required, so the API refuses it. Its locked budget
-                {locked ? ` (${locked})` : ''} stays in this campaign on chain; the sponsor wallet
-                can refund what is unspent once the campaign has expired, or 24 hours after pausing
-                it. Start a new campaign to fund one with event terms; this draft is kept on this
-                device.
-              </p>
-              <div className="row-actions">
-                <Button
-                  variant="secondary"
-                  disabled={running || !resume.createHash}
-                  onClick={() => void recover('pause')}
-                >
-                  Pause campaign
-                </Button>
-                <Button
-                  variant="secondary"
-                  disabled={running || !resume.createHash}
-                  onClick={() => void recover('refund')}
-                >
-                  Refund unspent budget
-                </Button>
-              </div>
-            </section>
-          ) : null}
-          {field('name', 'Name')}
-          <p className="note">{t('event.intro')}</p>
-          {!resume ? (
-            <section className="sheet-row" aria-label={t('event.destination')}>
-              <Field
-                label={t('event.destination')}
-                hint={t('event.countryHint')}
-                value={draft.country}
-                maxLength={2}
-                autoCapitalize="characters"
-                disabled={running || catalogBusy}
-                onChange={(e) => {
-                  const country = e.target.value.toUpperCase().replace(/[^A-Z]/g, '');
-                  catalogRound.current += 1;
-                  setCatalog(undefined);
-                  setCatalogError(undefined);
-                  setDraft((previous) => ({
-                    ...previous,
-                    country,
-                    planId: '',
-                    reclaimUnused: false,
-                  }));
-                }}
-              />
-              <Button
-                variant="secondary"
-                disabled={running || catalogBusy || draft.country.length !== 2}
-                onClick={() => void loadCatalog()}
-              >
-                {t(catalogBusy ? 'event.loadingCatalog' : 'event.loadCatalog')}
-              </Button>
-              {catalogError ? <p role="alert">{catalogError}</p> : null}
-              {catalog ? (
-                <div className="ui-field">
-                  <label className="ui-field__label" htmlFor="event-package">
-                    {t('event.package')}
-                  </label>
-                  <select
-                    id="event-package"
-                    className="ui-field__input"
-                    value={draft.planId}
-                    disabled={running}
-                    onChange={(e) => {
-                      const planId = e.target.value;
-                      const plan = catalog.plans.find((item) => item.id === planId);
-                      setDraft((previous) => ({
-                        ...previous,
-                        planId,
-                        reclaimUnused: false,
-                        ...(plan ? { priceUsd: usdInput(plan.wholesaleUsd6) } : {}),
-                      }));
-                    }}
-                  >
-                    <option value="">{t('event.choosePlan')}</option>
-                    {catalog.plans
-                      .filter((plan) => supportedPackage(plan.mb))
-                      .map((plan) => (
-                        <option key={plan.id} value={plan.id}>
-                          {plan.name} · {formatMb(logicalMb(plan.mb))} ·{' '}
-                          {t('offer.days', { days: plan.validityDays })} ·{' '}
-                          {moneyUsdc(plan.wholesaleUsd6)}
-                        </option>
-                      ))}
-                  </select>
-                  {catalog.plans.every((plan) => !supportedPackage(plan.mb)) ? (
-                    <p className="note">{t('event.noPlans')}</p>
-                  ) : null}
-                </div>
-              ) : null}
-              {selectedPlan ? (
-                <div className="note">
-                  <p>
-                    {t('event.packageTerms', {
-                      mb: formatMb(logicalMb(selectedPlan.mb)),
-                      days: selectedPlan.validityDays,
-                      price: moneyUsdc(selectedPlan.wholesaleUsd6),
-                    })}
-                  </p>
-                  <p>
-                    {t(
-                      selectedPlan.activation.startsOn === 'first-network'
-                        ? 'event.activationNetwork'
-                        : selectedPlan.activation.startsOn === 'installation'
-                          ? 'event.activationInstall'
-                          : 'event.activationUnknown',
-                    )}
-                  </p>
-                  {selectedPlan.activation.installWithinDays ? (
-                    <p>
-                      {t('event.installWithin', {
-                        days: selectedPlan.activation.installWithinDays,
-                      })}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
-            </section>
-          ) : resume.campaign.event ? (
-            <p className="note">
-              {resume.campaign.event.destinationCountry} · {resume.campaign.planId}
-            </p>
-          ) : null}
-          <div className="form-grid">
-            {field('budgetUsd', 'Budget (USDC)')}
-            {field(
-              'priceUsd',
-              'Paid per claim (USDC)',
-              'Must cover the current minimum cost returned by the data provider',
-            )}
-            {field('maxClaims', 'Claims cap')}
-            {field('perHour', 'Claims per hour')}
-            {field('startsAt', t('event.startsAt'), t('event.localTime'), 'datetime-local')}
-            {field('endsAt', t('event.endsAt'), undefined, 'datetime-local')}
-            {field('claimUntil', t('event.claimUntil'), t('event.claimHint'), 'datetime-local')}
-            {field(
-              'reclaimAfter',
-              t('event.reclaimAfter'),
-              t('event.reclaimDateHint'),
-              'datetime-local',
-            )}
-          </div>
-          <label className="check-row">
-            <input
-              type="checkbox"
-              checked={draft.reclaimUnused}
-              disabled={
-                running || Boolean(resume) || selectedPlan?.cancellation !== 'never-installed'
-              }
-              onChange={(e) => {
-                const reclaimUnused = e.target.checked;
-                setDraft((previous) => ({ ...previous, reclaimUnused }));
-              }}
+    <>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <StatTile
+          label="Live campaigns"
+          value={dash}
+          hint={`${list.length} saved in this browser · open one for its status`}
+        />
+        <StatTile label="Claims today" value={dash} hint={perCampaign} />
+        <StatTile label="Spend" value={dash} hint={perCampaign} />
+      </div>
+      <Section title="Your campaigns" id="campaigns">
+        {list.length === 0 ? (
+          <Card>
+            <EmptyState
+              title="No campaigns yet"
+              body="Create a campaign — name, destination package, budget, hourly cap."
             />
-            {t('event.reclaimOptIn')}
-          </label>
-          <p className="note">
-            {t(
-              selectedPlan?.cancellation === 'never-installed' ||
-                resume?.campaign.event?.reclaimUnused
-                ? 'event.reclaimTerms'
-                : 'event.reclaimUnavailable',
-            )}
-          </p>
-          <p className="note">{t('event.ticketNotice')}</p>
-          {wallet && hedera ? (
-            <section
-              className="sheet-row"
-              aria-label="Campaign funding readiness"
-              data-testid="sponsor-funding"
-            >
-              <h3 className="pane__title">Campaign funding · {networkName(network)}</h3>
-              <p className="note">
-                Use this wallet’s USDC on {config.chainId === 296 ? 'Hedera testnet' : 'Hedera'}.
-                Base USDC cannot fund this pool. Keep HBAR for the association and campaign
-                transaction fees.
-              </p>
-              <Hash
-                value={wallet.address}
-                kind="funding wallet"
-                explorerHref={`https://hashscan.io/${config.chainId === 296 ? 'testnet' : 'mainnet'}/account/${wallet.address}`}
-                explorerName="HashScan"
-              />
-              {currentFunding?.data ? (
-                <>
-                  <p className="note">
-                    USDC token: {htsTokenId(currentFunding.data.token) ?? currentFunding.data.token}
-                  </p>
-                  <p role="status">
-                    {currentFunding.data.associated
-                      ? `USDC associated · balance ${moneyUsdc(currentFunding.data.balance)}`
-                      : 'Associate USDC before receiving tokens or funding this campaign.'}
-                  </p>
-                  {currentFunding.data.associated &&
-                  budgetAmount !== undefined &&
-                  currentFunding.data.balance < budgetAmount ? (
-                    <p className="note">
-                      Add {moneyUsdc(budgetAmount - currentFunding.data.balance)} to this wallet on{' '}
-                      {config.chainId === 296 ? 'Hedera testnet' : 'Hedera'}, then refresh the
-                      balance.
-                    </p>
-                  ) : null}
-                  {!currentFunding.data.associated ? (
+          </Card>
+        ) : (
+          <Table
+            caption="Your campaigns"
+            columns={[
+              { key: 'name', label: 'Name' },
+              { key: 'status', label: 'Status' },
+              { key: 'claims', label: 'Claims', numeric: true },
+              { key: 'spend', label: 'Spend / budget', numeric: true },
+              { key: 'expires', label: 'Expires' },
+            ]}
+            rows={campaignRows}
+            rowKey={(_, i) => list[i]?.id ?? String(i)}
+          />
+        )}
+      </Section>
+      <Card as="section" aria-labelledby="create-title" lang={lang}>
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+          <form
+            className="grid content-start gap-4"
+            aria-labelledby="create-title"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void run();
+            }}
+          >
+            <h2 id="create-title" className="t-heading">
+              Create a campaign
+            </h2>
+            {resume ? (
+              <Notice tone="info" role="status">
+                This campaign is saved on this device. Resume to check its existing transactions and
+                finish registration without funding a new campaign.{' '}
+                <Hash value={resume.campaign.id} kind="campaign id" />
+              </Notice>
+            ) : null}
+            {resume && unregistrable ? (
+              <Notice
+                tone="warning"
+                role="region"
+                aria-label="Draft cannot be registered"
+                data-testid="draft-stuck"
+                action={
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       variant="secondary"
-                      disabled={running || currentFunding.busy}
-                      onClick={() => void associate()}
+                      disabled={running || !resume.createHash}
+                      onClick={() => void recover('pause')}
                     >
-                      {currentFunding.hash
-                        ? 'Check association transaction'
-                        : currentFunding.busy
-                          ? 'Checking association…'
-                          : 'Associate USDC'}
+                      Pause campaign
                     </Button>
-                  ) : null}
-                </>
-              ) : (
-                <p className="note">
-                  {currentFunding?.busy
-                    ? 'Checking USDC association and balance…'
-                    : 'Check this wallet’s USDC association and balance before funding.'}
-                </p>
-              )}
-              <Button
-                variant="quiet"
-                disabled={running || currentFunding?.busy}
-                onClick={() => void checkFunding(true)}
+                    <Button
+                      variant="secondary"
+                      disabled={running || !resume.createHash}
+                      onClick={() => void recover('refund')}
+                    >
+                      Refund unspent budget
+                    </Button>
+                  </div>
+                }
               >
-                {wallet.chainId === config.chainId
-                  ? 'Refresh USDC balance'
-                  : 'Switch to Hedera and check funds'}
-              </Button>
-              {currentFunding?.error ? (
-                <p className="note" role="alert">
-                  {currentFunding.error}
+                <p role="status">
+                  This draft can’t be registered any more: the campaign was funded before event
+                  terms were required, so the API refuses it. Its locked budget
+                  {locked ? ` (${locked})` : ''} stays in this campaign on chain; the sponsor wallet
+                  can refund what is unspent once the campaign has expired, or 24 hours after
+                  pausing it. Start a new campaign to fund one with event terms; this draft is kept
+                  on this device.
                 </p>
-              ) : null}
-              {association.row.state !== 'idle' ? (
-                <ActionView
-                  row={association.row}
-                  now={association.now}
-                  title="Associate campaign USDC"
-                  network={network}
-                  networkLabel={networkName(network)}
-                  actionLabel="Token setup"
-                  blocked=""
-                  walletName={wallet.name}
-                  result="Association transaction confirmed"
-                  expectedMs={expectedMsFor(network)}
-                />
-              ) : null}
-            </section>
-          ) : null}
-          {wallet ? (
-            <Button
-              type="submit"
-              disabled={running || fundingBlocked || (!resume && !selectedPlan)}
-              data-testid="campaign-submit"
-            >
-              {resume ? 'Resume this campaign' : `Fund ${budgetText} and create`}
-            </Button>
-          ) : (
-            // no second wallet widget: the action itself opens the header's connect modal
-            <Button onClick={() => openConnectModal?.()}>Connect wallet to fund and create</Button>
-          )}
-          {resume ? (
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={running}
-              onClick={startNew}
-              data-testid="campaign-start-new"
-            >
-              Start a new campaign
-            </Button>
-          ) : null}
-        </form>
-        <div className="campaign-progress">
-          <ActionView
-            row={approve.row}
-            now={approve.now}
-            title={`Allow the Recharge contract to use up to ${budgetText}`}
-            network={network}
-            networkLabel={networkName(network)}
-            actionLabel="Step 1 of 2"
-            blocked="Starts when you create the campaign"
-            walletName={wallet?.name ?? 'your wallet'}
-            result="Allowance set"
-            expectedMs={expectedMsFor(network)}
-            className="sponsor-step"
-          />
-          <ActionView
-            row={create.row}
-            now={create.now}
-            title={`Create the campaign and lock ${budgetText}`}
-            network={network}
-            networkLabel={networkName(network)}
-            actionLabel="Step 2 of 2"
-            blocked="Starts after the allowance"
-            walletName={wallet?.name ?? 'your wallet'}
-            result="Campaign created on chain"
-            expectedMs={expectedMsFor(network)}
-            className="sponsor-step"
-          />
-          {error ? (
-            <p className="note" role="status">
-              {error}
-            </p>
-          ) : null}
-          {pause.row.state !== 'idle' ? (
-            <ActionView
-              row={pause.row}
-              now={pause.now}
-              title="Pause this campaign"
-              network={network}
-              networkLabel={networkName(network)}
-              actionLabel="Recovery"
-              blocked=""
-              walletName={wallet?.name ?? 'your wallet'}
-              result="Campaign paused"
-              expectedMs={expectedMsFor(network)}
-              className="sponsor-step"
-            />
-          ) : null}
-          {refund.row.state !== 'idle' ? (
-            <ActionView
-              row={refund.row}
-              now={refund.now}
-              title="Refund the unspent budget"
-              network={network}
-              networkLabel={networkName(network)}
-              actionLabel="Recovery"
-              blocked=""
-              walletName={wallet?.name ?? 'your wallet'}
-              result="Budget refunded to the sponsor wallet"
-              expectedMs={expectedMsFor(network)}
-              className="sponsor-step"
-            />
-          ) : null}
-          <ProofPanel proof={proof} />
-          {registered ? (
-            <section className="audit-key" data-testid="audit-key" aria-labelledby="audit-title">
-              <h2 id="audit-title" className="pane__title">
-                Audit key · shown once
-              </h2>
-              <p>
-                Store it now: it proves which claims belong to this campaign. Recharge will not show
-                it again.
-              </p>
-              <Hash value={registered.auditKey} kind="audit key" />
+              </Notice>
+            ) : null}
+            {field('name', 'Name')}
+            <p className="note">{t('event.intro')}</p>
+            {!resume ? (
+              <div className="grid gap-3" role="group" aria-label={t('event.destination')}>
+                <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                  <Field
+                    label={t('event.destination')}
+                    hint={t('event.countryHint')}
+                    value={draft.country}
+                    maxLength={2}
+                    autoCapitalize="characters"
+                    disabled={running || catalogBusy}
+                    onChange={(e) => {
+                      const country = e.target.value.toUpperCase().replace(/[^A-Z]/g, '');
+                      catalogRound.current += 1;
+                      setCatalog(undefined);
+                      setCatalogError(undefined);
+                      setDraft((previous) => ({
+                        ...previous,
+                        country,
+                        planId: '',
+                        reclaimUnused: false,
+                      }));
+                    }}
+                  />
+                  <Button
+                    variant="secondary"
+                    disabled={running || catalogBusy || draft.country.length !== 2}
+                    onClick={() => void loadCatalog()}
+                  >
+                    {t(catalogBusy ? 'event.loadingCatalog' : 'event.loadCatalog')}
+                  </Button>
+                </div>
+                {catalogError ? (
+                  <Notice tone="negative">
+                    <p role="alert">{catalogError}</p>
+                  </Notice>
+                ) : null}
+                {catalog ? (
+                  <div className="ui-field">
+                    <label className="ui-field__label" htmlFor="event-package">
+                      {t('event.package')}
+                    </label>
+                    <select
+                      id="event-package"
+                      className="ui-field__input"
+                      value={draft.planId}
+                      disabled={running}
+                      onChange={(e) => {
+                        const planId = e.target.value;
+                        const plan = catalog.plans.find((item) => item.id === planId);
+                        setDraft((previous) => ({
+                          ...previous,
+                          planId,
+                          reclaimUnused: false,
+                          ...(plan ? { priceUsd: usdInput(plan.wholesaleUsd6) } : {}),
+                        }));
+                      }}
+                    >
+                      <option value="">{t('event.choosePlan')}</option>
+                      {catalog.plans
+                        .filter((plan) => supportedPackage(plan.mb))
+                        .map((plan) => (
+                          <option key={plan.id} value={plan.id}>
+                            {plan.name} · {formatMb(logicalMb(plan.mb))} ·{' '}
+                            {t('offer.days', { days: plan.validityDays })} ·{' '}
+                            {moneyUsdc(plan.wholesaleUsd6)}
+                          </option>
+                        ))}
+                    </select>
+                    {catalog.plans.every((plan) => !supportedPackage(plan.mb)) ? (
+                      <p className="note">{t('event.noPlans')}</p>
+                    ) : null}
+                  </div>
+                ) : null}
+                {selectedPlan ? (
+                  <Notice tone="info">
+                    <p>
+                      {t('event.packageTerms', {
+                        mb: formatMb(logicalMb(selectedPlan.mb)),
+                        days: selectedPlan.validityDays,
+                        price: moneyUsdc(selectedPlan.wholesaleUsd6),
+                      })}
+                    </p>
+                    <p>
+                      {t(
+                        selectedPlan.activation.startsOn === 'first-network'
+                          ? 'event.activationNetwork'
+                          : selectedPlan.activation.startsOn === 'installation'
+                            ? 'event.activationInstall'
+                            : 'event.activationUnknown',
+                      )}
+                    </p>
+                    {selectedPlan.activation.installWithinDays ? (
+                      <p>
+                        {t('event.installWithin', {
+                          days: selectedPlan.activation.installWithinDays,
+                        })}
+                      </p>
+                    ) : null}
+                  </Notice>
+                ) : null}
+              </div>
+            ) : resume.campaign.event ? (
               <p className="note">
-                {'DataDrop contract '}
-                <Hash
-                  value={registered.contract}
-                  kind="contract address"
-                  {...(contractHref ? { explorerHref: contractHref } : {})}
-                  {...(contractExplorer ? { explorerName: contractExplorer } : {})}
-                />
+                {resume.campaign.event.destinationCountry} · {resume.campaign.planId}
               </p>
-              <Link
-                href={`/sponsor/${registered.id}`}
-                className="ui-button"
-                data-variant="secondary"
-                prefetch={false}
+            ) : null}
+            <div className="grid gap-3 sm:grid-cols-2">
+              {field('startsAt', t('event.startsAt'), t('event.localTime'), 'datetime-local')}
+              {field('endsAt', t('event.endsAt'), undefined, 'datetime-local')}
+              {field('claimUntil', t('event.claimUntil'), t('event.claimHint'), 'datetime-local')}
+              {field(
+                'reclaimAfter',
+                t('event.reclaimAfter'),
+                t('event.reclaimDateHint'),
+                'datetime-local',
+              )}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {field('budgetUsd', 'Budget (USDC)')}
+              {field(
+                'priceUsd',
+                'Paid per claim (USDC)',
+                'Must cover the current minimum cost returned by the data provider',
+              )}
+              {field('maxClaims', 'Claims cap')}
+              {field('perHour', 'Claims per hour')}
+            </div>
+            <ListGroup label={t('event.reclaimOptIn')}>
+              <ListRow
+                title={t('event.reclaimOptIn')}
+                subtitle={t(
+                  selectedPlan?.cancellation === 'never-installed' ||
+                    resume?.campaign.event?.reclaimUnused
+                    ? 'event.reclaimTerms'
+                    : 'event.reclaimUnavailable',
+                )}
+                trailing="switch"
+                checked={draft.reclaimUnused}
+                disabled={
+                  running || Boolean(resume) || selectedPlan?.cancellation !== 'never-installed'
+                }
+                onCheckedChange={(reclaimUnused) =>
+                  setDraft((previous) => ({ ...previous, reclaimUnused }))
+                }
+              />
+            </ListGroup>
+            <p className="note">{t('event.ticketNotice')}</p>
+            {wallet && hedera ? (
+              <Notice
+                tone="info"
+                role="region"
+                aria-label="Campaign funding readiness"
+                data-testid="sponsor-funding"
+                title={`Campaign funding · ${networkName(network)}`}
+                action={
+                  <Button
+                    variant="quiet"
+                    disabled={running || currentFunding?.busy}
+                    onClick={() => void checkFunding(true)}
+                  >
+                    {wallet.chainId === config.chainId
+                      ? 'Refresh USDC balance'
+                      : 'Switch to Hedera and check funds'}
+                  </Button>
+                }
               >
-                {`Open ${registered.name}`}
-              </Link>
-            </section>
-          ) : null}
+                <p>
+                  Use this wallet’s USDC on {config.chainId === 296 ? 'Hedera testnet' : 'Hedera'}.
+                  Base USDC cannot fund this pool. Keep HBAR for the association and campaign
+                  transaction fees.
+                </p>
+                <Hash
+                  value={wallet.address}
+                  kind="funding wallet"
+                  explorerHref={`https://hashscan.io/${config.chainId === 296 ? 'testnet' : 'mainnet'}/account/${wallet.address}`}
+                  explorerName="HashScan"
+                />
+                {currentFunding?.data ? (
+                  <>
+                    <p>
+                      USDC token:{' '}
+                      {htsTokenId(currentFunding.data.token) ?? currentFunding.data.token}
+                    </p>
+                    <p role="status">
+                      {currentFunding.data.associated
+                        ? `USDC associated · balance ${moneyUsdc(currentFunding.data.balance)}`
+                        : 'Associate USDC before receiving tokens or funding this campaign.'}
+                    </p>
+                    {currentFunding.data.associated &&
+                    budgetAmount !== undefined &&
+                    currentFunding.data.balance < budgetAmount ? (
+                      <p>
+                        Add {moneyUsdc(budgetAmount - currentFunding.data.balance)} to this wallet
+                        on {config.chainId === 296 ? 'Hedera testnet' : 'Hedera'}, then refresh the
+                        balance.
+                      </p>
+                    ) : null}
+                    {!currentFunding.data.associated ? (
+                      <Button
+                        variant="secondary"
+                        disabled={running || currentFunding.busy}
+                        onClick={() => void associate()}
+                      >
+                        {currentFunding.hash
+                          ? 'Check association transaction'
+                          : currentFunding.busy
+                            ? 'Checking association…'
+                            : 'Associate USDC'}
+                      </Button>
+                    ) : null}
+                  </>
+                ) : (
+                  <p>
+                    {currentFunding?.busy
+                      ? 'Checking USDC association and balance…'
+                      : 'Check this wallet’s USDC association and balance before funding.'}
+                  </p>
+                )}
+                {currentFunding?.error ? <p role="alert">{currentFunding.error}</p> : null}
+                {association.row.state !== 'idle' ? (
+                  <ActionView
+                    row={association.row}
+                    now={association.now}
+                    title="Associate campaign USDC"
+                    network={network}
+                    networkLabel={networkName(network)}
+                    actionLabel="Token setup"
+                    blocked=""
+                    walletName={wallet.name}
+                    result="Association transaction confirmed"
+                    expectedMs={expectedMsFor(network)}
+                  />
+                ) : null}
+              </Notice>
+            ) : null}
+            {wallet ? (
+              <Button
+                type="submit"
+                size="lg"
+                block
+                disabled={running || fundingBlocked || (!resume && !selectedPlan)}
+                data-testid="campaign-submit"
+              >
+                {resume ? 'Resume this campaign' : `Create campaign · ${budgetText}`}
+              </Button>
+            ) : (
+              // no second wallet widget: the action itself opens the header's connect modal
+              <Button size="lg" block onClick={() => openConnectModal?.()}>
+                Connect wallet to fund and create
+              </Button>
+            )}
+            {resume ? (
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={running}
+                onClick={startNew}
+                data-testid="campaign-start-new"
+              >
+                Start a new campaign
+              </Button>
+            ) : null}
+          </form>
+          <div className="grid content-start gap-3">
+            <ActionView
+              row={approve.row}
+              now={approve.now}
+              title={`Allow the Recharge contract to use up to ${budgetText}`}
+              network={network}
+              networkLabel={networkName(network)}
+              actionLabel="Step 1 of 2"
+              blocked="Starts when you create the campaign"
+              walletName={wallet?.name ?? 'your wallet'}
+              result="Allowance set"
+              expectedMs={expectedMsFor(network)}
+              className="sponsor-step"
+            />
+            <ActionView
+              row={create.row}
+              now={create.now}
+              title={`Create the campaign and lock ${budgetText}`}
+              network={network}
+              networkLabel={networkName(network)}
+              actionLabel="Step 2 of 2"
+              blocked="Starts after the allowance"
+              walletName={wallet?.name ?? 'your wallet'}
+              result="Campaign created on chain"
+              expectedMs={expectedMsFor(network)}
+              className="sponsor-step"
+            />
+            {error ? (
+              <Notice tone="negative">
+                <p role="status">{error}</p>
+              </Notice>
+            ) : null}
+            {pause.row.state !== 'idle' ? (
+              <ActionView
+                row={pause.row}
+                now={pause.now}
+                title="Pause this campaign"
+                network={network}
+                networkLabel={networkName(network)}
+                actionLabel="Recovery"
+                blocked=""
+                walletName={wallet?.name ?? 'your wallet'}
+                result="Campaign paused"
+                expectedMs={expectedMsFor(network)}
+                className="sponsor-step"
+              />
+            ) : null}
+            {refund.row.state !== 'idle' ? (
+              <ActionView
+                row={refund.row}
+                now={refund.now}
+                title="Refund the unspent budget"
+                network={network}
+                networkLabel={networkName(network)}
+                actionLabel="Recovery"
+                blocked=""
+                walletName={wallet?.name ?? 'your wallet'}
+                result="Budget refunded to the sponsor wallet"
+                expectedMs={expectedMsFor(network)}
+                className="sponsor-step"
+              />
+            ) : null}
+            <ProofPanel proof={proof} />
+          </div>
         </div>
-      </div>
-    </div>
+      </Card>
+      {registered ? (
+        <Notice
+          tone="positive"
+          role="region"
+          aria-label="Audit key"
+          data-testid="audit-key"
+          title="Audit key · shown once"
+          action={
+            <ButtonLink href={`/sponsor/${registered.id}`} variant="secondary">
+              {`Open ${registered.name}`}
+            </ButtonLink>
+          }
+        >
+          <p>
+            Store it now: it proves which claims belong to this campaign. Recharge will not show it
+            again.
+          </p>
+          <Hash value={registered.auditKey} kind="audit key" />
+          <p>
+            {'DataDrop contract '}
+            <Hash
+              value={registered.contract}
+              kind="contract address"
+              {...(contractHref ? { explorerHref: contractHref } : {})}
+              {...(contractExplorer ? { explorerName: contractExplorer } : {})}
+            />
+          </p>
+        </Notice>
+      ) : null}
+    </>
   );
 }

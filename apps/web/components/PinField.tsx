@@ -1,7 +1,6 @@
 'use client';
 
-import { Field } from '@ethglobal/ui/components';
-
+import { Field } from './kit';
 import { useLang } from '../i18n/lang';
 
 /**

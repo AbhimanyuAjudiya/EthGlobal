@@ -5,9 +5,20 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ReceiptPublic } from '@ethglobal/protocol/schemas';
 import { Hash, Receipt } from '@ethglobal/ui/components';
 
+import {
+  Avatar,
+  Button,
+  ButtonLink,
+  EmptyState,
+  ListGroup,
+  ListRow,
+  Notice,
+  PageHeader,
+  Pill,
+  Sheet,
+  Skeleton,
+} from './kit';
 import { PendingTransactions } from './PendingTransactions';
-import { NoPlanSteps } from './PlanView';
-import { AppHeader, Screen, TabBar } from './Shell';
 import { useLang, useNetworkName } from '../i18n/lang';
 import { api } from '../lib/api';
 import { explorerName, explorerTemplate, hcsTopicUrl } from '../lib/env';
@@ -32,6 +43,8 @@ const youPaid = (rows: readonly ReceiptPublic[]): bigint =>
     0n,
   );
 
+const rowKey = (r: ReceiptPublic) => `${r.kind}-${r.at}-${r.tx ?? ''}`;
+
 function csv(receipts: readonly ReceiptPublic[]): string {
   const head = 'at,kind,mb,usd6,network,tx,hcs_topic,hcs_sequence';
   const rows = receipts.map((r) =>
@@ -51,13 +64,14 @@ function csv(receipts: readonly ReceiptPublic[]): string {
   return [head, ...rows].join('\n');
 }
 
-/** `/receipts` — the per-day ledger of three-line receipts; rows, not cards. */
+/** `/receipts` — one ListGroup per day; a row opens its three-line receipt and proof rows in a Sheet. */
 export function ReceiptList({ entitlementKey }: { entitlementKey?: string }) {
   const { t, lang } = useLang();
   const netName = useNetworkName();
   const [receipts, setReceipts] = useState<ReceiptPublic[] | undefined>();
   const [foreign, setForeign] = useState(false);
   const [noPlan, setNoPlan] = useState(false);
+  const [opened, setOpened] = useState<string>();
 
   useEffect(() => {
     void (async () => {
@@ -88,135 +102,139 @@ export function ReceiptList({ entitlementKey }: { entitlementKey?: string }) {
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
   };
 
+  const what = (r: ReceiptPublic) =>
+    r.kind === 'campaign-reclaim'
+      ? t('receipts.sponsorRefund')
+      : r.kind === REFUND
+        ? t('receipts.refund')
+        : r.mb
+          ? `+${formatMb(r.mb)}`
+          : r.kind;
+  const isPending = (r: ReceiptPublic) =>
+    (r.kind === REFUND || r.kind === 'campaign-reclaim') && !r.tx;
+  const subtitle = (r: ReceiptPublic) =>
+    `${dayLabel(r.at, lang)} ${clockIst(r.at)} · ${netName(r.network)} · ${t(isPending(r) ? 'receipts.pending' : 'receipts.final')}`;
+  const open = receipts?.find((r) => rowKey(r) === opened);
+  const openTx = open?.tx ? explorerTemplate(open.network)?.replace('{hash}', open.tx) : undefined;
+  const openTxName = explorerName(open?.network);
+
   return (
-    <Screen wide className="receipts-ledger">
-      <AppHeader />
+    <>
+      <PageHeader
+        title={t('receipts.title')}
+        lead={t('receipts.intro')}
+        lang={lang}
+        {...(receipts && receipts.length > 0
+          ? {
+              action: (
+                <Button variant="quiet" onClick={download}>
+                  {t('receipts.csv')}
+                </Button>
+              ),
+            }
+          : {})}
+      />
       <PendingTransactions />
-      <header className="receipts-head">
-        <div>
-          <h1 className="receipts-head__title" lang={lang}>
-            {t('receipts.title')}
-          </h1>
-          <p className="receipts-head__intro" lang={lang}>
-            {t('receipts.intro')}
-          </p>
-        </div>
-        {receipts && receipts.length > 0 ? (
-          <button type="button" className="ui-button" data-variant="secondary" onClick={download}>
-            {t('receipts.csv')}
-          </button>
-        ) : null}
-      </header>
       {foreign ? (
-        <p className="note" role="note" data-testid="receipts-foreign">
+        <Notice tone="warning" role="note" data-testid="receipts-foreign" lang={lang}>
           {t('receipts.foreign')}
-        </p>
+        </Notice>
       ) : null}
       {receipts === undefined ? (
-        // the skeleton is the real layout: a day header over one three-line receipt
-        <div className="receipt-day" aria-hidden="true">
-          <div className="receipt-day__head">
-            <span className="skeleton receipt-skel receipt-skel--day" />
-            <span className="skeleton receipt-skel receipt-skel--total" />
-          </div>
-          <div className="receipt-row">
-            <span className="skeleton receipt-skel receipt-skel--heading" />
-            <span className="skeleton receipt-skel" />
-            <span className="skeleton receipt-skel" />
-            <span className="skeleton receipt-skel" />
-          </div>
-        </div>
+        <Skeleton shape="row" count={3} />
       ) : receipts.length === 0 ? (
-        <div className="ghost-row">
-          <Receipt
-            you="—"
-            sponsor="—"
-            networkFee="—"
-            heading={<span lang={lang}>{t('receipts.empty')}</span>}
-            lang={lang}
-          />
-        </div>
+        <EmptyState
+          title={t('receipts.empty')}
+          {...(noPlan
+            ? {
+                action: (
+                  <ButtonLink href="/" block>
+                    {t('hub.get')}
+                  </ButtonLink>
+                ),
+              }
+            : {})}
+        />
       ) : (
-        days.map(([day, rows]) => {
-          return (
-            <section key={day} className="receipt-day">
-              <h2 className="receipt-day__head">
-                <span>{day}</span>
-                <span className="receipt-day__total">
-                  {t('receipts.dayYou', { amount: money(youPaid(rows)) })}
-                </span>
-              </h2>
-              {rows.map((r) => {
-                const template = explorerTemplate(r.network);
-                const name = explorerName(r.network);
-                const pending = (r.kind === REFUND || r.kind === 'campaign-reclaim') && !r.tx;
-                const what =
-                  r.kind === 'campaign-reclaim'
-                    ? t('receipts.sponsorRefund')
-                    : r.kind === REFUND
-                      ? t('receipts.refund')
-                      : r.mb
-                        ? `+${formatMb(r.mb)}`
-                        : r.kind;
-                return (
-                  <article
-                    key={`${r.kind}-${r.at}-${r.tx ?? ''}`}
-                    className="receipt-row"
-                    data-kind={r.kind}
-                    data-state={pending ? 'pending' : 'final'}
-                  >
-                    <Receipt
-                      heading={
-                        <>
-                          {pending ? <span className="receipt-ring" aria-hidden="true" /> : null}
-                          {`${what} · ${day} ${clockIst(r.at)} · ${netName(r.network)} · ${t(pending ? 'receipts.pending' : 'receipts.final')}`}
-                        </>
-                      }
-                      {...lines(r)}
-                      networkFee="$0.00"
-                      lang={lang}
-                    />
-                    {r.tx || r.hcs || r.uaid ? (
-                      <details className="disclosure receipt-row__proof">
-                        <summary lang={lang}>{t('receipts.details')}</summary>
-                        {r.tx ? (
-                          <Hash
-                            value={r.tx}
-                            kind="transaction hash"
-                            {...(template
-                              ? { explorerHref: template.replace('{hash}', r.tx) }
-                              : {})}
-                            {...(name ? { explorerName: name } : {})}
-                          />
-                        ) : null}
-                        {r.hcs ? (
-                          <p className="mono-key" data-hash>
-                            <a
-                              className="receipt-proof-link"
-                              href={hcsTopicUrl(r.hcs.topic)}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              HCS {r.hcs.topic} · #{r.hcs.sequence}
-                            </a>
-                          </p>
-                        ) : null}
-                        {r.uaid ? (
-                          <p className="mono-key" data-hash>
-                            {r.uaid}
-                          </p>
-                        ) : null}
-                      </details>
-                    ) : null}
-                  </article>
-                );
-              })}
-            </section>
-          );
-        })
+        days.map(([day, rows]) => (
+          <ListGroup
+            key={day}
+            title={day}
+            meta={t('receipts.dayYou', { amount: money(youPaid(rows)) })}
+          >
+            {rows.map((r) => {
+              const pending = isPending(r);
+              const sponsored = SPONSORED.has(r.kind);
+              return (
+                <ListRow
+                  key={rowKey(r)}
+                  data-testid="receipt-row"
+                  leading={
+                    <Avatar label={netName(r.network)} tone={pending ? 'warning' : 'brand-pale'} />
+                  }
+                  title={what(r)}
+                  subtitle={subtitle(r)}
+                  value={r.usd6 ? money(r.usd6) : '$0.00'}
+                  valueTone={sponsored ? 'muted' : r.kind === REFUND ? 'positive' : 'default'}
+                  {...(pending
+                    ? { trailing: <Pill tone="warning">{t('receipts.pending')}</Pill> }
+                    : {})}
+                  onClick={() => setOpened(rowKey(r))}
+                />
+              );
+            })}
+          </ListGroup>
+        ))
       )}
-      {noPlan ? <NoPlanSteps /> : null}
-      <TabBar active="receipts" />
-    </Screen>
+      <Sheet
+        open={open !== undefined}
+        onClose={() => setOpened(undefined)}
+        title={t('receipts.details')}
+        lang={lang}
+      >
+        {open ? (
+          <>
+            <Receipt
+              heading={`${what(open)} · ${subtitle(open)}`}
+              {...lines(open)}
+              networkFee="$0.00"
+              lang={lang}
+            />
+            {open.tx || open.hcs || open.uaid ? (
+              <ListGroup flush label={t('receipts.details')}>
+                {open.tx ? (
+                  <ListRow
+                    title={t('receipts.rowTx')}
+                    value={
+                      <Hash
+                        value={open.tx}
+                        kind="transaction hash"
+                        {...(openTx ? { explorerHref: openTx } : {})}
+                        {...(openTxName ? { explorerName: openTxName } : {})}
+                      />
+                    }
+                  />
+                ) : null}
+                {open.hcs ? (
+                  <ListRow
+                    title="HCS"
+                    value={`${open.hcs.topic} · #${open.hcs.sequence}`}
+                    mono
+                    href={hcsTopicUrl(open.hcs.topic)}
+                    external
+                  />
+                ) : null}
+                {open.uaid ? (
+                  <ListRow
+                    title={t('receipts.rowAgent')}
+                    value={<Hash value={open.uaid} kind="agent UAID" lang={lang} />}
+                  />
+                ) : null}
+              </ListGroup>
+            ) : null}
+          </>
+        ) : null}
+      </Sheet>
+    </>
   );
 }

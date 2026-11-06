@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import type { ReceiptRef } from '@ethglobal/protocol/schemas';
 import { Hash, usePrefersReducedMotion } from '@ethglobal/ui/components';
 
+import { Avatar, ListGroup, ListRow } from './kit';
 import { useLang } from '../i18n/lang';
 import { arkivEntityUrl, explorerName, explorerTemplate, hcsTopicUrl } from '../lib/env';
 
@@ -41,54 +42,73 @@ function ArkivKey({ value }: { value: string }) {
 function HcsRow({ hcs }: { hcs: HcsRef }) {
   const { t, lang } = useLang();
   return (
-    <li data-done data-testid="issuing-hcs">
-      <span lang={lang}>{t('issuing.hcs')}</span>
-      <Hash
-        value={hcs.topic}
-        kind="HCS topic"
-        explorerHref={hcsTopicUrl(hcs.topic)}
-        explorerName={`HashScan · #${hcs.sequence}`}
-        lang={lang}
-      />
-    </li>
+    <ListRow
+      leading={<Avatar icon="check" tone="positive" size={32} />}
+      title={t('issuing.hcs')}
+      value={
+        <Hash
+          value={hcs.topic}
+          kind="HCS topic"
+          explorerHref={hcsTopicUrl(hcs.topic)}
+          explorerName={`HashScan · #${hcs.sequence}`}
+          lang={lang}
+        />
+      }
+      lang={lang}
+      data-testid="issuing-hcs"
+    />
   );
 }
 
+/** A fact's leading dot: a check once it has arrived, a quiet circle before. */
+const Done = ({ done }: { done: boolean }) => (
+  <Avatar icon={done ? 'check' : 'info'} tone={done ? 'positive' : 'neutral'} size={32} />
+);
+
 /**
  * "Verified · Orb" · "Sponsor paid 0x1a2b…9f3e ↗" · "Plan written to Arkiv 0x7f3a…ab12 ↗" · "Receipt on Hedera ↗":
- * each row is a fact this device kept from the issue, with its explorer link. No spinner.
+ * each row is a fact this device kept from the issue, with its explorer link, turning on as it arrives. No spinner.
  */
-export function IssuingRows({ facts }: { facts: IssuingFacts }) {
+export function IssuingRows({ facts, title }: { facts: IssuingFacts; title?: ReactNode }) {
   const { t, lang } = useLang();
   const template = explorerTemplate(facts.network);
   const name = explorerName(facts.network);
   return (
-    <ol className="issuing-rows" data-testid="issuing-rows">
+    <ListGroup title={title ?? t('plan.issuingTitle')} data-testid="issuing-rows">
       {facts.verified ? (
-        <li data-done data-testid="issuing-verified">
-          <span lang={lang}>{facts.verified}</span>
-        </li>
+        <ListRow
+          leading={<Done done />}
+          title={facts.verified}
+          lang={lang}
+          data-testid="issuing-verified"
+        />
       ) : null}
       {facts.tx ? (
-        <li data-done data-testid="issuing-paid">
-          <span lang={lang}>
-            {facts.paidBySponsor ? t('issuing.sponsorPaid') : t('issuing.youPaid')}
-          </span>
-          <Hash
-            value={facts.tx}
-            kind="transaction hash"
-            {...(template ? { explorerHref: template.replace('{hash}', facts.tx) } : {})}
-            {...(name ? { explorerName: name } : {})}
-            lang={lang}
-          />
-        </li>
+        <ListRow
+          leading={<Done done />}
+          title={facts.paidBySponsor ? t('issuing.sponsorPaid') : t('issuing.youPaid')}
+          value={
+            <Hash
+              value={facts.tx}
+              kind="transaction hash"
+              {...(template ? { explorerHref: template.replace('{hash}', facts.tx) } : {})}
+              {...(name ? { explorerName: name } : {})}
+              lang={lang}
+            />
+          }
+          lang={lang}
+          data-testid="issuing-paid"
+        />
       ) : null}
-      <li data-done={Boolean(facts.arkivKey) || undefined} data-testid="issuing-arkiv">
-        <span lang={lang}>{t('issuing.arkiv')}</span>
-        {facts.arkivKey ? <ArkivKey value={facts.arkivKey} /> : null}
-      </li>
+      <ListRow
+        leading={<Done done={Boolean(facts.arkivKey)} />}
+        title={t('issuing.arkiv')}
+        value={facts.arkivKey ? <ArkivKey value={facts.arkivKey} /> : undefined}
+        lang={lang}
+        data-testid="issuing-arkiv"
+      />
       {facts.hcs ? <HcsRow hcs={facts.hcs} /> : null}
-    </ol>
+    </ListGroup>
   );
 }
 
@@ -101,15 +121,17 @@ export function ProofRows({ receipt }: { receipt: ReceiptRef }) {
   const arkiv = arkivEntityUrl(receipt.arkivKey) !== undefined;
   if (!arkiv && !receipt.hcs) return null;
   return (
-    <ul className="issuing-rows" data-testid="proof-rows">
+    <ListGroup data-testid="proof-rows">
       {arkiv ? (
-        <li data-done>
-          <span lang={lang}>{t('issuing.arkiv')}</span>
-          <ArkivKey value={receipt.arkivKey} />
-        </li>
+        <ListRow
+          leading={<Done done />}
+          title={t('issuing.arkiv')}
+          value={<ArkivKey value={receipt.arkivKey} />}
+          lang={lang}
+        />
       ) : null}
       {receipt.hcs ? <HcsRow hcs={receipt.hcs} /> : null}
-    </ul>
+    </ListGroup>
   );
 }
 

@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { Hex } from '@ethglobal/protocol/ids';
 import { canonicalTicketRefs } from '@ethglobal/protocol/typed-data';
-import { Button } from '@ethglobal/ui/components';
 
+import { Button, Card, Notice, Section, Table } from './kit';
 import { useLang } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
@@ -123,105 +123,107 @@ export function SponsorTickets({
   };
 
   return (
-    <section className="pane" aria-labelledby="tickets-title" lang={lang}>
-      <h2 id="tickets-title" className="pane__title">
-        {t('tickets.title')}
-      </h2>
-      <p className="note">{t('tickets.intro')}</p>
-      <p className="note">{t('tickets.privacy')}</p>
-      <div className="ui-field">
-        <label htmlFor="ticket-references" className="ui-field__label">
-          {t('tickets.references')}
-        </label>
-        <textarea
-          id="ticket-references"
-          className="ui-field__input"
-          value={refs}
-          maxLength={26000}
-          disabled={busy || closed || !allowed}
-          style={{ minHeight: '8rem', resize: 'vertical' }}
-          onChange={(event) => setRefs(event.target.value)}
-          aria-describedby="ticket-ref-hint"
-        />
-        <p id="ticket-ref-hint" className="ui-field__hint">
-          {t('tickets.refHint')}
-        </p>
-      </div>
-      <div className="row-actions">
-        <Button disabled={busy || closed || !allowed || !refs.trim()} onClick={() => void issue()}>
-          {t(busy ? 'tickets.issuing' : 'tickets.issue')}
-        </Button>
-        {tickets.length > 0 ? (
-          <Button
-            variant="quiet"
+    <Section title={t('tickets.title')} lang={lang}>
+      <Card className="grid gap-4">
+        <p className="note">{t('tickets.intro')}</p>
+        <p className="note">{t('tickets.privacy')}</p>
+        <div className="ui-field">
+          <label htmlFor="ticket-references" className="ui-field__label">
+            {t('tickets.references')}
+          </label>
+          <textarea
+            id="ticket-references"
+            className="ui-field__input min-h-32 resize-y"
+            value={refs}
+            maxLength={26000}
             disabled={busy || closed || !allowed}
-            onClick={() =>
-              setRefs(
-                tickets
-                  .slice(0, 200)
-                  .map((ticket) => ticket.reference)
-                  .join('\n'),
-              )
-            }
+            onChange={(event) => setRefs(event.target.value)}
+            aria-describedby="ticket-ref-hint"
+          />
+          <p id="ticket-ref-hint" className="ui-field__hint">
+            {t('tickets.refHint')}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            disabled={busy || closed || !allowed || !refs.trim()}
+            onClick={() => void issue()}
           >
-            {t('tickets.recoverRefs')}
+            {t(busy ? 'tickets.issuing' : 'tickets.issue')}
           </Button>
+          {tickets.length > 0 ? (
+            <Button
+              variant="quiet"
+              disabled={busy || closed || !allowed}
+              onClick={() =>
+                setRefs(
+                  tickets
+                    .slice(0, 200)
+                    .map((ticket) => ticket.reference)
+                    .join('\n'),
+                )
+              }
+            >
+              {t('tickets.recoverRefs')}
+            </Button>
+          ) : null}
+        </div>
+        {closed ? (
+          <Notice tone="info">
+            <p role="status">{t('tickets.closed')}</p>
+          </Notice>
+        ) : !allowed ? (
+          <Notice tone="warning">
+            <p role="status">{t('tickets.ownerNeeded')}</p>
+          </Notice>
         ) : null}
-      </div>
-      {closed ? (
-        <p role="status">{t('tickets.closed')}</p>
-      ) : !allowed ? (
-        <p role="status">{t('tickets.ownerNeeded')}</p>
-      ) : null}
-      {error ? <p role="alert">{error}</p> : null}
-      {links.length > 0 ? (
-        <div className="sheet-row">
-          <p className="note">{t('tickets.distribute')}</p>
-          <Button variant="secondary" onClick={download}>
-            {t('tickets.export')}
-          </Button>
-          {links.map((link, index) => (
-            <div className="ui-field" key={link.reference}>
-              <label className="ui-field__label" htmlFor={`ticket-link-${index}`}>
-                {link.reference}
-              </label>
-              <input
-                id={`ticket-link-${index}`}
-                className="ui-field__input"
-                readOnly
-                value={link.url}
-                onFocus={(event) => event.target.select()}
-              />
-              <Button variant="quiet" onClick={() => void copy(link.reference, link.url)}>
-                {t(copied === link.reference ? 'tickets.copied' : 'tickets.copy')}
-              </Button>
-            </div>
-          ))}
-        </div>
-      ) : null}
-      <p className="note">{t('tickets.statusHint')}</p>
-      {tickets.length > 0 ? (
-        <div className="table-scroll">
-          <table className="data-table mobile-records">
-            <thead>
-              <tr>
-                <th scope="col">{t('tickets.reference')}</th>
-                <th scope="col">{t('tickets.status')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tickets.map((ticket) => (
-                <tr key={ticket.reference}>
-                  <td data-label={t('tickets.reference')}>{ticket.reference}</td>
-                  <td data-label={t('tickets.status')}>
-                    {t(ticket.status === 'reserved' ? 'tickets.reserved' : 'tickets.issued')}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-    </section>
+        {error ? (
+          <Notice tone="negative">
+            <p role="alert">{error}</p>
+          </Notice>
+        ) : null}
+        {links.length > 0 ? (
+          <div className="grid gap-3">
+            <p className="note">{t('tickets.distribute')}</p>
+            <Button variant="secondary" onClick={download}>
+              {t('tickets.export')}
+            </Button>
+            {links.map((link, index) => (
+              <div className="ui-field" key={link.reference}>
+                <label className="ui-field__label" htmlFor={`ticket-link-${index}`}>
+                  {link.reference}
+                </label>
+                <input
+                  id={`ticket-link-${index}`}
+                  className="ui-field__input"
+                  readOnly
+                  value={link.url}
+                  onFocus={(event) => event.target.select()}
+                />
+                <Button variant="quiet" onClick={() => void copy(link.reference, link.url)}>
+                  {t(copied === link.reference ? 'tickets.copied' : 'tickets.copy')}
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        <p className="note">{t('tickets.statusHint')}</p>
+        {tickets.length > 0 ? (
+          <Table
+            caption={t('tickets.title')}
+            columns={[
+              { key: 'reference', label: t('tickets.reference') },
+              { key: 'status', label: t('tickets.status') },
+            ]}
+            rowKey={(_, i) => tickets[i]?.reference ?? String(i)}
+            rows={tickets.map((ticket) => ({
+              reference: ticket.reference,
+              status: t(ticket.status === 'reserved' ? 'tickets.reserved' : 'tickets.issued'),
+            }))}
+          />
+        ) : null}
+      </Card>
+    </Section>
   );
 }

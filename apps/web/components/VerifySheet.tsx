@@ -1,16 +1,28 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { PLAN_MB, type Hex } from '@ethglobal/protocol/ids';
 import type { ChallengeWire, PlansResponse } from '@ethglobal/protocol/schemas';
-import { Button, Coupon } from '@ethglobal/ui/components';
 
+import {
+  ActionBar,
+  AppShell,
+  Avatar,
+  Button,
+  ButtonLink,
+  Card,
+  ListGroup,
+  ListRow,
+  Notice,
+  PageHeader,
+  Pill,
+  Skeleton,
+  Stepper,
+} from './kit';
 import { ProofPanel } from './ProofPanel';
 import { QrCode } from './QrCode';
-import { AppHeader, Caution, Screen } from './Shell';
 import { TierLedger } from './TierLedger';
 import { useLang } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
@@ -111,36 +123,6 @@ function phaseFor(e: unknown, t: (k: ReturnType<typeof errorKey>) => string): Ph
   if (err.code === 'invalid_proof' || err.code === 'unauthorized') return { kind: 'failed' };
   if (SPONSOR.has(err.code)) return { kind: 'sponsorFailed', why: t(errorKey(err.code)) };
   return { kind: 'closed', retryS: err.retryAfterS ?? 30, message: t(errorKey(err.code)) };
-}
-
-/**
- * Determinate ring for "Checking": fills toward SLOW_CLAIM_MS from the elapsed time, redrawn on the 1 s clock (no
- * CSS animation). ponytail: holds at 95 % past 10 s — the line then says it can take a minute; the API gives no
- * real progress to draw.
- */
-function CheckingRing({ elapsed }: { elapsed: number }) {
-  const r = 9;
-  const c = 2 * Math.PI * r;
-  const done = Math.min(0.95, Math.max(0, elapsed / SLOW_CLAIM_MS));
-  return (
-    <svg
-      className="verify-sheet__ring"
-      viewBox="0 0 24 24"
-      width="24"
-      height="24"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r={r} className="verify-sheet__ring-track" />
-      <circle
-        cx="12"
-        cy="12"
-        r={r}
-        className="verify-sheet__ring-fill"
-        strokeDasharray={c}
-        strokeDashoffset={c * (1 - done)}
-      />
-    </svg>
-  );
 }
 
 /** `campaignId`: claim for that campaign (from /c/<slug>, the ENS name) instead of the default one. */
@@ -362,131 +344,6 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
   const price = money(sold.usd6);
   const payMb = formatMb(sold.mb);
 
-  let status: ReactNode = null;
-  switch (phase.kind) {
-    case 'preparing':
-      status = <p className="skeleton skeleton--line" aria-hidden="true" />;
-      break;
-    case 'waiting':
-      status = (
-        <>
-          <p role="status" lang={lang}>
-            {t('verify.waiting', { elapsed: mmss(now - phase.since) })}
-          </p>
-          {phase.connectorURI && handheld ? (
-            <>
-              {/* World App is on this phone: one tap opens it; the poll keeps running meanwhile */}
-              <a
-                href={phase.connectorURI}
-                className="ui-button ui-button--block"
-                data-variant="primary"
-                lang={lang}
-              >
-                {t('verify.open')}
-              </a>
-              {showQr ? (
-                <div className="verify-sheet__qr">
-                  <QrCode url={phase.connectorURI} sizeMm={44} label={t('verify.scan')} />
-                </div>
-              ) : (
-                <Button variant="quiet" onClick={() => setShowQr(true)}>
-                  {t('verify.showQr')}
-                </Button>
-              )}
-            </>
-          ) : phase.connectorURI ? (
-            <>
-              <div className="verify-sheet__qr">
-                <QrCode url={phase.connectorURI} sizeMm={44} label={t('verify.scan')} />
-              </div>
-              <p className="quiet-rows">
-                <a href={phase.connectorURI} lang={lang}>
-                  {t('verify.open')}
-                </a>
-              </p>
-            </>
-          ) : null}
-        </>
-      );
-      break;
-    case 'checking':
-      status = (
-        <div className="verify-sheet__checking">
-          <CheckingRing elapsed={now - phase.since} />
-          <p role="status" lang={lang}>
-            {t(now - phase.since >= SLOW_CLAIM_MS ? 'verify.checkingLong' : 'verify.checking', {
-              elapsed: `${Math.max(1, Math.round((now - phase.since) / 1000))} s`,
-            })}
-          </p>
-        </div>
-      );
-      break;
-    case 'unconfirmed':
-      status = (
-        <div role="status" data-testid="claim-unconfirmed">
-          <p lang={lang}>{t('verify.unconfirmed')}</p>
-          <p className="quiet-rows">
-            <Link href="/plan" prefetch={false}>
-              {t('verify.checkPlans')}
-            </Link>
-          </p>
-        </div>
-      );
-      break;
-    case 'failed':
-      status = (
-        <p role="status" lang={lang}>
-          {t('verify.failed', { price, mb: payMb })}
-        </p>
-      );
-      break;
-    case 'seen':
-      status = (
-        <div role="status" data-testid="nullifier-seen">
-          <p lang={lang}>{t('verify.seen')}</p>
-          <p className="quiet-rows">
-            <Link href="/plan" prefetch={false}>
-              {t('verify.openThat')}
-            </Link>
-            <Link href="/pay" prefetch={false}>
-              {t('verify.payMore')}
-            </Link>
-          </p>
-        </div>
-      );
-      break;
-    case 'noCredential':
-      status = (
-        <p role="status" lang={lang}>
-          {t('verify.noCredential')}
-        </p>
-      );
-      break;
-    case 'ticketError':
-      status = (
-        <p role="alert" lang={lang}>
-          {t('verify.ticketError')}
-        </p>
-      );
-      break;
-    case 'sponsorFailed':
-      status = (
-        <p role="status" lang={lang}>
-          {t('verify.sponsorFailed', { why: phase.why, price })}
-        </p>
-      );
-      break;
-    case 'closed':
-      status = (
-        <p role="status" lang={lang}>
-          {phase.message} {t('verify.closed', { s: phase.retryS })}
-        </p>
-      );
-      break;
-    case 'ready':
-      break;
-  }
-
   const canStart = phase.kind === 'ready' || phase.kind === 'failed';
   const campaign = plans?.campaign;
   const ticketRequired = plans?.mode === 'live' || campaign?.event?.ticketRequired;
@@ -495,118 +352,253 @@ export function VerifySheet({ campaignId }: { campaignId?: string } = {}) {
   const needsPass = phase.kind === 'ready' && !!ticketRequired && !hasTicket;
   const admissionReady =
     !!campaign && (!ticketRequired || hasTicket) && (!event?.reclaimUnused || acceptedTerms);
+  const waitingUri = phase.kind === 'waiting' ? phase.connectorURI : undefined;
+
+  // the states, one Notice each (design-references §1b); only the live one carries role=status
+  let status: ReactNode = null;
+  switch (phase.kind) {
+    case 'preparing':
+      status = <Skeleton shape="text" />;
+      break;
+    case 'waiting':
+      status = (
+        <Notice
+          role="status"
+          lang={lang}
+          title={
+            <>
+              {t('verify.waitingTitle')} <Pill dot>{mmss(now - phase.since)}</Pill>
+            </>
+          }
+        />
+      );
+      break;
+    case 'checking':
+      status = (
+        <Notice role="status" lang={lang}>
+          {t(now - phase.since >= SLOW_CLAIM_MS ? 'verify.checkingLong' : 'verify.checking', {
+            elapsed: `${Math.max(1, Math.round((now - phase.since) / 1000))} s`,
+          })}
+        </Notice>
+      );
+      break;
+    case 'unconfirmed':
+      status = (
+        <Notice
+          tone="warning"
+          role="status"
+          data-testid="claim-unconfirmed"
+          lang={lang}
+          action={
+            <ButtonLink href="/plan" variant="quiet">
+              {t('verify.checkPlans')}
+            </ButtonLink>
+          }
+        >
+          {t('verify.unconfirmed')}
+        </Notice>
+      );
+      break;
+    case 'failed':
+      status = (
+        <Notice tone="negative" role="status" lang={lang}>
+          {t('verify.failed', { price, mb: payMb })}
+        </Notice>
+      );
+      break;
+    case 'seen':
+      status = (
+        <Notice
+          tone="warning"
+          role="status"
+          data-testid="nullifier-seen"
+          lang={lang}
+          action={
+            <>
+              <ButtonLink href="/plan" variant="quiet">
+                {t('verify.openThat')}
+              </ButtonLink>
+              <ButtonLink href="/pay" variant="quiet">
+                {t('verify.payMore')}
+              </ButtonLink>
+            </>
+          }
+        >
+          {t('verify.seen')}
+        </Notice>
+      );
+      break;
+    case 'noCredential':
+      status = (
+        <Notice tone="warning" role="status" lang={lang}>
+          {t('verify.noCredential')}
+        </Notice>
+      );
+      break;
+    case 'ticketError':
+      status = (
+        <Notice tone="negative" role="alert" lang={lang}>
+          {t('verify.ticketError')}
+        </Notice>
+      );
+      break;
+    case 'sponsorFailed':
+      status = (
+        <Notice tone="warning" role="status" lang={lang}>
+          {t('verify.sponsorFailed', { why: phase.why, price })}
+        </Notice>
+      );
+      break;
+    case 'closed':
+      status = (
+        <Notice tone="warning" role="status" lang={lang}>
+          {phase.message} {t('verify.closed', { s: phase.retryS })}
+        </Notice>
+      );
+      break;
+    case 'ready':
+      break;
+  }
+
+  const pay =
+    phase.kind === 'failed' ||
+    phase.kind === 'noCredential' ||
+    phase.kind === 'sponsorFailed' ||
+    needsPass;
+  const starts = canStart && !needsPass;
+
   return (
-    <Screen wide className="verify-screen">
-      <AppHeader />
-      <div className="verify-stage">
-        {plans?.campaign ? (
-          <div className="verify-stage__coupon" aria-hidden="true">
-            <Coupon mb={mb} sponsor={plans.campaign.name} lang={lang} />
-          </div>
-        ) : null}
-        <section className="sheet verify-sheet" aria-labelledby="verify-title">
-          {campaign ? (
-            // which event this page claims for: two pass links for two countries must not look alike
-            <div className="verify-sheet__event" data-testid="claim-event" lang={lang}>
-              <p className="verify-sheet__label">{t('verify.eventFor')}</p>
-              <p className="verify-sheet__event-name">{campaign.name}</p>
-              {event ? (
-                <p className="verify-sheet__event-when">
-                  {regionName(event.destinationCountry, lang)} ·{' '}
-                  {new Date(event.startsAt).toLocaleDateString(lang)} –{' '}
-                  {new Date(event.endsAt).toLocaleDateString(lang)}
-                </p>
-              ) : null}
-              <p className="note">{t('verify.eventBundle', { mb: formatMb(mb) })}</p>
-            </div>
-          ) : null}
-          <h1 id="verify-title" className="verify-sheet__title" lang={lang}>
-            {t('verify.title')}
-          </h1>
-          <p className="verify-sheet__lede" lang={lang}>
-            {t('verify.lede')}
+    <AppShell back="/">
+      <Stepper
+        label={t('verify.steps')}
+        lang={lang}
+        current={1}
+        steps={[t('verify.step.prove'), t('verify.step.issue'), t('verify.step.install')]}
+      />
+      <PageHeader id="verify-title" title={t('verify.title')} lead={t('verify.lead')} lang={lang} />
+      {campaign ? (
+        // which event this page claims for: two pass links for two countries must not look alike
+        <ListGroup title={t('verify.eventFor')} data-testid="claim-event">
+          <ListRow
+            lang={lang}
+            leading={<Avatar label={campaign.name} />}
+            title={campaign.name}
+            subtitle={
+              event
+                ? `${regionName(event.destinationCountry, lang)} · ${new Date(event.startsAt).toLocaleDateString(lang)} – ${new Date(event.endsAt).toLocaleDateString(lang)}`
+                : t('verify.eventBundle', { mb: formatMb(mb) })
+            }
+            value={formatMb(mb)}
+          />
+        </ListGroup>
+      ) : null}
+      {/* the IDKit request: the QR on a computer, behind "Show QR instead" on a phone (World App opens from the bar) */}
+      <Card tone="band" lang={lang}>
+        {waitingUri && handheld ? (
+          showQr ? (
+            <QrCode url={waitingUri} sizeMm={44} label={t('verify.scan')} />
+          ) : (
+            <Button variant="quiet" onClick={() => setShowQr(true)}>
+              {t('verify.showQr')}
+            </Button>
+          )
+        ) : waitingUri ? (
+          <>
+            <QrCode url={waitingUri} sizeMm={44} label={t('verify.scan')} />
+            <ButtonLink href={waitingUri} variant="quiet" native>
+              {t('verify.open')}
+            </ButtonLink>
+          </>
+        ) : (
+          <p className="t-caption">
+            {process.env.NEXT_PUBLIC_MODE === 'local'
+              ? t('verify.simulatedNote')
+              : t('verify.well')}
           </p>
-          {needsPass ? (
-            <div className="verify-sheet__pass" role="status" data-testid="pass-needed" lang={lang}>
-              <p>{t('verify.passNeeded')}</p>
-              <p className="note">{t('verify.ticketNeeded')}</p>
-            </div>
-          ) : ticketRequired && hasTicket ? (
-            <p lang={lang}>{t('verify.ticketExplained')}</p>
-          ) : null}
-          {event ? (
-            <p className="note" lang={lang}>
-              {t('verify.travelPreparation')}
-            </p>
-          ) : null}
-          {event?.reclaimUnused ? (
-            <div className="verify-sheet__terms">
-              <p lang={lang}>
-                {t('verify.reclaimTerms', {
-                  date: new Date(event.reclaimAfter).toLocaleDateString(lang),
-                })}
-              </p>
-              <label className="verify-sheet__check">
-                <input
-                  type="checkbox"
-                  checked={acceptedTerms}
-                  onChange={(e) => setAcceptedTerms(e.target.checked)}
-                  disabled={phase.kind === 'waiting' || phase.kind === 'checking'}
-                />{' '}
-                {t('verify.acceptTerms')}
-              </label>
-            </div>
-          ) : null}
-          <div className="verify-sheet__status">{status}</div>
-          <Caution k="warn.thisBrowser" />
-          <div className="sheet__actions">
-            {canStart && !needsPass ? (
-              <Button block onClick={() => void start()} disabled={!admissionReady}>
-                {process.env.NEXT_PUBLIC_MODE === 'local'
-                  ? t('verify.simulated')
-                  : t('verify.open')}
-              </Button>
-            ) : null}
-            {phase.kind === 'waiting' && process.env.NEXT_PUBLIC_MODE !== 'local' ? (
-              <Button
-                variant="quiet"
-                onClick={() => {
-                  attempt.current += 1;
-                  session.current = undefined;
-                  setPhase({ kind: 'ready' });
-                }}
-              >
-                {t('verify.cancel')}
-              </Button>
-            ) : null}
-            {phase.kind === 'closed' ? (
-              <Button variant="secondary" onClick={prepare}>
-                {t('verify.retry')}
-              </Button>
-            ) : null}
-            {phase.kind === 'unconfirmed' ? (
-              <Button variant="secondary" onClick={() => void start()} disabled={!admissionReady}>
-                {t('verify.recover')}
-              </Button>
-            ) : null}
-            {phase.kind === 'failed' ||
-            phase.kind === 'noCredential' ||
-            phase.kind === 'sponsorFailed' ||
-            needsPass ? (
-              <Link href="/pay" className="ui-button" data-variant="secondary" prefetch={false}>
-                {t('landing.payInstead', { price, mb: payMb })}
-              </Link>
-            ) : null}
-          </div>
-          {process.env.NEXT_PUBLIC_MODE === 'local' ? (
-            <p className="note" lang={lang}>
-              {t('verify.simulatedNote')}
-            </p>
-          ) : null}
-          <ProofPanel proof={proof} />
-          {plans ? <TierLedger plans={plans} /> : null}
-        </section>
-      </div>
-    </Screen>
+        )}
+      </Card>
+      {status}
+      {needsPass ? (
+        <Notice
+          tone="warning"
+          role="status"
+          data-testid="pass-needed"
+          lang={lang}
+          title={t('verify.passNeeded')}
+        >
+          {t('verify.ticketNeeded')}
+        </Notice>
+      ) : ticketRequired && hasTicket ? (
+        <Notice lang={lang}>{t('verify.ticketExplained')}</Notice>
+      ) : null}
+      {event?.reclaimUnused ? (
+        <ListGroup label={t('verify.acceptTerms')}>
+          <ListRow
+            lang={lang}
+            title={t('verify.acceptTerms')}
+            subtitle={t('verify.reclaimTerms', {
+              date: new Date(event.reclaimAfter).toLocaleDateString(lang),
+            })}
+            trailing="switch"
+            checked={acceptedTerms}
+            onCheckedChange={setAcceptedTerms}
+            disabled={phase.kind === 'waiting' || phase.kind === 'checking'}
+          />
+        </ListGroup>
+      ) : null}
+      {plans ? <TierLedger plans={plans} /> : null}
+      <Notice lang={lang}>{t('verify.footnote')}</Notice>
+      {event ? <Notice lang={lang}>{t('verify.travelPreparation')}</Notice> : null}
+      <Notice tone="warning" lang={lang}>
+        {t('warn.thisBrowser')}
+      </Notice>
+      <ProofPanel proof={proof} />
+      <ActionBar>
+        {starts ? (
+          <Button size="lg" block onClick={() => void start()} disabled={!admissionReady}>
+            {process.env.NEXT_PUBLIC_MODE === 'local' ? t('verify.simulated') : t('verify.open')}
+          </Button>
+        ) : null}
+        {waitingUri && handheld ? (
+          // World App is on this phone: one tap opens it; the poll keeps running meanwhile
+          <ButtonLink href={waitingUri} size="lg" block native lang={lang}>
+            {t('verify.open')}
+          </ButtonLink>
+        ) : null}
+        {phase.kind === 'waiting' && process.env.NEXT_PUBLIC_MODE !== 'local' ? (
+          <Button
+            variant="quiet"
+            onClick={() => {
+              attempt.current += 1;
+              session.current = undefined;
+              setPhase({ kind: 'ready' });
+            }}
+          >
+            {t('verify.cancel')}
+          </Button>
+        ) : null}
+        {phase.kind === 'closed' ? (
+          <Button size="lg" block onClick={prepare}>
+            {t('verify.retry')}
+          </Button>
+        ) : null}
+        {phase.kind === 'unconfirmed' ? (
+          <Button size="lg" block onClick={() => void start()} disabled={!admissionReady}>
+            {t('verify.recover')}
+          </Button>
+        ) : null}
+        {pay ? (
+          <ButtonLink
+            href="/pay"
+            variant={starts ? 'secondary' : 'primary'}
+            size="lg"
+            block
+            lang={lang}
+          >
+            {t('landing.payInstead', { price, mb: payMb })}
+          </ButtonLink>
+        ) : null}
+      </ActionBar>
+    </AppShell>
   );
 }

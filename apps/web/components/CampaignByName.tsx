@@ -10,6 +10,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { AppHeader, Screen } from './Shell';
+import { api } from '../lib/api';
 import {
   checkCampaignName,
   ENS_PARENT,
@@ -35,7 +36,20 @@ export function CampaignByName({ slug }: { slug: string }) {
   useEffect(() => {
     let alive = true;
     readCampaignName(slug).then(
-      (facts) => alive && setState({ kind: 'done', ...checkCampaignName(facts, Date.now()) }),
+      async (facts) => {
+        const checked = checkCampaignName(facts, Date.now());
+        // a name can point at our pool yet name a campaign our API never registered (or one that is paused or
+        // used up): ask the API before offering the claim; if the API can't answer, fall back to the ENS facts
+        if (checked.ok) {
+          const plans = await api.plans(checked.campaignId).catch(() => undefined);
+          const c = plans?.campaign;
+          if (plans && (!c || c.paused || c.remainingClaims === 0)) {
+            if (alive) setState({ kind: 'done', ok: false, name: checked.name, reason: 'expired' });
+            return;
+          }
+        }
+        if (alive) setState({ kind: 'done', ...checked });
+      },
       () => alive && setState({ kind: 'offline' }),
     );
     return () => {

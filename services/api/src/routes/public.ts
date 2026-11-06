@@ -30,18 +30,31 @@ export function registerPublic(app: Hono<AppEnv>, deps: Deps): void {
   const CHAIN_SEEN_TTL_MS = 30_000;
   const CHAIN_SEEN_GRACE_MS = 120_000;
   let chainSeen: { at: number; chainId: number } | undefined;
+  let chainRefreshing: Promise<void> | undefined;
+  const refreshChain = (): Promise<void> => {
+    chainRefreshing ??= deps
+      .getChainId()
+      .then((chainId) => {
+        chainSeen = { at: deps.now(), chainId };
+      })
+      .finally(() => {
+        chainRefreshing = undefined;
+      });
+    return chainRefreshing;
+  };
   app.get('/healthz', async (c) => {
     const now = deps.now();
     try {
-      if (!chainSeen || now - chainSeen.at >= CHAIN_SEEN_TTL_MS)
-        chainSeen = { at: now, chainId: await deps.getChainId() };
+      if (!chainSeen || now - chainSeen.at >= CHAIN_SEEN_GRACE_MS) await refreshChain();
+      else if (now - chainSeen.at >= CHAIN_SEEN_TTL_MS) void refreshChain().catch(() => undefined);
+      const seen = chainSeen as { at: number; chainId: number };
       return c.json({
         ok: true,
         mode: deps.env.MODE,
-        chainId: chainSeen.chainId,
+        chainId: seen.chainId,
         attestor: deps.dataDrop.attestor,
         degraded: deps.health.degraded,
-        chainAgeS: Math.floor((now - chainSeen.at) / 1000),
+        chainAgeS: Math.floor((now - seen.at) / 1000),
       });
     } catch (error) {
       deps.logger.error(
@@ -103,19 +116,20 @@ export function registerPublic(app: Hono<AppEnv>, deps: Deps): void {
   // One cache entry per explicitly requested campaign. Live generic plans never discover a campaign for a visitor.
   const plans = new Map<string, { at: number; body: PlansResponse }>();
   const PLANS_STALE_MAX_MS = 10 * 60_000;
-  app.get('/plans', async (c) => {
-    const query = plansQuerySchema.safeParse({ campaign: c.req.query('campaign') });
-    if (!query.success) throw fail('invalid_request', [{ path: 'campaign', message: 'bytes32' }]);
-    const id = deps.env.MODE === 'live' ? '' : (query.data.campaign?.toLowerCase() ?? '');
-    let hit = plans.get(id);
-    if (!hit || deps.now() - hit.at >= ENTITLEMENT_CACHE_S * 1000) {
-      try {
-        hit = { at: deps.now(), body: await buildPlans(deps, id === '' ? undefined : (id as Hex)) };
-        if (plans.size >= PLANS_CACHE_MAX) plans.clear();
-        plans.set(id, hit);
-      } catch (error) {
-        // a relay blip must not empty the landing: the last good answer (≤ 10 min old) stands in, logged
+  const plansRefreshing = new Map<string, Promise<void>>();
+  /** One refresh per key at a time; a failure keeps the previous answer and only throws when there is none. */
+  const refreshPlans = (id: string): Promise<void> => {
+    const pending = plansRefreshing.get(id);
+    if (pending) return pending;
+    const run = buildPlans(deps, id === '' ? undefined : (id as Hex))
+      .then((body) => {
+        if (plans.size >= PLANS_CACHE_MAX && !plans.has(id)) plans.clear();
+        plans.set(id, { at: deps.now(), body });
+      })
+      .catch((error: unknown) => {
+        const hit = plans.get(id);
         if (!hit || deps.now() - hit.at >= PLANS_STALE_MAX_MS) throw error;
+        // a relay blip must not empty the landing: the last good answer (≤ 10 min old) stands in, logged
         deps.logger.warn(
           {
             err: error instanceof Error ? error.name : 'error',
@@ -123,9 +137,22 @@ export function registerPublic(app: Hono<AppEnv>, deps: Deps): void {
           },
           'plans: chain unavailable, serving the last answer',
         );
-      }
-    }
-    return c.json(hit.body);
+      })
+      .finally(() => {
+        plansRefreshing.delete(id);
+      });
+    plansRefreshing.set(id, run);
+    return run;
+  };
+  app.get('/plans', async (c) => {
+    const query = plansQuerySchema.safeParse({ campaign: c.req.query('campaign') });
+    if (!query.success) throw fail('invalid_request', [{ path: 'campaign', message: 'bytes32' }]);
+    const id = deps.env.MODE === 'live' ? '' : (query.data.campaign?.toLowerCase() ?? '');
+    const hit = plans.get(id);
+    const age = hit ? deps.now() - hit.at : Infinity;
+    if (!hit || age >= PLANS_STALE_MAX_MS) await refreshPlans(id);
+    else if (age >= ENTITLEMENT_CACHE_S * 1000) void refreshPlans(id).catch(() => undefined);
+    return c.json(plans.get(id)!.body);
   });
 
   // No ledger write at issue time: the MAC makes the nonce unforgeable (D-3, T-45).

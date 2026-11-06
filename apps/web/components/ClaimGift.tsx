@@ -60,14 +60,16 @@ export function ClaimGift({ giftId, name }: { giftId?: string; name?: string }) 
   };
 
   return (
-    <section className="sheet" aria-labelledby="claim-title">
+    <section className="sheet claim-sheet" aria-labelledby="claim-title">
       <h1 id="claim-title" className="sheet__title" lang={lang}>
         {t('gift.claimTitle')}
       </h1>
       <Caution k="warn.thisBrowser" />
       {giftId && name ? (
         <>
-          <p lang={lang}>{t('gift.claimSign')}</p>
+          <p className="claim-sheet__lede" lang={lang}>
+            {t('gift.claimSign')}
+          </p>
           <Button
             block
             disabled={working}
@@ -105,7 +107,7 @@ export function ClaimGift({ giftId, name }: { giftId?: string; name?: string }) 
           error={pinError}
           testId="gift-pin"
         />
-        <Button type="submit" variant="secondary" disabled={working}>
+        <Button type="submit" variant={giftId && name ? 'secondary' : 'primary'} disabled={working}>
           {t('gift.claimButton')}
         </Button>
       </form>
@@ -149,7 +151,7 @@ export function ReclaimGift({ refreshKey = 0 }: { refreshKey?: number }) {
           const xName = explorerName(refunded?.network);
           return (
             <li key={g.giftId} data-testid="reclaim-row">
-              <span>
+              <span className="reclaim-row__what">
                 {g.name} · {formatMb(g.mb)} · {dayLabel(g.claimBy, lang)}
               </span>
               {refunded ? (

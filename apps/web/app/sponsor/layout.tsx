@@ -6,7 +6,7 @@ import type { ReactNode } from 'react';
 
 export const metadata = { title: { default: 'Sponsor', template: '%s · Sponsor · Recharge' } };
 
-/** Sponsor console shell: a labelled rail and the TESTNET rail; density per design-foundations §5a. */
+/** Sponsor console shell: the TESTNET rail, a labelled rail (a row on phones, a sticky column from 1024 px) and the 72 rem console column; density per design-foundations §5a. */
 export default function SponsorLayout({ children }: { children: ReactNode }) {
   return (
     // the console is English-only: it carries its own lang so a traveller's हिं choice does not mislabel it
@@ -22,6 +22,7 @@ export default function SponsorLayout({ children }: { children: ReactNode }) {
           <Link href="/sponsor">Campaigns</Link>
           <a href="#claims-title">Claims</a>
           <a href="#expiring-title">Quotas</a>
+          <a href="#exports-title">Exports</a>
           <a href="#controls-title">Settings</a>
         </nav>
         <main className="console__main">

@@ -54,11 +54,6 @@
 .status-pill__text {
   animation: fade-in var(--duration-state) var(--ease-standard) both;
 }
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-}
 .steps {
   margin: 0;
   padding-left: 1.5rem;

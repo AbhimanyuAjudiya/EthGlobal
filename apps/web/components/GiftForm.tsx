@@ -253,7 +253,7 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
 
   return (
     <section className="gift" aria-labelledby="gift-title">
-      <h1 id="gift-title" className="screen__title" lang={lang}>
+      <h1 id="gift-title" className="gift__question" lang={lang}>
         {t('gift.title')}
       </h1>
       {!gift ? (
@@ -361,11 +361,12 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
         }}
         {...(gift && row.outcomeUnknown ? {} : { onRetry: () => dispatch({ type: 'retry' }) })}
         lang={lang}
+        className="gift__sheet"
       />
       {gift ? null : <ProofPanel proof={proof} />}
       {gift ? (
         <section className="gift__result" data-testid="gift-result">
-          <p className="resolve-line">
+          <p className="resolve-line" data-state="resolves">
             <a href={`https://app.ens.domains/${gift.name}`} target="_blank" rel="noreferrer">
               {gift.name}
             </a>{' '}
@@ -384,7 +385,7 @@ export function GiftForm({ onSent }: { onSent?: () => void }) {
           <p className="note" lang={lang}>
             {t('gift.shareHow', { name: gift.name })}
           </p>
-          <div className="row-actions">
+          <div className="row-actions gift__actions">
             {/* the recipient's claim page; a tap shares (or copies) it rather than opening it here */}
             <a
               href={`${origin}/gift/claim?id=${gift.giftId}&name=${encodeURIComponent(gift.name)}`}

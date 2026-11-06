@@ -116,9 +116,9 @@ export function EnsCampaign({ campaign }: { campaign: SponsorView['campaign'] })
       <h2 id="ens-title" className="pane__title">
         ENS name · Sepolia
       </h2>
-      <p className="sponsor-hero__line">
+      <p className="ens-campaign__name">
         <span className="mono-key">{ens.name}</span>{' '}
-        <span className="pill" data-state={ens.status === 'registered' ? 'live' : 'paused'}>
+        <span className="ens-status" data-state={ens.status === 'registered' ? 'live' : 'paused'}>
           {STATUS[ens.status]}
         </span>
       </p>

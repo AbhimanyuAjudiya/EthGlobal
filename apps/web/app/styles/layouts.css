@@ -3,7 +3,7 @@
   margin: 0 0 0.5rem;
   font-size: var(--text-13);
   font-weight: 600;
-  color: var(--accent);
+  color: var(--text-tertiary);
 }
 .section-title {
   margin: 0;
@@ -52,25 +52,13 @@
   font-size: var(--text-12);
   font-weight: 400;
 }
-.compatibility-link {
-  display: inline-flex;
-  align-items: center;
-  align-self: flex-start;
-  min-height: 44px;
-  font-size: var(--text-14);
-  color: var(--accent);
-  text-underline-offset: 4px;
-}
+
 #compatibility {
   scroll-margin-top: 1.5rem;
 }
 .plan-overview,
 .plan-support,
-.checkout-grid,
-.verify-layout,
-.agent-layout,
 .gift-layout,
-.card-layout,
 .campaign-builder {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -79,21 +67,15 @@
 }
 .plan-overview > *,
 .plan-support > *,
-.checkout-grid > *,
-.verify-layout > *,
-.agent-layout > *,
 .gift-layout > *,
-.card-layout > *,
 .campaign-builder > * {
   min-width: 0;
 }
 .plan-summary,
 .plan-manage,
 .plan-details__body,
-.checkout-payment,
 .agent-history,
 .gift-context,
-.card-entry,
 .campaign-progress {
   display: flex;
   flex-direction: column;
@@ -124,53 +106,7 @@
 .plan-manage {
   padding-block: 0.75rem;
 }
-.checkout-summary {
-  position: relative;
-  padding: 1.5rem;
-  border: 1px solid var(--border-strong);
-  border-top: 4px solid var(--accent);
-  background: var(--bg-surface);
-}
-.checkout-summary > .note {
-  margin-block: 0.75rem;
-}
-.checkout-summary .caution {
-  margin-top: 1rem;
-}
-.checkout-amount {
-  margin: 0.25rem 0 0;
-  font-family: var(--font-display);
-  font-size: clamp(40px, 5vw, 64px);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.15;
-}
-.checkout-price {
-  margin: 1rem 0;
-  font-size: var(--text-24);
-  font-weight: 600;
-}
-.checkout-price span {
-  font-size: var(--text-14);
-  font-weight: 400;
-}
-.pay__option {
-  padding-top: 1rem;
-  border-top: 1px dashed var(--border-strong);
-  font-size: var(--text-14);
-}
-.checkout-summary .pay__meter {
-  margin-block: 1rem;
-}
-.verify-layout .sheet {
-  padding: 1.5rem;
-}
-.verify__coupon {
-  opacity: 1;
-}
-.verify__coupon .coupon {
-  width: 100%;
-}
+
 .gift-guide {
   padding-block: 1rem;
   border-block: 1px solid var(--border-subtle);
@@ -178,17 +114,7 @@
 .gift-guide p {
   max-width: 48ch;
 }
-.card-object {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-.card-object .coupon {
-  width: 100%;
-}
-.card-entry .pin-form {
-  padding-block: 0.5rem;
-}
+
 .install-screen > .caution {
   max-width: 68ch;
 }
@@ -202,20 +128,13 @@
 .install-screen .install-ways h3 {
   font-size: var(--text-20);
 }
-.receipts-screen .receipt-day {
-  gap: 1rem;
-}
+
 .receipt-day__head {
   gap: 1rem;
   flex-wrap: wrap;
   padding-block: 1rem;
 }
-.receipts-screen .receipt-row {
-  padding: 1rem 0;
-}
-.receipts-screen .ghost-row {
-  padding: 1.5rem 0;
-}
+
 .console {
   max-width: 90rem;
   margin-inline: auto;
@@ -284,10 +203,7 @@
   .landing__coupon {
     max-width: 32rem;
   }
-  .plan-overview,
-  .checkout-grid,
-  .verify-layout,
-  .card-layout {
+  .plan-overview {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
     gap: 2rem;
   }
@@ -301,31 +217,13 @@
     grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
     gap: 3rem;
   }
-  .checkout-grid {
-    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
-  }
-  .checkout-summary {
-    position: sticky;
-    top: 1.5rem;
-  }
-  .verify-layout {
-    padding-block: 1rem 2rem;
-  }
-  .verify-layout:not(:has(.verify__coupon)) {
-    grid-template-columns: minmax(0, 42rem);
-  }
-  .verify__coupon {
-    align-self: center;
-  }
-  .agent-layout,
+
   .gift-layout {
     grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
     gap: 2rem;
     padding-block: 1rem;
   }
-  .agent-layout > .sheet {
-    padding: 1.5rem;
-  }
+
   .agent-history > .sheet {
     border: 0;
     border-radius: 0;
@@ -340,12 +238,7 @@
     border: 0;
     padding-top: 0;
   }
-  .card-layout {
-    padding-block: 1.5rem 3rem;
-  }
-  .card-object {
-    align-self: center;
-  }
+
   .install-screen .install-ways {
     display: grid;
     grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
@@ -354,15 +247,7 @@
   .install-screen .install-ways > li:first-child {
     grid-row: span 2;
   }
-  .receipts-screen {
-    --page-w: 62rem;
-  }
-  .receipts-screen .receipt-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-    gap: 2rem;
-    align-items: start;
-  }
+
   .claim-screen {
     --page-w: 48rem;
   }
@@ -372,10 +257,7 @@
   }
 }
 @media (min-width: 1100px) {
-  .plan-overview,
-  .checkout-grid,
-  .verify-layout,
-  .card-layout {
+  .plan-overview {
     gap: 4rem;
   }
   .plan-summary {

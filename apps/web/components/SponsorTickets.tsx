@@ -14,7 +14,11 @@ import { useEnsureChain, useWallet } from '../lib/hooks';
 import { sponsorTicketsRequest } from '../lib/sponsor';
 import { isUserRejection } from '../lib/wallet';
 
-interface Login { sponsor: string; issuedAt: number; signature: Hex }
+interface Login {
+  sponsor: string;
+  issuedAt: number;
+  signature: Hex;
+}
 type TicketStatus = Awaited<ReturnType<typeof api.sponsorTickets>>['tickets'];
 
 /** Passes stay in this mounted organizer view or an explicitly downloaded local file, never a read bearer. */

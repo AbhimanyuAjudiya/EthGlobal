@@ -67,13 +67,7 @@
   font-weight: 500;
   color: var(--text-tertiary);
 }
-.sheet__lede--dominant {
-  font-family: var(--font-display);
-  font-size: var(--text-24);
-  font-weight: 600;
-  line-height: var(--leading-display);
-  text-wrap: pretty;
-}
+
 .sheet__actions,
 .row-actions {
   display: flex;
@@ -104,10 +98,4 @@
   display: flex;
   gap: var(--space-2);
   color: var(--text-secondary);
-}
-.verify__coupon {
-  opacity: 0.85;
-}
-.verify__status p {
-  margin: 0;
 }

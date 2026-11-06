@@ -13,6 +13,7 @@
 @import './styles/proof.css';
 @import './styles/shell.css';
 @import './styles/sheets.css';
+@import './styles/layouts.css';
 @import './styles/landing.css';
 @import './styles/verify.css';
 @import './styles/plan.css';
@@ -21,4 +22,3 @@
 @import './styles/flows.css';
 @import './styles/card.css';
 @import './styles/sponsor.css';
-@import './styles/layouts.css';

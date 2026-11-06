@@ -390,6 +390,14 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
   gap: var(--space-3) var(--space-4);
 }
+/* A date-time input's intrinsic width must not widen its 1fr track past the column (responsive.spec at 768 px). */
+.form-grid > * {
+  min-width: 0;
+}
+.form-grid .ui-field__input {
+  width: 100%;
+  min-width: 0;
+}
 .console .campaign-progress {
   display: flex;
   flex-direction: column;

@@ -3,8 +3,10 @@ import Link from 'next/link';
 import {
   BoardingPass,
   Button,
+  Countdown,
   Coupon,
   Field,
+  Hash,
   MbMeter,
   OnchainAction,
   Receipt,
@@ -32,7 +34,7 @@ function State({ name, note, children }: { name: string; note?: string; children
         {(['light', 'dark'] as const).map((scheme) => (
           <div
             key={scheme}
-            className="min-w-0 overflow-x-auto rounded-sm border border-border-subtle bg-canvas p-4 text-ink"
+            className="min-w-0 overflow-x-auto rounded-(--radius-control) border border-border-subtle bg-canvas p-(--space-4) text-ink"
             data-color-scheme={scheme}
           >
             <p className="m-0 mb-3 font-mono text-11 text-ink-tertiary">{scheme}</p>
@@ -452,14 +454,45 @@ export default function ComponentGallery() {
         </State>
       </Group>
 
+      <Group id="rails" title="Hash · Countdown" source="DESIGN.md Components">
+        <State name="Hash" note="copy swaps to a check for 1.5 s; explorer link">
+          <Hash
+            value={HASH}
+            kind="transaction hash"
+            explorerHref={HASHSCAN.replace('{hash}', HASH)}
+            explorerName="HashScan"
+          />
+        </State>
+        <State name="Hash" note="no explorer (local chain)">
+          <Hash value={REPLACEMENT_HASH} kind="address" />
+        </State>
+        <State name="Countdown" note="12 px mono rail">
+          <Countdown until={CLAIM_BY} now={NOW} lead="Expires in" ended="Claim window closed" />
+        </State>
+        <State name="Countdown" note="ended">
+          <Countdown
+            until={CLAIM_BY}
+            now={CLAIM_BY + 60_000}
+            lead="Expires in"
+            ended="Claim window closed"
+          />
+        </State>
+      </Group>
+
       <Group id="primitives" title="Button · Field" source="design-foundations §2, §7">
-        <State name="Button" note="primary · secondary · quiet · disabled">
+        <State
+          name="Button"
+          note="primary · secondary · quiet · disabled; hover rises 1 px, press sinks"
+        >
           <div className="flex flex-wrap gap-3">
             <Button>Prove I&apos;m human → 300 MB</Button>
             <Button variant="secondary">Enter a coupon PIN</Button>
             <Button variant="quiet">Later — it&apos;s under Plan</Button>
             <Button disabled>Pay $0.40 USDC</Button>
           </div>
+        </State>
+        <State name="Button" note="block (thumb-zone primary)">
+          <Button block>Add 100 MB · $0.40</Button>
         </State>
         <State name="Field" note="default · mono · error">
           <div className="grid max-w-sm gap-4">

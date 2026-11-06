@@ -46,7 +46,7 @@
 .landing__grid {
   display: grid;
   gap: var(--space-5);
-  min-height: calc(100svh - 73px);
+  min-height: min(calc(100svh - 73px), 52rem);
   box-sizing: border-box;
   padding-block: var(--space-5) var(--space-7);
   grid-template-rows: auto 1fr auto;

@@ -92,8 +92,8 @@ export function ScratchRedeem({ serial }: { serial?: string }) {
   return (
     <Screen wide className="card-screen">
       <AppHeader />
-      <div className="card-layout">
-        <div className="card-object">
+      <div className="card-desk">
+        <div className="card-desk__object">
           {serial && preview === undefined ? (
             <div className="skeleton skeleton--coupon" aria-label="Loading the card" />
           ) : serial && preview === null ? (
@@ -124,19 +124,19 @@ export function ScratchRedeem({ serial }: { serial?: string }) {
             </p>
           ) : null}
         </div>
-        <section className="card-entry" aria-labelledby="card-title">
-          <p className="eyebrow" lang={lang}>
+        <section className="card-desk__entry" aria-labelledby="card-title">
+          <p className="card-desk__kicker" lang={lang}>
             {t('hub.card')}
           </p>
-          <h1 id="card-title" className="screen__title" lang={lang}>
+          <h1 id="card-title" className="card-desk__title" lang={lang}>
             {t('card.heading')}
           </h1>
-          <p className="flow-heading__intro" lang={lang}>
+          <p className="card-desk__intro" lang={lang}>
             {t(recovery ? 'card.recoverIntro' : 'card.intro')}
           </p>
           {closed ? (
             // a redeemed or expired card is not a dead end: the plan it became, or data to buy
-            <p className="quiet-rows" lang={lang}>
+            <p className="card-desk__links" lang={lang}>
               <Link href="/plan" prefetch={false}>
                 {t('landing.open')}
               </Link>
@@ -160,7 +160,11 @@ export function ScratchRedeem({ serial }: { serial?: string }) {
                 error={pinError}
                 testId="card-pin"
               />
-              <Button type="submit" variant="secondary">
+              {/* the *123*PIN# of a paper recharge coupon: what was typed, as it would be dialled */}
+              <p className="pin-dial" aria-hidden="true">
+                {`*123*${pin.replace(/\D/g, '') || '················'}#`}
+              </p>
+              <Button type="submit" variant={checked ? 'secondary' : 'primary'}>
                 {t('card.check')}
               </Button>
             </form>

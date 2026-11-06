@@ -14,15 +14,21 @@ import { clockIst, dayLabel, formatMb, money } from '../lib/format';
 import { plans } from '../lib/store';
 
 const SPONSORED = new Set(['claim', 'card-redeem']);
+/** Money back to the traveller (POST /plan/cancel): a credit row, never spend. */
+const REFUND = 'plan-cancel';
 
 function lines(r: ReceiptPublic) {
   const amount = r.usd6 ? money(r.usd6) : '$0.00';
+  if (r.kind === REFUND) return { you: `−${amount}`, sponsor: '—' };
   return SPONSORED.has(r.kind) ? { you: '$0.00', sponsor: amount } : { you: amount, sponsor: '—' };
 }
 
 /** What the traveller paid that day: the "You" column only — a sponsor's cost is not the traveller's spend. */
 const youPaid = (rows: readonly ReceiptPublic[]): bigint =>
-  rows.reduce((sum, r) => (SPONSORED.has(r.kind) ? sum : sum + BigInt(r.usd6 ?? '0')), 0n);
+  rows.reduce(
+    (sum, r) => (SPONSORED.has(r.kind) || r.kind === REFUND ? sum : sum + BigInt(r.usd6 ?? '0')),
+    0n,
+  );
 
 function csv(receipts: readonly ReceiptPublic[]): string {
   const head = 'at,kind,mb,usd6,network,tx,hcs_topic,hcs_sequence';
@@ -123,7 +129,7 @@ export function ReceiptList({ entitlementKey }: { entitlementKey?: string }) {
                     data-kind={r.kind}
                   >
                     <Receipt
-                      heading={`${r.mb ? `+${formatMb(r.mb)}` : r.kind} · ${day} ${clockIst(r.at)} · ${netName(r.network)} · ${t('receipts.final')}`}
+                      heading={`${r.kind === REFUND ? t('receipts.refund') : r.mb ? `+${formatMb(r.mb)}` : r.kind} · ${day} ${clockIst(r.at)} · ${netName(r.network)} · ${t('receipts.final')}`}
                       {...lines(r)}
                       networkFee="$0.00"
                       lang={lang}

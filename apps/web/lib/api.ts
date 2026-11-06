@@ -15,12 +15,14 @@ import {
   errorBodySchema,
   giftReclaimResponseSchema,
   meResponseSchema,
+  planCancelResponseSchema,
   plansResponseSchema,
   receiptsResponseSchema,
   rpContextSchema,
   sponsorViewSchema,
   type AgentPolicyPut,
   type ChallengeWire,
+  type PlanCancelRequest,
 } from '@ethglobal/protocol/schemas';
 
 import { config } from './env';
@@ -156,6 +158,9 @@ export const api = {
     call('/gift/claim', { body, schema: entitledResponseSchema, timeoutMs: ENTITLE_TIMEOUT_MS }),
   giftReclaim: (body: Record<string, unknown>) =>
     call('/gift/reclaim', { body, schema: giftReclaimResponseSchema }),
+  /** 200 refunded, 202 cancelled with the refund pending (`refund.tx` absent). */
+  planCancel: async (body: PlanCancelRequest) =>
+    (await call('/plan/cancel', { body, schema: planCancelResponseSchema })).data,
   agentPolicy: async (key: string) =>
     (await call(`/agent/policy/${enc(key)}`, { schema: agentPolicyViewSchema })).data,
   putAgentPolicy: async (body: AgentPolicyPut) =>

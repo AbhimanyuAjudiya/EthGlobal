@@ -18,6 +18,7 @@ import {
 import { AddToHomeScreen, NotificationAsk } from './AddToHomeScreen';
 import { CopyButton } from './InstallSteps';
 import { IssuingRows, useOdometer } from './IssuingRows';
+import { PlanActions } from './PlanActions';
 import { QrCode } from './QrCode';
 import { AppHeader, Caution, Screen, TabBar } from './Shell';
 import { useLang } from '../i18n/lang';
@@ -355,6 +356,7 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
         <AddToHomeScreen ready={ready} />
         <NotificationAsk ready={ready} />
       </div>
+      <PlanActions entitlementKey={entitlementKey} me={m} />
       <TabBar active="plan" />
     </Screen>
   );

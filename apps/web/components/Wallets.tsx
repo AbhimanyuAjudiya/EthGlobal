@@ -10,6 +10,19 @@ import { WagmiProvider } from 'wagmi';
 import { useLang } from '../i18n/lang';
 import { makeWagmiConfig } from '../lib/wagmi';
 
+/** RainbowKit signs through EVM accounts; native Hedera payments have their own HIP-820 connection. */
+export function EvmWalletGuidance() {
+  const { t, lang } = useLang();
+  return (
+    <div lang={lang} data-testid="evm-wallet-guidance">
+      <p className="note">{t('wallet.evmGuidance')}</p>
+      <a className="ui-button" data-variant="quiet" href="/pay">
+        {t('wallet.hederaPay')}
+      </a>
+    </div>
+  );
+}
+
 const base = lightTheme({
   accentColor: 'var(--accent)',
   accentColorForeground: 'var(--on-accent)',
@@ -71,7 +84,11 @@ export function Wallets({ children }: { children: ReactNode }) {
     <WagmiProvider config={wagmi}>
       <QueryClientProvider client={queries}>
         {/* RainbowKit ships en and hi; Marathi readers get the Hindi modal (same script) */}
-        <RainbowKitProvider theme={rechargeTheme} locale={lang === 'en' ? 'en-US' : 'hi-IN'}>
+        <RainbowKitProvider
+          theme={rechargeTheme}
+          locale={lang === 'en' ? 'en-US' : 'hi-IN'}
+          appInfo={{ appName: 'Recharge', disclaimer: EvmWalletGuidance }}
+        >
           {children}
         </RainbowKitProvider>
       </QueryClientProvider>

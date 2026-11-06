@@ -1,24 +1,29 @@
 /**
- * Human Hedera payments (A-20) over WalletConnect v2, HIP-820 (HashPack): one `hedera` namespace session, one method,
- * `hedera_signTransaction`. The PWA builds the HTS TransferTransaction body itself with @hiero-ledger/proto (no SDK in
+ * Human Hedera payments over WalletConnect v2, HIP-820 (HashPack): native transaction and message signing.
+ * The PWA builds the HTS TransferTransaction body itself with @hiero-ledger/proto (no SDK in
  * the browser), the wallet returns only a SignatureMap, and the payload is assembled from OUR body bytes — whatever
  * the wallet answers, it can only add a signature to the transfer built here.
  *
  * The body mirrors `@x402/hedera` 2.29.0 `createClientHederaSigner` (what services/agent pays with) for one node:
  * transactionID.accountID = the facilitator's `extra.feePayer`, `-amount` from the user / `+amount` to `payTo`,
- * fee 1 ħ max, 120 s valid, empty memo. test/hedera-wc.test.ts checks it byte-for-byte against that signer.
+ * fee 1 ħ max, 120 s valid. Top-ups have an empty memo; purchases bind their activation session in the signed memo.
+ * test/hedera-wc.test.ts checks the top-up bytes against that signer.
  * `hashPackSigner(...)` has the `ClientHederaSigner` shape, so `ExactHederaScheme` (@x402/hedera/exact/client) takes it.
  */
 import { proto } from '@hiero-ledger/proto';
 import SignClient from '@walletconnect/sign-client';
 
-import { HEDERA_MAX_TIMEOUT_S } from '@ethglobal/protocol/ids';
+import { HEDERA_MAX_TIMEOUT_S, type Hex } from '@ethglobal/protocol/ids';
 import type {
   PaymentPayload,
   PaymentRequirements,
   PaymentResource,
 } from '@ethglobal/protocol/schemas';
-import type { PaymentSigner } from '@ethglobal/protocol/x402';
+import {
+  hederaSessionMemo,
+  parseHederaSessionMemo,
+  type PaymentSigner,
+} from '@ethglobal/protocol/x402';
 
 import type { AcceptTerm, SignerHooks } from './pay402';
 import type { SessionTypes } from '@walletconnect/types';
@@ -29,6 +34,7 @@ export const HEDERA_ID = /^0\.0\.\d{1,12}$/;
 const CHAINS = ['hedera:testnet', 'hedera:mainnet'] as const;
 export type HederaChain = (typeof CHAINS)[number];
 const SIGN = 'hedera_signTransaction';
+const SIGN_MESSAGE = 'hedera_signMessage';
 // ponytail: one fixed node (0.0.3 exists on testnet and mainnet); the facilitator can only submit to it. Pick from
 // `hedera_getNodeAddresses` if 0.0.3 is ever unhealthy.
 const NODE = '0.0.3';
@@ -37,6 +43,8 @@ const VALID_DURATION_S = 120;
 
 const b64 = (bytes: Uint8Array): string => btoa(String.fromCharCode(...bytes));
 const unb64 = (s: string): Uint8Array => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const sameBytes = (a: Uint8Array, b: Uint8Array) =>
+  a.length === b.length && a.every((byte, i) => byte === b[i]);
 
 export const isHederaChain = (n: string): n is HederaChain =>
   (CHAINS as readonly string[]).includes(n);
@@ -77,11 +85,17 @@ export function transferBodyBytes(
   accountId: string,
   now: number = Date.now(),
   random: () => number = Math.random,
+  nonce?: Hex,
 ): Uint8Array {
   const feePayer = feePayerOf(req);
   if (req.scheme !== 'exact' || !isHederaChain(req.network))
     throw new Error('not a Hedera exact offer');
   if (!feePayer) throw new Error('extra.feePayer is missing');
+  if (
+    req.extra?.sessionKeyRequired === true &&
+    (!nonce || req.extra.sessionBinding !== 'hedera-memo-v1')
+  )
+    throw new Error('this purchase requires a supported session binding');
   if (!HEDERA_ID.test(accountId) || !HEDERA_ID.test(req.payTo) || !HEDERA_ID.test(req.asset))
     throw new Error('malformed Hedera id');
   if (accountId === req.payTo || accountId === feePayer)
@@ -112,7 +126,7 @@ export function transferBodyBytes(
       ],
     },
     transactionFee: int64(MAX_FEE_TINYBARS),
-    memo: '',
+    memo: nonce ? hederaSessionMemo(nonce) : '',
     transactionID: {
       accountID: accountProto(feePayer),
       transactionValidStart: { seconds: int64(Math.floor(start / 1000)), nanos },
@@ -153,11 +167,14 @@ export function hashPackSigner(
 ) {
   return {
     accountId: session.accountId,
-    async createPartiallySignedTransferTransaction(req: PaymentRequirements): Promise<string> {
+    async createPartiallySignedTransferTransaction(
+      req: PaymentRequirements,
+      nonce?: Hex,
+    ): Promise<string> {
       if (req.network !== session.chain)
         throw new Error('the HashPack session is on another network');
       if (!alive()) throw new Error('the HashPack session ended');
-      const body = transferBodyBytes(req, session.accountId, now());
+      const body = transferBodyBytes(req, session.accountId, now(), Math.random, nonce);
       const res = await request({
         topic: session.topic,
         chainId: session.chain,
@@ -193,8 +210,7 @@ export class HashPackPaySigner implements PaymentSigner {
         a.network === this.network &&
         feePayerOf(a) !== undefined &&
         a.maxTimeoutSeconds <= HEDERA_MAX_TIMEOUT_S &&
-        // an LPA-delivering route binds the session key, which a Hedera payload cannot carry yet (octroi refuses)
-        a.extra?.sessionKeyRequired !== true &&
+        (a.extra?.sessionKeyRequired !== true || a.extra.sessionBinding === 'hedera-memo-v1') &&
         this.allow.some(
           (t) => t.network === a.network && t.asset === a.asset && t.payTo === a.payTo,
         ),
@@ -203,12 +219,89 @@ export class HashPackPaySigner implements PaymentSigner {
 
   async sign(
     req: PaymentRequirements,
-    ctx: { resource: PaymentResource },
+    ctx: { resource: PaymentResource; nonce?: Hex },
   ): Promise<PaymentPayload> {
     this.hooks.onSigning?.();
-    const transaction = await this.signer.createPartiallySignedTransferTransaction(req);
+    const transaction = await this.signer.createPartiallySignedTransferTransaction(req, ctx.nonce);
     return { x402Version: 2, resource: ctx.resource, accepted: req, payload: { transaction } };
   }
+
+  /** Check the memo in the actual signed body; unsigned payload metadata never proves a binding. */
+  sessionBinding(payment: PaymentPayload): Hex | undefined {
+    try {
+      if (payment.accepted.network !== this.network || !('transaction' in payment.payload))
+        return undefined;
+      const raw = unb64(payment.payload.transaction);
+      const list = proto.TransactionList.decode(raw);
+      const canonical = proto.TransactionList.encode(list).finish();
+      if (!sameBytes(canonical, raw)) return undefined;
+      if (list.transactionList.length !== 1) return undefined;
+      const transaction = list.transactionList[0]!;
+      if (
+        !transaction.signedTransactionBytes?.length ||
+        transaction.bodyBytes?.length ||
+        transaction.body ||
+        transaction.sigMap ||
+        transaction.sigs
+      )
+        return undefined;
+      const signed = proto.SignedTransaction.decode(transaction.signedTransactionBytes);
+      if (
+        !sameBytes(
+          proto.SignedTransaction.encode(signed).finish(),
+          transaction.signedTransactionBytes,
+        )
+      )
+        return undefined;
+      if (!signed.bodyBytes?.length || !signed.sigMap?.sigPair?.length) return undefined;
+      const body = proto.TransactionBody.decode(signed.bodyBytes);
+      if (!sameBytes(proto.TransactionBody.encode(body).finish(), signed.bodyBytes))
+        return undefined;
+      if (!body.cryptoTransfer) return undefined;
+      const allowed = new Set([
+        'cryptoTransfer',
+        'transactionFee',
+        'memo',
+        'transactionID',
+        'nodeAccountID',
+        'transactionValidDuration',
+      ]);
+      if (
+        body.maxCustomFees.length ||
+        Object.keys(body).some((key) => key !== 'maxCustomFees' && !allowed.has(key))
+      )
+        return undefined;
+      return parseHederaSessionMemo(body.memo);
+    } catch {
+      return undefined;
+    }
+  }
+}
+
+/** HIP-820 returns a SignatureMap for the supplied plain message; the wallet adds the Hedera prefix. */
+export function hashPackMessageSigner(
+  session: HashPackSession,
+  request: Request,
+  alive: () => boolean = () => true,
+) {
+  return async (message: string): Promise<string> => {
+    if (!alive()) throw new Error('the HashPack session ended');
+    const result = await request({
+      topic: session.topic,
+      chainId: session.chain,
+      request: {
+        method: SIGN_MESSAGE,
+        params: { signerAccountId: `${session.chain}:${session.accountId}`, message },
+      },
+    });
+    const signatureMap = (result as { signatureMap?: unknown } | null)?.signatureMap;
+    if (
+      typeof signatureMap !== 'string' ||
+      !proto.SignatureMap.decode(unb64(signatureMap)).sigPair?.length
+    )
+      throw new Error('the wallet returned no signatureMap');
+    return signatureMap;
+  };
 }
 
 // ── the WalletConnect session ───────────────────────────────────────────────────────────────────────────────────
@@ -252,12 +345,18 @@ export interface HashPackConnect {
   session: Promise<HashPackSession>;
 }
 
-/** Reuses a live session on `chain`, else proposes one (namespace `hedera`, one method, the two events). */
+/** Reuses a live session on `chain`, else proposes transaction and message signing together. */
 export async function connectHashPack(chain: HederaChain): Promise<HashPackConnect> {
   const c = await signClient();
   const live = c.session
     .getAll()
-    .find((s) => !ended.has(s.topic) && s.expiry * 1000 > Date.now() && sessionAccount(s, chain));
+    .find(
+      (s) =>
+        !ended.has(s.topic) &&
+        s.expiry * 1000 > Date.now() &&
+        sessionAccount(s, chain) &&
+        supportsNativeMethods(s),
+    );
   if (live)
     return {
       session: Promise.resolve({
@@ -268,7 +367,11 @@ export async function connectHashPack(chain: HederaChain): Promise<HashPackConne
     };
   const { uri, approval } = await c.connect({
     optionalNamespaces: {
-      hedera: { chains: [chain], methods: [SIGN], events: ['chainChanged', 'accountsChanged'] },
+      hedera: {
+        chains: [chain],
+        methods: [SIGN, SIGN_MESSAGE],
+        events: ['chainChanged', 'accountsChanged'],
+      },
     },
   });
   return {
@@ -276,9 +379,28 @@ export async function connectHashPack(chain: HederaChain): Promise<HashPackConne
     session: approval().then((s) => {
       const accountId = sessionAccount(s, chain);
       if (!accountId) throw new Error(`HashPack did not approve exactly one ${chain} account`);
+      if (!supportsNativeMethods(s))
+        throw new Error('HashPack must approve transaction and message signing');
       return { topic: s.topic, chain, accountId };
     }),
   };
+}
+
+export function supportsNativeMethods(session: Pick<SessionTypes.Struct, 'namespaces'>): boolean {
+  const methods = session.namespaces.hedera?.methods ?? [];
+  return methods.includes(SIGN) && methods.includes(SIGN_MESSAGE);
+}
+
+export async function signHashPackMessage(
+  session: HashPackSession,
+  message: string,
+): Promise<string> {
+  const c = await signClient();
+  return hashPackMessageSigner(
+    session,
+    (request) => c.request(request),
+    () => !ended.has(session.topic),
+  )(message);
 }
 
 /** The PaymentSigner for a connected session. */

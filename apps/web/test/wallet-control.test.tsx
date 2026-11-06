@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AppHeader, WalletControl, type WalletControlProps } from '../components/Shell';
-import { Wallets } from '../components/Wallets';
+import { EvmWalletGuidance, Wallets } from '../components/Wallets';
 
 const ADDRESS = '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc';
 
@@ -16,14 +16,14 @@ function control(props: Partial<WalletControlProps> = {}) {
 describe('WalletControl (RainbowKit ConnectButton.Custom render)', () => {
   it('not connected: one compact Connect button that opens the modal', () => {
     const h = control();
-    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Connect EVM' }));
     expect(h.onConnect).toHaveBeenCalledOnce();
     expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull();
   });
 
   it('before hydration the button is there but inert', () => {
     control({ mounted: false });
-    expect(screen.getByText('Connect').closest('button')?.disabled).toBe(true);
+    expect(screen.getByText('Connect EVM').closest('button')?.disabled).toBe(true);
   });
 
   it('connected: the ENS name or shortened address, the full address on hover; Disconnect behind it', () => {
@@ -58,7 +58,21 @@ describe('the header carries the one wallet control (wagmi + RainbowKit provider
       </Wallets>,
     );
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Connect' }).hasAttribute('disabled')).toBe(false),
+      expect(screen.getByRole('button', { name: 'Connect EVM' }).hasAttribute('disabled')).toBe(
+        false,
+      ),
+    );
+  });
+
+  it('directs native HashPack users to native Hedera checkout', () => {
+    render(<EvmWalletGuidance />);
+    const guidance = screen.getByTestId('evm-wallet-guidance');
+    expect(guidance.textContent).toContain('EVM accounts');
+    expect(guidance.textContent).toContain('Ed25519');
+    expect(guidance.textContent).toContain('checkout → Hedera → Pay with HashPack');
+    expect(guidance.textContent).toContain('new plans and top-ups');
+    expect(screen.getByRole('link', { name: 'Pay with native Hedera' }).getAttribute('href')).toBe(
+      '/pay',
     );
   });
 });

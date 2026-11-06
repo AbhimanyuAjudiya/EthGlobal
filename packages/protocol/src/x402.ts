@@ -4,6 +4,7 @@
  * injected (`PaymentSigner`); the web payer and the agent payer implement it, nothing else signs.
  */
 import { RechargeError } from './errors.js';
+import { isHederaNetwork, type Hex } from './ids.js';
 import { hexBytes, parseJsonOrThrow, parseOrThrow, utf8Bytes, utf8Decode } from './internal.js';
 import {
   isEvmExact,
@@ -17,7 +18,6 @@ import {
   type SettleResult,
 } from './schemas/x402.js';
 
-import type { Hex } from './ids.js';
 import type { z } from 'zod';
 
 export const PAYMENT_REQUIRED_HEADER = 'PAYMENT-REQUIRED';
@@ -99,7 +99,7 @@ export function paymentRequired(input: {
   );
 }
 
-/** Binding of an LPA-delivering purchase to the buyer's session key (T-32): the EIP-3009 nonce IS keccak256(sessionPubKey). */
+/** Binding of an LPA-delivering purchase: EIP-3009 nonce or native Hedera signed memo. */
 export function sessionNonce(sessionPubKey: Hex, keccak256: (bytes: Uint8Array) => Hex): Hex {
   if (!/^0x[0-9a-fA-F]{64}$/.test(sessionPubKey)) {
     throw new RechargeError('invalid_request', 'sessionPubKey must be 32 bytes of hex');
@@ -107,14 +107,29 @@ export function sessionNonce(sessionPubKey: Hex, keccak256: (bytes: Uint8Array) 
   return keccak256(hexBytes(sessionPubKey)).toLowerCase() as Hex;
 }
 
+/** Canonical 81-byte memo carried inside the native transaction's signed body. */
+export function hederaSessionMemo(nonce: Hex): string {
+  if (!/^0x[0-9a-fA-F]{64}$/.test(nonce))
+    throw new RechargeError('invalid_request', 'session nonce must be 32 bytes of hex');
+  return `recharge:session:${nonce.slice(2).toLowerCase()}`;
+}
+
+/** Never trim or accept alternate spellings of a payment's session binding. */
+export function parseHederaSessionMemo(memo: string): Hex | undefined {
+  const match = /^recharge:session:([0-9a-f]{64})$/.exec(memo);
+  return match ? `0x${match[1]}` : undefined;
+}
+
 export interface PaymentSigner {
   /** Choose the accepts[] entry this wallet can pay, or undefined to give up. Must check network/asset/payTo against its own allow-list (T-56). */
   choose(accepts: PaymentRequirements[]): PaymentRequirements | undefined;
-  /** Produce the PAYMENT-SIGNATURE body for the chosen entry. `nonce` is the required EIP-3009 nonce when the route binds a session key. */
+  /** Produce the payment. `nonce` must be bound by the EIP-3009 authorization or signed Hedera memo. */
   sign(
     req: PaymentRequirements,
     ctx: { resource: PaymentResource; nonce?: Hex; now: number },
   ): Promise<PaymentPayload>;
+  /** Native signer: decode the digest from the actual signed transaction, never an unsigned echo. */
+  sessionBinding?(payment: PaymentPayload): Hex | undefined;
 }
 
 export interface FetchWithPaymentResult {
@@ -142,8 +157,7 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 /**
  * GET/POST once; on 402 decode PAYMENT-REQUIRED, let the signer choose and sign, retry once with
  * PAYMENT-SIGNATURE; never signs twice for one call. The second response's PAYMENT-RESPONSE is surfaced as
- * `settlement`. When `sessionPubKey` is given it is sent as X-Session-Pubkey and the signed EIP-3009 nonce
- * must equal `sessionNonce(sessionPubKey)`.
+ * `settlement`. When `sessionPubKey` is given, X-Session-Pubkey and the signed nonce/memo must bind the same key.
  */
 export async function fetchWithPayment(
   input: FetchWithPaymentInput,
@@ -193,11 +207,17 @@ export async function fetchWithPayment(
     now: input.now(),
     ...(nonce === undefined ? {} : { nonce }),
   });
-  if (
-    nonce !== undefined &&
-    !(isEvmExact(paid.payload) && paid.payload.authorization.nonce.toLowerCase() === nonce)
-  ) {
-    throw new RechargeError('invalid_payment', 'signed nonce is not the session nonce (T-32)');
+  if (nonce !== undefined) {
+    const binding = isEvmExact(paid.payload)
+      ? paid.payload.authorization.nonce.toLowerCase()
+      : isHederaNetwork(paid.accepted.network) && chosen.extra?.sessionBinding === 'hedera-memo-v1'
+        ? signer.sessionBinding?.(paid)
+        : undefined;
+    if (binding !== nonce)
+      throw new RechargeError(
+        'invalid_payment',
+        'signed payment does not bind the session nonce (T-32)',
+      );
   }
 
   const headers = baseHeaders();

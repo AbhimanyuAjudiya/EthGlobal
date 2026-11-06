@@ -241,6 +241,9 @@ export async function pay<T>(
         url: q.url,
         init: q.init,
         signer: {
+          ...(signer.sessionBinding
+            ? { sessionBinding: (payment: PaymentPayload) => signer.sessionBinding!(payment) }
+            : {}),
           choose: (offers) =>
             signer.choose(
               offers.filter((offer) =>

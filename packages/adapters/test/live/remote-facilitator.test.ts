@@ -3,6 +3,8 @@ import { readdirSync } from 'node:fs';
 import { PaymentPayloadV2Schema, PaymentRequirementsV2Schema } from '@x402/core/schemas';
 import { describe, expect, it, vi } from 'vitest';
 
+import { RECEIPT_TTL_S } from '@ethglobal/protocol/ids';
+
 import {
   RemoteFacilitator,
   mirrorTransactionId,
@@ -29,6 +31,13 @@ const bodyOf = (file: string, path: '/verify' | '/settle' = '/settle'): Body =>
     .body as Body;
 const evm = bodyOf('facilitator/x402org/settle-ok.json');
 const hedera = bodyOf('facilitator/hedera/settle-ok.json');
+const nativeSuccess = (
+  loadFixture<Recording>('facilitator/hedera/settle-ok.json').exchanges.findLast((exchange) =>
+    exchange.request.url.includes('/api/v1/transactions/'),
+  )!.response.body as {
+    transactions: Record<string, unknown>[];
+  }
+).transactions[0]!;
 
 const x402 = (
   file: string,
@@ -51,9 +60,160 @@ const blocky = (
     allowedHosts: ['api.testnet.blocky402.com'],
     networks: ['hedera:testnet'],
     mirrorUrl: 'https://testnet.mirrornode.hedera.com',
+    now: () => 1793793601000,
     sleep: async () => undefined,
     ...over,
   });
+
+function nativeHarness(
+  over: {
+    verifyPayer?: string;
+    settlePayer?: string;
+    settleTransaction?: string;
+    mirror?: Record<string, unknown>;
+    alreadySettled?: boolean;
+    now?: number;
+  } = {},
+) {
+  let mirrorReads = 0;
+  const fetcher = vi.fn<typeof fetch>(async (input) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url.includes('/api/v1/transactions/')) {
+      mirrorReads++;
+      return Response.json({
+        transactions:
+          !over.alreadySettled && mirrorReads === 1 ? [] : [over.mirror ?? nativeSuccess],
+      });
+    }
+    if (url.endsWith('/supported'))
+      return Response.json({
+        kinds: [
+          {
+            x402Version: 2,
+            scheme: 'exact',
+            network: 'hedera:testnet',
+            extra: { feePayer: '0.0.7162784' },
+          },
+        ],
+      });
+    if (url.endsWith('/verify'))
+      return Response.json({ isValid: true, payer: over.verifyPayer ?? '0.0.6006' });
+    if (url.endsWith('/settle'))
+      return Response.json({
+        success: true,
+        network: 'hedera:testnet',
+        payer: over.settlePayer ?? '0.0.6006',
+        transaction: over.settleTransaction ?? '0.0.7162784@1793707200.123456789',
+      });
+    throw new Error('unexpected URL');
+  });
+  return {
+    fetcher,
+    rail: blocky('settle-ok', { fetch: fetcher, now: () => over.now ?? 1793793601000 }),
+  };
+}
+
+describe('native settlement is bound to actual consensus', () => {
+  it('rejects a facilitator that invents the debit owner or returns another transaction', async () => {
+    const verify = nativeHarness({ verifyPayer: '0.0.9999' });
+    await expect(
+      verify.rail.verify(hedera.paymentPayload, hedera.paymentRequirements),
+    ).resolves.toMatchObject({ isValid: false, invalidReason: 'payer_mismatch' });
+    for (const over of [
+      { settlePayer: '0.0.9999' },
+      { settleTransaction: '0.0.7162784@1793707200.987654321' },
+    ]) {
+      const { rail } = nativeHarness(over);
+      await expect(
+        rail.settle(hedera.paymentPayload, hedera.paymentRequirements),
+      ).resolves.toMatchObject({ success: false, errorReason: 'invalid_response' });
+    }
+  });
+
+  it('rejects claimed SUCCESS with the wrong token, amount, source, recipient, memo, nonce or transaction ID', async () => {
+    const transfers = nativeSuccess.token_transfers as Record<string, unknown>[];
+    const mutated = [
+      {
+        ...nativeSuccess,
+        token_transfers: transfers.map((leg) => ({ ...leg, token_id: '0.0.7777' })),
+      },
+      { ...nativeSuccess, token_transfers: [{ ...transfers[0], amount: -999999 }, transfers[1]] },
+      {
+        ...nativeSuccess,
+        token_transfers: [{ ...transfers[0], account: '0.0.9999' }, transfers[1]],
+      },
+      {
+        ...nativeSuccess,
+        token_transfers: [transfers[0], { ...transfers[1], account: '0.0.9999' }],
+      },
+      { ...nativeSuccess, memo_base64: Buffer.from('other-session').toString('base64') },
+      { ...nativeSuccess, nonce: 1 },
+      { ...nativeSuccess, transaction_id: '0.0.7162784-1793707200-987654321' },
+      { ...nativeSuccess, token_transfers: [...transfers, { ...transfers[0], amount: 0 }] },
+      {
+        ...nativeSuccess,
+        token_transfers: transfers.map((leg) => ({ ...leg, is_approval: true })),
+      },
+    ];
+    for (const mirror of mutated) {
+      const { rail } = nativeHarness({ mirror });
+      await expect(
+        rail.settle(hedera.paymentPayload, hedera.paymentRequirements),
+      ).resolves.toMatchObject({ success: false, errorReason: 'invalid_response' });
+    }
+  });
+
+  it('recovers a paid transfer after its 120-second validity expired without calling the facilitator or signing again', async () => {
+    const { rail, fetcher } = nativeHarness({ alreadySettled: true });
+    await expect(rail.verify(hedera.paymentPayload, hedera.paymentRequirements)).resolves.toEqual({
+      isValid: false,
+      invalidReason: 'nonce_already_used',
+      payer: '0.0.6006',
+    });
+    await expect(rail.settle(hedera.paymentPayload, hedera.paymentRequirements)).resolves.toEqual({
+      success: true,
+      network: 'hedera:testnet',
+      payer: '0.0.6006',
+      transaction: '0.0.7162784@1793707200.123456789',
+    });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(
+      fetcher.mock.calls.every(
+        ([url]) => typeof url === 'string' && url.includes('/api/v1/transactions/'),
+      ),
+    ).toBe(true);
+  });
+
+  it('never recovers a consensus proof outside the signed validity window or durable replay-retention window', async () => {
+    for (const mirror of [
+      { ...nativeSuccess, consensus_timestamp: '1793707100.000000000' },
+      { ...nativeSuccess, consensus_timestamp: '1793707400.000000000' },
+    ]) {
+      const { rail, fetcher } = nativeHarness({ alreadySettled: true, mirror });
+      await expect(
+        rail.settle(hedera.paymentPayload, hedera.paymentRequirements),
+      ).resolves.toMatchObject({ success: false, errorReason: 'invalid_transaction_state' });
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    }
+    const now = (Number(nativeSuccess.consensus_timestamp) + RECEIPT_TTL_S - 86400) * 1000;
+    const stale = nativeHarness({ alreadySettled: true, now });
+    await expect(
+      stale.rail.settle(hedera.paymentPayload, hedera.paymentRequirements),
+    ).resolves.toMatchObject({ success: false, errorReason: 'invalid_transaction_state' });
+    await expect(
+      nativeHarness({ alreadySettled: true, now: now - 1000 }).rail.settle(
+        hedera.paymentPayload,
+        hedera.paymentRequirements,
+      ),
+    ).resolves.toMatchObject({ success: true });
+  });
+
+  it('rejects native mirror network mismatches before any fetch', () => {
+    expect(() =>
+      blocky('settle-ok', { mirrorUrl: 'https://mainnet-public.mirrornode.hedera.com' }),
+    ).toThrow('another network');
+  });
+});
 
 describe('RemoteFacilitator (A-18, A-20, A-30; T-42)', () => {
   it('verify/settle request bodies match the spec (strictBody) and carry amount, never maxAmountRequired', async () => {
@@ -276,7 +436,7 @@ describe('RemoteFacilitator (A-18, A-20, A-30; T-42)', () => {
         return Response.json({
           transactions: [
             { transaction_id: id, result: 'DUPLICATE_TRANSACTION' },
-            ...(reads > 1 ? [{ transaction_id: id, result: 'SUCCESS' }] : []),
+            ...(reads > 2 ? [nativeSuccess] : []),
           ],
         });
       }
@@ -288,7 +448,7 @@ describe('RemoteFacilitator (A-18, A-20, A-30; T-42)', () => {
         hedera.paymentRequirements,
       ),
     ).resolves.toMatchObject({ success: true });
-    expect(reads).toBe(2);
+    expect(reads).toBe(3);
   });
 
   it.each([

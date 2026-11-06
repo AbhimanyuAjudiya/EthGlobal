@@ -4,17 +4,25 @@
  * The owner's two plan actions on /plan/[key], while the eSIM is not installed yet:
  * - Send to someone: the activation code leaves this browser only through the share sheet or the clipboard, inside
  *   the message text — never in a URL, never in a log (T-61, T-62). A browser without the code says where it is.
- * - Cancel & refund (paid plans /me reports refundable): an inline confirmation, then EIP-712 CancelPlan signed by
+ * - Cancel & refund (paid plans /me reports refundable): an inline confirmation, then EIP-712 or native HIP-820 CancelPlan signed by
  *   the wallet that paid; the API re-checks everything and refunds that wallet only. /me's cancel fields keep the
  *   final state on the page.
  */
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { useEffect, useState } from 'react';
 
+import { sha256Hex } from '@ethglobal/crypto';
+import type { Hex } from '@ethglobal/protocol/ids';
 import type { MeResponse, PlanRefund } from '@ethglobal/protocol/schemas';
-import { CANCEL_PLAN_TYPES, rechargeDomain } from '@ethglobal/protocol/typed-data';
+import {
+  CANCEL_PLAN_TYPES,
+  nativeCancelMessage,
+  nativePayerBinding,
+  rechargeDomain,
+} from '@ethglobal/protocol/typed-data';
 import { Button, Hash, Icon } from '@ethglobal/ui/components';
 
+import { HashPackConnection, type HashPackState } from './HashPackConnection';
 import { useLang, useNetworkName } from '../i18n/lang';
 import { errorKey, type StringKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
@@ -35,7 +43,8 @@ const REASONS: Readonly<Record<string, StringKey>> = {
   treasury_cap: 'plan.cancelCap',
 };
 
-const short = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`;
+const short = (address: string) =>
+  address.startsWith('0.0.') ? address : `${address.slice(0, 6)}…${address.slice(-4)}`;
 
 export function PlanActions({
   entitlementKey,
@@ -158,8 +167,74 @@ function CancelPlan({
   const ensureChain = useEnsureChain();
   const [step, setStep] = useState<Step>('idle');
   const [error, setError] = useState<string | undefined>();
+  const [hp, setHp] = useState<HashPackState>({});
   const amount = money(offer.usd6);
   const busy = step === 'signing' || step === 'sending';
+  const native = offer.network.startsWith('hedera:');
+
+  const failed = (e: unknown) => {
+    setStep('confirm');
+    if (isUserRejection(e)) return;
+    if (e instanceof WrongChainError) {
+      setError(t('wallet.switchNeeded', { network: e.chainName }));
+      return;
+    }
+    const reason =
+      e instanceof ApiError ? (e.details as { reason?: string } | undefined)?.reason : undefined;
+    const key = reason === undefined ? undefined : REASONS[reason];
+    setError(t(key ?? errorKey(e instanceof ApiError ? e.code : 'network')));
+  };
+
+  const connectNative = async () => {
+    setHp({ connecting: true });
+    try {
+      const hw = await import('../lib/hedera-wc');
+      if (!hw.isHederaChain(offer.network)) throw new Error('unsupported native network');
+      const { uri, session } = await hw.connectHashPack(offer.network);
+      if (uri) setHp({ uri, link: hw.hashPackLink(uri) });
+      setHp({ session: await session, link: hw.hashPackLink() });
+    } catch {
+      setHp({ failed: true });
+    }
+  };
+
+  const cancelNative = async () => {
+    const session = hp.session;
+    if (session?.chain !== offer.network || session.accountId !== offer.to) return;
+    setError(undefined);
+    setStep('signing');
+    try {
+      const hw = await import('../lib/hedera-wc');
+      const network = session.chain;
+      const payer = session.accountId;
+      const challenge = await api.challenge(
+        '/plan/cancel',
+        sha256Hex(nativePayerBinding(network, payer)),
+      );
+      const issuedAt = Date.now();
+      const message = nativeCancelMessage({
+        network,
+        payer,
+        entitlementHash: sha256Hex(entitlementKey),
+        nonce: challenge.nonce as Hex,
+        issuedAt,
+      });
+      const signatureMap = await hw.signHashPackMessage(session, message);
+      setStep('sending');
+      const res = await api.planCancel({
+        authKind: 'hedera',
+        entitlementKey,
+        payer,
+        network,
+        challenge,
+        issuedAt,
+        signatureMap,
+      });
+      onCancelled(res.refund);
+    } catch (e) {
+      failed(e);
+    }
+  };
 
   const cancel = async (wallet: Wallet) => {
     setError(undefined);
@@ -190,16 +265,7 @@ function CancelPlan({
       });
       onCancelled(res.refund);
     } catch (e) {
-      setStep('confirm');
-      if (isUserRejection(e)) return;
-      if (e instanceof WrongChainError) {
-        setError(t('wallet.switchNeeded', { network: e.chainName }));
-        return;
-      }
-      const reason =
-        e instanceof ApiError ? (e.details as { reason?: string } | undefined)?.reason : undefined;
-      const key = reason === undefined ? undefined : REASONS[reason];
-      setError(t(key ?? errorKey(e instanceof ApiError ? e.code : 'network')));
+      failed(e);
     }
   };
 
@@ -218,7 +284,9 @@ function CancelPlan({
       </section>
     );
 
-  const isPayer = wallet?.address.toLowerCase() === offer.to.toLowerCase();
+  const isPayer = native
+    ? hp.session?.chain === offer.network && hp.session.accountId === offer.to
+    : wallet?.address.toLowerCase() === offer.to.toLowerCase();
   return (
     <section
       className="sheet-row"
@@ -233,8 +301,15 @@ function CancelPlan({
           network: netName(offer.network),
         })}
       </p>
+      {native ? (
+        <HashPackConnection
+          state={{ ...hp, connecting: busy || hp.connecting === true }}
+          onConnect={() => void connectNative()}
+          connectLabel={t('plan.cancelHashpackConnect')}
+        />
+      ) : null}
       <div className="row-actions">
-        {!wallet ? (
+        {!native && !wallet ? (
           <Button variant="secondary" disabled={!openConnectModal} onClick={openConnectModal}>
             {t('plan.cancelConnect')}
           </Button>
@@ -242,7 +317,7 @@ function CancelPlan({
           <Button
             variant="secondary"
             disabled={busy}
-            onClick={() => void cancel(wallet)}
+            onClick={() => void (native ? cancelNative() : wallet && cancel(wallet))}
             data-testid="plan-cancel-yes"
           >
             {step === 'signing'
@@ -256,7 +331,7 @@ function CancelPlan({
           {t('plan.cancelNo')}
         </Button>
       </div>
-      {wallet && !isPayer ? (
+      {(native ? hp.session : wallet) && !isPayer ? (
         <p className="note" role="status" lang={lang}>
           {t('plan.cancelWrongWallet', { payer: short(offer.to) })}
         </p>

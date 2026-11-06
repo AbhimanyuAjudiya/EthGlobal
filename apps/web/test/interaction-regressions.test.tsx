@@ -21,6 +21,9 @@ const mocks = vi.hoisted(() => {
   };
   return {
     wallet,
+    me: vi.fn(async (): Promise<{ mbTotal: number; kind?: string; network?: string }> => ({
+      mbTotal: 1000,
+    })),
     ensure: vi.fn(async () => wallet),
     quote: vi.fn(),
     savePolicy: vi.fn<(body: AgentPolicyPut) => Promise<AgentPolicyView>>(),
@@ -58,7 +61,7 @@ vi.mock('../lib/arkiv-read', () => ({
 vi.mock('../lib/api', async (original) => ({
   ...(await original<typeof ApiModule>()),
   api: {
-    me: async () => ({ mbTotal: 1000 }),
+    me: mocks.me,
     receipts: async () => [],
     agentPolicy: mocks.loadPolicy,
     putAgentPolicy: mocks.savePolicy,
@@ -93,6 +96,16 @@ describe('interaction state stays aligned with confirmed data', () => {
       paused: false,
       maxUsd6PerDay: '20000000',
     });
+  });
+  it('native Hedera purchases offer manual data without an unsupported EVM policy', async () => {
+    mocks.me.mockResolvedValueOnce({ mbTotal: 1000, kind: 'paid', network: 'hedera:testnet' });
+    render(<AgentSheet />);
+    const link = await screen.findByRole('link', { name: 'Add data manually' });
+    expect(link.getAttribute('href')).toBe('/pay?key=plan-one');
+    expect(screen.getByRole('status').textContent).toContain('native Hedera account');
+    expect(screen.queryByRole('button', { name: 'Save and enable policy' })).toBeNull();
+    expect(mocks.loadPolicy).not.toHaveBeenCalled();
+    expect(mocks.savePolicy).not.toHaveBeenCalled();
   });
   it('a failed policy read does not present defaults as an editable new policy', async () => {
     mocks.loadPolicy.mockRejectedValueOnce(new ApiError(0, 'network', 'offline'));

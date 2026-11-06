@@ -105,6 +105,8 @@ export interface OctroiDeps {
   /** local: [eip155:31337 MockUSDC]; demo: [eip155:84532 USDC, hedera:testnet USDC] */
   accepts: AcceptTemplate[];
   keccak256: (bytes: Uint8Array) => Hex;
+  /** Decode only the native transaction's signed memo; missing support fails closed on LPA delivery. */
+  nativeSessionBinding?: (payment: PaymentPayload) => Hex | undefined;
   /** Reseller plan for paid entitlements (additive to INTERFACES §5; default ''). */
   planId?: string;
   /**
@@ -135,7 +137,7 @@ export interface DecideRequest {
   challenge?: Challenge;
   sessionPubKey?: Hex;
   payment?: PaymentPayload;
-  /** True on routes that deliver an LPA ⇒ the EIP-3009 nonce must equal sessionNonce(sessionPubKey). */
+  /** True on LPA routes: the signed EIP-3009 nonce or Hedera memo binds sessionNonce(sessionPubKey). */
   requireSessionKey?: boolean;
   campaign?: Campaign;
   counters?: CampaignCounters;
@@ -180,7 +182,15 @@ export function buildAccepts(
   return deps.accepts.map((template) => ({
     ...template,
     amount,
-    extra: { ...template.extra, mb, stepMb: deps.stepMb, sessionKeyRequired },
+    extra: {
+      ...template.extra,
+      mb,
+      stepMb: deps.stepMb,
+      sessionKeyRequired,
+      ...(sessionKeyRequired && isHederaNetwork(template.network)
+        ? { sessionBinding: 'hedera-memo-v1' }
+        : {}),
+    },
   }));
 }
 
@@ -511,20 +521,26 @@ const transactionFits = (network: string, tx: string): boolean =>
 function sessionBound(
   payment: PaymentPayload,
   sessionPubKey: Hex,
-  keccak: OctroiDeps['keccak256'],
+  deps: Pick<OctroiDeps, 'keccak256' | 'nativeSessionBinding'>,
 ): Deny | null {
   let expected: Hex;
   try {
-    expected = sessionNonce(sessionPubKey, keccak);
+    expected = sessionNonce(sessionPubKey, deps.keccak256);
   } catch {
     return deny('invalid-request', 'session_key');
   }
-  // Hedera: the binding would be the transaction memo, which octroi cannot decode without the SDK
-  // [verify Wed]; until then an LPA route refuses a Hedera payment (fail closed).
-  if (!isEvmExact(payment.payload)) return deny('invalid-payment', 'session_binding_unsupported');
-  return payment.payload.authorization.nonce.toLowerCase() === expected
-    ? null
-    : deny('invalid-payment', 'session_binding');
+  let actual: string | undefined;
+  if (isEvmExact(payment.payload)) actual = payment.payload.authorization.nonce.toLowerCase();
+  else {
+    if (!isHederaNetwork(payment.accepted.network) || !deps.nativeSessionBinding)
+      return deny('invalid-payment', 'session_binding_unsupported');
+    try {
+      actual = deps.nativeSessionBinding(payment);
+    } catch {
+      return deny('invalid-payment', 'session_binding');
+    }
+  }
+  return actual === expected ? null : deny('invalid-payment', 'session_binding');
 }
 
 /**
@@ -538,8 +554,10 @@ async function settle(
   offered: PaymentRequirements,
 ): Promise<{ s: Settled; recovered: boolean } | Deny> {
   let recovered = false;
+  let verifiedPayer: string | undefined;
   try {
     const verified = await deps.payments.verify(payment, offered);
+    verifiedPayer = verified.payer;
     if (!verified.isValid) {
       if (verified.invalidReason !== 'nonce_already_used')
         return deny('invalid-payment', verified.invalidReason);
@@ -567,6 +585,11 @@ async function settle(
   ) {
     return deny('invalid-payment', 'settlement_payer');
   }
+  if (
+    isHederaNetwork(offered.network) &&
+    (!/^0\.0\.[1-9]\d{0,11}$/.test(s.payer) || verifiedPayer !== s.payer)
+  )
+    return deny('invalid-payment', 'settlement_payer');
   return { s, recovered };
 }
 
@@ -612,7 +635,7 @@ async function paidLane(
   const payment = parsed.data;
   if (req.requireSessionKey === true) {
     if (!req.sessionPubKey) return deny('invalid-request', 'session_key_required');
-    const unbound = sessionBound(payment, req.sessionPubKey, deps.keccak256);
+    const unbound = sessionBound(payment, req.sessionPubKey, deps);
     if (unbound) return unbound;
   }
   if (isEvmExact(payment.payload)) {

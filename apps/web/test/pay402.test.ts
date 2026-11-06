@@ -1,3 +1,4 @@
+import { proto } from '@hiero-ledger/proto';
 import { recoverTypedDataAddress, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { describe, expect, it, vi } from 'vitest';
@@ -19,6 +20,7 @@ import {
 } from '@ethglobal/protocol/x402';
 
 import { ApiError } from '../lib/api';
+import { HashPackPaySigner, hashPackSigner } from '../lib/hedera-wc';
 import { EvmWalletSigner, hederaTerms, paymentFailureReason } from '../lib/pay402';
 
 import type { Wallet } from '../lib/wallet';
@@ -329,6 +331,101 @@ describe('signed payment recovery', () => {
       );
       await completePayment(q);
     } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+  it('preserves a native purchase memo, original activation session, and exact transfer across response loss', async () => {
+    const { pay, quote, completePayment } = await import('../lib/pay402');
+    const { config } = await import('../lib/env');
+    const spk: Hex = `0x${'61'.repeat(32)}`;
+    const bound = req({
+      network: 'hedera:testnet',
+      asset: '0.0.429274',
+      payTo: '0.0.5005',
+      maxTimeoutSeconds: 180,
+      extra: {
+        feePayer: '0.0.9185802',
+        sessionKeyRequired: true,
+        sessionBinding: 'hedera-memo-v1',
+      },
+    });
+    const q = {
+      url: `${config.apiUrl}/esim/provision`,
+      spk,
+      init: {
+        method: 'POST',
+        body: JSON.stringify({ mb: 1000 }),
+        headers: { 'Idempotency-Key': crypto.randomUUID() },
+      },
+      required: {
+        x402Version: 2 as const,
+        resource: {
+          url: `${config.apiUrl}/esim/provision`,
+          description: 'new plan',
+          mimeType: 'application/json',
+        },
+        accepts: [bound],
+      },
+    };
+    const nativeWallet = vi.fn(async () => ({
+      signatureMap: Buffer.from(
+        proto.SignatureMap.encode({ sigPair: [{ ed25519: new Uint8Array(64) }] }).finish(),
+      ).toString('base64'),
+    }));
+    const signer = new HashPackPaySigner(
+      hashPackSigner(
+        { topic: 'native', chain: 'hedera:testnet', accountId: '0.0.7001' },
+        nativeWallet,
+      ),
+      'hedera:testnet',
+      [bound],
+    );
+    const attempts: Headers[] = [];
+    const fetcher: typeof fetch = async (_input, init) => {
+      const headers = new Headers(init?.headers);
+      if (!headers.has(PAYMENT_SIGNATURE_HEADER))
+        return new Response('{}', {
+          status: 402,
+          headers: { 'PAYMENT-REQUIRED': encodePaymentRequired(q.required) },
+        });
+      attempts.push(headers);
+      if (attempts.length === 1) throw new TypeError('lost native settlement response');
+      return new Response(JSON.stringify({ entitlementKey: 'native-plan' }), {
+        status: 201,
+        headers: {
+          'PAYMENT-RESPONSE': encodePaymentResponse({
+            success: true,
+            transaction: '0.0.9185802@1790000000.000000001',
+            network: 'hedera:testnet',
+            payer: '0.0.7001',
+          }),
+        },
+      });
+    };
+    vi.stubGlobal('fetch', fetcher);
+    try {
+      expect((await pay(q, signer, spk)).uncertain).toBe(true);
+      const restored = await quote('/esim/provision', {
+        method: 'POST',
+        body: { mb: 1000 },
+        sessionPubKey: `0x${'62'.repeat(32)}`,
+      });
+      expect(restored.spk).toBe(spk);
+      expect(
+        (await pay<{ entitlementKey: string }>(restored, signer, restored.spk)).data
+          ?.entitlementKey,
+      ).toBe('native-plan');
+      expect(nativeWallet).toHaveBeenCalledTimes(1);
+      expect(attempts[0]!.get(PAYMENT_SIGNATURE_HEADER)).toBe(
+        attempts[1]!.get(PAYMENT_SIGNATURE_HEADER),
+      );
+      expect(attempts[1]!.get('X-Session-Pubkey')).toBe(spk);
+      expect(attempts[1]!.get('Idempotency-Key')).toBe(q.init.headers['Idempotency-Key']);
+      expect(
+        signer.sessionBinding(decodePaymentPayload(attempts[1]!.get(PAYMENT_SIGNATURE_HEADER)!)),
+      ).toBe(sessionNonce(spk, keccak256));
+    } finally {
+      await completePayment(q);
       vi.unstubAllGlobals();
     }
   });

@@ -24,6 +24,7 @@ import { EsimAccessReseller } from './esimaccess-reseller.js';
 import { EvmTreasury } from './evm-treasury.js';
 import { FallbackReseller } from './fallback-reseller.js';
 import { HcsLog } from './hcs-log.js';
+import { HederaAccountVerifier } from './hedera-auth.js';
 import { createHederaClient, type HederaClientLike } from './hedera-sdk.js';
 import { HederaTreasury } from './hedera-treasury.js';
 import { InventoryReseller } from './inventory-reseller.js';
@@ -80,6 +81,13 @@ export {
 export { FallbackReseller } from './fallback-reseller.js';
 export { HcsLog, HEDERA_MIRROR } from './hcs-log.js';
 export { createHederaClient, type HederaClientLike } from './hedera-sdk.js';
+export {
+  HederaAccountVerifier,
+  hederaTransactionSessionBinding,
+  inspectHederaPaymentTransaction,
+  type InspectedNativePayment,
+  type HederaAccountVerifierOptions,
+} from './hedera-auth.js';
 export { hcs14Uaid, type Hcs14Input } from './hcs14.js';
 export { EnsResolver, type EnsClient } from './ens-resolver.js';
 export {
@@ -311,6 +319,10 @@ export function createLiveAdapters(config: LiveConfig, deps: LiveDeps = {}): Liv
       logger,
     }),
     payments: new RoutingPaymentRail(rails),
+    nativeAccounts: new HederaAccountVerifier({
+      mirrorUrls: { [`hedera:${config.hedera.network}`]: config.hedera.mirrorUrl },
+      ...fetchOpt,
+    }),
     inference: new MockInference({ model: 'none' }),
     names: new EnsResolver({
       mainnetClient: ens(config.ens.rpcUrl, mainnet),

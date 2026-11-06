@@ -23,6 +23,8 @@ export const REDACT_PATHS = [
   '*.nullifierHash',
   'signature',
   '*.signature',
+  'signatureMap',
+  '*.signatureMap',
   'auditKey',
   '*.auditKey',
   'iccid',

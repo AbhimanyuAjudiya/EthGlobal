@@ -78,12 +78,13 @@ ignored.
 
 ## Where Hedera lives in the code
 
-- `src/routes/claim.ts`: the x402 top-ups the agent pays from its Hedera wallet. `src/accepts.ts` builds the
+- `src/routes/claim.ts`: native x402 purchases and top-ups from Hedera wallets. A new purchase requires the signed transfer memo `recharge:session:<keccak256(X-Session-Pubkey) without 0x>` and the `hedera-memo-v1` binding offer. The decoded transaction body supplies this binding before settlement; client JSON cannot substitute it. Delivery uses the same hash as its encryption AAD nonce. `src/accepts.ts` builds the
   `hedera:*` accept template (the network's HTS USDC: `0.0.429274` testnet, `0.0.456858` mainnet; `extra.feePayer` from the facilitator, 180 s).
 - `src/chain.ts`: `DataDrop.claim` from the attestor on Hedera EVM 296 in live (Anvil locally).
 - `src/flows/record.ts`, called from `fulfil.ts`, `gift.ts` and `reclaim.ts`: every receipt is also an HCS message
   (`claim`, `settle`, `gift`, `gift-claim`, `gift-reclaim`, `card-redeem`).
 - `services/agent` submits `agent-topup` HCS messages under its own HCS-14 UAID.
+- `src/flows/cancel.ts`: an unused native paid plan can be cancelled by its recorded payer using a fresh `/plan/cancel` challenge and a HIP-820 `hedera_signMessage` signature map. The signed message binds the network, payer, entitlement hash, challenge nonce and time. The adapter verifies the account's current simple ED25519/ECDSA public key from that network's mirror; unsupported key structures fail closed. The refund goes only to the original recorded account and network through the existing durable signed-refund journal. Native plan agent-policy ownership and native gift reclaim remain unsupported.
 
 ## Development
 

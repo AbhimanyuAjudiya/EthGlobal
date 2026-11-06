@@ -9,6 +9,7 @@
 import { z } from 'zod';
 
 import { httpJson } from '@ethglobal/protocol/http';
+import { RECEIPT_TTL_S } from '@ethglobal/protocol/ids';
 import {
   paymentPayloadSchema,
   settleResultSchema,
@@ -20,6 +21,11 @@ import {
 import { AdapterError } from '../errors.js';
 import { buildPaymentRequired, sameRequirements } from '../payment-requirements.js';
 import { guard } from './errors.js';
+import {
+  checkedHederaMirror,
+  inspectHederaPaymentTransaction,
+  type InspectedNativePayment,
+} from './hedera-auth.js';
 import { checkedBaseUrl, joinUrl, withFetch } from './http.js';
 
 import type {
@@ -67,7 +73,30 @@ const exactKind = (supported: SupportedResponse | undefined, network: string) =>
 
 const mirrorTransactions = z.object({
   transactions: z
-    .array(z.object({ result: z.string(), transaction_id: z.string().optional() }).loose())
+    .array(
+      z
+        .object({
+          result: z.string(),
+          transaction_id: z.string().optional(),
+          name: z.string().optional(),
+          nonce: z.number().int().optional(),
+          scheduled: z.boolean().optional(),
+          memo_base64: z.string().optional(),
+          consensus_timestamp: z.string().optional(),
+          token_transfers: z
+            .array(
+              z.object({
+                token_id: z.string(),
+                account: z.string(),
+                amount: z.union([z.number().int().safe(), z.string().regex(/^-?\d+$/)]),
+                is_approval: z.boolean().optional(),
+              }),
+            )
+            .max(20)
+            .optional(),
+        })
+        .loose(),
+    )
     .max(20),
 });
 
@@ -107,6 +136,9 @@ export class RemoteFacilitator implements PaymentRail {
     );
     this.#base = checkedBaseUrl(opts.url, allowed);
     this.#mirror = opts.mirrorUrl ? checkedBaseUrl(opts.mirrorUrl) : undefined;
+    if (opts.mirrorUrl)
+      for (const network of opts.networks.filter((value) => value.startsWith('hedera:')))
+        checkedHederaMirror(opts.mirrorUrl, network);
     if (opts.networks.length === 0) throw new Error('RemoteFacilitator needs at least one network');
     this.#opts = opts;
   }
@@ -181,7 +213,17 @@ export class RemoteFacilitator implements PaymentRail {
   async verify(payload: PaymentPayload, requirements: PaymentRequirements): Promise<VerifyResult> {
     const refused = this.#precheck(payload, requirements);
     if (refused) return { isValid: false, invalidReason: refused };
+    const native = this.#native(payload, requirements);
+    if (native && this.#mirror) {
+      const state = await this.#chainState(requirements.network, native.transactionId, native);
+      if (state === 'success')
+        return { isValid: false, invalidReason: 'nonce_already_used', payer: native.payer };
+      if (state !== 'pending')
+        return { isValid: false, invalidReason: 'invalid_transaction_state' };
+    }
     await this.#kind(requirements.network);
+    if (native && native.feePayer !== (await this.feePayer(requirements.network)))
+      return { isValid: false, invalidReason: 'requirements_mismatch' };
     const { data } = await guard('payments', () =>
       httpJson(joinUrl(this.#base, '/verify'), {
         method: 'POST',
@@ -191,6 +233,8 @@ export class RemoteFacilitator implements PaymentRail {
         allowStatus: [400],
       }),
     );
+    if (native && data.isValid && data.payer !== native.payer)
+      return { isValid: false, invalidReason: 'payer_mismatch' };
     return data;
   }
 
@@ -204,7 +248,16 @@ export class RemoteFacilitator implements PaymentRail {
     });
     const refused = this.#precheck(payload, requirements);
     if (refused) return fail(refused);
+    const native = this.#native(payload, requirements);
+    if (native && this.#mirror) {
+      const state = await this.#chainState(network, native.transactionId, native);
+      if (state === 'success')
+        return { success: true, network, payer: native.payer, transaction: native.transactionId };
+      if (state !== 'pending') return fail('invalid_transaction_state');
+    }
     await this.#kind(network);
+    if (native && native.feePayer !== (await this.feePayer(network)))
+      return fail('requirements_mismatch');
     const { data } = await guard('payments', () =>
       httpJson<unknown>(joinUrl(this.#base, '/settle'), {
         method: 'POST',
@@ -227,6 +280,17 @@ export class RemoteFacilitator implements PaymentRail {
         'network_mismatch',
         `settled on ${result.network}, asked ${network}`,
       );
+    if (native && (result.success || result.errorReason === 'settlement_pending')) {
+      if (result.payer !== native.payer || result.transaction !== native.transactionId)
+        return this.#lie(
+          network,
+          'invalid_response',
+          'native settlement identity does not match signed transfer',
+        );
+      // Even a claimed SUCCESS must be corroborated on the native ledger. The
+      // facilitator's assertion cannot decide who owns a plan or its refund.
+      return this.#awaitPending(network, native.transactionId, native.payer, native);
+    }
     if (result.success) {
       return plausibleTransaction(network, result.transaction)
         ? result
@@ -249,7 +313,27 @@ export class RemoteFacilitator implements PaymentRail {
       return 'unsupported_scheme';
     if (!paymentPayloadSchema.safeParse(payload).success) return 'invalid_payload';
     if (!sameRequirements(payload.accepted, requirements)) return 'requirements_mismatch';
+    if (network.startsWith('hedera:')) {
+      const native = this.#native(payload, requirements);
+      if (!native) return 'invalid_payload';
+      if (
+        native.asset !== requirements.asset ||
+        native.payTo !== requirements.payTo ||
+        native.amount !== requirements.amount ||
+        native.feePayer !== requirements.extra?.feePayer
+      )
+        return 'requirements_mismatch';
+    }
     return undefined;
+  }
+
+  #native(
+    payload: PaymentPayload,
+    requirements: PaymentRequirements,
+  ): InspectedNativePayment | undefined {
+    return requirements.network.startsWith('hedera:') && 'transaction' in payload.payload
+      ? inspectHederaPaymentTransaction(payload.payload.transaction)
+      : undefined;
   }
 
   async #kind(network: string) {
@@ -269,13 +353,24 @@ export class RemoteFacilitator implements PaymentRail {
   }
 
   /** `settlement_pending` is non-terminal (A-18): poll the chain ≤ 30 s, then success with that tx or unavailable. */
-  async #awaitPending(network: string, tx: string, payer: string): Promise<SettleResult> {
+  async #awaitPending(
+    network: string,
+    tx: string,
+    payer: string,
+    native?: InspectedNativePayment,
+  ): Promise<SettleResult> {
     const now = this.#opts.now ?? Date.now;
     const sleep = this.#opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
     const deadline = now() + (this.#opts.pendingTimeoutMs ?? 30_000);
     for (;;) {
-      const state = await this.#chainState(network, tx);
+      const state = await this.#chainState(network, tx, native);
       if (state === 'success') return { success: true, transaction: tx, network, payer };
+      if (state === 'mismatch')
+        return this.#lie(
+          network,
+          'invalid_response',
+          'native consensus transfer does not match signed payment',
+        );
       if (state === 'failed')
         return { success: false, errorReason: 'settle_reverted', network, transaction: tx };
       if (now() >= deadline)
@@ -286,7 +381,11 @@ export class RemoteFacilitator implements PaymentRail {
     }
   }
 
-  async #chainState(network: string, tx: string): Promise<'success' | 'failed' | 'pending'> {
+  async #chainState(
+    network: string,
+    tx: string,
+    native?: InspectedNativePayment,
+  ): Promise<'success' | 'failed' | 'pending' | 'mismatch'> {
     if (network.startsWith('eip155:')) {
       const reader = this.#opts.evmReceipts;
       if (!reader)
@@ -318,7 +417,38 @@ export class RemoteFacilitator implements PaymentRail {
     const transactions = found.status === 404 ? [] : (found.data?.transactions ?? []);
     // The mirror can return duplicate submissions before the original consensus
     // record. A duplicate alone does not establish whether the transfer succeeded.
-    if (transactions.some((entry) => entry.result === 'SUCCESS')) return 'success';
+    const succeeded = transactions.filter((entry) => entry.result === 'SUCCESS');
+    if (succeeded.length > 0) {
+      if (!native) return 'mismatch';
+      const matches = succeeded.some((entry) => {
+        const timestamp = Number(entry.consensus_timestamp);
+        const now = (this.#opts.now ?? Date.now)() / 1000;
+        const validStart = Number(native.validStart);
+        const transfers = entry.token_transfers ?? [];
+        return (
+          entry.transaction_id === mirrorTransactionId(native.transactionId) &&
+          entry.name === 'CRYPTOTRANSFER' &&
+          entry.nonce === 0 &&
+          entry.scheduled === false &&
+          entry.memo_base64 === Buffer.from(native.memo, 'utf8').toString('base64') &&
+          Number.isFinite(timestamp) &&
+          timestamp > 0 &&
+          timestamp <= now + 60 &&
+          timestamp >= validStart &&
+          timestamp <= validStart + native.validDurationS &&
+          now - timestamp < RECEIPT_TTL_S - 86_400 &&
+          transfers.length === 2 &&
+          transfers.every((leg) => leg.token_id === native.asset && !leg.is_approval) &&
+          transfers.some(
+            (leg) => leg.account === native.payer && BigInt(leg.amount) === -BigInt(native.amount),
+          ) &&
+          transfers.some(
+            (leg) => leg.account === native.payTo && BigInt(leg.amount) === BigInt(native.amount),
+          )
+        );
+      });
+      return matches ? 'success' : 'mismatch';
+    }
     const unsettled = new Set([
       'DUPLICATE_TRANSACTION',
       'UNKNOWN',

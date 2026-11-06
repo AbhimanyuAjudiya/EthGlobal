@@ -4,6 +4,7 @@
  * (EIP-3009) typed data is not here: it lives in `@ethglobal/eip3009`, which takes the token's domain
  * `name`/`version` as parameters (Circle USDC is "USD Coin" on mainnet but "USDC" on Base Sepolia).
  */
+import { AUDIENCE, type Hex } from './ids.js';
 
 export const RECHARGE_DOMAIN_NAME = 'Recharge';
 export const RECHARGE_DOMAIN_VERSION = '1';
@@ -75,6 +76,55 @@ export const CANCEL_PLAN_TYPES = {
 } as const;
 /** CancelPlan.issuedAt validity (ms). */
 export const PLAN_CANCEL_TTL_MS = 600_000;
+
+type NativeNetwork = 'hedera:testnet' | 'hedera:mainnet';
+
+function nativeIdentity(network: NativeNetwork, payer: string): void {
+  if (
+    !['hedera:testnet', 'hedera:mainnet'].includes(network) ||
+    !/^0\.0\.[1-9]\d{0,11}$/.test(payer)
+  )
+    throw new TypeError('invalid native Hedera identity');
+}
+
+/** SHA-256 this canonical string to obtain the payer-bound /plan/cancel challenge session key. */
+export function nativePayerBinding(network: NativeNetwork, payer: string): string {
+  nativeIdentity(network, payer);
+  return `recharge:native-payer:v1:${network}:${payer}`;
+}
+
+/** HIP-820 signs this message; it carries a plan hash instead of the private entitlement capability. */
+export function nativeCancelMessage(input: {
+  network: NativeNetwork;
+  payer: string;
+  entitlementHash: Hex;
+  nonce: Hex;
+  issuedAt: number;
+}): string {
+  const { network, payer, entitlementHash, nonce, issuedAt } = input;
+  nativeIdentity(network, payer);
+  if (
+    !/^0x[0-9a-fA-F]{64}$/.test(entitlementHash) ||
+    !/^0x[0-9a-fA-F]{64}$/.test(nonce) ||
+    !Number.isSafeInteger(issuedAt) ||
+    issuedAt < 0 ||
+    !Number.isSafeInteger(issuedAt + PLAN_CANCEL_TTL_MS)
+  )
+    throw new TypeError('invalid native cancellation message');
+  return [
+    'Recharge: cancel unused eSIM',
+    'Version: 1',
+    `Audience: ${AUDIENCE}`,
+    'Action: /plan/cancel',
+    `Network: ${network}`,
+    `Payer: ${payer}`,
+    `Plan SHA-256: ${entitlementHash.toLowerCase()}`,
+    `Nonce: ${nonce.toLowerCase()}`,
+    `Issued at (ms): ${issuedAt}`,
+    `Expires at (ms): ${issuedAt + PLAN_CANCEL_TTL_MS}`,
+    'Refund only to the original payer on the original payment network.',
+  ].join('\n');
+}
 
 /** SponsorLogin.issuedAt validity (ms). */
 export const SPONSOR_LOGIN_TTL_MS = 3_600_000;

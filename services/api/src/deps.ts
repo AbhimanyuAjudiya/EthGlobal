@@ -17,6 +17,7 @@ import {
   createEnsCampaigns,
   createLiveAdapters,
   createRpContextSigner,
+  hederaTransactionSessionBinding,
   liveConfigSchema,
   SelfRunFacilitator,
 } from '@ethglobal/adapters/live';
@@ -33,7 +34,7 @@ import {
   ReceiptStore,
 } from '@ethglobal/octroi/store';
 import { MAX_MB_PER_PURCHASE, STEP_MB, isHederaNetwork, type Hex } from '@ethglobal/protocol/ids';
-import type { AcceptTemplate, RpContext } from '@ethglobal/protocol/schemas';
+import { isEvmExact, type AcceptTemplate, type RpContext } from '@ethglobal/protocol/schemas';
 
 import { addressesSlug, buildAcceptTemplates, loadAddresses } from './accepts.js';
 import { Admission, KeyedMutex, WindowLimiter } from './admission.js';
@@ -239,6 +240,10 @@ export async function buildDeps(
     validityDays: env.VALIDITY_DAYS,
     accepts,
     keccak256,
+    nativeSessionBinding: (payment) =>
+      isEvmExact(payment.payload)
+        ? undefined
+        : hederaTransactionSessionBinding(payment.payload.transaction),
     planId: env.RESELLER_PLAN_ID,
     nonceCache,
   };

@@ -263,7 +263,9 @@ export const cardRedeemRequestSchema = z.object({
 
 // ── Plan cancel (POST /plan/cancel): the payer of an unused paid plan gets its payment back, minus the reclaim fee
 
-export const planCancelRequestSchema = z.object({
+const nativePayerSchema = z.string().regex(/^0\.0\.[1-9]\d{0,11}$/, 'canonical Hedera account');
+const evmPlanCancelRequestSchema = z.object({
+  authKind: z.literal('evm').optional(),
   entitlementKey: z.string().min(8).max(160),
   payer: evmAddressSchema,
   /** A /plan/cancel challenge whose session key is the payer address padded to 32 bytes. */
@@ -272,6 +274,24 @@ export const planCancelRequestSchema = z.object({
   /** EIP-712 CancelPlan { entitlementKey, payer, nonce: challenge.nonce, issuedAt } by the payer. */
   signature: hexSchema,
 });
+const nativePlanCancelRequestSchema = z.object({
+  authKind: z.literal('hedera'),
+  entitlementKey: z.string().min(8).max(160),
+  payer: nativePayerSchema,
+  network: z.enum(['hedera:testnet', 'hedera:mainnet']),
+  challenge: challengeSchema,
+  issuedAt: msSchema,
+  /** HIP-820 message signature, verified against the payer's current Hedera account key. */
+  signatureMap: z
+    .string()
+    .min(4)
+    .max(8192)
+    .regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/, 'base64'),
+});
+export const planCancelRequestSchema = z.union([
+  nativePlanCancelRequestSchema,
+  evmPlanCancelRequestSchema,
+]);
 /** The cancel refund; no `tx` = pending. Recovery distinguishes a saved signed transaction from an unknown outcome. */
 export const planRefundSchema = z.object({
   network: caipNetworkSchema,
@@ -311,7 +331,11 @@ export const meResponseSchema = z.object({
   network: caipNetworkSchema.optional(),
   // POST /plan/cancel: what it would refund now, and to whom (paid, unused, never topped up or cancelled) …
   refundable: z
-    .object({ usd6: digitsSchema, network: caipNetworkSchema, to: evmAddressSchema })
+    .object({
+      usd6: digitsSchema,
+      network: caipNetworkSchema,
+      to: z.union([evmAddressSchema, nativePayerSchema]),
+    })
     .optional(),
   // … or, once cancelled, when (= expiresAt) and the refund
   cancelledAt: msSchema.optional(),

@@ -114,7 +114,8 @@ export const OPERATIONS: readonly Operation[] = [
   {
     method: 'get',
     path: '/esim/provision',
-    summary: 'Paid eSIM bundle (x402); EIP-3009 nonce = keccak256(X-Session-Pubkey)',
+    summary:
+      'Paid eSIM bundle (x402); signed EVM nonce or native Hedera memo binds the session key',
     query: provisionQuerySchema,
     headers: ['PAYMENT-SIGNATURE', 'X-Session-Pubkey'],
     responses: { 201: entitledResponseSchema, 400: errorBodySchema, 402: paymentRequiredSchema },
@@ -232,7 +233,7 @@ export const OPERATIONS: readonly Operation[] = [
     method: 'post',
     path: '/plan/cancel',
     summary:
-      'Cancel an unused paid plan (EIP-712 CancelPlan by its payer): 200 refunded minus the reclaim fee, 202 refund pending',
+      'Cancel an unused paid plan (EIP-712 or native Hedera message signed by its payer): 200 refunded minus the reclaim fee, 202 refund pending',
     body: planCancelRequestSchema,
     headers: ['Idempotency-Key'],
     responses: {

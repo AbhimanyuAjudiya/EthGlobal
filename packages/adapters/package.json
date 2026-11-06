@@ -33,6 +33,7 @@
     "@ethglobal/crypto": "workspace:*",
     "@ethglobal/eip3009": "workspace:*",
     "@ethglobal/protocol": "workspace:*",
+    "@hiero-ledger/proto": "catalog:",
     "@hiero-ledger/sdk": "catalog:",
     "@worldcoin/idkit-core": "catalog:",
     "@x402/hedera": "catalog:",

@@ -1,8 +1,9 @@
 /**
- * The one file that touches the Hedera SDK: @hiero-ledger/sdk@2.90.1 through @x402/hedera's re-exports (A-22, one SDK
+ * The shared Hedera signing/submission surface: @hiero-ledger/sdk@2.90.1 through @x402/hedera's re-exports (A-22, one SDK
  * copy), plus TopicMessageSubmitTransaction / AccountBalanceQuery, which @x402/hedera does not re-export — imported
  * from the very same @hiero-ledger/sdk@2.90.1 that @x402/hedera pins (`pnpm why @hiero-ledger/sdk` shows one).
- * Never @hashgraph/sdk. Keys via PrivateKey.fromStringECDSA (fromString/generate are deprecated).
+ * Native authentication separately uses public-key verification in hedera-auth.ts. Never @hashgraph/sdk.
+ * Operator keys use PrivateKey.fromStringECDSA (fromString/generate are deprecated).
  */
 import { AccountBalanceQuery, TopicMessageSubmitTransaction, Transaction } from '@hiero-ledger/sdk';
 import { AccountId, Client, PrivateKey, TokenId, TransferTransaction } from '@x402/hedera';

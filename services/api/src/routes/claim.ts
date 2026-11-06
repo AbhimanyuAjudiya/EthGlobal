@@ -63,7 +63,7 @@ export function registerClaim(app: Hono<AppEnv>, deps: Deps): void {
     },
   );
 
-  // LPA-delivering purchase: the EIP-3009 nonce must be keccak256(X-Session-Pubkey) (T-32, C4).
+  // LPA-delivering purchase: the signed EVM nonce or native Hedera memo binds keccak256(X-Session-Pubkey).
   app.get(
     '/esim/provision',
     validateQuery(provisionQuerySchema),
@@ -95,7 +95,7 @@ export function registerClaim(app: Hono<AppEnv>, deps: Deps): void {
       const nonce =
         payment && isEvmExact(payment.payload)
           ? (payment.payload.authorization.nonce as Hex)
-          : keccak256(toBytes(c.req.url));
+          : keccak256(toBytes(c.get('sessionPubKey')!));
       return decideAndFulfil(c, { nonce, sessionPubKey: c.get('sessionPubKey')! });
     },
   );

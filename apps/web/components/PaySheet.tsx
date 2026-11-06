@@ -19,15 +19,14 @@ import { sessionNonce, type PaymentSigner } from '@ethglobal/protocol/x402';
 import { Button, MbMeter, RuledList } from '@ethglobal/ui/components';
 
 import { ActionView } from './ActionView';
+import { HashPackConnection, type HashPackState } from './HashPackConnection';
 import { ProofRows } from './IssuingRows';
 import { ProofPanel } from './ProofPanel';
-import { QrCode } from './QrCode';
 import { AppHeader, Caution, Screen, TabBar, useWalletLabel } from './Shell';
 import { useLang, useNetworkName } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
 import { deliver, planHref } from '../lib/deliver';
-import { isHandheld } from '../lib/device';
 import {
   clockIst,
   dayLabel,
@@ -56,13 +55,13 @@ import { plans as store } from '../lib/store';
 import { expectedMsFor, followTransaction, useOnchainAction } from '../lib/use-onchain';
 import { chainIdOf, chainNow, isUserRejection, type Wallet } from '../lib/wallet';
 
-import type { HashPackSession } from '../lib/hedera-wc';
-
 const BALANCE_ABI = parseAbi(['function balanceOf(address) view returns (uint256)']);
 
-/** A Hedera offer on an LPA-delivering route: HashPack cannot carry the session key yet, so it pays top-ups only (RT-W-14). */
+/** A new native plan is offered only when the API explicitly supports a signed memo binding. */
 const sessionBound = (a: PaymentRequirements | undefined): boolean =>
-  Boolean(a?.network.startsWith('hedera:')) && a?.extra?.sessionKeyRequired === true;
+  Boolean(a?.network.startsWith('hedera:')) &&
+  a?.extra?.sessionKeyRequired === true &&
+  a.extra.sessionBinding !== 'hedera-memo-v1';
 
 /** MODE=local only: the e2e tamper hook, compiled out of a live build (lib/local/test-hooks.ts, RT-W-12). */
 async function tamperAmount(): Promise<boolean> {
@@ -86,14 +85,6 @@ async function fetchQuote(
   return { ...next, at: Date.now() };
 }
 
-/** HashPack's pairing state on the Review screen. */
-interface HashPackState {
-  uri?: string;
-  link?: string;
-  session?: HashPackSession;
-  failed?: boolean;
-}
-
 /** The x402 terms of a Hedera accepts[] entry and the HashPack connect step (QR, or a deep link on a phone). */
 function HederaPanel({
   req,
@@ -106,7 +97,6 @@ function HederaPanel({
 }) {
   const { t, lang } = useLang();
   const terms = hederaTerms(req);
-  const handheld = typeof window !== 'undefined' && isHandheld(window);
   return (
     <section className="hedera-panel" data-testid="hedera-panel">
       <h2 lang={lang}>{t('pay.hederaTitle')}</h2>
@@ -129,40 +119,7 @@ function HederaPanel({
           { label: t('pay.hValidFor'), value: `${terms.validForS} s`, mono: true },
         ]}
       />
-      {hp.session ? (
-        <>
-          <p className="note" lang={lang} data-testid="hashpack-account">
-            {t('pay.hashpackAccount', { account: hp.session.accountId })}
-          </p>
-          {/* on a phone the signature request waits inside HashPack: one tap brings it forward */}
-          {handheld && hp.link ? (
-            <a className="ui-button ui-button--block" data-variant="secondary" href={hp.link}>
-              {t('pay.hashpackOpen')}
-            </a>
-          ) : null}
-        </>
-      ) : hp.uri ? (
-        <>
-          <p className="note" lang={lang}>
-            {t('pay.hashpackScan')}
-          </p>
-          <QrCode url={hp.uri} label={t('pay.hashpackScan')} sizeMm={48} />
-          {handheld && hp.link ? (
-            <a className="ui-button ui-button--block" href={hp.link}>
-              {t('pay.hashpackOpen')}
-            </a>
-          ) : null}
-        </>
-      ) : (
-        <Button block onClick={onConnect} data-testid="hashpack-connect">
-          {t('pay.hashpackConnect')}
-        </Button>
-      )}
-      {hp.failed ? (
-        <p className="note" role="alert" lang={lang}>
-          {t('pay.hashpackFailed')}
-        </p>
-      ) : null}
+      <HashPackConnection state={hp} onConnect={onConnect} />
     </section>
   );
 }
@@ -270,7 +227,7 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
         if (!alive) return;
         setQuoteError(undefined);
         setQ(next);
-        // a new plan starts on a network that can pay for it, not on Hedera (RT-W-14: the API lists Hedera first)
+        // Preserve the selected network, otherwise use the first supported offer.
         const offers = next.required.accepts;
         setNetwork(
           (current) => current ?? (offers.find((a) => !sessionBound(a)) ?? offers[0])?.network,
@@ -316,14 +273,14 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
   const approvalLeft = chosen && q ? q.at + chosen.maxTimeoutSeconds * 1000 - clock : 0;
   const balance = chosen ? balances[chosen.network] : undefined;
 
-  // an LPA-delivering route binds the session key, which a Hedera payload cannot carry yet (octroi refuses it)
+  // Old APIs without native session binding remain unavailable for a new purchase.
   const hederaSessionBound = sessionBound(chosen);
   const payableInstead = hederaSessionBound ? accepts.find((a) => !sessionBound(a)) : undefined;
   let blocked: string | undefined;
   if (entitlementKey && me && (me.cancelledAt !== undefined || me.expiresAt <= clock))
     blocked = t('plan.ended');
   else if (quoteError) blocked = quoteError;
-  else if (hederaSessionBound) blocked = t('pay.hederaTopupOnly');
+  else if (hederaSessionBound) blocked = t('pay.hederaUnavailable');
   else if (isHedera && hp.session?.chain !== chosen?.network) blocked = t('pay.hashpackNeeded');
   // no wallet yet: the pay button itself opens the connect modal; a wallet on another chain is switched on Pay
   else if (isHedera || !wallet) blocked = undefined;
@@ -339,7 +296,7 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
 
   const onConnect = useCallback(async () => {
     if (!chosen) return;
-    setHp({});
+    setHp({ connecting: true });
     try {
       const hw = await import('../lib/hedera-wc');
       if (!hw.isHederaChain(chosen.network))
@@ -366,7 +323,7 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
       let signer: PaymentSigner;
       let payer: Wallet | undefined;
       if (session) {
-        // Hedera: no session key on the wire (LPA routes are blocked above), the PWA clock (validStart is back-dated)
+        // Native purchases bind the delivery session in the signed transfer memo.
         const hw = await import('../lib/hedera-wc');
         signer = await hw.hashPackPaySigner(session, allow);
       } else {
@@ -380,7 +337,7 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
       const paid = await pay<TopUpResponse | EntitledResponse>(
         q,
         signer,
-        session ? undefined : q.spk,
+        q.spk,
         payer ? await chainNow(payer) : Date.now(),
       );
       // the decoded x402 headers: the accepts entry that was signed, the PAYMENT-RESPONSE settlement
@@ -590,7 +547,14 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
             </div>
           ) : null}
           {isHedera && chosen && !hederaSessionBound ? (
-            <HederaPanel req={chosen} hp={hp} onConnect={() => void onConnect()} />
+            <HederaPanel
+              req={chosen}
+              hp={{
+                ...hp,
+                connecting: hp.connecting === true || !['idle', 'failed'].includes(row.state),
+              }}
+              onConnect={() => void onConnect()}
+            />
           ) : null}
           <ActionView
             row={row}
@@ -638,7 +602,7 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
             </Button>
           ) : null}
           {payableInstead && row.state === 'idle' ? (
-            // a new plan cannot be paid on Hedera: one tap moves the buyer to the network that can (RT-W-14)
+            // A legacy API may not support native purchases yet.
             <Button block variant="secondary" onClick={() => setNetwork(payableInstead.network)}>
               {t('pay.useNetwork', { network: netName(payableInstead.network) })}
             </Button>

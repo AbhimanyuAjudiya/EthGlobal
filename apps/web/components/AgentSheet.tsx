@@ -63,6 +63,7 @@ export function AgentSheet() {
   const [proof, setProof] = useState<Proof>();
   const [loadError, setLoadError] = useState<ReturnType<typeof errorKey>>();
   const [loadRound, setLoadRound] = useState(0);
+  const [nativePaid, setNativePaid] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -72,7 +73,11 @@ export function AgentSheet() {
       setLoadError(undefined);
       setKey(k ?? null);
       if (!k) return;
-      const m = await api.me(k).catch(() => undefined);
+      const m = await api.me(k);
+      if (!alive) return;
+      const unsupported = m.kind === 'paid' && m.network?.startsWith('hedera:') === true;
+      setNativePaid(unsupported);
+      if (unsupported) return;
       const existing = await api.agentPolicy(k).catch((error: unknown) => {
         if (error instanceof ApiError && error.code === 'not_found') return undefined;
         throw error;
@@ -110,7 +115,7 @@ export function AgentSheet() {
 
   const save = useCallback(
     async (next: TopUpPolicyWire) => {
-      if (!wallet || !key) return;
+      if (!wallet || !key || nativePaid) return;
       setStatus('signing');
       setMessage(undefined);
       setProof(undefined);
@@ -159,7 +164,7 @@ export function AgentSheet() {
           setMessage(t(errorKey(e instanceof ApiError ? e.code : 'network')));
       }
     },
-    [wallet, ensureChain, key, t],
+    [wallet, ensureChain, key, t, nativePaid],
   );
 
   if (key === null)
@@ -169,6 +174,23 @@ export function AgentSheet() {
         <p className="note" role="status" lang={lang}>
           {t('agent.noPlan')}
         </p>
+      </Screen>
+    );
+
+  if (nativePaid && key)
+    return (
+      <Screen>
+        <AppHeader />
+        <section className="sheet" lang={lang}>
+          <h1 className="sheet__title">{t('agent.title')}</h1>
+          <p className="note" role="status">
+            {t('agent.nativeUnavailable')}
+          </p>
+          <a className="ui-button" href={`/pay?key=${encodeURIComponent(key)}`}>
+            {t('agent.manualTopup')}
+          </a>
+        </section>
+        <TabBar />
       </Screen>
     );
 

@@ -318,6 +318,17 @@ export interface Treasury {
   balanceUsd6(network: string): Promise<bigint>;
 }
 
+/** Native account ownership proof. The key is resolved from a trusted mirror, never from the request. */
+export interface NativeAccountVerifier {
+  /** Invalid/unsupported proofs return false; a mirror outage throws unavailable. No transaction is submitted. */
+  verifyMessage(input: {
+    network: string;
+    accountId: string;
+    message: string;
+    signatureMap: string;
+  }): Promise<boolean>;
+}
+
 // ───────────────────────────── Bundle ─────────────────────────────
 
 export interface Adapters {
@@ -331,6 +342,8 @@ export interface Adapters {
   consensus: ConsensusLog;
   blobs: BlobStore;
   treasury: Treasury;
+  /** Optional in local mocks; callers fail closed when native authentication is unavailable. */
+  nativeAccounts?: NativeAccountVerifier;
 }
 
 export type AdapterName = Exclude<keyof Adapters, 'mode'>;

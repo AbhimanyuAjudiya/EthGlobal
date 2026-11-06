@@ -17,6 +17,8 @@ import type { Hex } from '@ethglobal/protocol/ids';
 import type { PlanCancelRequest, PlanCancelResponse, Receipt } from '@ethglobal/protocol/schemas';
 import {
   CANCEL_PLAN_TYPES,
+  nativeCancelMessage,
+  nativePayerBinding,
   PLAN_CANCEL_TTL_MS,
   rechargeDomain,
 } from '@ethglobal/protocol/typed-data';
@@ -57,13 +59,13 @@ export const CANCEL_DENY_CODES: Readonly<Record<PlanCancelDeny, ErrorCode>> = {
 };
 
 export type PlanCancelVerdict =
-  | { kind: 'refund'; to: Address; network: string; usd6: bigint; feeUsd6: bigint }
+  | { kind: 'refund'; to: string; network: string; usd6: bigint; feeUsd6: bigint }
   | { kind: 'deny'; reason: PlanCancelDeny };
 
 /**
  * The ledger half of the eligibility, pure (the vendor's "unused" is read at cancel time); /me shows its refund.
  * Refund = the provision receipt's usd6 on its network minus max(fee, 0), to the payer the ENTITLEMENT recorded —
- * an EVM address, since only an address can sign CancelPlan; never an address from the request.
+ * an EVM address or native Hedera account authenticated by its wallet; never a destination from the request.
  */
 export function decidePlanCancel(
   e: Entitlement,
@@ -77,9 +79,22 @@ export function decidePlanCancel(
     return deny('topped-up');
   if (e.status === 'installed' || e.status === 'active') return deny('installed');
   if (e.iccidEnc === undefined) return deny('pending-profile');
-  if (e.payer === undefined || !isAddress(e.payer, { strict: false })) return deny('not-payer');
+  if (
+    e.payer === undefined ||
+    (e.network?.startsWith('eip155:')
+      ? !isAddress(e.payer, { strict: false })
+      : !['hedera:testnet', 'hedera:mainnet'].includes(e.network ?? '') ||
+        !/^0\.0\.[1-9]\d{0,11}$/.test(e.payer))
+  )
+    return deny('not-payer');
   const paid = receipts.find((r) => r.kind === 'provision');
-  if (paid?.usd6 === undefined || paid.network === undefined) return deny('no-payment');
+  if (
+    paid?.usd6 === undefined ||
+    paid.network === undefined ||
+    paid.network !== e.network ||
+    paid.payer?.toLowerCase() !== e.payer.toLowerCase()
+  )
+    return deny('no-payment');
   const usd6 = usd6FromWire(paid.usd6);
   const fee = feeUsd6 < 0n ? 0n : feeUsd6;
   if (fee >= usd6) return deny('nothing-to-refund');
@@ -101,23 +116,40 @@ export async function cancelPlan(
   if (req.issuedAt > now + FUTURE_SKEW_MS)
     throw fail('invalid_request', [{ path: 'issuedAt', message: 'in the future' }]);
   if (now - req.issuedAt > PLAN_CANCEL_TTL_MS) throw fail('expired', { detail: 'issuedAt' });
-  await consume(deps, req.challenge as Challenge, '/plan/cancel', reclaimSessionKey(req.payer));
-  const ok = await signedBy({
-    address: req.payer as Address,
-    domain: rechargeDomain(deps.chainId),
-    types: CANCEL_PLAN_TYPES,
-    primaryType: 'CancelPlan',
-    message: {
-      entitlementKey: req.entitlementKey,
-      payer: req.payer as Address,
-      nonce: req.challenge.nonce as Hex,
-      issuedAt: BigInt(req.issuedAt),
-    },
-    signature: req.signature as Hex,
-  });
+  const native = 'authKind' in req && req.authKind === 'hedera';
+  const sessionKey = native
+    ? sha256Hex(nativePayerBinding(req.network, req.payer))
+    : reclaimSessionKey(req.payer);
+  await consume(deps, req.challenge as Challenge, '/plan/cancel', sessionKey);
+  const ok = native
+    ? await deps.adapters.nativeAccounts?.verifyMessage({
+        network: req.network,
+        accountId: req.payer,
+        message: nativeCancelMessage({
+          network: req.network,
+          payer: req.payer,
+          entitlementHash: sha256Hex(req.entitlementKey),
+          nonce: req.challenge.nonce as Hex,
+          issuedAt: req.issuedAt,
+        }),
+        signatureMap: req.signatureMap,
+      })
+    : await signedBy({
+        address: req.payer as Address,
+        domain: rechargeDomain(deps.chainId),
+        types: CANCEL_PLAN_TYPES,
+        primaryType: 'CancelPlan',
+        message: {
+          entitlementKey: req.entitlementKey,
+          payer: req.payer as Address,
+          nonce: req.challenge.nonce as Hex,
+          issuedAt: BigInt(req.issuedAt),
+        },
+        signature: req.signature as Hex,
+      });
   if (!ok) throw fail('unauthorized', { detail: 'bad CancelPlan signature' });
   return deps.mutex.run(req.entitlementKey, () =>
-    cancelLocked(deps, req.entitlementKey, req.payer),
+    cancelLocked(deps, req.entitlementKey, req.payer, native ? req.network : undefined),
   );
 }
 
@@ -125,6 +157,7 @@ async function cancelLocked(
   deps: Deps,
   key: string,
   signer: string,
+  nativeNetwork?: string,
 ): Promise<{ status: 200 | 202; body: PlanCancelResponse }> {
   await flushReceiptOutbox(deps);
   const found = await deps.stores.entitlements.getByKey(key);
@@ -136,6 +169,8 @@ async function cancelLocked(
   const verdict = decidePlanCancel(e, receipts, deps.env.GIFT_RECLAIM_FEE_USD6);
   if (verdict.kind === 'deny')
     throw fail(CANCEL_DENY_CODES[verdict.reason], { reason: verdict.reason });
+  if (nativeNetwork !== undefined ? e.network !== nativeNetwork : !e.network?.startsWith('eip155:'))
+    throw fail('unauthorized', { reason: 'not-payer' });
   if (verdict.to.toLowerCase() !== signer.toLowerCase())
     throw fail('unauthorized', { reason: 'not-payer' });
   const iccid = openFromServer(deps.sealKey, e.iccidEnc as SealedBox, utf8(key));

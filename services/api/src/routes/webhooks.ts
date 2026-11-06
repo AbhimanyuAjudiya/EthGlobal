@@ -31,7 +31,7 @@ export function registerWebhooks(app: Hono<AppEnv>, deps: Deps): void {
     deps.metrics.inc('webhook_total', { verdict: verdict.ok ? 'ok' : verdict.reason });
     if (!verdict.ok) {
       c.get('log').warn(
-        { event: 'webhook', provider: reseller.name, verdict: verdict.reason },
+        { event: 'webhook', provider: reseller.name, verdict: verdict.reason, ip: c.get('clientIp') },
         'webhook refused',
       );
       throw fail(verdict.reason === 'replay' ? 'replay' : 'unauthorized', {

@@ -241,6 +241,7 @@
   "agent.passArmed": "World ID Agent Pass {until} तक सक्रिय",
   "agent.passDenied": "World ID Agent Pass नहीं मिला ({reason})। जब तक आप स्वीकृति नहीं देते, एजेंट कुछ नहीं खरीदेगा।",
   "agent.passExpired": "World ID Agent Pass अनुरोध की समय-सीमा खत्म हो गई। एजेंट फिर पूछेगा।",
+  "agent.connectToSave": "सेव करने के लिए वॉलेट कनेक्ट करें",
   "agent.historyTitle": "खर्च का इतिहास — Arkiv से पढ़ा गया",
   "agent.historyEmpty": "अभी कोई टॉप-अप नहीं — जब आपका प्लान {threshold} से कम होता है, आपका एजेंट {step} खरीदता है।",
   "agent.historyError": "Arkiv तक नहीं पहुँच सके",

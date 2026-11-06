@@ -1,5 +1,6 @@
 'use client';
 
+import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { toBytes } from 'viem';
 
@@ -15,7 +16,7 @@ import { AGENT_POLICY_TYPES, canonicalJson, rechargeDomain } from '@ethglobal/pr
 import { Button, Hash } from '@ethglobal/ui/components';
 
 import { QrCode } from './QrCode';
-import { AppHeader, Screen, TabBar, WalletButton } from './Shell';
+import { AppHeader, Screen, TabBar } from './Shell';
 import { useLang, useNetworkName } from '../i18n/lang';
 import { errorKey } from '../i18n/strings';
 import { api, ApiError } from '../lib/api';
@@ -46,6 +47,7 @@ export function AgentSheet() {
   const netName = useNetworkName();
   const { plans } = usePlans();
   const { wallet } = useWallet('human');
+  const { openConnectModal } = useConnectModal();
   const [key, setKey] = useState<string | null | undefined>();
   const [policy, setPolicy] = useState<TopUpPolicyWire | undefined>();
   const [view, setView] = useState<AgentPolicyView | undefined>();
@@ -151,7 +153,6 @@ export function AgentSheet() {
   return (
     <Screen money>
       <AppHeader />
-      <WalletButton wallet={wallet} />
       <section className="sheet agent" aria-labelledby="agent-title">
         <h1 id="agent-title" className="sheet__title" lang={lang}>
           {t('agent.title')}
@@ -186,14 +187,21 @@ export function AgentSheet() {
                 </button>
               ))}
             </div>
-            <Button
-              variant="secondary"
-              disabled={status === 'signing' || status === 'saving' || !wallet}
-              onClick={() => void save({ ...policy, paused: !policy.paused })}
-              aria-pressed={policy.paused}
-            >
-              {policy.paused ? t('agent.resume') : t('agent.pause')}
-            </Button>
+            {/* the one wallet control is the header's; saving without a wallet opens its modal from here */}
+            {wallet ? (
+              <Button
+                variant="secondary"
+                disabled={status === 'signing' || status === 'saving'}
+                onClick={() => void save({ ...policy, paused: !policy.paused })}
+                aria-pressed={policy.paused}
+              >
+                {policy.paused ? t('agent.resume') : t('agent.pause')}
+              </Button>
+            ) : (
+              <Button variant="secondary" disabled={!openConnectModal} onClick={openConnectModal}>
+                {t('agent.connectToSave')}
+              </Button>
+            )}
           </>
         ) : (
           <div className="skeleton skeleton--line" aria-hidden="true" />

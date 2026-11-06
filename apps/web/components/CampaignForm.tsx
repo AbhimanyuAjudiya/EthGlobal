@@ -2,7 +2,7 @@
 
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import Link from 'next/link';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
 import { MAX_BUNDLE_MB, type Hex } from '@ethglobal/protocol/ids';
 import {
@@ -17,12 +17,14 @@ import {
   Button,
   ButtonLink,
   Card,
+  ChoiceChips,
   EmptyState,
   Field,
   ListGroup,
   ListRow,
   Notice,
   Section,
+  Skeleton,
   StatTile,
   Table,
 } from './kit';
@@ -30,7 +32,7 @@ import { ProofPanel } from './ProofPanel';
 import { useLang } from '../i18n/lang';
 import { api, ApiError } from '../lib/api';
 import { config, contractUrl, explorerName, networkName } from '../lib/env';
-import { formatMb, moneyUsdc } from '../lib/format';
+import { formatMb, money, moneyUsdc } from '../lib/format';
 import { useEnsureChain, useHydrated, useWallet } from '../lib/hooks';
 import { buildProof, type Proof, type ProofInput } from '../lib/proof';
 import {
@@ -58,8 +60,13 @@ import type { ActionEvent } from '../lib/onchain-action';
 const USD6 = 1_000_000n;
 const logicalMb = (mb: number) => Math.min(MAX_BUNDLE_MB, Math.floor(mb / 100) * 100);
 const supportedPackage = (mb: number) => logicalMb(mb) > 0 && mb <= 1074;
-const usdInput = (amount: string) =>
-  `${BigInt(amount) / USD6}.${(BigInt(amount) % USD6).toString().padStart(6, '0')}`;
+/** 1200000n → "1.20"; all six places only when cents cannot say the amount. */
+const usdText = (amount: bigint) => {
+  const text = `${amount / USD6}.${(amount % USD6).toString().padStart(6, '0')}`;
+  return amount % 10_000n === 0n ? text.slice(0, -4) : text;
+};
+/** Destinations the catalogue serves today; the two-letter code is what the draft and the API carry. */
+const DESTINATIONS = [{ code: 'IN', name: 'India' }] as const;
 const PROGRESS = 'recharge.sponsor.pending';
 /** Drafts set aside by "Start a new campaign": each names funds locked on chain, so none is ever deleted here. */
 const ARCHIVE = 'recharge.sponsor.pending.archive';
@@ -123,7 +130,7 @@ interface Draft {
   reclaimUnused: boolean;
 }
 
-/** Destination, provider package and event dates must be chosen explicitly. */
+/** The provider package and event dates must be chosen explicitly; the destination starts on India. */
 const initial: Draft = {
   name: '',
   budgetUsd: '12',
@@ -134,7 +141,7 @@ const initial: Draft = {
   perHour: '10',
   validityDays: '7',
   expiresDays: '7',
-  country: '',
+  country: 'IN',
   planId: '',
   startsAt: '',
   endsAt: '',
@@ -220,6 +227,11 @@ export function CampaignForm() {
   const [catalog, setCatalog] = useState<CatalogResponse>();
   const [catalogBusy, setCatalogBusy] = useState(false);
   const [catalogError, setCatalogError] = useState<string>();
+  /** The API's advertised minimum per claim, fetched with the catalogue to prefill the price (0n: unknown). */
+  const [floor, setFloor] = useState(0n);
+  /** Once the sponsor types a budget, cap × price stops overwriting it. */
+  const [budgetTyped, setBudgetTyped] = useState(false);
+  const datesHint = useId();
   const catalogRound = useRef(0);
   const fundingRound = useRef(0);
   const hedera = isHederaSponsorChain(config.chainId);
@@ -233,27 +245,31 @@ export function CampaignForm() {
     catalog?.country === draft.country
       ? catalog.plans.find((plan) => plan.id === draft.planId)
       : undefined;
-  const loadCatalog = async () => {
+  // stable: it reads no render state, so the mount effect below runs once
+  const loadCatalog = useCallback(async (country: string) => {
     const round = ++catalogRound.current;
-    const country = draft.country.trim().toUpperCase();
-    if (!/^[A-Z]{2}$/.test(country)) {
-      setCatalogError(t('event.countryHint'));
-      return;
-    }
     setCatalogBusy(true);
     setCatalogError(undefined);
     setCatalog(undefined);
     setDraft((previous) => ({ ...previous, planId: '', reclaimUnused: false }));
+    // the floor only prefills the price: run() reads it again and refuses anything under it
+    const minimum = (async () =>
+      BigInt((await api.plans()).sponsor?.minPricePerClaimUsd6 ?? 0))().catch(() => 0n);
     try {
-      const response = await api.catalog(country);
-      if (round === catalogRound.current) setCatalog(response);
+      const [response, min] = await Promise.all([api.catalog(country), minimum]);
+      if (round === catalogRound.current) {
+        setCatalog(response);
+        setFloor(min);
+      }
     } catch (error) {
       if (round === catalogRound.current)
-        setCatalogError(error instanceof Error ? error.message : t('event.catalogError'));
+        setCatalogError(
+          error instanceof Error ? error.message : 'Provider plans could not be loaded. Try again.',
+        );
     } finally {
       if (round === catalogRound.current) setCatalogBusy(false);
     }
-  };
+  }, []);
 
   const checkFunding = useCallback(
     async (switchChain = false) => {
@@ -360,16 +376,17 @@ export function CampaignForm() {
     let alive = true;
     // Hydrate browser-only recovery state after the server-compatible first render.
     queueMicrotask(() => {
+      if (!alive) return;
       const pending = readProgress();
-      if (alive && pending) {
+      if (pending) {
         setResume(pending);
         setDraft({ ...initial, ...pending.draft });
-      }
+      } else void loadCatalog(initial.country);
     });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [loadCatalog]);
 
   const hydrated = useHydrated();
   // both steps run on DataDrop's chain, whatever chain the wallet is on before it
@@ -378,20 +395,44 @@ export function CampaignForm() {
   const contract = hydrated ? configuredContract() : undefined;
   const list = wallet && contract ? myCampaigns.list(wallet.address, network, contract) : [];
 
+  /** Budget follows claims cap × price until the sponsor types one. */
+  const autoBudget = (d: Draft): Draft => {
+    if (budgetTyped || !/^\d{1,9}$/.test(d.maxClaims.trim())) return d;
+    try {
+      return { ...d, budgetUsd: usdText(usd6(d.priceUsd) * BigInt(d.maxClaims.trim())) };
+    } catch {
+      return d; // a half-typed price leaves the budget as it was
+    }
+  };
+  const choosePlan = (planId: string) => {
+    const plan = catalog?.plans.find((item) => item.id === planId);
+    if (!plan) return;
+    const wholesale = BigInt(plan.wholesaleUsd6);
+    const price = floor > wholesale ? floor : wholesale;
+    setDraft((previous) =>
+      autoBudget({ ...previous, planId, reclaimUnused: false, priceUsd: usdText(price) }),
+    );
+  };
   const field = (
     key: Exclude<keyof Draft, 'reclaimUnused'>,
     label: string,
     hint?: string,
     type = 'text',
+    describedBy?: string,
   ) => (
     <Field
       label={label}
       {...(hint ? { hint } : {})}
+      {...(describedBy ? { 'aria-describedby': describedBy } : {})}
       value={draft[key]}
       disabled={running || Boolean(resume)}
       onChange={(e) => {
         const value = e.target.value;
-        setDraft((d) => ({ ...d, [key]: value }));
+        if (key === 'budgetUsd') setBudgetTyped(true);
+        setDraft((d) => {
+          const next = { ...d, [key]: value };
+          return key === 'priceUsd' || key === 'maxClaims' ? autoBudget(next) : next;
+        });
       }}
       type={type}
       inputMode={key === 'name' || type === 'datetime-local' ? 'text' : 'decimal'}
@@ -423,7 +464,8 @@ export function CampaignForm() {
           throw new Error(t('event.choosePlan'));
         const startsAt = new Date(draft.startsAt).getTime();
         const endsAt = new Date(draft.endsAt).getTime();
-        const expiresAt = new Date(draft.claimUntil).getTime();
+        // a blank claim deadline is the event end, as a blank review date is
+        const expiresAt = new Date(draft.claimUntil || draft.endsAt).getTime();
         const reclaimAfter = new Date(draft.reclaimAfter || draft.endsAt).getTime();
         if (
           ![startsAt, endsAt, expiresAt, reclaimAfter].every(Number.isFinite) ||
@@ -627,7 +669,9 @@ export function CampaignForm() {
     }
     setResume(undefined);
     setPermanent(false);
+    setBudgetTyped(false);
     setDraft(initial);
+    void loadCatalog(initial.country);
     setError(undefined);
     setProof(undefined);
     approve.newRow();
@@ -687,6 +731,42 @@ export function CampaignForm() {
       currentFunding.data.balance < budgetAmount ||
       currentFunding.busy === true);
 
+  // formatMb joins with a no-break space; compare as plain spaces
+  const flat = (text: string) => text.replace(/\s+/g, ' ');
+  // the package chips name each plan once: the size and days only when the name does not already say them
+  const packages = (catalog?.plans ?? [])
+    .filter((plan) => supportedPackage(plan.mb))
+    .map((plan) => {
+      const spec = `${formatMb(logicalMb(plan.mb))} · ${t('offer.days', { days: plan.validityDays })}`;
+      const cost = `${money(plan.wholesaleUsd6)} per eSIM`;
+      return {
+        value: plan.id,
+        label: plan.name,
+        sub: flat(plan.name).includes(flat(spec)) ? cost : `${spec} · ${cost}`,
+        disabled: running,
+      };
+    });
+  const priceParts = [
+    floor > 0n ? `floor ${money(floor)}` : undefined,
+    selectedPlan ? `provider cost ${money(selectedPlan.wholesaleUsd6)}` : undefined,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const priceHint = priceParts
+    ? priceParts[0]!.toUpperCase() + priceParts.slice(1)
+    : 'Must cover the current minimum cost returned by the data provider';
+  let totalLine: string | undefined;
+  try {
+    if (/^\d{1,9}$/.test(draft.maxClaims.trim())) {
+      const price = usd6(draft.priceUsd);
+      const total = price * BigInt(draft.maxClaims.trim());
+      totalLine = `${draft.maxClaims.trim()} claims × ${money(price)} = ${moneyUsdc(total)}`;
+      if (budgetAmount !== undefined && budgetAmount !== total)
+        totalLine += ` · budget ${budgetText}`;
+    }
+  } catch {
+    // a half-typed price: no line until it reads as an amount
+  }
   const dash = '—';
   const campaignRows = list.map((c) => ({
     id: c.id,
@@ -792,154 +872,167 @@ export function CampaignForm() {
                 </p>
               </Notice>
             ) : null}
-            {field('name', 'Name')}
             <p className="note">{t('event.intro')}</p>
-            {!resume ? (
-              <div className="grid gap-3" role="group" aria-label={t('event.destination')}>
-                <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-                  <Field
-                    label={t('event.destination')}
-                    hint={t('event.countryHint')}
+            <Section title="1 · Event">
+              <p className="note">Name the campaign and say where the event happens.</p>
+              {field('name', 'Name')}
+              {!resume ? (
+                <div className="ui-field">
+                  <label className="ui-field__label" htmlFor="event-destination">
+                    Destination
+                  </label>
+                  <select
+                    id="event-destination"
+                    className="ui-field__input"
                     value={draft.country}
-                    maxLength={2}
-                    autoCapitalize="characters"
-                    disabled={running || catalogBusy}
+                    disabled={running}
                     onChange={(e) => {
-                      const country = e.target.value.toUpperCase().replace(/[^A-Z]/g, '');
-                      catalogRound.current += 1;
-                      setCatalog(undefined);
-                      setCatalogError(undefined);
-                      setDraft((previous) => ({
-                        ...previous,
-                        country,
-                        planId: '',
-                        reclaimUnused: false,
-                      }));
+                      const country = e.target.value;
+                      setDraft((previous) => ({ ...previous, country }));
+                      void loadCatalog(country);
                     }}
-                  />
-                  <Button
-                    variant="secondary"
-                    disabled={running || catalogBusy || draft.country.length !== 2}
-                    onClick={() => void loadCatalog()}
                   >
-                    {t(catalogBusy ? 'event.loadingCatalog' : 'event.loadCatalog')}
-                  </Button>
+                    {DESTINATIONS.map((d) => (
+                      <option key={d.code} value={d.code}>
+                        {d.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                {catalogError ? (
-                  <Notice tone="negative">
-                    <p role="alert">{catalogError}</p>
-                  </Notice>
-                ) : null}
-                {catalog ? (
-                  <div className="ui-field">
-                    <label className="ui-field__label" htmlFor="event-package">
-                      {t('event.package')}
-                    </label>
-                    <select
-                      id="event-package"
-                      className="ui-field__input"
-                      value={draft.planId}
-                      disabled={running}
-                      onChange={(e) => {
-                        const planId = e.target.value;
-                        const plan = catalog.plans.find((item) => item.id === planId);
-                        setDraft((previous) => ({
-                          ...previous,
-                          planId,
-                          reclaimUnused: false,
-                          ...(plan ? { priceUsd: usdInput(plan.wholesaleUsd6) } : {}),
-                        }));
-                      }}
+              ) : null}
+            </Section>
+            <Section title="2 · Package">
+              <p className="note">Pick the provider eSIM each attendee receives.</p>
+              {resume ? (
+                resume.campaign.event ? (
+                  <p className="note">
+                    {resume.campaign.event.destinationCountry} · {resume.campaign.planId}
+                  </p>
+                ) : null
+              ) : (
+                <>
+                  {catalogBusy ? (
+                    <Skeleton shape="row" count={2} label={t('event.loadingCatalog')} />
+                  ) : catalog && packages.length === 0 ? (
+                    <EmptyState
+                      title="No packages for this destination"
+                      body={t('event.noPlans')}
+                    />
+                  ) : catalog ? (
+                    <ChoiceChips
+                      label={t('event.package')}
+                      options={packages}
+                      value={draft.planId || undefined}
+                      onChange={choosePlan}
+                      data-testid="campaign-package"
+                    />
+                  ) : null}
+                  {catalogError ? (
+                    <Notice tone="negative">
+                      <p role="alert">{catalogError}</p>
+                    </Notice>
+                  ) : null}
+                  <div>
+                    <Button
+                      variant="quiet"
+                      disabled={running || catalogBusy}
+                      onClick={() => void loadCatalog(draft.country)}
                     >
-                      <option value="">{t('event.choosePlan')}</option>
-                      {catalog.plans
-                        .filter((plan) => supportedPackage(plan.mb))
-                        .map((plan) => (
-                          <option key={plan.id} value={plan.id}>
-                            {plan.name} · {formatMb(logicalMb(plan.mb))} ·{' '}
-                            {t('offer.days', { days: plan.validityDays })} ·{' '}
-                            {moneyUsdc(plan.wholesaleUsd6)}
-                          </option>
-                        ))}
-                    </select>
-                    {catalog.plans.every((plan) => !supportedPackage(plan.mb)) ? (
-                      <p className="note">{t('event.noPlans')}</p>
-                    ) : null}
+                      Refresh packages
+                    </Button>
                   </div>
-                ) : null}
-                {selectedPlan ? (
-                  <Notice tone="info">
-                    <p>
-                      {t('event.packageTerms', {
-                        mb: formatMb(logicalMb(selectedPlan.mb)),
-                        days: selectedPlan.validityDays,
-                        price: moneyUsdc(selectedPlan.wholesaleUsd6),
-                      })}
-                    </p>
-                    <p>
-                      {t(
-                        selectedPlan.activation.startsOn === 'first-network'
-                          ? 'event.activationNetwork'
-                          : selectedPlan.activation.startsOn === 'installation'
-                            ? 'event.activationInstall'
-                            : 'event.activationUnknown',
-                      )}
-                    </p>
-                    {selectedPlan.activation.installWithinDays ? (
+                  {selectedPlan ? (
+                    <Notice tone="info">
                       <p>
-                        {t('event.installWithin', {
-                          days: selectedPlan.activation.installWithinDays,
+                        {t('event.packageTerms', {
+                          mb: formatMb(logicalMb(selectedPlan.mb)),
+                          days: selectedPlan.validityDays,
+                          price: moneyUsdc(selectedPlan.wholesaleUsd6),
                         })}
                       </p>
-                    ) : null}
-                  </Notice>
-                ) : null}
+                      <p>
+                        {t(
+                          selectedPlan.activation.startsOn === 'first-network'
+                            ? 'event.activationNetwork'
+                            : selectedPlan.activation.startsOn === 'installation'
+                              ? 'event.activationInstall'
+                              : 'event.activationUnknown',
+                        )}
+                      </p>
+                      {selectedPlan.activation.installWithinDays ? (
+                        <p>
+                          {t('event.installWithin', {
+                            days: selectedPlan.activation.installWithinDays,
+                          })}
+                        </p>
+                      ) : null}
+                    </Notice>
+                  ) : null}
+                </>
+              )}
+            </Section>
+            <Section title="3 · Dates">
+              <p className="note">When the event runs; the package must cover it.</p>
+              <div className="grid items-start gap-4 sm:grid-cols-2">
+                {field('startsAt', t('event.startsAt'), undefined, 'datetime-local', datesHint)}
+                {field('endsAt', t('event.endsAt'), undefined, 'datetime-local', datesHint)}
               </div>
-            ) : resume.campaign.event ? (
-              <p className="note">
-                {resume.campaign.event.destinationCountry} · {resume.campaign.planId}
+              <p id={datesHint} className="ui-field__hint">
+                Local time on this device
               </p>
-            ) : null}
-            <div className="grid gap-3 sm:grid-cols-2">
-              {field('startsAt', t('event.startsAt'), t('event.localTime'), 'datetime-local')}
-              {field('endsAt', t('event.endsAt'), undefined, 'datetime-local')}
-              {field('claimUntil', t('event.claimUntil'), t('event.claimHint'), 'datetime-local')}
-              {field(
-                'reclaimAfter',
-                t('event.reclaimAfter'),
-                t('event.reclaimDateHint'),
-                'datetime-local',
-              )}
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {field('budgetUsd', 'Budget (USDC)')}
-              {field(
-                'priceUsd',
-                'Paid per claim (USDC)',
-                'Must cover the current minimum cost returned by the data provider',
-              )}
-              {field('maxClaims', 'Claims cap')}
-              {field('perHour', 'Claims per hour')}
-            </div>
-            <ListGroup label={t('event.reclaimOptIn')}>
-              <ListRow
-                title={t('event.reclaimOptIn')}
-                subtitle={t(
-                  selectedPlan?.cancellation === 'never-installed' ||
+              <details className="grid gap-3">
+                <summary className="t-label cursor-pointer">Advanced timing</summary>
+                <div className="mt-3 grid items-start gap-4 sm:grid-cols-2">
+                  {field(
+                    'claimUntil',
+                    t('event.claimUntil'),
+                    `Leave blank to use the event end. ${t('event.claimHint')}`,
+                    'datetime-local',
+                  )}
+                  {field(
+                    'reclaimAfter',
+                    t('event.reclaimAfter'),
+                    t('event.reclaimDateHint'),
+                    'datetime-local',
+                  )}
+                </div>
+              </details>
+              <ListGroup label={t('event.reclaimOptIn')}>
+                <ListRow
+                  title={t('event.reclaimOptIn')}
+                  subtitle={
+                    selectedPlan?.cancellation === 'never-installed' ||
                     resume?.campaign.event?.reclaimUnused
-                    ? 'event.reclaimTerms'
-                    : 'event.reclaimUnavailable',
-                )}
-                trailing="switch"
-                checked={draft.reclaimUnused}
-                disabled={
-                  running || Boolean(resume) || selectedPlan?.cancellation !== 'never-installed'
-                }
-                onCheckedChange={(reclaimUnused) =>
-                  setDraft((previous) => ({ ...previous, reclaimUnused }))
-                }
-              />
-            </ListGroup>
+                      ? 'After the event, never-installed eSIMs are cancelled and the allocation is returned to your wallet.'
+                      : selectedPlan
+                        ? 'Unavailable: this package’s provider does not cancel never-installed eSIMs.'
+                        : 'Choose a package first: only packages that cancel never-installed eSIMs offer this.'
+                  }
+                  trailing="switch"
+                  checked={draft.reclaimUnused}
+                  disabled={
+                    running || Boolean(resume) || selectedPlan?.cancellation !== 'never-installed'
+                  }
+                  onCheckedChange={(reclaimUnused) =>
+                    setDraft((previous) => ({ ...previous, reclaimUnused }))
+                  }
+                />
+              </ListGroup>
+            </Section>
+            <Section title="4 · Budget">
+              <p className="note">What each claim pays and how many claims the budget funds.</p>
+              <div className="grid items-start gap-4 sm:grid-cols-2">
+                {field('priceUsd', 'Paid per claim (USDC)', priceHint)}
+                {field('maxClaims', 'Claims cap')}
+                {field('perHour', 'Claims per hour')}
+                {field('budgetUsd', 'Budget (USDC)')}
+              </div>
+              {totalLine ? (
+                <p className="note" data-testid="campaign-total">
+                  {totalLine}
+                </p>
+              ) : null}
+            </Section>
             <p className="note">{t('event.ticketNotice')}</p>
             {wallet && hedera ? (
               <Notice

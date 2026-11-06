@@ -85,13 +85,9 @@ async function planEvent(days = 2) {
     reclaimAfter: startsAt + days * DAY,
   };
   fireEvent.change(screen.getByTestId('campaign-name'), { target: { value: 'Mumbai Welcome' } });
-  fireEvent.change(screen.getByRole('textbox', { name: 'Destination country' }), {
-    target: { value: 'IN' },
-  });
-  fireEvent.click(screen.getByRole('button', { name: 'Find destination plans' }));
-  fireEvent.change(await screen.findByLabelText('Provider package'), {
-    target: { value: PACKAGE.id },
-  });
+  // India is the default destination: its packages load without a click
+  expect(screen.getByRole<HTMLSelectElement>('combobox', { name: 'Destination' }).value).toBe('IN');
+  fireEvent.click(await screen.findByRole('radio', { name: new RegExp(PACKAGE.name) }));
   for (const [key, at] of Object.entries(dates))
     fireEvent.change(screen.getByTestId(`campaign-${key}`), { target: { value: local(at) } });
   return dates;
@@ -135,6 +131,45 @@ beforeEach(() => {
   }));
 });
 describe('Hedera campaign funding readiness', () => {
+  it('offers the unused-eSIM switch only on a package that cancels never-installed eSIMs', async () => {
+    mocks.catalog.mockResolvedValue({
+      country: 'IN',
+      plans: [
+        PACKAGE,
+        { ...PACKAGE, id: 'in-1gb-7d-b', name: 'India Basic', cancellation: 'unsupported' },
+      ],
+    });
+    render(<CampaignForm />);
+    const toggle = () => screen.getByRole<HTMLInputElement>('switch');
+    fireEvent.click(await screen.findByRole('radio', { name: /India Basic/ }));
+    expect(toggle().disabled).toBe(true);
+    expect(screen.getByText(/Unavailable: this package’s provider does not cancel/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('radio', { name: /India 1 GB/ }));
+    expect(toggle().disabled).toBe(false);
+    expect(
+      screen.getByText(/never-installed eSIMs are cancelled and the allocation is returned/),
+    ).toBeTruthy();
+  });
+  it('prefills the claim price at the advertised floor when the provider cost is below it', async () => {
+    mocks.catalog.mockResolvedValue({
+      country: 'IN',
+      plans: [{ ...PACKAGE, name: 'India 1 GB · 7 days', wholesaleUsd6: '1140000' }],
+    });
+    render(<CampaignForm />);
+    // the name already says the size and days, so the chip adds only the cost
+    const chip = await screen.findByRole('radio', { name: /India 1 GB · 7 days/ });
+    expect(chip.closest('label')?.textContent).toBe('India 1 GB · 7 days$1.14 per eSIM');
+    fireEvent.click(chip);
+    expect(screen.getByTestId<HTMLInputElement>('campaign-priceUsd').value).toBe('1.20');
+    expect(screen.getByText('Floor $1.20 · provider cost $1.14')).toBeTruthy();
+    expect(screen.getByTestId<HTMLInputElement>('campaign-budgetUsd').value).toBe('12.00');
+    expect(screen.getByTestId('campaign-total').textContent).toBe(
+      '10 claims × $1.20 = $12.00 USDC',
+    );
+    fireEvent.change(screen.getByTestId('campaign-budgetUsd'), { target: { value: '20' } });
+    fireEvent.change(screen.getByTestId('campaign-maxClaims'), { target: { value: '5' } });
+    expect(screen.getByTestId<HTMLInputElement>('campaign-budgetUsd').value).toBe('20');
+  });
   it('queries the actual pool token using the sponsor as the HRC719 caller', async () => {
     expect(await readSponsorFunding(mocks.wallet as unknown as Wallet)).toEqual({
       token: TOKEN,

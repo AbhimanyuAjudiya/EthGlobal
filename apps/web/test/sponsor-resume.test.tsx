@@ -80,13 +80,9 @@ async function planEvent(days = 2) {
     reclaimAfter: startsAt + days * DAY,
   };
   fireEvent.change(screen.getByTestId('campaign-name'), { target: { value: 'Mumbai Welcome' } });
-  fireEvent.change(screen.getByRole('textbox', { name: 'Destination country' }), {
-    target: { value: 'IN' },
-  });
-  fireEvent.click(screen.getByRole('button', { name: 'Find destination plans' }));
-  fireEvent.change(await screen.findByLabelText('Provider package'), {
-    target: { value: PACKAGE.id },
-  });
+  // India is the default destination: its packages load without a click
+  expect(screen.getByRole<HTMLSelectElement>('combobox', { name: 'Destination' }).value).toBe('IN');
+  fireEvent.click(await screen.findByRole('radio', { name: new RegExp(PACKAGE.name) }));
   for (const [key, at] of Object.entries(dates))
     fireEvent.change(screen.getByTestId(`campaign-${key}`), { target: { value: local(at) } });
   return dates;
@@ -127,11 +123,13 @@ describe('sponsor preflight and resumed registration', () => {
     const tenDays = local(dates.startsAt + 10 * DAY);
     fireEvent.change(screen.getByTestId('campaign-endsAt'), { target: { value: tenDays } });
     fireEvent.change(screen.getByTestId('campaign-reclaimAfter'), { target: { value: tenDays } });
+    // GET /plans already ran once with the catalogue (the price prefill); the submit must not reach it
+    const prefetched = mocks.plans.mock.calls.length;
     fireEvent.click(screen.getByTestId('campaign-submit'));
     await screen.findByText(/Choose a package whose installation window and validity cover/, {
       selector: 'p',
     });
-    expect(mocks.plans).not.toHaveBeenCalled();
+    expect(mocks.plans).toHaveBeenCalledTimes(prefetched);
     // dates back in range, but a claim priced under the advertised floor stops after GET /plans
     const twoDays = local(dates.endsAt);
     fireEvent.change(screen.getByTestId('campaign-endsAt'), { target: { value: twoDays } });
@@ -139,7 +137,7 @@ describe('sponsor preflight and resumed registration', () => {
     fireEvent.change(screen.getByTestId('campaign-priceUsd'), { target: { value: '1.00' } });
     fireEvent.click(screen.getByTestId('campaign-submit'));
     await screen.findByText(/Each claim must fund at least \$1\.20 USDC/, { selector: 'p' });
-    expect(mocks.plans).toHaveBeenCalled();
+    expect(mocks.plans).toHaveBeenCalledTimes(prefetched + 1);
     await waitFor(() =>
       expect(screen.getByTestId('campaign-submit').hasAttribute('disabled')).toBe(false),
     );

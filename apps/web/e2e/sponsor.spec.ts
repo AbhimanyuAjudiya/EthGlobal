@@ -17,11 +17,19 @@ test("sponsor: create → approve → createCampaign (two OnchainAction rows, ha
   await page.goto('/sponsor');
   await expect(page.getByTestId('demo-wallet')).toContainText('Anvil #3');
   await page.getByTestId('campaign-name').fill('Mumbai Arrivals e2e');
-  await page.getByRole('textbox', { name: 'Destination country' }).fill('IN');
-  await page.getByRole('button', { name: 'Find destination plans' }).click();
-  await page.getByLabel('Provider package').selectOption({ index: 1 });
+  // the destination defaults to India and its packages load by themselves: pick the 1 GB one
+  await expect(page.getByRole('combobox', { name: 'Destination' })).toHaveValue('IN');
+  const pkg = page.getByTestId('campaign-package');
+  await pkg.locator('.chip', { hasText: /India 1 GB/ }).click(); // ChoiceChips: the native radio is visually hidden
+  await expect(pkg.getByRole('radio', { name: /India 1 GB/ })).toBeChecked();
+  // the per-claim price defaults to the API's floor; the budget follows cap × price until typed
+  await expect(page.getByTestId('campaign-priceUsd')).toHaveValue('1.20');
+  await expect(page.getByTestId('campaign-total')).toHaveText('10 claims × $1.20 = $12.00 USDC');
+  await expect(page.getByTestId('campaign-submit')).toHaveText('Create campaign · $12.00 USDC');
   await page.getByTestId('campaign-budgetUsd').fill('50');
-  await page.getByTestId('campaign-priceUsd').fill('1.20'); // the package prefills wholesale; the API's floor is higher
+  await expect(page.getByTestId('campaign-submit')).toHaveText('Create campaign · $50.00 USDC');
+  // the claim deadline and the unused-eSIM review date sit under "Advanced timing"
+  await page.locator('summary', { hasText: 'Advanced timing' }).click();
   const startsAt = Date.now() + 10 * DAY;
   for (const [key, at] of Object.entries({
     startsAt,
@@ -46,11 +54,12 @@ test("sponsor: create → approve → createCampaign (two OnchainAction rows, ha
   await audit.getByRole('link', { name: 'Open Mumbai Arrivals e2e' }).click();
   await page.waitForURL(/\/sponsor\/0x[0-9a-f]{64}$/);
   await expect(page.getByTestId('sponsor-claims')).toHaveText('0 claims');
-  await expect(page.locator('.sponsor-hero__line')).toContainText(
+  await expect(page.locator('.page-header__lead')).toContainText(
     '$0.00 of $50.00 · 10 cap · 10/h',
   );
-  // no KPI tile wall, no donut: tables
-  await expect(page.getByRole('table')).toHaveCount(3);
+  // no donut: the tier table, and the empty expiring / claims lists as EmptyStates (not empty tables)
+  await expect(page.getByRole('table')).toHaveCount(1);
+  await expect(page.locator('.empty-state')).toHaveCount(2);
   const url = page.url();
 
   // pause via slide-to-confirm: a gesture, not a value (RT-W-04) — ten deliberate → presses, then the release

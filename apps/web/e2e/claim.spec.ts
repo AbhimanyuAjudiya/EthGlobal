@@ -8,31 +8,36 @@ test.describe('claim: / → /verify → /plan', () => {
   test('landing renders both paths and the live coupon count', async ({ page }) => {
     const plans = await apiGet<PlansResponse>(page, '/plans');
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Arrive connected.' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Land in India. Be online in two minutes.' }),
+    ).toBeVisible();
     await expect(
       page.getByRole('link', {
         name: `Prove I'm human → ${formatMb(plans.campaign!.bundleMb.orb)}`,
       }),
     ).toBeVisible();
-    await expect(page.getByRole('link', { name: /I.ll pay · 1\sGB for \$4\.00/ })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Enter a coupon PIN' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Open my plan' })).toBeVisible();
+    // the other paths: Pay instead / Scratch card QuickActions, and "My plan" under "Everything else"
+    await expect(page.getByRole('link', { name: 'Pay instead', exact: true })).toHaveAttribute('href', '/pay');
+    await expect(page.getByRole('link', { name: 'Scratch card', exact: true })).toHaveAttribute('href', '/card');
+    await expect(page.getByRole('link', { name: /^My plan/ })).toHaveAttribute('href', '/plan');
     const campaign = plans.campaign;
     expect(campaign).not.toBeNull();
     const fmt = new Intl.NumberFormat('en-IN');
-    await expect(page.locator('#landing-coupon .coupon__status')).toHaveText(
-      `${fmt.format(campaign?.remainingClaims ?? 0)} of ${fmt.format(campaign?.maxClaims ?? 0)} sponsor bundles left`,
+    await expect(page.locator('#landing-coupon .balance-card__note')).toHaveText(
+      `free · ${fmt.format(campaign?.remainingClaims ?? 0)} of ${fmt.format(campaign?.maxClaims ?? 0)} left`,
     );
-    // the sponsor is named once, on the coupon's line (not again in the count stub, RT design review #2)
-    await expect(page.locator('#landing-coupon .coupon__line').first()).toContainText(
+    // the sponsor is named once, on the card's caption (not again in the count, RT design review #2)
+    await expect(page.locator('#landing-coupon .balance-card__caption')).toHaveText(
       `from ${campaign?.name}`,
     );
-    // the unscratched coupon: latex over a ghost PIN row, "rub here" in both scripts, no second wordmark
-    await expect(page.locator('#landing-coupon .coupon__latex')).toContainText(
-      'rub here · यहाँ रगड़ें',
+    await expect(page.locator('#landing-coupon').getByText(campaign!.name)).toHaveCount(1);
+    // the card names itself for assistive tech; no second wordmark inside it
+    await expect(page.locator('#landing-coupon')).toHaveAttribute(
+      'aria-label',
+      `${formatMb(campaign!.bundleMb.orb)} of free data`,
     );
-    await expect(page.locator('#landing-coupon .coupon__wordmark')).toHaveCount(0);
-    await expect(page.locator('#landing-coupon .coupon__value')).toHaveText(
+    await expect(page.locator('#landing-coupon .wordmark')).toHaveCount(0);
+    await expect(page.locator('#landing-coupon .amount__value')).toHaveText(
       formatMb(campaign!.bundleMb.orb).split(/\s/)[0]!,
     );
     await expect(page.getByTestId('preflight')).toContainText(/eSIM/);
@@ -43,7 +48,7 @@ test.describe('claim: / → /verify → /plan', () => {
 
   test('the pay path opens the 402 sheet', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('link', { name: /I.ll pay/ }).click();
+    await page.getByRole('link', { name: 'Pay instead', exact: true }).click();
     await expect(page).toHaveURL(/\/pay$/);
     await expect(page.getByRole('heading', { name: /Buy 1\sGB · \$4\.00/ })).toBeVisible();
     await expect(page.getByTestId('pay-option')).toHaveText(/^1\sGB · 7 days · \$4\.00$/);
@@ -94,13 +99,14 @@ test.describe('claim: / → /verify → /plan', () => {
     const me = await apiGet<MeResponse>(page, `/me/${encodeURIComponent(key)}`);
     const amount = formatMb(me.mbTotal).split(/\s/)[0]!;
     const coupon = page.locator('#plan-coupon');
-    await expect(coupon.locator('.coupon__value')).toHaveText(amount);
-    // the lock-screen line: "1 GB · from <sponsor> · because you're human"
-    await expect(coupon.locator('.coupon__line').first()).toContainText(
-      /from .+ · because you.re human/,
+    await expect(coupon.locator('.amount__value')).toHaveText(amount);
+    // where it came from: the sponsor on the Details "From" row, "because you're human" as the Verified fact
+    await expect(page.locator('.list-row', { hasText: /^From/ })).toContainText(
+      me.sponsorName ?? 'Verified',
     );
+    await expect(page.getByTestId('issuing-verified')).toContainText(/^Verified · (Orb|Document)$/);
     for (const row of ['issuing-verified', 'issuing-paid', 'issuing-arkiv'])
-      await expect(page.getByTestId(row)).toHaveAttribute('data-done', 'true');
+      await expect(page.getByTestId(row).locator('.avatar')).toHaveAttribute('data-tone', 'positive');
     await expect(page.getByTestId('issuing-paid')).toContainText(
       /Sponsor paid\s*0x[0-9a-f]{4}…[0-9a-f]{4}/,
     );
@@ -111,11 +117,11 @@ test.describe('claim: / → /verify → /plan', () => {
     );
     // second visit: the odometer does not run again
     await page.reload();
-    await expect(coupon.locator('.coupon__value')).toHaveText(amount);
+    await expect(coupon.locator('.amount__value')).toHaveText(amount);
     const values = await page.evaluate(async () => {
       const seen: string[] = [];
       for (let i = 0; i < 10; i += 1) {
-        seen.push(document.querySelector('#plan-coupon .coupon__value')?.textContent ?? '');
+        seen.push(document.querySelector('#plan-coupon .amount__value')?.textContent ?? '');
         await new Promise((r) => setTimeout(r, 40));
       }
       return seen;

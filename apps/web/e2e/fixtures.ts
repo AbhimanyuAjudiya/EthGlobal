@@ -73,13 +73,17 @@ export async function interruptEntitlementOnce(page: Page, path: string) {
 /** `/` → "Prove I'm human" → /verify → the local simulated World ID → /plan/<key>. Returns the key. */
 export async function claimFreeBundle(page: Page): Promise<string> {
   await page.goto('/');
-  await page.getByRole('link', { name: /Prove I.m human/ }).click();
+  await page.getByRole('link', { name: /Prove I.m human →/ }).click();
   await expect(page).toHaveURL(/\/verify$/);
   const button = page.getByRole('button', { name: 'Simulated World ID' });
   await expect(button).toBeEnabled();
   await button.click();
   await page.waitForURL(/\/plan\/.+/, { timeout: 30_000 });
-  await expect(page.getByTestId('issuing-arkiv')).toHaveAttribute('data-done', 'true');
+  // the Arkiv fact has landed: its row's avatar turns into the positive check
+  await expect(page.getByTestId('issuing-arkiv').locator('.avatar')).toHaveAttribute(
+    'data-tone',
+    'positive',
+  );
   return decodeURIComponent(new URL(page.url()).pathname.replace(/^\/plan\//, ''));
 }
 

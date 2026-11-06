@@ -15,9 +15,11 @@ test('gift: reclaim after claimBy (clock mocked via API seed) → refund receipt
   await expect(page.getByTestId('gift-resolution')).toHaveText(/resolves/);
   await page
     .locator('.onchain-action')
-    .getByRole('button', { name: /^Pay \$/ })
+    .getByRole('button', { name: 'Gift 1 GB to rahul.eth · $4.00' })
     .click();
   await expect(page.getByTestId('gift-result')).toBeVisible({ timeout: 20_000 });
+  // the Reclaim list lives on /gift/claim
+  await page.goto('/gift/claim');
   const row = page.getByTestId('reclaim-row').first();
   await expect(
     row.getByRole('button', { name: 'Reclaim opens after the claim window closes' }),
@@ -49,5 +51,7 @@ test('gift: reclaim after claimBy (clock mocked via API seed) → refund receipt
   await expect(page.getByTestId('reclaim-row').first()).toContainText('Refunded $4.00', {
     timeout: 20_000,
   });
-  await expect(page.getByTestId('reclaim-row').first().locator('.receipt')).toContainText('You');
+  // a refunded row opens its receipt in a Sheet
+  await page.getByTestId('reclaim-row').first().getByRole('button').first().click();
+  await expect(page.getByRole('dialog').locator('.receipt')).toContainText('You');
 });

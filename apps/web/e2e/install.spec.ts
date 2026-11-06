@@ -34,8 +34,8 @@ test.describe('/install — honest by platform', () => {
         page.getByText('Settings → Cellular → Recharge → Data Roaming on').first(),
       ).toBeVisible();
       await expect(page.locator('svg.qr-code')).toHaveCount(0);
-      // Desktop Chrome UA (no coarse pointer): a computer says what the state is, not a phone's status-bar words
-      await expect(page.getByTestId('status-pill')).toHaveText('Not installed yet');
+      // an iPhone UA is a handheld (lib/device isHandheld): the pill speaks the phone's own status-bar words
+      await expect(page.getByTestId('status-pill')).toHaveText('No Service');
       await expect(page.getByTestId('copy-activation-code')).toHaveCount(0);
     });
   });

@@ -20,14 +20,16 @@ async function sendGift(page: Page) {
   await expect(
     sheet.getByRole('heading', { name: 'Gift 1 GB to rahul.eth · $4.00' }),
   ).toBeVisible();
-  await sheet.getByRole('button', { name: /^Pay \$/ }).click();
+  await sheet.getByRole('button', { name: 'Gift 1 GB to rahul.eth · $4.00' }).click();
   const result = page.getByTestId('gift-result');
   await expect(result).toBeVisible({ timeout: 20_000 });
   const pin = (await result.locator('.boarding-pass__pin').innerText())
     .replace(/^PIN\s*/, '')
     .trim();
   const serial = (await result.locator('.boarding-pass__serial').innerText()).trim();
-  const href = await result.getByRole('link', { name: 'Share claim link' }).getAttribute('href');
+  // Share sends the link (share sheet / clipboard); the claim href itself is on the "Claim link" row
+  await expect(result.getByRole('button', { name: 'Share claim link' })).toBeVisible();
+  const href = await result.getByRole('link', { name: /^Claim link/ }).getAttribute('href');
   return { pin, serial, claimHref: href ?? '' };
 }
 
@@ -46,7 +48,13 @@ test.describe('/gift — a boarding pass addressed to a name', () => {
     const qr = page.locator('.boarding-pass svg.qr-code');
     await expect(qr).toHaveAttribute('data-qr-url', new RegExp(`/card/${serial}$`));
     await expect(page.locator('.boarding-pass')).toContainText('rahul.eth');
-    await expect(page.getByText(/rahul\.eth →/)).toBeVisible();
+    // the recipient row: the name and the address it resolved to
+    await expect(
+      page
+        .getByTestId('gift-result')
+        .getByRole('listitem')
+        .filter({ has: page.locator('.list-row__title', { hasText: /^rahul\.eth$/ }) }),
+    ).toContainText(/0x[0-9a-fA-F]{4}…[0-9a-fA-F]{4}/);
     await expect(page.getByRole('button', { name: 'Save card' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Print' })).toBeVisible();
     await expect(page.locator('.onchain-action')).toHaveAttribute('data-state', 'finalized', {
@@ -64,7 +72,7 @@ test.describe('/gift — a boarding pass addressed to a name', () => {
     await expect(r.getByTestId('demo-wallet')).toContainText('Anvil #9');
     await r.getByTestId('claim-by-signature').click();
     await r.waitForURL(/\/plan\/giftent.+/);
-    await expect(r.locator('#plan-coupon .coupon__value')).toHaveText('1');
+    await expect(r.locator('#plan-coupon .amount__value')).toHaveText('1');
     await recipient.close();
   });
 
@@ -77,7 +85,7 @@ test.describe('/gift — a boarding pass addressed to a name', () => {
     await p.getByTestId('gift-pin').fill(pin);
     await p.getByRole('button', { name: 'Claim', exact: true }).click();
     await p.waitForURL(/\/plan\/.+/);
-    await expect(p.locator('#plan-coupon .coupon__value')).toHaveText('1');
+    await expect(p.locator('#plan-coupon .amount__value')).toHaveText('1');
     await holder.close();
   });
 

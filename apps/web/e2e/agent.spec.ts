@@ -14,9 +14,13 @@ test('agent: policy sheet persists via signed PUT; sentence updates; receipts ro
   const current = await apiGet<MeResponse>(page, `/me/${encodeURIComponent(key)}`);
   await expect(sentence).toContainText(`less than ${Math.floor(current.mbTotal * 0.2)} MB`);
   // every cap buys at least one 1 GB top-up: $4 · $8 · $20
-  await expect(page.getByTestId('agent-cap').getByRole('radio')).toHaveText(['$4', '$8', '$20']);
-  await page.getByTestId('agent-cap').getByRole('radio', { name: '≤ $20 / day' }).click();
-  await expect(page.getByRole('button', { name: 'Pause' })).toHaveCount(0);
+  const cap = page.getByTestId('agent-cap');
+  await expect(cap.getByRole('radio')).toHaveCount(3);
+  await expect(cap.locator('.chip')).toHaveText(['$4', '$8', '$20']);
+  await cap.getByText('$20', { exact: true }).click();
+  await expect(cap.getByRole('radio', { name: '$20' })).toBeChecked();
+  // no Pause control before a policy exists
+  await expect(page.getByRole('switch', { name: 'Pause' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Save and enable policy' }).click();
   await expect(page.getByTestId('agent-status')).toHaveText(
     /^Saved · signed by 0x[0-9a-fA-F]{4}…[0-9a-fA-F]{4}$/,
@@ -28,9 +32,12 @@ test('agent: policy sheet persists via signed PUT; sentence updates; receipts ro
   expect(saved.policy.stepMb).toBe(1000);
   expect(saved.owner.toLowerCase()).toBe('0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc'); // demo wallet · Anvil #5
 
-  await page.getByRole('button', { name: 'Pause' }).click();
+  const pause = page.getByRole('switch', { name: 'Pause' });
+  await expect(pause).not.toBeChecked();
+  await pause.click();
   await expect(sentence).toHaveText('Your agent is paused. It buys nothing until you resume it.');
-  await expect(page.getByRole('button', { name: 'Resume' })).toBeVisible();
+  // Resume is the same switch, now on
+  await expect(pause).toBeChecked();
   await expect
     .poll(
       async () =>

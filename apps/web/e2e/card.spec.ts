@@ -57,7 +57,7 @@ test.describe('/card/[serial] — preview → scratch → redeem', () => {
     await expect(redeem).toBeEnabled({ timeout: 5_000 });
     await redeem.click();
     await page.waitForURL(/\/plan\/.+/);
-    await expect(page.locator('#plan-coupon .coupon__value')).toHaveText('300');
+    await expect(page.locator('#plan-coupon .amount__value')).toHaveText('300');
     expect(redeemCalls).toBe(1);
   });
 

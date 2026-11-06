@@ -21,7 +21,8 @@ test.describe('PWA installable', () => {
       icons: { src: string; sizes: string; type: string; purpose?: string }[];
     };
     expect(manifest).toMatchObject({ name: 'Recharge', display: 'standalone', start_url: '/plan' });
-    expect(manifest.background_color).toBe('#fbfaf7');
+    // the sRGB of --bg-canvas (DESIGN.md v3: #ffffff)
+    expect(manifest.background_color).toBe('#ffffff');
     for (const size of ['192x192', '512x512']) {
       expect(manifest.icons.some((i) => i.sizes === size && i.purpose === 'any')).toBe(true);
       expect(manifest.icons.some((i) => i.sizes === size && i.purpose === 'maskable')).toBe(true);

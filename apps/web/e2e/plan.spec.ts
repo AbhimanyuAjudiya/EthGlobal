@@ -9,7 +9,7 @@ test.describe('/plan/[key]', () => {
   }) => {
     const key = await claimFreeBundle(page);
     const me = await apiGet<MeResponse>(page, `/me/${encodeURIComponent(key)}`);
-    const usage = page.locator('.mb-meter .usage-as-of time');
+    const usage = page.locator('#plan-coupon .usage-as-of time');
     await expect(usage).toHaveAttribute('datetime', new Date(me.usageAsOf).toISOString());
     const hhmm = new Intl.DateTimeFormat('en-IN', {
       timeZone: 'Asia/Kolkata',
@@ -23,13 +23,15 @@ test.describe('/plan/[key]', () => {
     await expect(expiry).toHaveText(
       /^Expires in \d+ d \d+ h · \w{3} \d{1,2} \w{3} \d{2}:\d{2} IST$/,
     );
-    await expect(page.locator('.mb-meter__source')).toHaveText(' · simulated usage');
+    await expect(page.locator('#plan-coupon .balance-card__note')).toHaveText('simulated usage');
     await expect(page.getByTestId('degraded-banner')).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Install eSIM · 2 min' })).toBeVisible();
-    await expect(page.getByRole('link', { name: '+1 GB · $4.00' })).toBeVisible();
-    // the "why it expires" disclosure carries the Arkiv entity key
-    await page.getByText('Plan details & receipt', { exact: true }).click();
-    await page.getByText('Why it expires by itself').click();
+    // the top-up is the plan's "Add data" QuickAction, for this plan's key
+    await expect(page.locator('.quick-actions').getByRole('link', { name: 'Add data', exact: true })).toHaveAttribute(
+      'href',
+      `/pay?key=${encodeURIComponent(key)}`,
+    );
+    // the Details row carries the Arkiv entity key, shown directly (no disclosure)
     await expect(page.getByTestId('arkiv-key')).toHaveText(me.arkivKey);
   });
 
@@ -48,7 +50,7 @@ test.describe('/plan/[key]', () => {
 
   test('AddToHomeScreen appears after issue, never on /', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('.coupon')).toBeVisible();
+    await expect(page.locator('#landing-coupon')).toBeVisible();
     await expect(page.getByTestId('add-to-home-screen')).toHaveCount(0);
     await claimFreeBundle(page);
     await expect(page.getByTestId('add-to-home-screen')).toBeVisible();

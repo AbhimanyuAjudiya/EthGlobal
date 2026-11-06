@@ -130,6 +130,10 @@ function Chart({
     <figure className="chart" aria-label={label}>
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-hidden="true">
         <line className="chart__axis" x1={LEFT} x2={W - RIGHT} y1={BASE} y2={BASE} />
+        <line className="chart__axis" x1={LEFT} x2={LEFT} y1={TOP} y2={BASE} />
+        <text className="chart__label" x="2" y={BASE + 3}>
+          0
+        </text>
         {kind === 'bars' ? (
           points.map((p, i) => (
             <rect
@@ -172,7 +176,7 @@ function Chart({
 }
 
 /**
- * The campaign page's analytics (GET /sponsor/:id/analytics, the same SponsorLogin as the page): KPI tiles, claims
+ * The campaign page's analytics (GET /sponsor/:id/analytics, the same SponsorLogin as the page): ruled figure rows, claims
  * per day and per hour, the funnel, plan status, every claimed-but-not-installed eSIM, the latest claims with their
  * proofs, and a CSV of all of it. Refreshes every 60 s while the tab is visible.
  */
@@ -272,7 +276,7 @@ export function CampaignAnalytics({ id, login }: { id: string; login: SponsorBea
         : m.runOutAt > m.endsAt
           ? t('analytics.kpi.runOutAfterEnd')
           : when(m.runOutAt);
-  const tiles: [StringKey, string, string][] = [
+  const figures: [StringKey, string, string][] = [
     [
       'analytics.kpi.claims',
       enIN.format(totals.claims),
@@ -362,12 +366,12 @@ export function CampaignAnalytics({ id, login }: { id: string; login: SponsorBea
       {data.sampled ? (
         <p className="note">{t('analytics.sampled', { n: enIN.format(data.scanCap) })}</p>
       ) : null}
-      <dl className="analytics__tiles">
-        {tiles.map(([key, value, sub]) => (
-          <div key={key} className="analytics-tile">
+      <dl className="analytics__figures">
+        {figures.map(([key, value, sub]) => (
+          <div key={key} className="analytics-figure">
             <dt>{t(key)}</dt>
-            <dd className="analytics-tile__value">{value}</dd>
-            <dd className="analytics-tile__sub">{sub}</dd>
+            <dd className="analytics-figure__value">{value}</dd>
+            <dd className="analytics-figure__sub">{sub}</dd>
           </div>
         ))}
       </dl>

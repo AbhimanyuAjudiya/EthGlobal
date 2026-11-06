@@ -7,6 +7,10 @@
   font-size: var(--text-14);
   color: var(--text-secondary);
 }
+.plan__expiry time,
+.plan__expiry p {
+  font-variant-numeric: tabular-nums slashed-zero;
+}
 .plan__actions {
   display: flex;
   flex-direction: column;
@@ -54,25 +58,53 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
+/* The summary's label sits under the coupon's number: the MB stays the one thing at 2x. */
+.plan-summary__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-20);
+  font-variation-settings: 'wdth' 100;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+/* Issuing: ruled rows that turn tertiary -> primary as each fact arrives; a row with its hash slides in once. */
 .issuing-rows {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
-  gap: 0.25rem;
   font-size: var(--text-14);
 }
 .issuing-rows li {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
-  min-height: 2rem;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-2);
+  min-height: 2.75rem;
+  padding-block: var(--space-1);
+  border-top: 1px solid var(--border-subtle);
   color: var(--text-tertiary);
   transition: color var(--duration-state) var(--ease-standard);
 }
+.issuing-rows li:last-child {
+  border-bottom: 1px solid var(--border-subtle);
+}
 .issuing-rows li[data-done] {
   color: var(--text-primary);
+  animation: issuing-in var(--duration-state) var(--ease-standard) both;
+}
+@keyframes issuing-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* "Why it expires by itself": the entity key in mono with its copy beside it. */
+.disclosure [data-testid='arkiv-key'] {
+  overflow-wrap: anywhere;
+  font-size: var(--text-13);
 }
 
 .disclosure {
@@ -100,4 +132,12 @@
 }
 .disclosure p {
   margin: 0.25rem 0;
+}
+
+/* DESIGN.md: the desktop composition starts at 880 px; below it the plan stays one column. */
+@media (min-width: 768px) and (max-width: 879px) {
+  .plan-screen .plan-overview,
+  .plan-screen .plan-support {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

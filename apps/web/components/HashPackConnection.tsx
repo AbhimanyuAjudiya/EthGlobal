@@ -43,10 +43,10 @@ export function HashPackConnection({
     }
   };
   return (
-    <div lang={lang}>
+    <div className="hashpack" lang={lang}>
       {state.session ? (
         <>
-          <p className="note" data-testid="hashpack-account">
+          <p className="hashpack__account" data-testid="hashpack-account">
             {t('pay.hashpackAccount', { account: state.session.accountId })}
           </p>
           <Button variant="quiet" onClick={onConnect} disabled={state.connecting}>

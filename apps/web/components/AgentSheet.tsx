@@ -371,16 +371,13 @@ export function AgentSheet() {
   return (
     <Screen money wide className="agent-screen">
       <AppHeader />
-      <div className="agent-layout">
-        <section className="sheet agent" aria-labelledby="agent-title">
-          <h1 id="agent-title" className="sheet__title" lang={lang}>
+      <div className="agent-desk">
+        <section className="sheet agent-sheet" aria-labelledby="agent-title">
+          <h1 id="agent-title" className="agent-sheet__title" lang={lang}>
             {t('agent.title')}
           </h1>
           <p className="agent__sentence" data-testid="agent-sentence" lang={lang}>
             {loadError ? t(loadError) : sentence}
-          </p>
-          <p className="note" lang={lang}>
-            {t('agent.enrollmentNote')}
           </p>
           {loadError ? (
             <Button variant="secondary" onClick={() => setLoadRound((n) => n + 1)}>
@@ -390,55 +387,69 @@ export function AgentSheet() {
           {policy ? (
             <>
               {/* one row of three equal segments: "$4 · $8 · $20", the "/ day" said once (no orphan chip) */}
-              <p className="segmented__legend" id="agent-cap-legend">
-                {t('agent.capLegend')}
-              </p>
-              <div
-                className="segmented segmented--even"
-                role="radiogroup"
-                aria-labelledby="agent-cap-legend"
-                data-testid="agent-cap"
-                style={{ '--segments': CAPS_USD.length } as CSSProperties}
-              >
-                {CAPS_USD.map((usd) => (
-                  <button
-                    key={usd}
-                    type="button"
-                    role="radio"
-                    aria-label={t('agent.capAria', { cap: `$${usd}` })}
-                    aria-checked={capUsd6 === BigInt(usd * USD6)}
-                    disabled={busy || !wallet}
-                    onClick={() => {
-                      const next = {
+              <div className="agent-controls">
+                <p className="segmented__legend" id="agent-cap-legend">
+                  {t('agent.capLegend')}
+                </p>
+                <div
+                  className="segmented segmented--even"
+                  role="radiogroup"
+                  aria-labelledby="agent-cap-legend"
+                  data-testid="agent-cap"
+                  style={{ '--segments': CAPS_USD.length } as CSSProperties}
+                >
+                  {CAPS_USD.map((usd) => (
+                    <button
+                      key={usd}
+                      type="button"
+                      role="radio"
+                      aria-label={t('agent.capAria', { cap: `$${usd}` })}
+                      aria-checked={capUsd6 === BigInt(usd * USD6)}
+                      disabled={busy || !wallet}
+                      onClick={() => {
+                        const next = {
+                          ...policy,
+                          stepMb: sold.mb,
+                          maxUsd6PerDay: String(usd * USD6),
+                        };
+                        if (view) void save(next);
+                        else setPolicy(next);
+                      }}
+                    >
+                      {`$${usd}`}
+                    </button>
+                  ))}
+                </div>
+                {/* the one wallet control is the header's; saving without a wallet opens its modal from here */}
+                {wallet ? (
+                  <Button
+                    variant="secondary"
+                    disabled={busy}
+                    onClick={() =>
+                      void save({
                         ...policy,
                         stepMb: sold.mb,
-                        maxUsd6PerDay: String(usd * USD6),
-                      };
-                      if (view) void save(next);
-                      else setPolicy(next);
-                    }}
+                        paused: view ? !policy.paused : false,
+                      })
+                    }
+                    {...(view ? { 'aria-pressed': policy.paused } : {})}
                   >
-                    {`$${usd}`}
-                  </button>
-                ))}
+                    {!view
+                      ? t('agent.enable')
+                      : policy.paused
+                        ? t('agent.resume')
+                        : t('agent.pause')}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="secondary"
+                    disabled={!openConnectModal}
+                    onClick={openConnectModal}
+                  >
+                    {t('agent.connectToSave')}
+                  </Button>
+                )}
               </div>
-              {/* the one wallet control is the header's; saving without a wallet opens its modal from here */}
-              {wallet ? (
-                <Button
-                  variant="secondary"
-                  disabled={busy}
-                  onClick={() =>
-                    void save({ ...policy, stepMb: sold.mb, paused: view ? !policy.paused : false })
-                  }
-                  {...(view ? { 'aria-pressed': policy.paused } : {})}
-                >
-                  {!view ? t('agent.enable') : policy.paused ? t('agent.resume') : t('agent.pause')}
-                </Button>
-              ) : (
-                <Button variant="secondary" disabled={!openConnectModal} onClick={openConnectModal}>
-                  {t('agent.connectToSave')}
-                </Button>
-              )}
             </>
           ) : !loadError ? (
             <div className="skeleton skeleton--line" aria-hidden="true" />
@@ -454,9 +465,8 @@ export function AgentSheet() {
                     })
                   : (message ?? ' ')}
           </p>
-          <ProofPanel proof={proof} />
           {view && capUsd6 > 0n ? (
-            <p className="note" lang={lang}>
+            <p className="agent-spent" lang={lang}>
               {spent >= capUsd6
                 ? t('agent.capReached', {
                     cap: money(capUsd6),
@@ -506,8 +516,12 @@ export function AgentSheet() {
               )}
             </div>
           ) : null}
+          <p className="note" lang={lang}>
+            {t('agent.enrollmentNote')}
+          </p>
+          <ProofPanel proof={proof} />
         </section>
-        <div className="agent-history">
+        <div className="agent-ledger">
           {process.env.NEXT_PUBLIC_MODE === 'local' ? (
             <section className="agent__rows" aria-label="Agent top-ups">
               {rows.length === 0 ? (
@@ -520,10 +534,10 @@ export function AgentSheet() {
                     const template = explorerTemplate(r.network);
                     return (
                       <li key={`${r.tx}-${r.at}`} data-testid="agent-row">
-                        <span>{clockIst(r.at)}</span>
-                        <span>{r.mb ? `+${formatMb(r.mb)}` : ''}</span>
-                        <span>{r.usd6 ? money(r.usd6) : ''}</span>
-                        <span className="mono-key" data-hash title={r.uaid}>
+                        <span className="ledger-rows__time">{clockIst(r.at)}</span>
+                        {r.mb ? <span>{`+${formatMb(r.mb)}`}</span> : null}
+                        {r.usd6 ? <span>{money(r.usd6)}</span> : null}
+                        <span className="ledger-rows__who" data-hash title={r.uaid}>
                           {r.uaid ? `agent ${r.uaid.slice(0, 18)}…` : 'agent'}
                         </span>
                         {r.tx ? (
@@ -613,8 +627,12 @@ function ArkivHistory({
   }, [planKey, attempt]);
 
   return (
-    <section className="sheet" aria-labelledby="arkiv-history-title" data-testid="arkiv-history">
-      <h2 id="arkiv-history-title" className="sheet__kicker" lang={lang}>
+    <section
+      className="agent-history"
+      aria-labelledby="arkiv-history-title"
+      data-testid="arkiv-history"
+    >
+      <h2 id="arkiv-history-title" className="agent-history__title" lang={lang}>
         {t('agent.historyTitle')}
       </h2>
       {history && policy ? (
@@ -626,7 +644,7 @@ function ArkivHistory({
         </p>
       ) : null}
       {failed ? (
-        <div className="row-actions" style={{ alignItems: 'center' }}>
+        <div className="row-actions agent-history__error">
           <p className="note" role="status" lang={lang}>
             {t('agent.historyError')}
           </p>
@@ -655,7 +673,7 @@ function ArkivHistory({
             const name = explorerName(r.network);
             return (
               <li key={r.entityKey} data-testid="arkiv-row">
-                <span>{`${dayLabel(r.at, lang)} ${clockIst(r.at)}`}</span>
+                <span className="ledger-rows__time">{`${dayLabel(r.at, lang)} ${clockIst(r.at)}`}</span>
                 {r.mb ? <span>{`+${formatMb(r.mb)}`}</span> : null}
                 {r.usd6 ? <span>{moneyUsdc(r.usd6)}</span> : null}
                 <span>{netName(r.network)}</span>

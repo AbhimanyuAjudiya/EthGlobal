@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { dateTime, DEFAULT_TIME_ZONE, duration, type DurationUnits } from './format';
+import { cx, dateTime, DEFAULT_TIME_ZONE, duration, type DurationUnits } from './format';
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -62,7 +62,7 @@ export function Countdown({
   const relative = duration(left, units);
   return (
     <time
-      className={className}
+      className={cx('ui-countdown', className)}
       lang={lang}
       dateTime={new Date(until).toISOString()}
       aria-live="off"

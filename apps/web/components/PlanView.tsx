@@ -279,6 +279,19 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
   const from = origin(m, receipts, t);
   const tx = facts?.claimTx ?? facts?.settlement;
   const arkivUrl = arkivEntityUrl(m.arkivKey);
+  // the issue moment: the three facts sit under the number on the first view, then fold into the details
+  const issuing = facts ? (
+    <IssuingRows
+      facts={{
+        ...(from.verified ? { verified: from.verified } : {}),
+        ...(tx ? { tx } : {}),
+        ...(facts.network ? { network: facts.network } : {}),
+        paidBySponsor: Boolean(facts.claimTx),
+        arkivKey: m.arkivKey,
+        ...(facts.hcs ? { hcs: facts.hcs } : {}),
+      }}
+    />
+  ) : null;
 
   return (
     <Screen wide className="plan-screen">
@@ -326,9 +339,10 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
           <p className="eyebrow" lang={lang}>
             {t('flow.coverage')}
           </p>
-          <h1 id="plan-summary-title" className="screen__title" lang={lang}>
+          <h1 id="plan-summary-title" className="plan-summary__title" lang={lang}>
             {t('plan.summary')}
           </h1>
+          {firstView ? issuing : null}
           <MbMeter
             remainingMb={m.remainingMb}
             totalMb={m.mbTotal}
@@ -449,18 +463,7 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
         <details className="disclosure plan-details">
           <summary lang={lang}>{t('plan.details')}</summary>
           <div className="plan-details__body">
-            {facts ? (
-              <IssuingRows
-                facts={{
-                  ...(from.verified ? { verified: from.verified } : {}),
-                  ...(tx ? { tx } : {}),
-                  ...(facts.network ? { network: facts.network } : {}),
-                  paidBySponsor: Boolean(facts.claimTx),
-                  arkivKey: m.arkivKey,
-                  ...(facts.hcs ? { hcs: facts.hcs } : {}),
-                }}
-              />
-            ) : null}
+            {firstView ? null : issuing}
             <ProofPanel proof={facts?.proof} />
             <details className="disclosure">
               <summary>{t('plan.whyExpires')}</summary>
@@ -480,6 +483,7 @@ export function PlanView({ entitlementKey }: { entitlementKey: string }) {
                   m.arkivKey
                 )}
               </p>
+              <CopyButton value={m.arkivKey} label={t('install.copy')} testId="copy-arkiv-key" />
             </details>
             {foreign || terminal || activationUnavailable ? null : (
               <OtherDevice entitlementKey={entitlementKey} />

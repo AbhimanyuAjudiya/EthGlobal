@@ -89,22 +89,43 @@ export function ReceiptList({ entitlementKey }: { entitlementKey?: string }) {
   };
 
   return (
-    <Screen wide className="receipts-screen">
+    <Screen wide className="receipts-ledger">
       <AppHeader />
       <PendingTransactions />
-      <h1 className="screen__title" lang={lang}>
-        {t('receipts.title')}
-      </h1>
-      <p className="flow-heading__intro" lang={lang}>
-        {t('receipts.intro')}
-      </p>
+      <header className="receipts-head">
+        <div>
+          <h1 className="receipts-head__title" lang={lang}>
+            {t('receipts.title')}
+          </h1>
+          <p className="receipts-head__intro" lang={lang}>
+            {t('receipts.intro')}
+          </p>
+        </div>
+        {receipts && receipts.length > 0 ? (
+          <button type="button" className="ui-button" data-variant="secondary" onClick={download}>
+            {t('receipts.csv')}
+          </button>
+        ) : null}
+      </header>
       {foreign ? (
         <p className="note" role="note" data-testid="receipts-foreign">
           {t('receipts.foreign')}
         </p>
       ) : null}
       {receipts === undefined ? (
-        <div className="skeleton skeleton--line" aria-hidden="true" />
+        // the skeleton is the real layout: a day header over one three-line receipt
+        <div className="receipt-day" aria-hidden="true">
+          <div className="receipt-day__head">
+            <span className="skeleton receipt-skel receipt-skel--day" />
+            <span className="skeleton receipt-skel receipt-skel--total" />
+          </div>
+          <div className="receipt-row">
+            <span className="skeleton receipt-skel receipt-skel--heading" />
+            <span className="skeleton receipt-skel" />
+            <span className="skeleton receipt-skel" />
+            <span className="skeleton receipt-skel" />
+          </div>
+        </div>
       ) : receipts.length === 0 ? (
         <div className="ghost-row">
           <Receipt
@@ -121,53 +142,72 @@ export function ReceiptList({ entitlementKey }: { entitlementKey?: string }) {
             <section key={day} className="receipt-day">
               <h2 className="receipt-day__head">
                 <span>{day}</span>
-                <span className="tnum">
+                <span className="receipt-day__total">
                   {t('receipts.dayYou', { amount: money(youPaid(rows)) })}
                 </span>
               </h2>
               {rows.map((r) => {
                 const template = explorerTemplate(r.network);
                 const name = explorerName(r.network);
+                const pending = (r.kind === REFUND || r.kind === 'campaign-reclaim') && !r.tx;
+                const what =
+                  r.kind === 'campaign-reclaim'
+                    ? t('receipts.sponsorRefund')
+                    : r.kind === REFUND
+                      ? t('receipts.refund')
+                      : r.mb
+                        ? `+${formatMb(r.mb)}`
+                        : r.kind;
                 return (
                   <article
                     key={`${r.kind}-${r.at}-${r.tx ?? ''}`}
                     className="receipt-row"
                     data-kind={r.kind}
+                    data-state={pending ? 'pending' : 'final'}
                   >
                     <Receipt
-                      heading={`${r.kind === 'campaign-reclaim' ? t('receipts.sponsorRefund') : r.kind === REFUND ? t('receipts.refund') : r.mb ? `+${formatMb(r.mb)}` : r.kind} · ${day} ${clockIst(r.at)} · ${netName(r.network)} · ${t((r.kind === REFUND || r.kind === 'campaign-reclaim') && !r.tx ? 'receipts.pending' : 'receipts.final')}`}
+                      heading={
+                        <>
+                          {pending ? <span className="receipt-ring" aria-hidden="true" /> : null}
+                          {`${what} · ${day} ${clockIst(r.at)} · ${netName(r.network)} · ${t(pending ? 'receipts.pending' : 'receipts.final')}`}
+                        </>
+                      }
                       {...lines(r)}
                       networkFee="$0.00"
                       lang={lang}
                     />
-                    <details className="disclosure">
-                      <summary lang={lang}>{t('receipts.details')}</summary>
-                      {r.tx ? (
-                        <Hash
-                          value={r.tx}
-                          kind="transaction hash"
-                          {...(template ? { explorerHref: template.replace('{hash}', r.tx) } : {})}
-                          {...(name ? { explorerName: name } : {})}
-                        />
-                      ) : null}
-                      {r.hcs ? (
-                        <p className="mono-key" data-hash>
-                          <a
-                            className="receipt-proof-link"
-                            href={hcsTopicUrl(r.hcs.topic)}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            HCS {r.hcs.topic} · #{r.hcs.sequence}
-                          </a>
-                        </p>
-                      ) : null}
-                      {r.uaid ? (
-                        <p className="mono-key" data-hash>
-                          {r.uaid}
-                        </p>
-                      ) : null}
-                    </details>
+                    {r.tx || r.hcs || r.uaid ? (
+                      <details className="disclosure receipt-row__proof">
+                        <summary lang={lang}>{t('receipts.details')}</summary>
+                        {r.tx ? (
+                          <Hash
+                            value={r.tx}
+                            kind="transaction hash"
+                            {...(template
+                              ? { explorerHref: template.replace('{hash}', r.tx) }
+                              : {})}
+                            {...(name ? { explorerName: name } : {})}
+                          />
+                        ) : null}
+                        {r.hcs ? (
+                          <p className="mono-key" data-hash>
+                            <a
+                              className="receipt-proof-link"
+                              href={hcsTopicUrl(r.hcs.topic)}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              HCS {r.hcs.topic} · #{r.hcs.sequence}
+                            </a>
+                          </p>
+                        ) : null}
+                        {r.uaid ? (
+                          <p className="mono-key" data-hash>
+                            {r.uaid}
+                          </p>
+                        ) : null}
+                      </details>
+                    ) : null}
                   </article>
                 );
               })}
@@ -175,11 +215,6 @@ export function ReceiptList({ entitlementKey }: { entitlementKey?: string }) {
           );
         })
       )}
-      {receipts && receipts.length > 0 ? (
-        <button type="button" className="ui-button" data-variant="quiet" onClick={download}>
-          {t('receipts.csv')}
-        </button>
-      ) : null}
       {noPlan ? <NoPlanSteps /> : null}
       <TabBar active="receipts" />
     </Screen>

@@ -56,8 +56,27 @@ export const colorTokens = [
 export type ColorToken = (typeof colorTokens)[number];
 
 /** One radius per component family; never `rounded-2xl` everywhere. */
-export const radiusTokens = ['radius-control', 'radius-object'] as const;
+export const radiusTokens = ['radius-control', 'radius-object', 'radius-pill'] as const;
 export type RadiusToken = (typeof radiusTokens)[number];
+
+/** 4 px grid: 4, 8, 12, 16, 24, 32, 40, 48, 64, 96 px. */
+export const spaceTokens = [
+  'space-1',
+  'space-2',
+  'space-3',
+  'space-4',
+  'space-5',
+  'space-6',
+  'space-7',
+  'space-8',
+  'space-9',
+  'space-10',
+] as const;
+export type SpaceToken = (typeof spaceTokens)[number];
+
+/** Two elevation levels: focused field, lifted card / sheet / menu. */
+export const shadowTokens = ['shadow-1', 'shadow-2'] as const;
+export type ShadowToken = (typeof shadowTokens)[number];
 
 export const typeScale = [11, 12, 13, 14, 16, 20, 24, 32, 44, 64] as const;
 export type TypeScaleStep = (typeof typeScale)[number];
@@ -96,6 +115,8 @@ export type Token =
   | ColorToken
   | ObjectToken
   | RadiusToken
+  | SpaceToken
+  | ShadowToken
   | FontToken
   | typeof scratchFontToken
   | MotionToken

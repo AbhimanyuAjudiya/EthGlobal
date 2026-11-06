@@ -10,11 +10,12 @@
   align-self: flex-start;
   display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
-  margin: 0;
-  padding: 0.5rem 1.125rem;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-control);
+  gap: var(--space-3);
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface);
   font-family: var(--font-display);
   font-size: var(--text-32);
   font-variation-settings: 'wdth' 110;
@@ -22,20 +23,33 @@
   line-height: var(--leading-display);
   color: var(--text-tertiary);
 }
+/* the 6 px dot exists only once there is service: 0.6 -> 1, the one permitted scale */
 .status-pill__dot {
-  width: 10px;
-  height: 10px;
+  display: none;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: var(--text-disabled);
-  transform: scale(0.6);
-  transition: transform var(--duration-state) var(--ease-standard);
+  background: var(--accent);
+}
+.status-pill[data-state='installed'] {
+  color: var(--text-secondary);
 }
 .status-pill[data-state='active'] {
   color: var(--text-primary);
 }
 .status-pill[data-state='active'] .status-pill__dot {
-  background: var(--accent);
-  transform: scale(1);
+  display: block;
+  animation: dot-in var(--duration-state) var(--ease-standard) both;
+}
+@keyframes dot-in {
+  from {
+    transform: scale(0.6);
+  }
+}
+@media (max-width: 359px) {
+  .status-pill {
+    font-size: var(--text-24);
+  }
 }
 .status-pill__text {
   animation: fade-in var(--duration-state) var(--ease-standard) both;
@@ -160,12 +174,23 @@
 .connection-check__result[data-result='mobile'] {
   color: var(--positive);
 }
+/* After 3 min without service: the three things to check, as ruled rows. */
 .trouble h2 {
   font-size: var(--text-16);
-  margin: 0 0 0.25rem;
+  margin: 0 0 var(--space-2);
 }
 .trouble ul {
   margin: 0;
-  padding-left: 1.25rem;
+  padding: 0;
+  list-style: none;
   font-size: var(--text-14);
+}
+.trouble li {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  border-top: 1px solid var(--border-subtle);
+}
+.trouble li:last-child {
+  border-bottom: 1px solid var(--border-subtle);
 }

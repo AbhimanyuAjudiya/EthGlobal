@@ -34,7 +34,7 @@ export function Hash({
 
   useEffect(() => {
     if (copy === 'idle') return;
-    const timer = setTimeout(() => setCopy('idle'), 2000);
+    const timer = setTimeout(() => setCopy('idle'), 1500);
     return () => clearTimeout(timer);
   }, [copy]);
 

@@ -65,6 +65,10 @@ function ClaimsPerHour({
       <svg viewBox={`0 0 ${w} ${h}`} role="img" aria-hidden="true">
         <line x1="32" x2={w - 8} y1={y(cap)} y2={y(cap)} className="chart__cap" />
         <line x1="32" x2={w - 8} y1={h - 20} y2={h - 20} className="chart__axis" />
+        <line x1="32" x2="32" y1="12" y2={h - 20} className="chart__axis" />
+        <text x="4" y={h - 17} className="chart__label">
+          0
+        </text>
         <polyline points={points} className="chart__line" />
         <text x="4" y={y(cap) + 4} className="chart__label">
           {cap}/h
@@ -76,7 +80,9 @@ function ClaimsPerHour({
           now
         </text>
       </svg>
-      <figcaption className="note">Claims per hour · dashed line = hourly cap</figcaption>
+      <figcaption className="note">
+        Claims per hour, last 24 h · dashed rule = hourly cap
+      </figcaption>
     </figure>
   );
 }
@@ -110,6 +116,7 @@ export function SponsorTable({ id }: { id: string }) {
   const now = useClock(60_000);
   const [actionTitle, setActionTitle] = useState<string | undefined>();
   const [proof, setProof] = useState<Proof>();
+  const [copied, setCopied] = useState<boolean>();
 
   const loginIdentity = useRef<string | undefined>(undefined);
   const identity = `${id}:${wallet?.address.toLowerCase() ?? ''}`;
@@ -265,6 +272,8 @@ export function SponsorTable({ id }: { id: string }) {
   const template = explorerTemplate(campaign.network);
   const xName = explorerName(campaign.network);
   const contractHref = contractUrl(campaign.network, campaign.contract);
+  // this campaign's live plans on Arkiv: the same filter the API's sponsor reads use (ANN.type, ANN.campaignId)
+  const arkivQuery = `type = "entitlement" && campaignId = "${campaign.id.toLowerCase()}"`;
 
   const download = () => {
     const url = URL.createObjectURL(new Blob([csv(view)], { type: 'text/csv' }));
@@ -277,21 +286,24 @@ export function SponsorTable({ id }: { id: string }) {
 
   return (
     <div className="sponsor-view">
-      <header className="sponsor-hero">
+      <header className="pane sponsor-hero" aria-label="Campaign summary">
         <h1 className="sponsor-hero__name">
           {campaign.name}{' '}
-          <span className="pill" data-state={chain.paused ? 'paused' : 'live'}>
+          <span className="pill" data-state={expired ? 'closed' : chain.paused ? 'paused' : 'live'}>
             {expired ? t('event.closed') : chain.paused ? 'Paused' : 'Live'}
           </span>
         </h1>
-        <p className="sponsor-hero__figure" data-testid="sponsor-claims">
-          {enIN.format(chain.claims)} claims
-        </p>
-        <p className="sponsor-hero__line">
-          {money(spent)} of {money(budget)} · {enIN.format(campaign.maxClaims)} cap ·{' '}
-          {campaign.claimsPerHour}/h · {networkName(campaign.network)}
-        </p>
-        <p className="note">
+        <div className="sponsor-hero__figures">
+          <p className="sponsor-hero__figure" data-testid="sponsor-claims">
+            {enIN.format(chain.claims)} claims
+          </p>
+          <p className="sponsor-hero__line">
+            {money(spent)} of {money(budget)} · {enIN.format(campaign.maxClaims)} cap ·{' '}
+            {campaign.claimsPerHour}/h · {networkName(campaign.network)}
+          </p>
+        </div>
+        {/* the one delta: a line under the hero, never a "+12.5 %" chip */}
+        <p className="sponsor-hero__delta">
           This hour: {chain.claimsThisHour} claims · ends {dayLabel(campaign.expiresAt)}
         </p>
         <p className="note">
@@ -347,13 +359,20 @@ export function SponsorTable({ id }: { id: string }) {
           closed={expired || chain.paused}
         />
       ) : null}
-      <section className="pane" aria-label="Budget">
-        <div className="budget-bar" role="img" aria-label={`Spent ${spentPct} % of the budget`}>
-          <span className="budget-bar__spent" style={{ transform: `scaleX(${spentPct / 100})` }} />
+      <section className="pane" aria-labelledby="budget-title">
+        <h2 id="budget-title" className="pane__title">
+          Budget burn
+        </h2>
+        <div
+          className="budget-bar"
+          role="img"
+          aria-label={`Spent ${money(spent)} (${spentPct} %), remaining ${money(budget - spent)}`}
+        >
+          <span className="budget-bar__spent" style={{ width: `${spentPct}%` }} />
         </div>
         <p className="budget-legend">
-          <span>Spent {money(spent)}</span>
-          <span>Remaining {money(budget - spent)}</span>
+          <span data-part="spent">Spent {money(spent)}</span>
+          <span data-part="remaining">Remaining {money(budget - spent)}</span>
         </p>
         <ClaimsPerHour claims={view.claims} cap={campaign.claimsPerHour} now={now} />
       </section>
@@ -395,7 +414,7 @@ export function SponsorTable({ id }: { id: string }) {
           </Button>
         </section>
       ) : null}
-      <section className="pane" aria-labelledby="tiers-title">
+      <section className="pane pane--half" aria-labelledby="tiers-title">
         <h2 id="tiers-title" className="pane__title">
           Claims by credential level
         </h2>
@@ -434,7 +453,7 @@ export function SponsorTable({ id }: { id: string }) {
           </table>
         </div>
       </section>
-      <section className="pane" aria-labelledby="expiring-title">
+      <section className="pane pane--half" aria-labelledby="expiring-title">
         <h2 id="expiring-title" className="pane__title">
           Expiring quotas · {soon} plans expire in 24 h
         </h2>
@@ -543,11 +562,40 @@ export function SponsorTable({ id }: { id: string }) {
             </tbody>
           </table>
         </div>
+      </section>
+      <section className="pane" aria-labelledby="exports-title">
+        <h2 id="exports-title" className="pane__title">
+          Exports
+        </h2>
         <div className="row-actions">
           <button type="button" className="ui-button" data-variant="secondary" onClick={download}>
             Export claims CSV (HMAC&apos;d keys)
           </button>
+          <button
+            type="button"
+            className="ui-button"
+            data-variant="quiet"
+            data-testid="arkiv-query"
+            onClick={() => {
+              void navigator.clipboard?.writeText(arkivQuery).then(
+                () => setCopied(true),
+                () => setCopied(false),
+              );
+            }}
+          >
+            Copy Arkiv query
+          </button>
         </div>
+        <p className="note arkiv-query-text">
+          <code data-hash>{arkivQuery}</code>
+        </p>
+        <p className="note" role="status">
+          {copied === true
+            ? 'Arkiv query copied.'
+            : copied === false
+              ? 'Copy failed: select the query above.'
+              : ''}
+        </p>
       </section>
       <section className="pane" aria-labelledby="controls-title">
         <h2 id="controls-title" className="pane__title">

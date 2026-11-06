@@ -96,6 +96,7 @@ function HederaPanel({
   onConnect: () => void;
 }) {
   const { t, lang } = useLang();
+  const netName = useNetworkName();
   const terms = hederaTerms(req);
   return (
     <section className="hedera-panel" data-testid="hedera-panel">
@@ -103,7 +104,7 @@ function HederaPanel({
       <p lang={lang}>{t('pay.hederaBody')}</p>
       <RuledList
         rows={[
-          { label: t('pay.hNetwork'), value: terms.network, mono: true },
+          { label: t('pay.hNetwork'), value: netName(terms.network) },
           { label: t('pay.hAsset'), value: <span data-hash>{terms.asset}</span>, mono: true },
           {
             label: t('pay.hAmount'),
@@ -141,7 +142,7 @@ function ForeignPlanGate({
     api.me(entitlementKey).then(setMe, () => setMe(null));
   }, [entitlementKey]);
   return (
-    <Screen money className="checkout-screen">
+    <Screen money className="pay-screen">
       <AppHeader />
       {me === undefined ? (
         <div className="skeleton skeleton--line" aria-hidden="true" />
@@ -150,8 +151,8 @@ function ForeignPlanGate({
           {t('pay.notHereUnknown')}
         </p>
       ) : (
-        <section className="sheet" data-testid="pay-foreign">
-          <p className="sheet__lede">
+        <section className="pay-gate" data-testid="pay-foreign">
+          <p lang={lang}>
             {t('pay.notHere', {
               mb: formatMb(me.mbTotal),
               when: `${dayLabel(me.expiresAt, lang)} ${clockIst(me.expiresAt)}`,
@@ -474,63 +475,13 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
   ];
 
   return (
-    <Screen money wide className="checkout-screen">
+    <Screen money wide className="pay-screen">
       <AppHeader />
-      <header className="flow-heading">
-        <p className="eyebrow" lang={lang}>
-          {t('flow.steps')}
-        </p>
-        <h1 className="screen__title" lang={lang}>
-          {t(entitlementKey ? 'pay.topupHeading' : 'pay.heading')}
-        </h1>
-        <p className="flow-heading__intro" lang={lang}>
-          {t(entitlementKey ? 'pay.topupIntro' : 'pay.intro', {
-            days: plans?.paid.validityDays ?? 7,
-          })}
-        </p>
-      </header>
-      <div className="checkout-grid">
-        <aside className="checkout-summary" aria-label={t('landing.paidPlan')}>
-          <p className="eyebrow" lang={lang}>
-            {t('flow.coverage')}
-          </p>
-          <p className="checkout-amount">{formatMb(mb)}</p>
-          <p className="checkout-price">
-            {money(planUsd6)} <span>USDC</span>
-          </p>
-          <p className="note" lang={lang}>
-            {t('flow.dataOnly')}
-          </p>
-          {!entitlementKey ? (
-            <>
-              <p className="note" lang={lang}>
-                {t('pay.noPlan')}
-              </p>
-              {/* a new plan's activation code is sealed to this browser's session */}
-              <Caution k="warn.thisBrowser" />
-            </>
-          ) : null}
-          {me ? (
-            <MbMeter
-              remainingMb={me.remainingMb}
-              totalMb={me.mbTotal}
-              usageAsOf={me.usageAsOf}
-              lang={lang}
-              className="pay__meter"
-            />
-          ) : null}
-          {!entitlementKey && row.state === 'idle' ? (
-            <p className="pay__option" data-testid="pay-option" lang={lang}>
-              {t('pay.option', {
-                mb: formatMb(mb),
-                days: plans?.paid.validityDays ?? 7,
-                price: money(planUsd6),
-              })}
-            </p>
-          ) : null}
-          <Caution k="warn.unlocked" />
-        </aside>
-        <section className="checkout-payment" aria-label={t('pay.payFrom')}>
+      <div className="pay-desk">
+        <section className="pay-desk__object">
+          <h1 className="pay-title" lang={lang}>
+            {t(entitlementKey ? 'pay.topupHeading' : 'pay.heading')}
+          </h1>
           {accepts.length > 0 && row.state === 'idle' ? (
             <div
               className="segmented"
@@ -630,14 +581,58 @@ function PaySheetBody({ entitlementKey }: { entitlementKey?: string }) {
               {t('pay.openPlan')}
             </button>
           ) : null}
+        </section>
+        <aside className="pay-desk__details" aria-label={t('landing.paidPlan')}>
+          <p className="pay-intro" lang={lang}>
+            {t(entitlementKey ? 'pay.topupIntro' : 'pay.intro', {
+              days: plans?.paid.validityDays ?? 7,
+            })}
+          </p>
+          {me ? (
+            <MbMeter
+              remainingMb={me.remainingMb}
+              totalMb={me.mbTotal}
+              usageAsOf={me.usageAsOf}
+              lang={lang}
+              className="pay__meter"
+            />
+          ) : null}
+          <dl className="pay-facts">
+            <div>
+              <dt lang={lang}>{t('flow.coverage')}</dt>
+              <dd>{formatMb(mb)}</dd>
+            </div>
+          </dl>
+          <p className="note" lang={lang}>
+            {t('flow.dataOnly')}
+          </p>
+          {!entitlementKey && row.state === 'idle' ? (
+            <p className="pay__option" data-testid="pay-option" lang={lang}>
+              {t('pay.option', {
+                mb: formatMb(mb),
+                days: plans?.paid.validityDays ?? 7,
+                price: money(planUsd6),
+              })}
+            </p>
+          ) : null}
+          {!entitlementKey ? (
+            <>
+              <p className="note" lang={lang}>
+                {t('pay.noPlan')}
+              </p>
+              {/* a new plan's activation code is sealed to this browser's session */}
+              <Caution k="warn.thisBrowser" />
+            </>
+          ) : null}
+          <Caution k="warn.unlocked" />
           {entitlementKey ? (
-            <p className="quiet-rows">
+            <p className="pay-desk__links">
               <Link href={`/agent`} prefetch={false}>
                 {t('agent.title')}
               </Link>
             </p>
           ) : null}
-        </section>
+        </aside>
       </div>
       <TabBar active="add" />
     </Screen>

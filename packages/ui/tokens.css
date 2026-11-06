@@ -57,8 +57,8 @@
   --text-disabled: light-dark(oklch(0.7 0.008 70), oklch(0.48 0.008 80)); /* #a29e99, no AA claim */
 
   /* ── Accent: "oxide" teal, hue 195, ≤ ~5 % of pixels, never a gradient ── */
-  --accent: light-dark(oklch(0.52 0.085 195), oklch(0.78 0.11 195)); /* #117878 / #4fcdcd */
-  --accent-hover: light-dark(oklch(0.46 0.075 195), oklch(0.84 0.1 195));
+  --accent: light-dark(oklch(0.52 0.085 195), oklch(0.78 0.1 195)); /* #117878 / #5ecbcb */
+  --accent-hover: light-dark(oklch(0.46 0.075 195), oklch(0.84 0.09 195));
   --accent-subtle: light-dark(oklch(0.95 0.03 195), oklch(0.25 0.03 195)); /* #d8f5f5 */
   --on-accent: light-dark(oklch(1 0 0), oklch(0.16 0.006 70)); /* white / ink on a light accent */
   --focus: var(--accent);
@@ -99,8 +99,25 @@
   --leading-devanagari: 1.6;
 
   /* ── Radius: one per component family (controls, objects such as the coupon and the sheet) ── */
-  --radius-control: 0.375rem;
-  --radius-object: 0.75rem;
+  --radius-control: 0.5rem;
+  --radius-object: 1rem;
+  --radius-pill: 999px; /* status pill, Live/Paused, the testnet rail */
+
+  /* ── Space (4 px grid): inside a row 1–2, between rows 3, groups 5, sections 7 / 8 ── */
+  --space-1: 0.25rem; /* 4 */
+  --space-2: 0.5rem; /* 8 */
+  --space-3: 0.75rem; /* 12 */
+  --space-4: 1rem; /* 16 */
+  --space-5: 1.5rem; /* 24 */
+  --space-6: 2rem; /* 32 */
+  --space-7: 2.5rem; /* 40 */
+  --space-8: 3rem; /* 48 */
+  --space-9: 4rem; /* 64 */
+  --space-10: 6rem; /* 96 */
+
+  /* ── Elevation: two levels; shadow only on lifted things (focused field, sheet, menu, hovered link card) ── */
+  --shadow-1: 0 1px 2px light-dark(oklch(0.2 0.012 70 / 0.06), oklch(0.1 0.006 70 / 0.3));
+  --shadow-2: 0 8px 24px light-dark(oklch(0.2 0.012 70 / 0.1), oklch(0.1 0.006 70 / 0.4));
 
   /* ── Motion (§6): animate transform and opacity only ──────────────────── */
   --duration-micro: 100ms; /* press, toggle (80–120) */

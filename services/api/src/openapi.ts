@@ -26,6 +26,8 @@ import {
   healthSchema,
   meResponseSchema,
   paymentRequiredSchema,
+  planCancelRequestSchema,
+  planCancelResponseSchema,
   plansResponseSchema,
   provisionQuerySchema,
   receiptsResponseSchema,
@@ -202,6 +204,24 @@ export const OPERATIONS: readonly Operation[] = [
     summary: 'Receipts of an entitlement',
     params: ['key'],
     responses: { 200: receiptsResponseSchema },
+  },
+  {
+    method: 'post',
+    path: '/plan/cancel',
+    summary:
+      'Cancel an unused paid plan (EIP-712 CancelPlan by its payer): 200 refunded minus the reclaim fee, 202 refund pending',
+    body: planCancelRequestSchema,
+    headers: ['Idempotency-Key'],
+    responses: {
+      200: planCancelResponseSchema,
+      202: planCancelResponseSchema,
+      401: errorBodySchema,
+      404: errorBodySchema,
+      409: errorBodySchema,
+      410: errorBodySchema,
+      429: errorBodySchema,
+      503: errorBodySchema,
+    },
   },
   {
     method: 'post',

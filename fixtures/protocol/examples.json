@@ -503,6 +503,39 @@
         }
       }
     },
+    "planCancelRequestSchema": {
+      "entitlementKey": "paid:0x70997970c51812dc3a010c7d01b50e0d17dc79c8:0xe1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1",
+      "payer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+      "challenge": {
+        "nonce": "0x3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c",
+        "audience": "recharge",
+        "path": "/plan/cancel",
+        "exp": 1793707320000,
+        "signal": "0x5151515151515151515151515151515151515151515151515151515151515151"
+      },
+      "issuedAt": 1793707200000,
+      "signature": "0x5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d"
+    },
+    "planRefundSchema": {
+      "network": "eip155:84532",
+      "usd6": "390000",
+      "tx": "0x7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c"
+    },
+    "planCancelResponseSchema": {
+      "cancelledAt": 1793707200000,
+      "refund": {
+        "network": "eip155:84532",
+        "usd6": "390000",
+        "tx": "0x7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c"
+      },
+      "receipt": {
+        "arkivKey": "rcpt:ledger:plan-cancel:0xaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeae",
+        "hcs": {
+          "topic": "0.0.7001",
+          "sequence": 43
+        }
+      }
+    },
     "cardPreviewSchema": {
       "serial": "9a9a9a9a",
       "mb": 300,

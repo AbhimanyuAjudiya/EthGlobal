@@ -252,6 +252,33 @@ export const cardRedeemRequestSchema = z.object({
   sessionPubKey: hex32Schema,
 });
 
+// ── Plan cancel (POST /plan/cancel): the payer of an unused paid plan gets its payment back, minus the reclaim fee
+
+export const planCancelRequestSchema = z.object({
+  entitlementKey: z.string().min(8).max(160),
+  payer: evmAddressSchema,
+  /** A /plan/cancel challenge whose session key is the payer address padded to 32 bytes. */
+  challenge: challengeSchema,
+  issuedAt: msSchema,
+  /** EIP-712 CancelPlan { entitlementKey, payer, nonce: challenge.nonce, issuedAt } by the payer. */
+  signature: hexSchema,
+});
+/** The cancel refund; no `tx` = pending (the treasury did not answer; the operator completes it, never twice). */
+export const planRefundSchema = z.object({
+  network: caipNetworkSchema,
+  usd6: digitsSchema,
+  tx: z.string().optional(),
+});
+/** 200 = refunded; 202 = cancelled at the vendor, refund pending. */
+export const planCancelResponseSchema = z.object({
+  cancelledAt: msSchema,
+  refund: planRefundSchema,
+  receipt: receiptRefSchema,
+});
+export type PlanCancelRequest = z.infer<typeof planCancelRequestSchema>;
+export type PlanCancelResponse = z.infer<typeof planCancelResponseSchema>;
+export type PlanRefund = z.infer<typeof planRefundSchema>;
+
 // ── Reads
 
 export const meResponseSchema = z.object({
@@ -272,6 +299,13 @@ export const meResponseSchema = z.object({
   cached: z.boolean(),
   degraded: z.boolean(),
   network: caipNetworkSchema.optional(),
+  // POST /plan/cancel: what it would refund now, and to whom (paid, unused, never topped up or cancelled) …
+  refundable: z
+    .object({ usd6: digitsSchema, network: caipNetworkSchema, to: evmAddressSchema })
+    .optional(),
+  // … or, once cancelled, when (= expiresAt) and the refund
+  cancelledAt: msSchema.optional(),
+  refund: planRefundSchema.optional(),
 });
 export const receiptPublicSchema = receiptSchema.omit({ entitlementKeyHash: true, key: true });
 export const receiptsResponseSchema = z.object({ receipts: z.array(receiptPublicSchema) });

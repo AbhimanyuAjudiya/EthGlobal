@@ -12,6 +12,7 @@ export const ROUTE_LIMITS: Readonly<Record<string, number>> = {
   '/claim': 5,
   '/card/redeem': 10,
   '/gift/reclaim': 5,
+  '/plan/cancel': 5,
   '/facilitator': 30,
 };
 /** Every IP, every route. */

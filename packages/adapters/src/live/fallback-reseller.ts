@@ -1,6 +1,6 @@
 /**
  * FallbackReseller: order() falls back to the second reseller when the primary is unavailable or rate limited;
- * plans() likewise. usage/topUp/webhooks always go to the primary — a top-up on a profile the primary never issued
+ * plans() likewise. usage/topUp/cancel/webhooks always go to the primary — a top-up on a profile the primary never issued
  * must surface as an error, never silently "succeed" elsewhere (L8). The inventory holds pre-bought profiles of
  * the primary's own package codes, so a planId means the same plan on both.
  */
@@ -60,6 +60,11 @@ export class FallbackReseller implements Reseller {
 
   usage(iccid: string): Promise<EsimUsage> {
     return this.primary.usage(iccid);
+  }
+
+  /** The primary only, never the fallback: no refund from inventory (a profile the primary never issued is refused). */
+  cancel(iccid: string, opts: { idempotencyKey: string }): Promise<void> {
+    return this.primary.cancel(iccid, opts);
   }
 
   verifyWebhook(

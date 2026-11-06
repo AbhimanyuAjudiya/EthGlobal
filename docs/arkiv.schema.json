@@ -540,7 +540,8 @@
             "gift",
             "gift-claim",
             "gift-reclaim",
-            "card-redeem"
+            "card-redeem",
+            "plan-cancel"
           ]
         },
         "entitlementKeyHash": {

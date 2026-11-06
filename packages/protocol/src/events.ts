@@ -37,6 +37,7 @@ export const HCS_TYPES = [
   'card-redeem',
   'agent-topup',
   'agent-pass',
+  'plan-cancel',
 ] as const;
 export type HcsType = (typeof HCS_TYPES)[number];
 

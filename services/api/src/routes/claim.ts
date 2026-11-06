@@ -18,6 +18,7 @@ import { SESSION_PUBKEY_HEADER } from '@ethglobal/protocol/x402';
 
 import { inputOf, type AppEnv, type Ctx } from '../context.js';
 import { fail } from '../errors.js';
+import { aborted } from '../flows/cancel.js';
 import { decideAndFulfil, settledDecision } from '../flows/entitle.js';
 import { fulfilTopUp } from '../flows/fulfil.js';
 import { record } from '../flows/record.js';
@@ -130,6 +131,8 @@ const topUpGuard = createMiddleware<AppEnv>(async (c, next) => {
   const keyHash = sha256Hex(key);
   const mark = deps.admission.mark();
   const receipts = await deps.stores.receipts.forEntitlement(keyHash);
+  // a cancelled plan, or one whose cancel is still pending, is never charged for a top-up (POST /plan/cancel)
+  if (receipts.some((r) => r.kind === 'plan-cancel' && !aborted(r))) throw fail('expired');
   const count = receipts.filter(
     (r) => (r.kind === 'topup' || r.kind === 'agent-topup') && dayBucket(r.at) === today,
   ).length;

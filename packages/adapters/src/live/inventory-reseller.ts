@@ -155,6 +155,11 @@ export class InventoryReseller implements Reseller {
     throw new AdapterError('reseller', 'unavailable', 'inventory profiles cannot be topped up');
   }
 
+  /** Pre-bought stock is never refunded: a cancel is refused, the profile stays issued. */
+  async cancel(_iccid: string, _opts: { idempotencyKey: string }): Promise<void> {
+    throw new AdapterError('reseller', 'not_implemented', 'inventory profiles cannot be refunded');
+  }
+
   /** No live usage source: usedMb 0 (the API labels inventory usage "simulated"). */
   async usage(iccid: string): Promise<EsimUsage> {
     const e = this.#read().find((x) => x.iccid === iccid && x.consumedBy);

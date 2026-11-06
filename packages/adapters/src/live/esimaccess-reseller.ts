@@ -119,7 +119,9 @@ export function esimStatus(e: {
   esimStatus?: string | undefined;
 }): ProfileStatus {
   const s = new Set([e.smdpStatus, e.esimStatus]);
-  if (s.has('USED_UP') || s.has('DELETED') || s.has('USED_EXPIRED')) return 'expired';
+  // CANCEL: refunded by /esim/cancel (observed live 2026-11-06), the profile is dead
+  if (s.has('USED_UP') || s.has('DELETED') || s.has('USED_EXPIRED') || s.has('CANCEL'))
+    return 'expired';
   if (s.has('IN_USE')) return 'active';
   if (s.has('ENABLED')) return 'installed';
   return 'ready';
@@ -374,7 +376,8 @@ export class EsimAccessReseller implements Reseller {
     const profileMb = mbFromBytes(totalVolume ?? 0);
     // ponytail: the profile's own volume serves 100 MB steps until the plan outgrows it (vendor top-ups start at 1 GB);
     // a plan with no known total buys at least `mb`. Upgrade: a per-ICCID volume ledger if steps ever race the vendor.
-    if (totalMb !== undefined && totalMb <= profileMb) return { orderId: transactionId, totalMb: profileMb };
+    if (totalMb !== undefined && totalMb <= profileMb)
+      return { orderId: transactionId, totalMb: profileMb };
     const need = totalMb === undefined ? mb : totalMb - profileMb;
     // `type: "TOPUP"` with `iccid` lists the profile's compatible top-ups (live: supportTopUpType 1, 1 GB and up).
     const { packageList: list } = await this.#call(
@@ -402,6 +405,23 @@ export class EsimAccessReseller implements Reseller {
     }
     const after = await this.#esim(iccid);
     return { orderId: transactionId, totalMb: mbFromBytes(after.totalVolume ?? 0) };
+  }
+
+  /**
+   * `/esim/cancel { esimTranNo }`: the vendor refunds only an unused profile (GOT_RESOURCE, never installed); one in
+   * use is refused here without a call. The profile's own state is the idempotency: one already reading CANCEL
+   * resolves without a second call.
+   */
+  async cancel(iccid: string, _opts: { idempotencyKey: string }): Promise<void> {
+    const e = await this.#esim(iccid);
+    if (e.esimStatus === 'CANCEL') return;
+    if (esimStatus(e) !== 'ready')
+      throw new AdapterError(
+        'reseller',
+        'invalid_request',
+        'only an unused profile can be cancelled',
+      );
+    await this.#call('/esim/cancel', { esimTranNo: e.esimTranNo }, z.unknown());
   }
 
   async usage(iccid: string): Promise<EsimUsage> {

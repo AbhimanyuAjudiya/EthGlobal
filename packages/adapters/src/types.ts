@@ -212,6 +212,12 @@ export interface Reseller {
     opts: { idempotencyKey: string; totalMb?: number },
   ): Promise<{ orderId: string; totalMb: number }>;
   usage(iccid: string): Promise<EsimUsage>;
+  /**
+   * Cancels an UNUSED profile so the vendor refunds it (never installed); an already-cancelled one resolves again.
+   * A profile in use, or a reseller that cannot refund (inventory), rejects with a non-`unavailable` code; only
+   * `unavailable`/`rate_limited` leave the outcome unknown.
+   */
+  cancel(iccid: string, opts: { idempotencyKey: string }): Promise<void>;
   /** Pure: checks headers + HMAC + skew + its own replay cache. Never throws. */
   verifyWebhook(
     rawBody: string,
@@ -238,7 +244,7 @@ export interface BlobStore {
   put(bytes: Uint8Array, contentType: string): Promise<{ ref: string }>;
   get(ref: string): Promise<Uint8Array | null>;
 }
-/** Outbound USDC from the separate refund wallet — gift reclaims only. Bounded by TREASURY_MAX_USD6_PER_DAY in the API (A-31). */
+/** Outbound USDC from the separate refund wallet — gift reclaims and plan cancels. Bounded by TREASURY_MAX_USD6_PER_DAY in the API (A-31). */
 export interface Treasury {
   refund(input: {
     network: string;

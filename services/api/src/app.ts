@@ -35,6 +35,7 @@ export const IDEMPOTENT_ROUTES = [
   '/gift/reclaim',
   '/card/redeem',
   '/sponsor',
+  '/plan/cancel',
 ];
 /** Writes that fail closed while the ledger is degraded (T-51); webhooks check inside their route. */
 const LEDGER_WRITES = [
@@ -46,6 +47,7 @@ const LEDGER_WRITES = [
   '/sponsor',
   '/sponsor/:id/cards',
   '/agent/policy',
+  '/plan/cancel',
 ];
 
 /** GET /__local/ledger (MODE=local only) returns at most this many entities. */

@@ -1,13 +1,24 @@
-/** GET /me/:key (R1; the only cached read, T-51) and GET /me/:key/receipts. Never returns an LPA (T-31). */
+/**
+ * GET /me/:key (R1; the only cached read, T-51), GET /me/:key/receipts and POST /plan/cancel. Never returns an LPA
+ * (T-31).
+ */
 import { openFromServer, sha256Hex, utf8, type SealedBox } from '@ethglobal/crypto';
 import { INDEX_PREFIX, type Entitlement } from '@ethglobal/octroi';
 import type { Hex } from '@ethglobal/protocol/ids';
-import type { MeResponse, ReceiptPublic } from '@ethglobal/protocol/schemas';
+import {
+  planCancelRequestSchema,
+  type MeResponse,
+  type PlanCancelRequest,
+  type ReceiptPublic,
+} from '@ethglobal/protocol/schemas';
+import { usd6ToWire } from '@ethglobal/protocol/units';
 
-import { type AppEnv } from '../context.js';
+import { inputOf, type AppEnv } from '../context.js';
 import { fail } from '../errors.js';
 import { patchUsage } from './webhooks.js';
+import { aborted, cancelPlan, cancelReceiptKey, decidePlanCancel } from '../flows/cancel.js';
 import { retryPending } from '../flows/fulfil.js';
+import { validateJson } from '../middleware/validate.js';
 
 import type { Deps } from '../deps.js';
 import type { Hono } from 'hono';
@@ -35,12 +46,19 @@ export function registerMe(app: Hono<AppEnv>, deps: Deps): void {
       if (stale) return c.json({ ...stale, cached: true, degraded: true });
       throw error;
     }
-    // expired and unknown are the same 404 (RT-O-01): /me is no liveness oracle for a key
-    if (!found) throw fail('not_found');
+    // expired and unknown are the same 404 (RT-O-01): /me is no liveness oracle for a key — except to the holder of
+    // a cancelled plan's capability: its one plan-cancel receipt says how it ended
+    if (!found) return c.json(await cancelledMe(deps, key));
     let e = found.payload;
     if (e.status === 'pending-profile') e = await retryPending(deps, e);
     if (refresh) e = await poll(deps, e);
-    const me = toMe(deps, e, found.entityKey, await sponsorName(deps, e));
+    const me = toMe(
+      deps,
+      e,
+      found.entityKey,
+      await sponsorName(deps, e),
+      await refundable(deps, e),
+    );
     deps.cache.remember(key, me, { staleAllowed: STALE_OK.has(e.status) });
     return c.json(me);
   });
@@ -56,6 +74,52 @@ export function registerMe(app: Hono<AppEnv>, deps: Deps): void {
     );
     return c.json({ receipts: publicReceipts });
   });
+
+  app.post('/plan/cancel', validateJson(planCancelRequestSchema), async (c) => {
+    const { status, body } = await cancelPlan(deps, inputOf<PlanCancelRequest>(c));
+    return c.json(body, status);
+  });
+}
+
+/** Paid and ready: what POST /plan/cancel would refund now and to whom (the ledger half of its eligibility). */
+async function refundable(deps: Deps, e: Entitlement): Promise<MeResponse['refundable']> {
+  if (e.kind !== 'paid' || e.status !== 'ready') return undefined;
+  const receipts = await deps.stores.receipts.forEntitlement(sha256Hex(e.key)).catch(() => null);
+  if (!receipts) return undefined; // the offer waits for the next read; the cancel itself re-checks everything
+  const v = decidePlanCancel(e, receipts, deps.env.GIFT_RECLAIM_FEE_USD6);
+  return v.kind === 'refund'
+    ? { usd6: usd6ToWire(v.usd6), network: v.network, to: v.to }
+    : undefined;
+}
+
+/**
+ * A cancelled plan once its entity has expired: the plan-cancel receipt is the record — the paid, unused plan of
+ * `mb`, ended (expiresAt) at its cancel, with its refund (no tx = pending). Anything else is the 404. One exact
+ * lookup by the receipt's logical key, empty alike for an expired and an unknown key: reading the key's other
+ * receipts would time-separate them (RT-O-01).
+ */
+async function cancelledMe(deps: Deps, key: string): Promise<MeResponse> {
+  const r = await deps.stores.receipts.byKey(cancelReceiptKey(key));
+  if (r?.network === undefined || r.usd6 === undefined || aborted(r)) throw fail('not_found');
+  return {
+    entitlementKey: key,
+    kind: 'paid',
+    status: 'ready',
+    tier: 'none',
+    mbTotal: r.mb ?? 0,
+    mbUsed: 0,
+    remainingMb: 0,
+    usageAsOf: r.at,
+    usageSource: 'none',
+    expiresAt: r.at,
+    arkivKey: r.key,
+    ledgerReadAt: deps.now(),
+    cached: false,
+    degraded: deps.health.degraded,
+    network: r.network,
+    cancelledAt: r.at,
+    refund: { network: r.network, usd6: r.usd6, ...(r.tx === undefined ? {} : { tx: r.tx }) },
+  };
 }
 
 /** ?refresh=1: reseller.usage at most once per minute per ICCID (shared with webhooks). */
@@ -82,6 +146,7 @@ function toMe(
   e: Entitlement,
   entityKey: string,
   sponsor: string | undefined,
+  refund: MeResponse['refundable'],
 ): MeResponse {
   return {
     entitlementKey: e.key,
@@ -101,5 +166,6 @@ function toMe(
     cached: false,
     degraded: deps.health.degraded,
     ...(e.network === undefined ? {} : { network: e.network }),
+    ...(refund === undefined ? {} : { refundable: refund }),
   };
 }

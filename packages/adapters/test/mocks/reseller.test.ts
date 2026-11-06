@@ -47,6 +47,23 @@ describe('MockReseller specifics', () => {
     expect((await reseller.usage(iccid)).totalMb).toBe(1300);
   });
 
+  it('cancel: only an unused line, which then reads expired; a second cancel resolves; a used line is refused', async () => {
+    const clock = fakeClock();
+    const reseller = new MockReseller({ now: clock.now });
+    const { iccid } = await reseller.order('in-300mb-7d', { idempotencyKey: 'a' });
+    await reseller.cancel(iccid, { idempotencyKey: 'c' });
+    expect((await reseller.usage(iccid)).status).toBe('expired');
+    await expect(reseller.cancel(iccid, { idempotencyKey: 'c' })).resolves.toBeUndefined();
+    const used = await reseller.order('in-300mb-7d', { idempotencyKey: 'b' });
+    reseller.advanceUsage(used.iccid, 1);
+    await expect(reseller.cancel(used.iccid, { idempotencyKey: 'd' })).rejects.toMatchObject({
+      code: 'invalid_request',
+    });
+    await expect(reseller.cancel('8991000', { idempotencyKey: 'e' })).rejects.toMatchObject({
+      code: 'not_found',
+    });
+  });
+
   it('failNextOrder throws exactly once', async () => {
     const reseller = new MockReseller({ failNextOrder: true });
     await expect(reseller.order('in-300mb-7d', { idempotencyKey: 'a' })).rejects.toMatchObject({

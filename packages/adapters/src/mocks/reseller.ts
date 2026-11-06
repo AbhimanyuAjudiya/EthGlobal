@@ -66,6 +66,7 @@ interface Line {
   totalMb: number;
   orderedAt: number;
   advancedMb: number;
+  cancelled?: boolean;
 }
 
 const header = (headers: Record<string, string | undefined>, name: string): string | undefined => {
@@ -166,8 +167,25 @@ export class MockReseller implements Reseller {
     const simulated = Math.floor(((now - line.orderedAt) / 60_000) * this.#mbPerMinute);
     const usedMb = Math.min(line.totalMb, Math.max(0, simulated) + line.advancedMb);
     const status: EsimProfile['status'] =
-      usedMb >= line.totalMb ? 'expired' : usedMb > 0 ? 'active' : 'ready';
+      line.cancelled === true || usedMb >= line.totalMb
+        ? 'expired'
+        : usedMb > 0
+          ? 'active'
+          : 'ready';
     return { iccid, usedMb, totalMb: line.totalMb, asOf: now, status };
+  }
+
+  /** eSIM Access semantics: only an unused line cancels (then reads 'expired'); a cancelled one resolves again. */
+  async cancel(iccid: string, _opts: { idempotencyKey: string }): Promise<void> {
+    const line = this.#line(iccid);
+    if (line.cancelled === true) return;
+    if ((await this.usage(iccid)).status !== 'ready')
+      throw new AdapterError(
+        'reseller',
+        'invalid_request',
+        'only an unused profile can be cancelled',
+      );
+    line.cancelled = true;
   }
 
   /** Adds `mb` of simulated usage to a line (the demo's "use some data" button). */

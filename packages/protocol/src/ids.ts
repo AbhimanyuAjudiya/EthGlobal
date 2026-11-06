@@ -50,7 +50,13 @@ export const HEDERA_MAX_TIMEOUT_S = 180;
 
 export const WORLD_ACTION = 'recharge-welcome';
 export const AUDIENCE = 'recharge';
-export const CHALLENGE_PATHS = ['/claim', '/gift/claim', '/gift/reclaim', '/card/redeem'] as const;
+export const CHALLENGE_PATHS = [
+  '/claim',
+  '/gift/claim',
+  '/gift/reclaim',
+  '/card/redeem',
+  '/plan/cancel',
+] as const;
 export type ChallengePath = (typeof CHALLENGE_PATHS)[number];
 
 export const STEP_MB = 100;

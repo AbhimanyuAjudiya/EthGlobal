@@ -61,6 +61,21 @@ export const AGENT_POLICY_TYPES = {
   ],
 } as const;
 
+/**
+ * POST /plan/cancel: the payer of an unused paid plan cancels it; the refund goes to the plan's recorded payer only.
+ * `nonce` binds the signature to one consumed /plan/cancel challenge, so a captured signature is one-shot.
+ */
+export const CANCEL_PLAN_TYPES = {
+  CancelPlan: [
+    { name: 'entitlementKey', type: 'string' },
+    { name: 'payer', type: 'address' },
+    { name: 'nonce', type: 'bytes32' }, // challenge nonce: one-shot
+    { name: 'issuedAt', type: 'uint256' }, // ms; valid PLAN_CANCEL_TTL_MS
+  ],
+} as const;
+/** CancelPlan.issuedAt validity (ms). */
+export const PLAN_CANCEL_TTL_MS = 600_000;
+
 /** SponsorLogin.issuedAt validity (ms). */
 export const SPONSOR_LOGIN_TTL_MS = 3_600_000;
 /** SponsorCards.issuedAt validity (ms): a write credential lives minutes, not an hour. */

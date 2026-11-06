@@ -35,6 +35,11 @@ export class ReceiptStore {
     return this.#repo.create(r);
   }
 
+  /** The live receipt with this logical key, or null (one exact lookup: no other receipt is read). */
+  async byKey(key: string): Promise<Receipt | null> {
+    return (await this.#repo.byKey(key))?.payload ?? null;
+  }
+
   async forEntitlement(entitlementKeyHash: Hex): Promise<Receipt[]> {
     return payloads(
       await this.#repo.findAll({ [ANN.entitlementKeyHash]: lower(entitlementKeyHash) }),

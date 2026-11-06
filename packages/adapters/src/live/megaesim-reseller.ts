@@ -54,6 +54,14 @@ export class MegaEsimReseller implements Reseller {
     return nope();
   }
 
+  async cancel(_iccid: string, _opts: { idempotencyKey: string }): Promise<void> {
+    throw new AdapterError(
+      'reseller',
+      'not_implemented',
+      'MegaeSIM cannot cancel or refund (A-28)',
+    );
+  }
+
   verifyWebhook(
     _rawBody: string,
     _headers: Record<string, string | undefined>,

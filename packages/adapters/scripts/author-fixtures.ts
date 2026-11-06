@@ -595,7 +595,12 @@ const esim: Record<string, unknown[]> = {
     esimFail('/package/list', listIn, '999999', 'unknown'),
   ],
   balance: [esimPost('/balance/query', {}, { balance: 1_000_000 })],
-  cancel: [esimPost('/esim/cancel', { esimTranNo: 'ESIM-TRAN-1' }, null)],
+  // the live vendor (2026-11-06): /esim/cancel on an unused profile answers success, then the profile reads CANCEL
+  cancel: [
+    byIccid(1),
+    esimPost('/esim/cancel', { esimTranNo: 'ESIM-TRAN-1' }, null),
+    byIccid(1, { esimStatus: 'CANCEL' }),
+  ],
   'contract-suite': [
     esimPost('/package/list', listIn, plansObj),
     ...suite('suite-order-1', 1),

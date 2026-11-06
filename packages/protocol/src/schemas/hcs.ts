@@ -67,6 +67,15 @@ export const hcsMessageSchema = z.discriminatedUnion('t', [
     mb: mbSchema,
     reason: z.enum(['threshold', 'expiry']),
   }),
+  /** POST /plan/cancel: the vendor cancelled an unused plan and the treasury refunded its payer. */
+  z.object({
+    ...hcsBase,
+    t: z.literal('plan-cancel'),
+    network: caipNetworkSchema,
+    tx: z.string(),
+    usd6: digitsSchema,
+    feeUsd6: digitsSchema,
+  }),
   /** The agent's World ID Agent Pass checkpoint (docs/WORLD_AGENT_PASS.md): one line per state change, no URL. */
   z.object({
     ...hcsBase,

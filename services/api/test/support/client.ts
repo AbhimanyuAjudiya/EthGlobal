@@ -19,6 +19,7 @@ import type {
 } from '@ethglobal/protocol/schemas';
 import {
   AGENT_POLICY_TYPES,
+  CANCEL_PLAN_TYPES,
   canonicalJson,
   GIFT_CLAIM_TYPES,
   GIFT_RECLAIM_TYPES,
@@ -105,6 +106,25 @@ export async function signGiftReclaim(
     types: GIFT_RECLAIM_TYPES,
     primaryType: 'GiftReclaim',
     message: { giftId: m.giftId, payer: account.address, nonce: m.nonce },
+  });
+}
+
+export async function signCancelPlan(
+  key: Hex,
+  chainId: number,
+  m: { entitlementKey: string; nonce: Hex; issuedAt: number },
+): Promise<Hex> {
+  const account = privateKeyToAccount(key);
+  return account.signTypedData({
+    domain: rechargeDomain(chainId),
+    types: CANCEL_PLAN_TYPES,
+    primaryType: 'CancelPlan',
+    message: {
+      entitlementKey: m.entitlementKey,
+      payer: account.address,
+      nonce: m.nonce,
+      issuedAt: BigInt(m.issuedAt),
+    },
   });
 }
 

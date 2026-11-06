@@ -164,6 +164,12 @@ export const receiptKindSchema = z.enum([
   'gift-claim',
   'gift-reclaim',
   'card-redeem',
+  /**
+   * POST /plan/cancel, one per entitlement (logical key `rcpt:ledger:plan-cancel:<entitlementKeyHash>`), written
+   * before the vendor cancel: no tx = pending (the vendor or the treasury did not answer; the operator reconciles,
+   * nothing is paid twice) · tx = refunded · usd6 '0' = aborted (the vendor refused; nothing refunded, terminal).
+   */
+  'plan-cancel',
 ]);
 export const hcsRefSchema = z.object({ topic: z.string(), sequence: z.int().nonnegative() });
 export const receiptSchema = z.object({

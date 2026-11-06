@@ -214,6 +214,30 @@ describe('EsimAccessReseller (A-27; T-34, T-39, T-40, T-82, T-83)', () => {
     ).rejects.toMatchObject({ code: 'invalid_request' });
   });
 
+  it('cancel: an unused profile ⇒ /esim/cancel { esimTranNo }, then it reads CANCEL (expired); again ⇒ no second call; in use ⇒ refused without a call', async () => {
+    const calls: string[] = [];
+    const replay = fixtureFetch('reseller/esimaccess/cancel.json', { strictBody: true });
+    const spy: typeof fetch = async (input, init) => {
+      const url = input instanceof Request ? input.url : input.toString();
+      calls.push(new URL(url).pathname.replace('/api/v1/open', ''));
+      return replay(input, init);
+    };
+    const { reseller } = esim('cancel', { fetch: spy });
+    await expect(
+      reseller.cancel('89852240000000000001', { idempotencyKey: 'c1' }),
+    ).resolves.toBeUndefined();
+    expect(calls).toEqual(['/esim/query', '/esim/cancel']);
+    await expect(reseller.usage('89852240000000000001')).resolves.toMatchObject({
+      status: 'expired',
+    });
+    await reseller.cancel('89852240000000000001', { idempotencyKey: 'c1' });
+    expect(calls.filter((c) => c === '/esim/cancel')).toHaveLength(1);
+    // IN_USE: refused before any /esim/cancel (the 'query' recording has none: a call would be fixture_miss)
+    await expect(
+      esim('query').reseller.cancel('89852240000000000001', { idempotencyKey: 'c2' }),
+    ).rejects.toMatchObject({ code: 'invalid_request' });
+  });
+
   it('error codes: 101003 ⇒ unauthorized, 200007 ⇒ unavailable (alarm), 400001 ⇒ invalid_response, unknown ⇒ unavailable; no credential in errors', async () => {
     const warn = vi.fn();
     const { reseller } = esim('errors', { logger: { warn } });
@@ -314,6 +338,7 @@ describe('EsimAccessReseller (A-27; T-34, T-39, T-40, T-82, T-83)', () => {
     expect(esimStatus({ smdpStatus: 'ENABLED' })).toBe('installed');
     expect(esimStatus({ esimStatus: 'USED_UP' })).toBe('expired');
     expect(esimStatus({ smdpStatus: 'DELETED' })).toBe('expired');
+    expect(esimStatus({ smdpStatus: 'RELEASED', esimStatus: 'CANCEL' })).toBe('expired');
     expect(
       () => new EsimAccessReseller({ accessCode: '', webhookToken: TOKEN, now: () => T0 }),
     ).toThrow(/ACCESS_CODE/);
@@ -359,6 +384,9 @@ describe('MegaEsimReseller (A-28)', () => {
     ]) {
       await expect(call()).rejects.toMatchObject({ code: 'unavailable' });
     }
+    await expect(m.cancel('1', { idempotencyKey: 'k' })).rejects.toMatchObject({
+      code: 'not_implemented',
+    });
     expect(m.verifyWebhook('{}', {}, T0)).toEqual({ ok: false, reason: 'bad_signature' });
     expect(() => m.parseWebhook('{}')).toThrow(expect.objectContaining({ code: 'unavailable' }));
   });
@@ -414,6 +442,10 @@ describe('InventoryReseller (T-41, L9)', () => {
     await expect(
       reseller.topUp('8991000000000000003', 100, { idempotencyKey: 't' }),
     ).rejects.toMatchObject({ code: 'unavailable' });
+    // pre-bought stock is never refunded
+    await expect(
+      reseller.cancel('8991000000000000003', { idempotencyKey: 'x' }),
+    ).rejects.toMatchObject({ code: 'not_implemented' });
     await expect(reseller.order('P-IN-1G-7D', { idempotencyKey: '' })).rejects.toMatchObject({
       code: 'invalid_request',
     });
@@ -436,6 +468,11 @@ describe('FallbackReseller', () => {
     await expect(chain.topUp(profile.iccid, 100, { idempotencyKey: 't' })).rejects.toMatchObject({
       code: 'not_found',
     });
+    // cancel never reaches the fallback (no refund from the reseller that issued it, here or from inventory)
+    await expect(chain.cancel(profile.iccid, { idempotencyKey: 'c' })).rejects.toMatchObject({
+      code: 'not_found',
+    });
+    await expect(fallback.usage(profile.iccid)).resolves.toMatchObject({ status: 'ready' });
     await expect(chain.order('nope', { idempotencyKey: 'z' })).rejects.toMatchObject({
       code: 'invalid_request',
     });

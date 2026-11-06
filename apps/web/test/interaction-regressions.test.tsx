@@ -125,6 +125,23 @@ describe('interaction state stays aligned with confirmed data', () => {
     expect(screen.queryByRole('switch', { name: 'Pause' })).toBeNull();
     expect(mocks.savePolicy).not.toHaveBeenCalled();
   });
+  it("another wallet's policy is shown locked, named by its owner, and never signed over", async () => {
+    const other = `0x${'cd'.repeat(20)}`;
+    mocks.loadPolicy.mockResolvedValueOnce({
+      owner: other,
+      spentTodayUsd6: '0',
+      policy: { paused: true, maxUsd6PerDay: '4000000', thresholdMb: 200, stepMb: 1000 },
+    });
+    render(<AgentSheet />);
+    const pause = await screen.findByRole<HTMLInputElement>('switch', { name: 'Pause' });
+    expect(pause.checked).toBe(true);
+    expect(pause.hasAttribute('disabled')).toBe(true);
+    expect(screen.getByTestId('agent-other-owner').textContent).toContain('0xcdcd…cdcd');
+    expect(screen.getByRole('radio', { name: '$20' }).hasAttribute('disabled')).toBe(true);
+    fireEvent.click(pause);
+    expect(mocks.wallet.signTypedData).not.toHaveBeenCalled();
+    expect(mocks.savePolicy).not.toHaveBeenCalled();
+  });
   it('a rejected Pause leaves the agent visibly running', async () => {
     mocks.wallet.signTypedData.mockRejectedValue({
       code: 4001,

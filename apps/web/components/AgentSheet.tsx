@@ -93,6 +93,12 @@ export function AgentSheet() {
   const eventUnavailable = me?.autoTopUpAvailable === false;
   const unavailableReason = unavailable ?? (me && planEnded(me, now) ? 'ended' : undefined);
   const busy = status === 'checking' || status === 'signing' || status === 'saving';
+  // the policy belongs to the plan and is signed by one wallet; another connected wallet may read it, not change it
+  const otherOwner =
+    view && wallet && view.owner.toLowerCase() !== wallet.address.toLowerCase()
+      ? view.owner
+      : undefined;
+  const locked = busy || !wallet || otherOwner !== undefined;
 
   const markUnavailable = useCallback((reason: 'ended' | 'missing') => {
     setUnavailable(reason);
@@ -194,7 +200,8 @@ export function AgentSheet() {
         eventUnavailable ||
         unavailableReason ||
         loadError ||
-        busy
+        busy ||
+        otherOwner
       )
         return;
       setStatus('checking');
@@ -292,6 +299,7 @@ export function AgentSheet() {
       unavailableReason,
       loadError,
       busy,
+      otherOwner,
       markUnavailable,
     ],
   );
@@ -398,6 +406,11 @@ export function AgentSheet() {
           {t('verify.retry')}
         </Button>
       ) : null}
+      {otherOwner ? (
+        <Notice tone="warning" data-testid="agent-other-owner" lang={lang}>
+          {t('agent.otherOwner', { address: `${otherOwner.slice(0, 6)}…${otherOwner.slice(-4)}` })}
+        </Notice>
+      ) : null}
       {policy ? (
         <Card lang={lang}>
           {/* $4 · $8 · $20, the "/ day" said once in the caption */}
@@ -408,7 +421,7 @@ export function AgentSheet() {
             options={CAPS_USD.map((usd) => ({
               value: String(usd),
               label: `$${usd}`,
-              disabled: busy || !wallet,
+              disabled: locked,
             }))}
             value={CAPS_USD.find((usd) => capUsd6 === BigInt(usd * USD6))?.toString()}
             onChange={(usd) => {
@@ -427,7 +440,7 @@ export function AgentSheet() {
                 title={t('agent.pause')}
                 trailing="switch"
                 checked={policy.paused}
-                disabled={busy || !wallet}
+                disabled={locked}
                 onCheckedChange={() =>
                   void save({ ...policy, stepMb: sold.mb, paused: !policy.paused })
                 }

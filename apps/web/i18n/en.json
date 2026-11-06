@@ -327,6 +327,7 @@
   "agent.resume": "Resume",
   "agent.save": "Approve in your wallet to save",
   "agent.saved": "Saved · signed by {address}",
+  "agent.otherOwner": "This plan's agent was set up by wallet {address}. Only that wallet can change or pause it; switch to it to make changes.",
   "agent.capReached": "Daily cap reached · {cap} · resumes at 05:30 IST · Add {mb} once · {price}",
   "agent.spent": "Spent today {spent} of {cap}",
   "agent.empty": "Your agent's top-ups will appear here",

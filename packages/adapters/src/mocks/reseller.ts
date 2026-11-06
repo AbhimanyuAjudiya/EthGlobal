@@ -46,7 +46,7 @@ export const MOCK_PLANS: readonly EsimPlan[] = [
     dataMb: 1000,
     validityDays: 7,
     wholesaleUsd6: 1_140_000n,
-    activation: { startsOn: 'unknown' },
+    activation: { startsOn: 'first-network', installWithinDays: 180 },
     cancellation: 'unsupported',
   },
   {
@@ -57,7 +57,7 @@ export const MOCK_PLANS: readonly EsimPlan[] = [
     dataMb: 300,
     validityDays: 7,
     wholesaleUsd6: 342_000n,
-    activation: { startsOn: 'unknown' },
+    activation: { startsOn: 'first-network', installWithinDays: 180 },
     cancellation: 'unsupported',
   },
 ];

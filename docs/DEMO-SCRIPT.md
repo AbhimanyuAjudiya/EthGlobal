@@ -1,86 +1,96 @@
-# Demo script v3: the one submission video (record Sat 7 Nov before 07:30 IST, submit by 08:00 IST)
+# Demo script v4: one campaign, two humans, one agent (record Sat 7 Nov before 07:30 IST, submit by 08:00 IST)
 
-One video serves ETHGlobal, Hedera, World and Arkiv. Submissions close **Sat 7 Nov 2026 09:00 IST**, no late entries.
+One video for ETHGlobal, Hedera, World and ENS. Submissions close **Sat 7 Nov 2026 09:00 IST**, no late entries.
+Target **3:50**, never over 4:00 (ETHGlobal 2–4 min; Hedera ≤ 5:00). 1920 × 1080, 30 fps, laptop screen capture at
+125 % zoom, light theme, one window, no extensions in the toolbar. The phones appear as mirrored windows (iPhone
+Mirroring / QuickTime) or a second camera cut in. Narrate plainly, one take per shot, cut between shots. Never show an
+`.env*`, a private key, a HashPack seed or a pass link you will not revoke afterwards.
 
-- **Length.** Target **3:30**, never over 4:00 (ETHGlobal asks 2–4 min; Hedera allows 5:00).
-- **Format.** 1920 × 1080, 30 fps, laptop screen capture at 125 % browser zoom, light theme, one window, no other tabs
-  in the strip, no extensions in the toolbar. The phone appears only as a mirrored window inside the laptop frame
-  (iPhone Mirroring or QuickTime → New Movie Recording → iPhone), Do Not Disturb on. No music. You narrate, one take
-  per shot, plain voice. Never `cat` an `.env*`; never show a private key or the HashPack seed.
-- **Rails.** Everything runs on the live deploy: landing `https://recharge.ajudiya.com`, app
-  `https://app.recharge.ajudiya.com`, API `https://api.recharge.ajudiya.com`, testnets only (Hedera testnet, Base
-  Sepolia, Arkiv rabdi). The `TESTNET · test USDC · not a sale` strip stays in frame on every money screen.
-- **⏳ = decide just before the shot.** Two shots depend on live state (a second Orb-verified human; the agent's live
-  top-up). Each has its fallback written beside it; use the fallback narration with the fallback shot, never the live
-  one.
+Everything runs on the live deploy: `https://recharge.ajudiya.com` → `app.recharge.ajudiya.com`, API
+`api.recharge.ajudiya.com`, Hedera testnet, Sepolia (ENS), Arkiv rabdi. The `TESTNET · test USDC · not a sale` rail
+stays in frame on money screens.
 
-Say this at 0:00, the same words as the README:
+## Two facts that shape the flow
 
-> Recharge: prove you're human and a sponsor pays for your first 300 MB of Mumbai data; after that you, or your agent,
-> pay per gigabyte over x402, every bundle is an Arkiv entity that expires by itself, and anyone can gift data to an ENS
-> name.
+1. **A plan claimed from a console campaign has no agent.** Console campaigns are ticketed event packages, and the API
+   refuses top-ups and auto top-ups on event packages by design (a sponsored event bundle is not a wallet). The agent
+   shot therefore runs on **your own plan**, the one whose Auto top-up policy was signed by wallet `0x0418…AB10`. The
+   live agent buys only under policies owned by that wallet, so MetaMask must be on it for shot 7.
+2. **The agent buys when the plan is at or under its threshold** (the sentence on the Auto top-up page says the number)
+   or within 30 min of expiry, on its next tick (every 60 s on live). The agent's Hedera account `0.0.11320978` holds
+   8.8 test USDC tonight, enough for two $4.00 top-ups. If the plan still has more data than the threshold, the live buy
+   cannot happen on camera: use the fallback in shot 7.
 
-## Before you press record (10 minutes)
+## Before you press record (20 minutes)
 
-1. `https://api.recharge.ajudiya.com/healthz` says `"mode":"live"` and `"degraded":false`;
-   `https://api.recharge.ajudiya.com/plans` names the campaign (`"campaign":{…"remainingClaims":…}`); if it is `null`,
-   stop and ask: the free path has no bundle to show.
-2. Your own phone has World App, already used to claim on Thursday (that gives the honest "already claimed" path). If a
-   second person with an **Orb-verified** World ID is near, keep them for shot 4; otherwise skip it.
-3. HashPack on the phone: testnet account with **≥ 5 test USDC (`0.0.429274`) and some HBAR**, token associated; do one
-   top-up off camera first so the pairing is known-good.
-4. The laptop browser holds a plan: open `app.recharge.ajudiya.com/plan` and confirm a plan row is there (Thursday's
-   claim); note its key for `/pay`.
-5. Pre-open and reload once, in this order, in tabs you will switch to: HashScan `DataDrop` events
+1. `https://api.recharge.ajudiya.com/healthz` says `"ok":true,"mode":"live"`; `/plans` names the campaign. Open each
+   once so the cache is warm.
+2. MetaMask: **Account 4 `0x2D…746C`** on Hedera Testnet with ≥ 3 USDC (`0.0.429274`) and HBAR (has 19.4 USDC / 38
+   HBAR). The second account **`0x0418…AB10`** present in the same MetaMask for shot 7.
+3. Your phone: World App, Orb or Document verified. Friend's phone: World App installed, **not** verified (device level).
+   Both can open a link you send them (WhatsApp to yourself and to the friend).
+4. Laptop tabs, pre-opened and reloaded, in this order: the app at `/sponsor`; HashScan DataDrop events
    `https://hashscan.io/testnet/contract/0x2d4d52989545FF0d0CD91D77A33f14063f57c9E6` → Events; HashScan topic
-   `https://hashscan.io/testnet/topic/0.0.11322448`; the in-window agent settlement
-   `https://hashscan.io/testnet/transaction/0.0.9185802@1793925870.465901542`; the Arkiv explorer page of the writer
-   `0xC3358be9F35fDF5C8e1922be7376980C93734d3c` on rabdi; the README's Continuity disclosure section on GitHub (repo public).
-6. Terminal: light theme, 16 pt, the two commands below pasted into a scratch file so you paste, not type.
+   `https://hashscan.io/testnet/topic/0.0.11322448`; Sepolia Etherscan `re-charge.eth` registry
+   `https://sepolia.etherscan.io/address/0x297320862052B1d0e069502c0D5DE12841E2EA41`; the Arkiv explorer page of the
+   writer `0xC3358be9F35fDF5C8e1922be7376980C93734d3c`; the GitHub README (repo public).
+5. **Dry run of shot 7 off camera, once:** open `/plan`, open your own plan (not tonight's test plans), then Auto
+   top-up with MetaMask on `0x0418…AB10`. If the switch reads Pause = on, turn it off and sign; within ~90 s a row should
+   appear under "Spending history — read from Arkiv" and the HCS topic gets `settle` + `agent-topup` messages. If it
+   does, **pause it again** (sign) so the live shot can repeat it. If nothing happens in 2 min, the plan is above its
+   threshold: use the fallback narration in shot 7 and do not promise a live buy.
+6. Terminal: light theme, 16 pt, this pasted in a scratch file (shot 8 only if time allows):
 
 ```bash
 curl -si -X POST https://api.recharge.ajudiya.com/gift -H 'content-type: application/json' -d '{"name":"re-charge.eth","mb":1000}' | head -12
 ```
 
-The second command is the `arkiv_query` block from [`arkiv/README.md`](../arkiv/README.md), unchanged.
+## Shot list (3:50)
 
-## Shot list (3:30)
-
-| t | Screen / URL | Exact clicks | What must be visible | Say (≤ 2 sentences) |
+| t | Screen | Exact clicks | What must be visible | Say (≤ 2 sentences) |
 |---|---|---|---|---|
-| 00:00 | `recharge.ajudiya.com` | none; cursor still, then click **Get started** at 00:12 | the hero line, the phone frame with the home screen, the receipt card | The one sentence above, verbatim. |
-| 00:14 | app Home (laptop: sidebar + two columns) | none | "Land in India. Be online in two minutes.", the card **300 MB** "free · N of 20 left", quick actions Prove I'm human · Pay instead · Scratch card · Organizers | World tells us you are one human. A sponsor's pool on Hedera pays that human's first 300 MB, once. |
-| 00:26 | click **Prove I'm human** → `/verify` | none, then **Scan with World App** | Stepper 1 Prove · 2 Issue · 3 Install; "Prove you're one human"; "World checks you're one human. We get a code that can't be traced to you."; **What you get**: Orb 300 MB free · Document 150 MB free · Device no free bundle | The backend signs the request, World App answers, the backend verifies the proof before anything is issued. The tier table is the honest rule: Orb and document get the bundle, a device-only ID pays. |
-| 00:40 | mirrored phone: World App | scan the QR, approve | the app shows **"This World ID claimed its bundle already."** with **Open that plan** and **Pay for more** | This is my World ID; it claimed on Thursday. The same human cannot claim twice, so the only way forward is to pay. |
-| 00:52 ⏳ | a second phone, Orb-verified person | Scan with World App → approve | the Issuing rows turning on: Verified · Sponsor paid `0x…` ↗ · Written to Arkiv, then the plan card with 300 MB | A different Orb-verified human gets 300 MB free; the sponsor pool just paid 0.50 USDC on Hedera for them. **Fallback (nobody available):** skip; at 01:02 say "This is the plan Thursday's claim produced." |
-| 01:02 | **Open that plan** → `/plan/<key>` | scroll once to Details | the balance card (MB left, meter, "usage as of HH:MM", status pill); quick actions Install · Add data · Gift · Receipts; Details rows **Expires** (absolute date), **From** (sponsor), **Network**, **Arkiv key** (mono, copy), the three receipt rows | The plan is not in our database: it is an Arkiv entity with an expiry; when that passes it is gone and nobody runs a cron job. The sponsor is named like a donor on a plaque. |
-| 01:16 | HashScan `DataDrop` → Events | open the newest `Claimed` row | `Claimed(id, claimKey, paid 500000, hour)`, URL shows `testnet` | Every free claim is a `Claimed` event on Hedera EVM, 0.50 USDC from the sponsor's pool; the claim key is a hash, the nullifier never leaves our server. |
-| 01:26 | Terminal | paste the `curl … /gift` command | `HTTP/2 402` and the `payment-required` header | Past the free bundle every paid route answers HTTP 402 with x402 terms. Gifts settle in USDC on Base Sepolia; top-ups, next, settle on Hedera. |
-| 01:38 | `/pay?key=<key>` (from the plan's **Add data**) | tap the **1 GB · 7 days · $4.00** chip; in **Pay from** pick the Hedera chip | the Review rows: Data 1 GB · Valid 7 days · From · **Network fee $0.00 — paid by the facilitator** · Worst case with the approval countdown; the card **Pay on Hedera with HashPack** | A human tops up from HashPack. The 402 is the review you see: amount, network, fee payer, and the worst case in plain words. |
-| 01:50 | **Pay with HashPack** → QR; mirrored phone: HashPack | scan, approve the 4.00 USDC transfer | HashPack's approval sheet with 4 USDC and the payTo account `0.0.11322453` | HashPack signs this one transfer. |
-| 02:02 | `/pay` result | wait for Final; click the HashScan link in the hash row | "Paid · Final", the hash with copy and HashScan | The facilitator settled it on Hedera and the plan grew by 1 GB. |
-| 02:10 | HashScan transaction page | scroll slowly once | transaction id, **SUCCESS**, the USDC transfer, consensus time today, `hashscan.io/testnet/transaction/…` in the URL bar | This is the settlement, recorded now. **If the HashPack payment fails on camera:** open the in-window tx `0.0.9185802@1793925870.465901542` and say "This is the same flow settled earlier today by our agent." |
-| 02:20 | sidebar **Auto top-up** → `/agent` | none; then tap the **$20** cap chip and the **Pause** switch once | the policy sentence "When your plan has less than 60 MB remaining or nears expiry, your agent buys 1 GB for $4.00 on … up to $8.00 a day"; the cap chips $4 · $8 · $20; **Spending history — read from Arkiv** | You can hand top-ups to an agent. It buys at 60 MB left or at expiry under a daily cap you sign, and the cap is enforced in code, not by a model. |
-| 02:34 ⏳ | HashScan topic `0.0.11322448` | open the newest `agent-topup` message, then its transaction | the message carrying the HCS-14 UAID `uaid:…`; the agent's settled Hedera tx | The agent paid this top-up on Hedera by itself with Hedera Agent Kit and wrote the receipt to our HCS topic under its HCS-14 identity: self-issued, not yet registered. **Fallback:** the same words over the topic page showing sequence 7 (settle) and 8 (`agent-topup`) from this morning's run. |
-| 02:48 | `/agent` → **How this is read** | tap the row | the sheet with the `arkiv_query` | The spending history is read back from Arkiv, not from our database. |
-| 02:54 | Terminal | paste the `arkiv_query` block, run | the entitlement entity: `type entitlement`, `kind free`, `tier orb`, `expiresAt` seven days out | Here is that plan as the ledger sees it, with its expiry block. |
-| 03:04 | Arkiv explorer, writer `0xC335…4d3c` | open the newest entity | the writer address and the entity | One address writes every entitlement, gift and receipt; the agent and the gift claim read them back. |
-| 03:10 | sidebar **Gift** → `/gift` | type `re-charge.eth` | the resolution line; the size chip **1 GB $4.00**; the reclaim rule sentence | You can gift data to an ENS name; if nobody claims it by the date shown, the USDC comes back to you. |
-| 03:17 | sidebar **Organizers** → `/sponsor`, open the campaign | none; scroll once | "N claims" hero, budget bar, claims-per-hour line, the claims table with HMAC'd keys | Sponsors fund the free pool in USDC with a budget and an hourly cap; event organizers issue private passes for their ticket holders. |
-| 03:23 | GitHub README → "Continuity disclosure" | scroll to it | the disclosure block with the tag `v0-prekickoff` | Honestly: the product was built before kickoff and is tagged `v0-prekickoff`; in the window we took it live on AWS, added HashPack payments, the agent's live run, event passes and this interface, dated in CHANGELOG.md. |
-| 03:28 | `recharge.ajudiya.com` | none | the hero | Proof or pay: a sponsor pays for humans, agents pay their own way, and the ledger forgets on schedule. |
+| 00:00 | `recharge.ajudiya.com` | none; **Get started** at 00:10 | hero line, phone frame | Recharge: prove you are human and a sponsor pays for your first data in Mumbai; after that you, or your agent, pay per gigabyte over x402 on Hedera, every bundle is an Arkiv entity that expires by itself, and every campaign has an ENS name. |
+| 00:14 | sidebar **Organizers** → **Create a campaign** | 1 · Event: name `ETHGlobal Mumbai judges`, destination India; 2 · Package: **India 1 GB · 7 days** chip; 3 · Dates: starts now, ends today +6 h; 4 · Budget: paid per claim `1.20` (the floor), claims cap `2`, claims per hour `2`, budget fills itself `2.40` | the line `2 claims × $1.20 = $2.40 USDC`; the funding card "USDC associated · balance $19.40"; the pill **Create campaign · $2.40 USDC** | A sponsor funds a pool in test USDC on Hedera: price per claim, a cap of two humans, an hourly limit. All three are enforced by the DataDrop contract, not by our server. |
+| 00:45 | press **Create campaign** → MetaMask twice | approve USDC, then create | the proof panel: approve tx ↗, create tx ↗, the audit key shown once; the campaign page opens: **0 claims · $0.00 of $2.40 · 2 cap** | Two transactions on Hedera EVM. The API only registers what the chain already holds, and in the background it registers the campaign's ENS name on Sepolia. |
+| 01:05 | campaign page → **Attendee data passes** | type `judge-1` ⏎ `judge-2` → **Sign to issue or recover passes** → MetaMask signature | two rows **Issued** and two **Copy private link** buttons | Event campaigns are private: one pass per ticket holder, issued by the organizer's signature. I send one link to myself and one to Ravi, who has World App but has never verified. |
+| 01:20 | send the links (WhatsApp, off camera, 2 s) | — | — | — |
+| 01:22 | **Friend's phone** | opens link 2 → **Scan with World App** → World App | the verify screen: "Prove you're one human", **What you get**: Orb 1 GB free · Document … free · **Device · no free bundle**; World App cannot provide an Orb or Document credential; the app issues nothing | The credential level is the pricing. A device-only World ID gets no sponsored bundle, and nothing was paid out of the pool. |
+| 01:45 | **Your phone** | opens link 1 → **Scan with World App** → approve in World App | the Issuing rows turning on: **Verified · Sponsor paid ↗ · Written to Arkiv**, then the plan card **1 GB** with **Install eSIM · 2 min** | The backend verifies the World proof, pays 1.20 USDC from the campaign on Hedera, writes the plan to Arkiv with its expiry, and orders the eSIM. |
+| 02:05 | laptop: campaign page, reload | scroll once | **1 claim · $1.20 of $2.40**; the pass table: `judge-1` **Reserved**, `judge-2` Issued; the Claims table with one HMAC'd key; the ENS row `ethglobal-mumbai-judges.re-charge.eth` | One of two claims used, the other pass still open. The claim key is a hash; the World nullifier never leaves the server. |
+| 02:18 | HashScan DataDrop → Events | open the newest `Claimed` | `Claimed(id, claimKey, 1200000, hour)` | Here is that claim on Hedera EVM: 1.20 USDC out of the sponsor's pool. |
+| 02:28 | sidebar **Plan** → your own plan → **Auto top-up** (MetaMask on `0x0418…AB10`) | tap the **$4** chip is already on; turn **Pause** off → sign | the sentence "When your plan has less than N MB remaining or nears expiry, your agent buys 1 GB for $4.00 on Hedera testnet, up to $4.00 a day"; **Spending history — read from Arkiv** | This is my own plan, not the event bundle. I hand top-ups to an agent under a daily cap I sign; the cap is enforced in code, not by a model. |
+| 02:45 | same page, wait (cut the wait) | none | a new row **+1 GB · agent uaid:… · $4.00** with a HashScan link; click it | Within a minute the agent found the plan under its threshold, paid 4 USDC from its own Hedera account over x402, and the facilitator settled it. **Fallback (no row within 2 min):** open the HashScan topic, show sequence 7 (`settle`) and 8 (`agent-topup`) and say "this is the same flow the agent ran by itself on Friday morning." |
+| 03:00 | HashScan topic `0.0.11322448` | open the newest `agent-topup` message | the JSON with `"t":"agent-topup"`, `"uaid":"uaid:aid:…"`, `"usd6":"400000"`, `"reason":"threshold"` | The agent wrote its receipt to our HCS topic under its HCS-14 identity, self-issued. |
+| 03:10 | Auto top-up → **How this is read** | tap the row | the sheet with the `arkiv_query` | The spending history is read straight from the Arkiv node by the browser, not from our database. |
+| 03:18 | Sepolia Etherscan, the registry `0x2973…EA41` | open the newest tx | the `register` call for `ethglobal-mumbai-judges` | Every campaign gets an ENSv2 name under re-charge.eth from our own subname registry: expiring, non-transferable, with a Permissioned Resolver the sponsor can edit only for avatar, description and X handle. |
+| 03:26 | `app.recharge.ajudiya.com/c/ethglobal-mumbai-judges` | none | the sponsor's branding resolved from the name and the "private pass link" notice | A traveller can type the name; the browser resolves it on Sepolia with plain viem and sees it is a ticketed event. |
+| 03:34 | GitHub README | scroll to the stack table | Hedera, World, Arkiv, ENS rows | World for the human, Hedera for the money and the agent, Arkiv for the plans that forget themselves, ENS for the names. Recharge's core predates this week; this week it went live on AWS with HashPack payments, event passes and this interface, dated in the changelog. |
+| 03:44 | `recharge.ajudiya.com` | none | the hero | Proof or pay: a sponsor pays for humans, agents pay their own way, and the ledger forgets on schedule. |
 
-End at 03:30. **If over 4:00, cut in this order:** 00:52 (second human), 03:04 (Arkiv explorer), 03:17 (sponsor), 02:48 (How this is read). Never cut the 402, the HashPack payment, the HashScan page or the disclosure line.
+End at 03:50. **If over 4:00, cut in this order:** 03:10 (How this is read), 03:26 (`/c/` page), 02:18 (Claimed event),
+01:20 (the send). Never cut the friend's refusal, your claim, the agent row or HashScan, or the disclosure sentence.
+
+## If something misbehaves
+
+- "The chain is not answering" on create or on passes: the Hedera relay blinked; press the same button again, nothing
+  was duplicated. The create flow resumes from its saved draft.
+- Friend's World App refuses before a proof exists (no credential): film the World App message and the campaign page
+  still at **0 claims**; that is the refusal the World prize asks for.
+- Your World ID says "This World ID claimed its bundle already": you are on the wrong campaign link; use the pass link,
+  not Home.
+- The ENS row has not appeared by 02:05: it lands within about two minutes of creation; show it at 03:18 instead.
+- The agent did not buy: use the fallback at 02:45 and do not say it bought.
 
 ## Which shots satisfy which prize requirement
 
 | Requirement | Shots |
 |---|---|
-| **Hedera (a)** an x402 endpoint settling on Hedera | 01:38–02:10: the top-up's Hedera terms (HTS USDC, facilitator fee payer), paid and settled, HashScan on screen |
-| **Hedera (b)** an agent completes a paid request with no human | 02:34 (the `agent-topup` HCS message and its settlement from this morning's live run) + 02:20 (the policy it obeys, the cap) |
-| **Hedera (c)** README with setup, flow and a Hedera tx id | not a shot; README "Hedera" section and the artefact table (pointed at 03:23) |
-| **Hedera (d)** video ≤ 5 min with a settlement and a HashScan link | the whole video; 02:02 link, 02:10 page, 01:16 `Claimed` on Hedera EVM |
-| **World** request → proof → server validation → protected action | 00:26–00:52 (backend-signed request, World App, verification, the issued bundle; 01:16 the on-chain effect) |
-| **World** denied / alternative path, no action | 00:40 (a World ID that already claimed is refused; nothing is paid out) |
-| **Arkiv** writes on the current testnet, a user-visible feature reads them | 01:02 (Arkiv key on the plan), 02:48 (spending history read from Arkiv), 02:54 (`arkiv_query`), 03:04 (writer + entity) |
-| **ETHGlobal** 2–4 min, ≥ 720p, not on a phone, pre-existing work disclosed | 3:30 at 1080p; 03:23 the disclosure line; every fallback narration names the earlier run as earlier |
+| Hedera (a) x402 endpoint settling on Hedera | 02:45–03:00: the agent's top-up paid in HTS USDC, settled, HashScan on screen |
+| Hedera (b) an agent completes a paid request with no human | 02:28–03:00 (live) or the Friday run (fallback), plus the policy it obeys |
+| Hedera (c) README with setup, flow, a Hedera tx id | 03:34 |
+| Hedera (d) video ≤ 5 min with a settlement and HashScan | whole video; 02:18 and 02:45 |
+| World: request → proof → server validation → protected action | 01:45–02:18 |
+| World: alternative path with no action | 01:22 (device-level World ID, nothing issued, pool untouched) |
+| ENS: ENSv2 central, functional, live, open source | 00:45 (registration), 02:05 (name on the page), 03:18 (registry tx), 03:26 (resolution) |
+| Arkiv: writes, user-visible reads | 01:45 (Written to Arkiv), 02:45 (history read from Arkiv), 03:10 (query) |
+| ETHGlobal: 2–4 min, ≥ 720p, prior work disclosed | 3:50 at 1080p; the sentence at 03:34 |

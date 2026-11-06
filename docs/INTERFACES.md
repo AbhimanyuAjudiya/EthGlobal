@@ -78,7 +78,8 @@ export const CHALLENGE_PATHS = ['/claim', '/gift/claim', '/gift/reclaim', '/card
 export type ChallengePath = (typeof CHALLENGE_PATHS)[number];
 
 export const STEP_MB = 100;
-export const MAX_BUNDLE_MB = 300;
+export const PLAN_MB = 1000;              // the product unit (6 Nov): a new plan, a top-up and a paid gift are exactly 1 GB ($4.00)
+export const MAX_BUNDLE_MB = PLAN_MB;     // a sponsor's free bundle is at most one eSIM (1 GB)
 export const MAX_MB_PER_PURCHASE = 3000;
 export const DEFAULT_VALIDITY_DAYS = 7;
 export const CHALLENGE_TTL_S = 120;
@@ -212,8 +213,8 @@ export const campaignSchema = z.object({
   id: hex32Schema,
   sponsor: evmAddressSchema,
   name: safeTextSchema(64),
-  bundleMb: z.object({ orb: mbSchema.max(300), document: mbSchema.max(300), device: z.literal(0) }),
-  pricePerClaimUsd6: digitsSchema,
+  bundleMb: z.object({ orb: mbSchema.max(MAX_BUNDLE_MB), document: mbSchema.max(MAX_BUNDLE_MB), device: z.literal(0) }), // ≤ 1 GB; 300/150 MB campaigns stay valid
+  pricePerClaimUsd6: digitsSchema,   // POST /sponsor refuses a new campaign whose on-chain price is below COST_USD6_PER_CLAIM ($1.20)
   maxClaims: z.int().positive(),
   claimsPerHour: z.int().positive(),
   validityDays: z.int().min(1).max(30),
@@ -287,7 +288,7 @@ export type Receipt = z.infer<typeof receiptSchema>;
 export const topUpPolicySchema = z.object({
   maxUsd6PerDay: digitsSchema,
   thresholdMb: mbSchema,
-  stepMb: z.int().multipleOf(100).min(100).max(300),
+  stepMb: z.int().multipleOf(100).min(100).max(1000),   // the API sells 1000 only; stored 100–900 steps parse and the agent skips them (step-not-sold)
   paused: z.boolean(),
   topUpOnExpiry: z.boolean(),
   expiryLeadS: z.int().min(60).max(86_400),  // buy when expiresAt − now ≤ lead; an expired entity cannot be extended
@@ -441,10 +442,11 @@ export const topUpResponseSchema = z.object({
   entitlementKey: z.string(), mbTotal: mbSchema, mbUsed: mbSchema, expiresAt: msSchema,
   settlement: paymentResponseSchema, receipt: receiptRefSchema,
 });
+// mb must be PLAN_MB (1000) on both routes, refused 400 before any 402 or settlement; a legacy 300 MB plan tops up +1 GB
 export const provisionQuerySchema = z.object({ mb: z.coerce.number().int(), planId: z.string().max(64).optional() });
 export const topUpQuerySchema = z.object({ key: z.string().min(8).max(160), mb: z.coerce.number().int() });
 
-export const giftRequestSchema = z.object({ name: z.string().min(3).max(255), mb: z.int().multipleOf(100).min(100).max(3000), message: safeTextSchema(80).optional() });
+export const giftRequestSchema = z.object({ name: z.string().min(3).max(255), mb: z.int().multipleOf(100).min(100).max(3000), message: safeTextSchema(80).optional() }); // a paid gift: mb = PLAN_MB only (400 before the 402)
 export const giftResponseSchema = z.object({
   giftId: hex32Schema, serial: z.string(), pin: z.string().regex(/^\d{16}$/), name: z.string(), to: evmAddressSchema,
   mb: mbSchema, claimBy: msSchema, settlement: paymentResponseSchema, receipt: receiptRefSchema,
@@ -479,8 +481,8 @@ export const plansResponseSchema = z.object({
     id: hex32Schema, name: z.string(), sponsor: evmAddressSchema, bundleMb: z.object({ orb: mbSchema, document: mbSchema, device: z.literal(0) }),
     remainingClaims: z.int().nonnegative(), maxClaims: z.int(), paused: z.boolean(), expiresAt: msSchema, network: caipNetworkSchema,
   }).nullable(),
-  paid: z.object({ stepMb: z.literal(100), priceUsd6PerStep: digitsSchema, validityDays: z.int(), accepts: z.array(paymentRequirementsSchema.omit({ amount: true })) }),
-  gift: z.object({ sizesMb: z.array(mbSchema), claimWindowS: z.int() }),
+  paid: z.object({ stepMb: z.literal(100), priceUsd6PerStep: digitsSchema, validityDays: z.int(), accepts: z.array(paymentRequirementsSchema.omit({ amount: true })), sizesMb: z.array(mbSchema).optional() }), // sizesMb: [1000]
+  gift: z.object({ sizesMb: z.array(mbSchema), claimWindowS: z.int() }),   // sizesMb: [1000]
   simulated: z.object({ usage: z.boolean(), personhood: z.boolean() }),
 });
 
@@ -878,7 +880,7 @@ export function paidEntitlementKey(secret: Uint8Array, network: string, payer: s
 export function entitlementIndex(key: string): string;                                   // 'hk:' + sha256(utf8(key)) (= receipts' entitlementKeyHash); idempotent
 export function holderHash(entitlementKey: string, sessionPubKey: Hex): Hex;             // sha256(utf8(key) ‖ spk): the claiming session (A-35)
 
-/** min(c.bundleMb[tier], floor(0.8 × idResale / (wholesale / 1000 MB)), 300) in integer Usd6 math; device|none → 0; wholesale ≤ 0 → cap only (T-23). */
+/** min(c.bundleMb[tier], floor(0.8 × idResale / (wholesale / 1000 MB)), MAX_BUNDLE_MB = 1000) in integer Usd6 math; device|none → 0; wholesale ≤ 0 → cap only (T-23). */
 export function sizeBundle(c: Pick<Campaign, 'bundleMb' | 'idResaleUsd6' | 'wholesaleUsd6PerGb'>, tier: Tier): number;
 
 export interface Challenge { nonce: Hex; audience: string; path: ChallengePath; exp: number; signal: Hex }
@@ -1079,9 +1081,9 @@ Base URL `NEXT_PUBLIC_API_URL` (local `http://127.0.0.1:8787`). JSON everywhere;
 | `POST /challenge` | `challengeRequestSchema` | `challengeSchema` | 10/min/IP; no ledger write |
 | `POST /world/rp-context` | `rpContextRequestSchema` | `rpContextSchema` | 10/min/IP; no ledger write; signs with `WORLD_RP_SIGNING_KEY` (idkit-core `signRequest`, ttl 300 s); the PWA calls it after `/challenge` and before `IDKit.request` (A-25) |
 | `POST /claim` | `claimRequestSchema` | `entitledResponseSchema` (201; 202 when `pending-profile`) | 5/min/IP; `octroi()` free lane; attestor `DataDrop.claim` |
-| `GET /esim/provision?mb=&planId=` | header `PAYMENT-SIGNATURE` (optional), `X-Session-Pubkey` (required) | 402 `paymentRequiredSchema` + header `PAYMENT-REQUIRED`; or 201 `entitledResponseSchema` + header `PAYMENT-RESPONSE` | `octroi()` paid lane; nonce must equal `sessionNonce` |
-| `GET /esim/topup?key=&mb=` | header `PAYMENT-SIGNATURE` (optional) | 402 …; or 200 `topUpResponseSchema` + `PAYMENT-RESPONSE` | per-ICCID daily cap `TOPUPS_PER_ICCID_PER_DAY` (default 20) |
-| `POST /gift` | `giftRequestSchema` + optional `PAYMENT-SIGNATURE` | 402 …; or 201 `giftResponseSchema` + `PAYMENT-RESPONSE` | `names.resolve` **before** the 402 (T-43); 404 `name_unresolved` |
+| `GET /esim/provision?mb=&planId=` | header `PAYMENT-SIGNATURE` (optional), `X-Session-Pubkey` (required) | 402 `paymentRequiredSchema` + header `PAYMENT-REQUIRED`; or 201 `entitledResponseSchema` + header `PAYMENT-RESPONSE` | `mb` = 1000 (1 GB, $4.00; anything else 400 before any 402); `octroi()` paid lane; nonce must equal `sessionNonce` |
+| `GET /esim/topup?key=&mb=` | header `PAYMENT-SIGNATURE` (optional) | 402 …; or 200 `topUpResponseSchema` + `PAYMENT-RESPONSE` | `mb` = 1000 (+1 GB, $4.00; anything else 400 before any 402); per-ICCID daily cap `TOPUPS_PER_ICCID_PER_DAY` (default 20) |
+| `POST /gift` | `giftRequestSchema` + optional `PAYMENT-SIGNATURE` | 402 …; or 201 `giftResponseSchema` + `PAYMENT-RESPONSE` | `mb` = 1000 (anything else 400, first); `names.resolve` **before** the 402 (T-43); 404 `name_unresolved` |
 | `POST /gift/claim` | `giftClaimRequestSchema` | `entitledResponseSchema` | challenge path `/gift/claim`; EIP-712 `GiftClaim` by the **currently** resolved address, or PIN |
 | `POST /gift/reclaim` | `giftReclaimRequestSchema` | `giftReclaimResponseSchema` | challenge path `/gift/reclaim`; EIP-712 `GiftReclaim` by the gift's `payer`; `decideGiftReclaim`; writes a pending `gift-reclaim` receipt **before** `treasury.refund`, patches the tx after; per-giftId mutex; `TREASURY_MAX_USD6_PER_DAY` |
 | `GET /card/:serial` | — | `cardPreviewSchema` | read-only; 404 for unknown; constant-time |
@@ -1090,7 +1092,7 @@ Base URL `NEXT_PUBLIC_API_URL` (local `http://127.0.0.1:8787`). JSON everywhere;
 | `GET /me/:key` | — | `meResponseSchema` | 60-s cache (read path only, T-51); `?refresh=1` polls `reseller.usage` ≤ 1/min/ICCID; 404 `not_found` for unknown, expired or an `hk:` index alike (A-45) |
 | `GET /me/:key/receipts` | — | `receiptsResponseSchema` | ledger query |
 | `GET /sponsor/:id` | header `Authorization: Recharge-Sponsor <base64 {sponsor, issuedAt, signature}>` | `sponsorViewSchema` | EIP-712 `SponsorLogin`, issuedAt within 1 h, signer == campaign sponsor |
-| `POST /sponsor` | `sponsorRegisterSchema` | 201 `{ id, auditKey }` | signer == `campaign.sponsor` and == on-chain `campaigns(id).sponsor` |
+| `POST /sponsor` | `sponsorRegisterSchema` | 201 `{ id, auditKey }` | signer == `campaign.sponsor` and == on-chain `campaigns(id).sponsor`; a new campaign whose on-chain `pricePerClaim` < `COST_USD6_PER_CLAIM` ($1.20) is 400 "per-claim price is below the eSIM cost ($1.20)" |
 | `POST /sponsor/:id/cards` | `sponsorCardsRequestSchema` `{ count ≤ 200, mb, auth: { sponsor, nonce, issuedAt, signature } }` | 201 `sponsorCardsResponseSchema` `{ campaignId, mb, claimBy, cards: [{ serial, pin, mb }] }` | **A-43.** The sponsor's write credential: EIP-712 `SponsorCards{campaignId, sponsor, count, mb, nonce, issuedAt}` (`SPONSOR_CARDS_TYPES`), issuedAt within 10 min (60 s future skew), signer == the registered and on-chain sponsor; a SponsorLogin (read bearer) is 401; nonce one-shot (409 `replay`); unpaused (423), unexpired, count ≤ (budget − spent) / pricePerClaim (409 `budget_exhausted`); 5 batches/min/campaign (429); not idempotent (a cached replay would re-show PINs); PINs only in this body, ledger keeps serial + PIN HMAC, log keeps the count; live and local |
 | `PUT /agent/policy` | `agentPolicyPutSchema` | 200 `agentPolicyViewSchema` | EIP-712 `AgentPolicy`; owner must equal the entitlement's `payer` (paid) or be the first owner registered for a free entitlement |
 | `GET /agent/policy/:key` | — | `agentPolicyViewSchema` | public read (policy is public on the ledger anyway) |
@@ -1115,7 +1117,7 @@ export const agentConfigSchema = z.object({
   AGENT_DRY_RUN: z.coerce.boolean().default(false),
   AGENT_ONCE: z.coerce.boolean().default(false),
   AGENT_PAYTO_ALLOWLIST: z.string(),                  // comma list of `<network>|<asset>|<payTo>` (+ `|<feePayer>` on hedera:*, A-20) pinned from /plans at install time (T-56)
-  AGENT_MAX_USD6_PER_STEP: digitsSchema.default('1000000'),
+  AGENT_MAX_USD6_PER_STEP: digitsSchema.default('4000000'),   // one 1 GB step
   AGENT_EVM_PRIVATE_KEY: hex32Schema.optional(),      // Anvil #4 locally; Base Sepolia key live
   AGENT_HEDERA_ACCOUNT_ID: hederaAccountSchema.optional(), AGENT_HEDERA_PRIVATE_KEY: z.string().optional(), // ECDSA (PrivateKey.fromStringECDSA); account associated with 0.0.429274
   AGENT_UAID: z.string().optional(),                  // computed by hcs14Uaid on first run and persisted to .agent/uaid
@@ -1184,7 +1186,8 @@ X402_FACILITATOR=self          # mock | self | remote (local default: self when 
 X402_FACILITATOR_URL_EVM=https://x402.org/facilitator      # host must be in the allow-list (T-42): x402.org, api.testnet.blocky402.com, testnet.facilitator.launa.dev, localhost
 X402_FACILITATOR_URL_HEDERA=https://x402.org/facilitator   # fallback https://api.testnet.blocky402.com (fee payer 0.0.7162784)
 X402_NETWORKS=eip155:31337     # comma list of accepts[] networks; must ⊂ TESTNET_NETWORKS unless SALES_ENABLED=true and LEGAL_MEMO_OK=true (T-52)
-PRICE_USD6_PER_STEP=400000     # $0.40 per 100 MB
+PRICE_USD6_PER_STEP=400000     # $0.40 per 100 MB: a 1 GB plan or top-up is $4.00
+COST_USD6_PER_CLAIM=1200000    # the 1 GB eSIM's wholesale cost: POST /sponsor refuses a new campaign paying less per claim
 VALIDITY_DAYS=7
 TOPUPS_PER_ICCID_PER_DAY=20
 SALES_ENABLED=false
@@ -1216,7 +1219,7 @@ ENS_RPC_URL= ENS_FALLBACK_RPC_URL=
 # Swarm
 SWARM_BEE_URL= SWARM_POSTAGE_BATCH=
 # Agent (see §8)
-AGENT_API_URL=http://127.0.0.1:8787 AGENT_TICK_MS=5000 AGENT_WATCH_KEYS= AGENT_OWNER= AGENT_PAYTO_ALLOWLIST= AGENT_MAX_USD6_PER_STEP=1000000
+AGENT_API_URL=http://127.0.0.1:8787 AGENT_TICK_MS=5000 AGENT_WATCH_KEYS= AGENT_OWNER= AGENT_PAYTO_ALLOWLIST= AGENT_MAX_USD6_PER_STEP=4000000
 AGENT_EVM_PRIVATE_KEY= AGENT_HEDERA_ACCOUNT_ID= AGENT_HEDERA_PRIVATE_KEY= AGENT_UAID= AGENT_DRY_RUN=0 AGENT_ONCE=0 LLM_PROVIDER=none
 # Web (public)
 NEXT_PUBLIC_API_URL=http://127.0.0.1:8787 NEXT_PUBLIC_MODE=local NEXT_PUBLIC_ANVIL_RPC_URL=http://127.0.0.1:8545

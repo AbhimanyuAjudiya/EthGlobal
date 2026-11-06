@@ -1,8 +1,8 @@
 # Recharge
 
-**Recharge: prove you're human and a sponsor pays for your first 300 MB of Mumbai data; after that you — or your
-agent — pay per 100 MB over x402, every bundle is an Arkiv entity that expires by itself, and anyone can gift data to
-an ENS name.**
+**Recharge: prove you're human and a sponsor pays for your first Mumbai data (up to 1 GB); after that you — or your
+agent — buy 1 GB at a time ($4.00) over x402, every bundle is an Arkiv entity that expires by itself, and anyone can
+gift data to an ENS name.**
 
 _Glassbox402 priced humans and agents differently; Recharge is the gate that proves which is which, and sells them a
 good people want on day one._
@@ -14,15 +14,18 @@ Built for ETHGlobal Mumbai 2026 (Continuity track; see [the disclosure](#continu
 ## How it works
 
 1. **Proof → money.** World IDKit 4 proves one human. The nullifier becomes an HMAC'd quota key, and `DataDrop.claim`
-   on Hedera EVM pays the sponsor's USDC for that one human, once. Orb/Document credentials get the free bundle; Device
-   gets the paid lane at the human price.
+   on Hedera EVM pays the sponsor's USDC for that one human, once (a campaign pays at least $1.20 a claim, the cost of
+   the eSIM it provisions). Orb/Document credentials get the free bundle (up to 1 GB); Device gets the paid lane at the
+   human price.
 2. **Entitlement that dies by protocol.** The bundle is an Arkiv entity with `expiresIn` = the plan's validity. The
    eSIM activation code is sealed to the buyer's session key and stored on Swarm. Arkiv holds only the reference.
-3. **Pay per 100 MB.** `GET /esim/topup` answers HTTP 402 with x402 v2 `accepts[]` (Hedera testnet USDC, Base Sepolia
-   USDC). A human or the agent signs, the facilitator settles, and the entity is extended. Every step writes an HCS
-   receipt.
+3. **Pay per 1 GB.** The product unit is the smallest eSIM the reseller sells: a new plan (`GET /esim/provision`) is
+   1 GB for $4.00 ($0.40 per 100 MB) and a top-up (`GET /esim/topup`) adds 1 GB for $4.00, older 300 MB plans too.
+   The API answers HTTP 402 with x402 v2 `accepts[]` (Hedera testnet USDC, Base Sepolia USDC). A human or the agent
+   signs, the facilitator settles, and the entity is extended. Every step writes an HCS receipt.
 4. **Your agent pays while you sleep.** At 20 % left or at expiry, a Hedera Agent Kit wallet with an HCS-14 UAID buys
-   one step under a cap the owner signed (`maxUsd6PerDay`). The policy is enforced in code, never by a model.
+   one 1 GB step ($4.00) under a cap the owner signed (`maxUsd6PerDay`). The policy is enforced in code, never by a
+   model.
 5. **Gift to a name.** `POST /gift { name: 'rahul.eth' }` resolves ENS before any 402 and escrows the bundle as an
    entity keyed by namehash. The recipient claims it with an EIP-712 signature (or a 16-digit scratch-card PIN). If
    nobody claims it, the sender reclaims the USDC.
@@ -105,7 +108,7 @@ Payment flow (x402 v2 `exact` on `hedera:testnet`, one paid request):
 1. **Setup.** `MODE=live` with `X402_NETWORKS` including `hedera:testnet`, `X402_FACILITATOR=remote` (x402.org) and
    `PAYOUT_HEDERA_ACCOUNT`; at boot the API reads the facilitator's `/supported` and takes `extra.feePayer` from it.
 2. **402.** `POST /gift` (or `GET /esim/topup`) without payment answers 402 with `PAYMENT-REQUIRED`: `hedera:testnet`,
-   asset `0.0.429274`, `400000` (0.40 USDC), payTo `0.0.11322453`, feePayer `0.0.9185802` (`accepts.ts`, `middleware/x402.ts`).
+   asset `0.0.429274`, `4000000` (4.00 USDC for 1 GB), payTo `0.0.11322453`, feePayer `0.0.9185802` (`accepts.ts`, `middleware/x402.ts`).
 3. **Pay.** The payer (the agent's Agent Kit wallet, `services/agent/src/payers/hedera.ts`, or HashPack in the PWA)
    signs an HTS transfer with the fee payer as transaction payer and retries with `PAYMENT-SIGNATURE`.
 4. **Settle.** The API calls the facilitator's `/verify` and `/settle`; the facilitator co-signs and submits; the
@@ -142,7 +145,7 @@ once per human per campaign.
 | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `app_id` · action                                 | TBD by human (Integrations, Wed 14:00) · `recharge-welcome`                                                       |
 | Verification logs (hashed nullifiers, timestamps) | TBD by human (Integrations, Fri 06:00)                                                                            |
-| Tier table                                        | Orb 300 MB free · Document 150 MB free · Device: paid at $0.40 / 100 MB (demo campaign; sizes come from `/plans`) |
+| Tier table                                        | Orb/Document: free, up to 1 GB (demo campaign: 300/150 MB) · Device: paid, 1 GB for $4.00 (sizes are in `/plans`) |
 | Video timestamp                                   | TBD by human (Design/Producer, Fri 23:30)                                                                         |
 
 ## Arkiv (+ Swarm)

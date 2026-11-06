@@ -1,6 +1,6 @@
 # `@ethglobal/agent` — the Recharge top-up agent
 
-> **When your plan drops below 20 % or expires, your agent buys 100 MB for $0.40 on Hedera, up to $10 a day.**
+> **When your plan drops below 20 % or expires, your agent buys 1 GB for $4.00 on Hedera, up to $10 a day.**
 
 Every tick (60 s live, 5 s local, ±10 % jitter, one key at a time) the agent:
 
@@ -68,12 +68,12 @@ Nothing relies on in-process ordering (`src/lock.ts`, `src/journal.ts`; local PO
 | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
 | `maxUsd6PerDay` (UTC day): `spent + step ≤ cap`                                             | `shouldTopUp` (octroi); `spent = max(ledger receipts, the agent's own spent.jsonl)` so receipt lag cannot buy twice — `src/tick.ts` | `tick.test.ts` 24 h loop; `regression/T-30-agent-cap.test.ts` |
 | `thresholdMb` (buy at `remaining ≤ threshold`)                                              | `shouldTopUp`                                                                                                                       | `tick.test.ts` 20 % / 21 %                                    |
-| `stepMb` (100–300)                                                                          | `topUpPolicySchema` + `shouldTopUp`; the signed amount is `priceUsd6(stepMb, 100, /plans price)`                                    | T-56 "value signed"                                           |
+| `stepMb` (1000; a stored 100–900 step is skipped `step-not-sold`, no request)               | `topUpPolicySchema` + `shouldTopUp`; the signed amount is `priceUsd6(stepMb, 100, /plans price)`                                    | T-56 "value signed"                                           |
 | `paused`                                                                                    | `shouldTopUp` (first check)                                                                                                         | `tick.test.ts`, T-30                                          |
 | expiry once per `expiresAt`                                                                 | `shouldTopUp(lastExpiryBought)`; pinned locally **and** sent as `X-Agent-Expiry-Bought`                                             | `tick.test.ts` (O13)                                          |
 | `AGENT_PAYTO_ALLOWLIST` `(network, asset, payTo[, feePayer])`                               | `TermsGuard.choose` — `src/buyer.ts`                                                                                                | `regression/T-56-tampered-402.test.ts`                        |
 | amount = agent-computed price, exactly                                                      | `TermsGuard.termsField`                                                                                                             | T-56                                                          |
-| `AGENT_MAX_USD6_PER_STEP`                                                                   | `Buyer.buy` (before any request) and `TermsGuard`                                                                                   | T-56                                                          |
+| `AGENT_MAX_USD6_PER_STEP` (default 4000000: one 1 GB step)                                  | `Buyer.buy` (before any request) and `TermsGuard`                                                                                   | T-56                                                          |
 | EIP-712 domain = token's `readDomain()` and `USDC_EIP712_DOMAIN`                            | `EvmPayer.refusal`                                                                                                                  | `payers-evm.test.ts`, T-56                                    |
 | Hedera: fee payer pinned, `maxTimeoutSeconds ≤ 180`, built tx = exactly the agreed two legs | `HederaPayer.refusal` / `#check`                                                                                                    | `payers-hedera.test.ts`                                       |
 | wallet balance (≈ one day's cap)                                                            | both payers' `sign()` refuse when `balance < value`                                                                                 | `regression/T-44-agent-receipts.test.ts`                      |
@@ -148,7 +148,7 @@ policy-capped; Hedera USDC (testnet `0.0.429274` or mainnet `0.0.456858`, per th
 - **Config additions**: `AGENT_LEDGER_WRITER` (T-79, required live), `AGENT_EVM_RPC_URL`, `AGENT_STATE_DIR`,
   `AGENT_LLM_MODEL` + `ANTHROPIC_API_KEY` (required with `LLM_PROVIDER=anthropic`; no default model id), `ARKIV_CHAIN_ID`,
   `ARKIV_RPC_URL`, `ARKIV_ACCESS_KEY`, `ARKIV_BLOCK_TIME_MS`.
-- **Notification template** uses the facts only: `+100 MB · paid by your agent · $0.40 of $10.00 today · 300 MB left`
+- **Notification template** uses the facts only: `+1000 MB · paid by your agent · $4.00 of $10.00 today · 1300 MB left`
   (`NotificationFacts` carries no per-purchase price or clock time, and adding keys would widen what an LLM sees).
 - `src/notify/` and `src/notifier.ts` hold all phrasing so the decision path stays import-clean for semgrep.
 

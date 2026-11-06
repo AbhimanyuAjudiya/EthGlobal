@@ -70,7 +70,11 @@
                             "properties": {
                               "startsOn": {
                                 "type": "string",
-                                "enum": ["first-network", "installation", "unknown"]
+                                "enum": [
+                                  "first-network",
+                                  "installation",
+                                  "unknown"
+                                ]
                               },
                               "installWithinDays": {
                                 "type": "integer",
@@ -78,12 +82,18 @@
                                 "maximum": 9007199254740991
                               }
                             },
-                            "required": ["startsOn"],
+                            "required": [
+                              "startsOn"
+                            ],
                             "additionalProperties": false
                           },
                           "cancellation": {
                             "type": "string",
-                            "enum": ["never-installed", "unsupported", "unknown"]
+                            "enum": [
+                              "never-installed",
+                              "unsupported",
+                              "unknown"
+                            ]
                           }
                         },
                         "required": [
@@ -99,7 +109,10 @@
                       }
                     }
                   },
-                  "required": ["country", "plans"],
+                  "required": [
+                    "country",
+                    "plans"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -123,7 +136,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -147,7 +163,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -194,7 +213,11 @@
                     "const": 1
                   }
                 },
-                "required": ["campaignId", "ticketPass", "sessionPubKey"],
+                "required": [
+                  "campaignId",
+                  "ticketPass",
+                  "sessionPubKey"
+                ],
                 "additionalProperties": false
               }
             }
@@ -220,7 +243,10 @@
                       "properties": {
                         "mode": {
                           "type": "string",
-                          "enum": ["local", "live"]
+                          "enum": [
+                            "local",
+                            "live"
+                          ]
                         },
                         "sponsor": {
                           "type": "object",
@@ -235,7 +261,9 @@
                               "maximum": 9007199254740991
                             }
                           },
-                          "required": ["minPricePerClaimUsd6"],
+                          "required": [
+                            "minPricePerClaimUsd6"
+                          ],
                           "additionalProperties": false
                         },
                         "campaign": {
@@ -272,7 +300,11 @@
                                       "const": 0
                                     }
                                   },
-                                  "required": ["orb", "document", "device"],
+                                  "required": [
+                                    "orb",
+                                    "document",
+                                    "device"
+                                  ],
                                   "additionalProperties": false
                                 },
                                 "remainingClaims": {
@@ -436,7 +468,12 @@
                               }
                             }
                           },
-                          "required": ["stepMb", "priceUsd6PerStep", "validityDays", "accepts"],
+                          "required": [
+                            "stepMb",
+                            "priceUsd6PerStep",
+                            "validityDays",
+                            "accepts"
+                          ],
                           "additionalProperties": false
                         },
                         "gift": {
@@ -456,7 +493,10 @@
                               "maximum": 9007199254740991
                             }
                           },
-                          "required": ["sizesMb", "claimWindowS"],
+                          "required": [
+                            "sizesMb",
+                            "claimWindowS"
+                          ],
                           "additionalProperties": false
                         },
                         "simulated": {
@@ -469,15 +509,28 @@
                               "type": "boolean"
                             }
                           },
-                          "required": ["usage", "personhood"],
+                          "required": [
+                            "usage",
+                            "personhood"
+                          ],
                           "additionalProperties": false
                         }
                       },
-                      "required": ["mode", "campaign", "paid", "gift", "simulated"],
+                      "required": [
+                        "mode",
+                        "campaign",
+                        "paid",
+                        "gift",
+                        "simulated"
+                      ],
                       "additionalProperties": false
                     }
                   },
-                  "required": ["valid", "campaignId", "plans"],
+                  "required": [
+                    "valid",
+                    "campaignId",
+                    "plans"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -501,7 +554,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -525,7 +581,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -549,7 +608,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -573,7 +635,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -597,7 +662,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -621,7 +689,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -682,10 +753,18 @@
                         "pattern": "^0x[0-9a-fA-F]*$"
                       }
                     },
-                    "required": ["sponsor", "nonce", "issuedAt", "signature"]
+                    "required": [
+                      "sponsor",
+                      "nonce",
+                      "issuedAt",
+                      "signature"
+                    ]
                   }
                 },
-                "required": ["ticketRefs", "auth"]
+                "required": [
+                  "ticketRefs",
+                  "auth"
+                ]
               }
             }
           }
@@ -715,7 +794,10 @@
                             "pattern": "^0x[0-9a-fA-F]{64}$"
                           }
                         },
-                        "required": ["reference", "pass"],
+                        "required": [
+                          "reference",
+                          "pass"
+                        ],
                         "additionalProperties": false
                       }
                     },
@@ -725,7 +807,11 @@
                       "maximum": 9007199254740991
                     }
                   },
-                  "required": ["campaignId", "tickets", "issuedAt"],
+                  "required": [
+                    "campaignId",
+                    "tickets",
+                    "issuedAt"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -749,7 +835,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -773,7 +862,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -797,7 +889,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -821,7 +916,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -845,7 +943,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -898,15 +999,26 @@
                           },
                           "status": {
                             "type": "string",
-                            "enum": ["issued", "reserved", "revoked"]
+                            "enum": [
+                              "issued",
+                              "reserved",
+                              "revoked"
+                            ]
                           }
                         },
-                        "required": ["reference", "issuedAt", "status"],
+                        "required": [
+                          "reference",
+                          "issuedAt",
+                          "status"
+                        ],
                         "additionalProperties": false
                       }
                     }
                   },
-                  "required": ["campaignId", "tickets"],
+                  "required": [
+                    "campaignId",
+                    "tickets"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -930,7 +1042,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -991,10 +1106,18 @@
                         "pattern": "^0x[0-9a-fA-F]*$"
                       }
                     },
-                    "required": ["sponsor", "nonce", "issuedAt", "signature"]
+                    "required": [
+                      "sponsor",
+                      "nonce",
+                      "issuedAt",
+                      "signature"
+                    ]
                   }
                 },
-                "required": ["ticketRefs", "auth"]
+                "required": [
+                  "ticketRefs",
+                  "auth"
+                ]
               }
             }
           }
@@ -1018,7 +1141,10 @@
                       }
                     }
                   },
-                  "required": ["campaignId", "revoked"],
+                  "required": [
+                    "campaignId",
+                    "revoked"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -1042,7 +1168,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -1066,7 +1195,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -1090,7 +1222,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -1114,7 +1249,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -1138,7 +1276,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -1164,7 +1305,10 @@
                     },
                     "mode": {
                       "type": "string",
-                      "enum": ["local", "live"]
+                      "enum": [
+                        "local",
+                        "live"
+                      ]
                     },
                     "chainId": {
                       "type": "number"
@@ -1173,7 +1317,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["ok", "mode"],
+                  "required": [
+                    "ok",
+                    "mode"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -1191,7 +1338,10 @@
                     },
                     "mode": {
                       "type": "string",
-                      "enum": ["local", "live"]
+                      "enum": [
+                        "local",
+                        "live"
+                      ]
                     },
                     "chainId": {
                       "type": "number"
@@ -1200,7 +1350,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["ok", "mode"],
+                  "required": [
+                    "ok",
+                    "mode"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -1234,7 +1387,10 @@
                   "properties": {
                     "mode": {
                       "type": "string",
-                      "enum": ["local", "live"]
+                      "enum": [
+                        "local",
+                        "live"
+                      ]
                     },
                     "sponsor": {
                       "type": "object",
@@ -1249,7 +1405,9 @@
                           "maximum": 9007199254740991
                         }
                       },
-                      "required": ["minPricePerClaimUsd6"],
+                      "required": [
+                        "minPricePerClaimUsd6"
+                      ],
                       "additionalProperties": false
                     },
                     "campaign": {
@@ -1286,7 +1444,11 @@
                                   "const": 0
                                 }
                               },
-                              "required": ["orb", "document", "device"],
+                              "required": [
+                                "orb",
+                                "document",
+                                "device"
+                              ],
                               "additionalProperties": false
                             },
                             "remainingClaims": {
@@ -1450,7 +1612,12 @@
                           }
                         }
                       },
-                      "required": ["stepMb", "priceUsd6PerStep", "validityDays", "accepts"],
+                      "required": [
+                        "stepMb",
+                        "priceUsd6PerStep",
+                        "validityDays",
+                        "accepts"
+                      ],
                       "additionalProperties": false
                     },
                     "gift": {
@@ -1470,7 +1637,10 @@
                           "maximum": 9007199254740991
                         }
                       },
-                      "required": ["sizesMb", "claimWindowS"],
+                      "required": [
+                        "sizesMb",
+                        "claimWindowS"
+                      ],
                       "additionalProperties": false
                     },
                     "simulated": {
@@ -1483,11 +1653,20 @@
                           "type": "boolean"
                         }
                       },
-                      "required": ["usage", "personhood"],
+                      "required": [
+                        "usage",
+                        "personhood"
+                      ],
                       "additionalProperties": false
                     }
                   },
-                  "required": ["mode", "campaign", "paid", "gift", "simulated"],
+                  "required": [
+                    "mode",
+                    "campaign",
+                    "paid",
+                    "gift",
+                    "simulated"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -1511,7 +1690,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -1550,7 +1732,11 @@
                     "pattern": "^0x[0-9a-fA-F]{64}$"
                   }
                 },
-                "required": ["audience", "path", "sessionPubKey"]
+                "required": [
+                  "audience",
+                  "path",
+                  "sessionPubKey"
+                ]
               }
             }
           }
@@ -1591,7 +1777,13 @@
                       "pattern": "^0x[0-9a-fA-F]{64}$"
                     }
                   },
-                  "required": ["nonce", "audience", "path", "exp", "signal"],
+                  "required": [
+                    "nonce",
+                    "audience",
+                    "path",
+                    "exp",
+                    "signal"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -1615,7 +1807,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -1639,7 +1834,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -1674,7 +1872,10 @@
                     ]
                   }
                 },
-                "required": ["audience", "path"]
+                "required": [
+                  "audience",
+                  "path"
+                ]
               }
             }
           }
@@ -1719,7 +1920,10 @@
                     },
                     "environment": {
                       "type": "string",
-                      "enum": ["production", "staging"]
+                      "enum": [
+                        "production",
+                        "staging"
+                      ]
                     }
                   },
                   "required": [
@@ -1755,7 +1959,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -1848,12 +2055,22 @@
                                   "type": "number"
                                 }
                               },
-                              "required": ["identifier", "nullifier", "proof", "signal_hash"],
+                              "required": [
+                                "identifier",
+                                "nullifier",
+                                "proof",
+                                "signal_hash"
+                              ],
                               "additionalProperties": {}
                             }
                           }
                         },
-                        "required": ["protocol_version", "nonce", "action", "responses"],
+                        "required": [
+                          "protocol_version",
+                          "nonce",
+                          "action",
+                          "responses"
+                        ],
                         "additionalProperties": {}
                       },
                       {
@@ -1927,7 +2144,12 @@
                             }
                           }
                         },
-                        "required": ["protocol_version", "nonce", "action", "responses"],
+                        "required": [
+                          "protocol_version",
+                          "nonce",
+                          "action",
+                          "responses"
+                        ],
                         "additionalProperties": {}
                       }
                     ]
@@ -1967,7 +2189,13 @@
                         "pattern": "^0x[0-9a-fA-F]{64}$"
                       }
                     },
-                    "required": ["nonce", "audience", "path", "exp", "signal"]
+                    "required": [
+                      "nonce",
+                      "audience",
+                      "path",
+                      "exp",
+                      "signal"
+                    ]
                   },
                   "sessionPubKey": {
                     "type": "string",
@@ -1982,7 +2210,12 @@
                     "const": 1
                   }
                 },
-                "required": ["proof", "campaignId", "challenge", "sessionPubKey"]
+                "required": [
+                  "proof",
+                  "campaignId",
+                  "challenge",
+                  "sessionPubKey"
+                ]
               }
             }
           }
@@ -2000,15 +2233,30 @@
                     },
                     "kind": {
                       "type": "string",
-                      "enum": ["free", "paid", "gift", "card"]
+                      "enum": [
+                        "free",
+                        "paid",
+                        "gift",
+                        "card"
+                      ]
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["pending-profile", "ready", "installed", "active"]
+                      "enum": [
+                        "pending-profile",
+                        "ready",
+                        "installed",
+                        "active"
+                      ]
                     },
                     "tier": {
                       "type": "string",
-                      "enum": ["orb", "document", "device", "none"]
+                      "enum": [
+                        "orb",
+                        "document",
+                        "device",
+                        "none"
+                      ]
                     },
                     "mbTotal": {
                       "type": "integer",
@@ -2030,7 +2278,11 @@
                       "properties": {
                         "startsOn": {
                           "type": "string",
-                          "enum": ["first-network", "installation", "unknown"]
+                          "enum": [
+                            "first-network",
+                            "installation",
+                            "unknown"
+                          ]
                         },
                         "activatedAt": {
                           "type": "integer",
@@ -2053,7 +2305,9 @@
                           "maximum": 9007199254740991
                         }
                       },
-                      "required": ["startsOn"],
+                      "required": [
+                        "startsOn"
+                      ],
                       "additionalProperties": false
                     },
                     "campaignReclaim": {
@@ -2061,7 +2315,13 @@
                       "properties": {
                         "state": {
                           "type": "string",
-                          "enum": ["scheduled", "pending", "refunded", "ineligible", "manual"]
+                          "enum": [
+                            "scheduled",
+                            "pending",
+                            "refunded",
+                            "ineligible",
+                            "manual"
+                          ]
                         },
                         "reclaimAfter": {
                           "type": "integer",
@@ -2073,7 +2333,10 @@
                           "maxLength": 128
                         }
                       },
-                      "required": ["state", "reclaimAfter"],
+                      "required": [
+                        "state",
+                        "reclaimAfter"
+                      ],
                       "additionalProperties": false
                     },
                     "event": {
@@ -2094,7 +2357,11 @@
                           "pattern": "^[A-Z]{2}$"
                         }
                       },
-                      "required": ["campaignId", "name", "destinationCountry"],
+                      "required": [
+                        "campaignId",
+                        "name",
+                        "destinationCountry"
+                      ],
                       "additionalProperties": false
                     },
                     "sealedLpa": {
@@ -2117,7 +2384,12 @@
                           "pattern": "^0x[0-9a-fA-F]*$"
                         }
                       },
-                      "required": ["v", "epk", "nonce", "ct"],
+                      "required": [
+                        "v",
+                        "epk",
+                        "nonce",
+                        "ct"
+                      ],
                       "additionalProperties": false
                     },
                     "claimTx": {
@@ -2146,7 +2418,12 @@
                               "maxLength": 64
                             }
                           },
-                          "required": ["success", "transaction", "network", "payer"],
+                          "required": [
+                            "success",
+                            "transaction",
+                            "network",
+                            "payer"
+                          ],
                           "additionalProperties": false
                         },
                         {
@@ -2173,7 +2450,11 @@
                               "maxLength": 64
                             }
                           },
-                          "required": ["success", "errorReason", "network"],
+                          "required": [
+                            "success",
+                            "errorReason",
+                            "network"
+                          ],
                           "additionalProperties": false
                         }
                       ]
@@ -2196,11 +2477,16 @@
                               "maximum": 9007199254740991
                             }
                           },
-                          "required": ["topic", "sequence"],
+                          "required": [
+                            "topic",
+                            "sequence"
+                          ],
                           "additionalProperties": false
                         }
                       },
-                      "required": ["arkivKey"],
+                      "required": [
+                        "arkivKey"
+                      ],
                       "additionalProperties": false
                     }
                   },
@@ -2231,15 +2517,30 @@
                     },
                     "kind": {
                       "type": "string",
-                      "enum": ["free", "paid", "gift", "card"]
+                      "enum": [
+                        "free",
+                        "paid",
+                        "gift",
+                        "card"
+                      ]
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["pending-profile", "ready", "installed", "active"]
+                      "enum": [
+                        "pending-profile",
+                        "ready",
+                        "installed",
+                        "active"
+                      ]
                     },
                     "tier": {
                       "type": "string",
-                      "enum": ["orb", "document", "device", "none"]
+                      "enum": [
+                        "orb",
+                        "document",
+                        "device",
+                        "none"
+                      ]
                     },
                     "mbTotal": {
                       "type": "integer",
@@ -2261,7 +2562,11 @@
                       "properties": {
                         "startsOn": {
                           "type": "string",
-                          "enum": ["first-network", "installation", "unknown"]
+                          "enum": [
+                            "first-network",
+                            "installation",
+                            "unknown"
+                          ]
                         },
                         "activatedAt": {
                           "type": "integer",
@@ -2284,7 +2589,9 @@
                           "maximum": 9007199254740991
                         }
                       },
-                      "required": ["startsOn"],
+                      "required": [
+                        "startsOn"
+                      ],
                       "additionalProperties": false
                     },
                     "campaignReclaim": {
@@ -2292,7 +2599,13 @@
                       "properties": {
                         "state": {
                           "type": "string",
-                          "enum": ["scheduled", "pending", "refunded", "ineligible", "manual"]
+                          "enum": [
+                            "scheduled",
+                            "pending",
+                            "refunded",
+                            "ineligible",
+                            "manual"
+                          ]
                         },
                         "reclaimAfter": {
                           "type": "integer",
@@ -2304,7 +2617,10 @@
                           "maxLength": 128
                         }
                       },
-                      "required": ["state", "reclaimAfter"],
+                      "required": [
+                        "state",
+                        "reclaimAfter"
+                      ],
                       "additionalProperties": false
                     },
                     "event": {
@@ -2325,7 +2641,11 @@
                           "pattern": "^[A-Z]{2}$"
                         }
                       },
-                      "required": ["campaignId", "name", "destinationCountry"],
+                      "required": [
+                        "campaignId",
+                        "name",
+                        "destinationCountry"
+                      ],
                       "additionalProperties": false
                     },
                     "sealedLpa": {
@@ -2348,7 +2668,12 @@
                           "pattern": "^0x[0-9a-fA-F]*$"
                         }
                       },
-                      "required": ["v", "epk", "nonce", "ct"],
+                      "required": [
+                        "v",
+                        "epk",
+                        "nonce",
+                        "ct"
+                      ],
                       "additionalProperties": false
                     },
                     "claimTx": {
@@ -2377,7 +2702,12 @@
                               "maxLength": 64
                             }
                           },
-                          "required": ["success", "transaction", "network", "payer"],
+                          "required": [
+                            "success",
+                            "transaction",
+                            "network",
+                            "payer"
+                          ],
                           "additionalProperties": false
                         },
                         {
@@ -2404,7 +2734,11 @@
                               "maxLength": 64
                             }
                           },
-                          "required": ["success", "errorReason", "network"],
+                          "required": [
+                            "success",
+                            "errorReason",
+                            "network"
+                          ],
                           "additionalProperties": false
                         }
                       ]
@@ -2427,11 +2761,16 @@
                               "maximum": 9007199254740991
                             }
                           },
-                          "required": ["topic", "sequence"],
+                          "required": [
+                            "topic",
+                            "sequence"
+                          ],
                           "additionalProperties": false
                         }
                       },
-                      "required": ["arkivKey"],
+                      "required": [
+                        "arkivKey"
+                      ],
                       "additionalProperties": false
                     }
                   },
@@ -2468,7 +2807,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -2501,7 +2843,11 @@
                           "maxLength": 80
                         }
                       },
-                      "required": ["url", "description", "mimeType"],
+                      "required": [
+                        "url",
+                        "description",
+                        "mimeType"
+                      ],
                       "additionalProperties": false
                     },
                     "accepts": {
@@ -2568,7 +2914,11 @@
                       "additionalProperties": {}
                     }
                   },
-                  "required": ["x402Version", "resource", "accepts"],
+                  "required": [
+                    "x402Version",
+                    "resource",
+                    "accepts"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -2592,7 +2942,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -2616,7 +2969,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -2640,7 +2996,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -2664,7 +3023,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -2688,7 +3050,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -2751,15 +3116,30 @@
                     },
                     "kind": {
                       "type": "string",
-                      "enum": ["free", "paid", "gift", "card"]
+                      "enum": [
+                        "free",
+                        "paid",
+                        "gift",
+                        "card"
+                      ]
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["pending-profile", "ready", "installed", "active"]
+                      "enum": [
+                        "pending-profile",
+                        "ready",
+                        "installed",
+                        "active"
+                      ]
                     },
                     "tier": {
                       "type": "string",
-                      "enum": ["orb", "document", "device", "none"]
+                      "enum": [
+                        "orb",
+                        "document",
+                        "device",
+                        "none"
+                      ]
                     },
                     "mbTotal": {
                       "type": "integer",
@@ -2781,7 +3161,11 @@
                       "properties": {
                         "startsOn": {
                           "type": "string",
-                          "enum": ["first-network", "installation", "unknown"]
+                          "enum": [
+                            "first-network",
+                            "installation",
+                            "unknown"
+                          ]
                         },
                         "activatedAt": {
                           "type": "integer",
@@ -2804,7 +3188,9 @@
                           "maximum": 9007199254740991
                         }
                       },
-                      "required": ["startsOn"],
+                      "required": [
+                        "startsOn"
+                      ],
                       "additionalProperties": false
                     },
                     "campaignReclaim": {
@@ -2812,7 +3198,13 @@
                       "properties": {
                         "state": {
                           "type": "string",
-                          "enum": ["scheduled", "pending", "refunded", "ineligible", "manual"]
+                          "enum": [
+                            "scheduled",
+                            "pending",
+                            "refunded",
+                            "ineligible",
+                            "manual"
+                          ]
                         },
                         "reclaimAfter": {
                           "type": "integer",
@@ -2824,7 +3216,10 @@
                           "maxLength": 128
                         }
                       },
-                      "required": ["state", "reclaimAfter"],
+                      "required": [
+                        "state",
+                        "reclaimAfter"
+                      ],
                       "additionalProperties": false
                     },
                     "event": {
@@ -2845,7 +3240,11 @@
                           "pattern": "^[A-Z]{2}$"
                         }
                       },
-                      "required": ["campaignId", "name", "destinationCountry"],
+                      "required": [
+                        "campaignId",
+                        "name",
+                        "destinationCountry"
+                      ],
                       "additionalProperties": false
                     },
                     "sealedLpa": {
@@ -2868,7 +3267,12 @@
                           "pattern": "^0x[0-9a-fA-F]*$"
                         }
                       },
-                      "required": ["v", "epk", "nonce", "ct"],
+                      "required": [
+                        "v",
+                        "epk",
+                        "nonce",
+                        "ct"
+                      ],
                       "additionalProperties": false
                     },
                     "claimTx": {
@@ -2897,7 +3301,12 @@
                               "maxLength": 64
                             }
                           },
-                          "required": ["success", "transaction", "network", "payer"],
+                          "required": [
+                            "success",
+                            "transaction",
+                            "network",
+                            "payer"
+                          ],
                           "additionalProperties": false
                         },
                         {
@@ -2924,7 +3333,11 @@
                               "maxLength": 64
                             }
                           },
-                          "required": ["success", "errorReason", "network"],
+                          "required": [
+                            "success",
+                            "errorReason",
+                            "network"
+                          ],
                           "additionalProperties": false
                         }
                       ]
@@ -2947,11 +3360,16 @@
                               "maximum": 9007199254740991
                             }
                           },
-                          "required": ["topic", "sequence"],
+                          "required": [
+                            "topic",
+                            "sequence"
+                          ],
                           "additionalProperties": false
                         }
                       },
-                      "required": ["arkivKey"],
+                      "required": [
+                        "arkivKey"
+                      ],
                       "additionalProperties": false
                     }
                   },
@@ -2988,7 +3406,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -3021,7 +3442,11 @@
                           "maxLength": 80
                         }
                       },
-                      "required": ["url", "description", "mimeType"],
+                      "required": [
+                        "url",
+                        "description",
+                        "mimeType"
+                      ],
                       "additionalProperties": false
                     },
                     "accepts": {
@@ -3088,7 +3513,11 @@
                       "additionalProperties": {}
                     }
                   },
-                  "required": ["x402Version", "resource", "accepts"],
+                  "required": [
+                    "x402Version",
+                    "resource",
+                    "accepts"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -3188,7 +3617,12 @@
                               "maxLength": 64
                             }
                           },
-                          "required": ["success", "transaction", "network", "payer"],
+                          "required": [
+                            "success",
+                            "transaction",
+                            "network",
+                            "payer"
+                          ],
                           "additionalProperties": false
                         },
                         {
@@ -3215,7 +3649,11 @@
                               "maxLength": 64
                             }
                           },
-                          "required": ["success", "errorReason", "network"],
+                          "required": [
+                            "success",
+                            "errorReason",
+                            "network"
+                          ],
                           "additionalProperties": false
                         }
                       ]
@@ -3238,11 +3676,16 @@
                               "maximum": 9007199254740991
                             }
                           },
-                          "required": ["topic", "sequence"],
+                          "required": [
+                            "topic",
+                            "sequence"
+                          ],
                           "additionalProperties": false
                         }
                       },
-                      "required": ["arkivKey"],
+                      "required": [
+                        "arkivKey"
+                      ],
                       "additionalProperties": false
                     }
                   },
@@ -3286,7 +3729,11 @@
                           "maxLength": 80
                         }
                       },
-                      "required": ["url", "description", "mimeType"],
+                      "required": [
+                        "url",
+                        "description",
+                        "mimeType"
+                      ],
                       "additionalProperties": false
                     },
                     "accepts": {
@@ -3353,7 +3800,11 @@
                       "additionalProperties": {}
                     }
                   },
-                  "required": ["x402Version", "resource", "accepts"],
+                  "required": [
+                    "x402Version",
+                    "resource",
+                    "accepts"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -3377,7 +3828,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -3401,7 +3855,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -3425,7 +3882,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -3449,7 +3909,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -3505,7 +3968,10 @@
                     "pattern": "^[\\x20-\\x7Eऀ-ॿ]+$"
                   }
                 },
-                "required": ["name", "mb"]
+                "required": [
+                  "name",
+                  "mb"
+                ]
               }
             }
           }
@@ -3569,7 +4035,12 @@
                               "maxLength": 64
                             }
                           },
-                          "required": ["success", "transaction", "network", "payer"],
+                          "required": [
+                            "success",
+                            "transaction",
+                            "network",
+                            "payer"
+                          ],
                           "additionalProperties": false
                         },
                         {
@@ -3596,7 +4067,11 @@
                               "maxLength": 64
                             }
                           },
-                          "required": ["success", "errorReason", "network"],
+                          "required": [
+                            "success",
+                            "errorReason",
+                            "network"
+                          ],
                           "additionalProperties": false
                         }
                       ]
@@ -3619,11 +4094,16 @@
                               "maximum": 9007199254740991
                             }
                           },
-                          "required": ["topic", "sequence"],
+                          "required": [
+                            "topic",
+                            "sequence"
+                          ],
                           "additionalProperties": false
                         }
                       },
-                      "required": ["arkivKey"],
+                      "required": [
+                        "arkivKey"
+                      ],
                       "additionalProperties": false
                     }
                   },
@@ -3670,7 +4150,11 @@
                           "maxLength": 80
                         }
                       },
-                      "required": ["url", "description", "mimeType"],
+                      "required": [
+                        "url",
+                        "description",
+                        "mimeType"
+                      ],
                       "additionalProperties": false
                     },
                     "accepts": {
@@ -3737,7 +4221,11 @@
                       "additionalProperties": {}
                     }
                   },
-                  "required": ["x402Version", "resource", "accepts"],
+                  "required": [
+                    "x402Version",
+                    "resource",
+                    "accepts"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -3761,7 +4249,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -3836,14 +4327,26 @@
                             "pattern": "^0x[0-9a-fA-F]{64}$"
                           }
                         },
-                        "required": ["nonce", "audience", "path", "exp", "signal"]
+                        "required": [
+                          "nonce",
+                          "audience",
+                          "path",
+                          "exp",
+                          "signal"
+                        ]
                       },
                       "sessionPubKey": {
                         "type": "string",
                         "pattern": "^0x[0-9a-fA-F]{64}$"
                       }
                     },
-                    "required": ["giftId", "signature", "recipient", "challenge", "sessionPubKey"]
+                    "required": [
+                      "giftId",
+                      "signature",
+                      "recipient",
+                      "challenge",
+                      "sessionPubKey"
+                    ]
                   },
                   {
                     "type": "object",
@@ -3883,14 +4386,24 @@
                             "pattern": "^0x[0-9a-fA-F]{64}$"
                           }
                         },
-                        "required": ["nonce", "audience", "path", "exp", "signal"]
+                        "required": [
+                          "nonce",
+                          "audience",
+                          "path",
+                          "exp",
+                          "signal"
+                        ]
                       },
                       "sessionPubKey": {
                         "type": "string",
                         "pattern": "^0x[0-9a-fA-F]{64}$"
                       }
                     },
-                    "required": ["pin", "challenge", "sessionPubKey"]
+                    "required": [
+                      "pin",
+                      "challenge",
+                      "sessionPubKey"
+                    ]
                   }
                 ]
               }
@@ -3910,15 +4423,30 @@
                     },
                     "kind": {
                       "type": "string",
-                      "enum": ["free", "paid", "gift", "card"]
+                      "enum": [
+                        "free",
+                        "paid",
+                        "gift",
+                        "card"
+                      ]
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["pending-profile", "ready", "installed", "active"]
+                      "enum": [
+                        "pending-profile",
+                        "ready",
+                        "installed",
+                        "active"
+                      ]
                     },
                     "tier": {
                       "type": "string",
-                      "enum": ["orb", "document", "device", "none"]
+                      "enum": [
+                        "orb",
+                        "document",
+                        "device",
+                        "none"
+                      ]
                     },
                     "mbTotal": {
                       "type": "integer",
@@ -3940,7 +4468,11 @@
                       "properties": {
                         "startsOn": {
                           "type": "string",
-                          "enum": ["first-network", "installation", "unknown"]
+                          "enum": [
+                            "first-network",
+                            "installation",
+                            "unknown"
+                          ]
                         },
                         "activatedAt": {
                           "type": "integer",
@@ -3963,7 +4495,9 @@
                           "maximum": 9007199254740991
                         }
                       },
-                      "required": ["startsOn"],
+                      "required": [
+                        "startsOn"
+                      ],
                       "additionalProperties": false
                     },
                     "campaignReclaim": {
@@ -3971,7 +4505,13 @@
                       "properties": {
                         "state": {
                           "type": "string",
-                          "enum": ["scheduled", "pending", "refunded", "ineligible", "manual"]
+                          "enum": [
+                            "scheduled",
+                            "pending",
+                            "refunded",
+                            "ineligible",
+                            "manual"
+                          ]
                         },
                         "reclaimAfter": {
                           "type": "integer",
@@ -3983,7 +4523,10 @@
                           "maxLength": 128
                         }
                       },
-                      "required": ["state", "reclaimAfter"],
+                      "required": [
+                        "state",
+                        "reclaimAfter"
+                      ],
                       "additionalProperties": false
                     },
                     "event": {
@@ -4004,7 +4547,11 @@
                           "pattern": "^[A-Z]{2}$"
                         }
                       },
-                      "required": ["campaignId", "name", "destinationCountry"],
+                      "required": [
+                        "campaignId",
+                        "name",
+                        "destinationCountry"
+                      ],
                       "additionalProperties": false
                     },
                     "sealedLpa": {
@@ -4027,7 +4574,12 @@
                           "pattern": "^0x[0-9a-fA-F]*$"
                         }
                       },
-                      "required": ["v", "epk", "nonce", "ct"],
+                      "required": [
+                        "v",
+                        "epk",
+                        "nonce",
+                        "ct"
+                      ],
                       "additionalProperties": false
                     },
                     "claimTx": {
@@ -4056,7 +4608,12 @@
                               "maxLength": 64
                             }
                           },
-                          "required": ["success", "transaction", "network", "payer"],
+                          "required": [
+                            "success",
+                            "transaction",
+                            "network",
+                            "payer"
+                          ],
                           "additionalProperties": false
                         },
                         {
@@ -4083,7 +4640,11 @@
                               "maxLength": 64
                             }
                           },
-                          "required": ["success", "errorReason", "network"],
+                          "required": [
+                            "success",
+                            "errorReason",
+                            "network"
+                          ],
                           "additionalProperties": false
                         }
                       ]
@@ -4106,11 +4667,16 @@
                               "maximum": 9007199254740991
                             }
                           },
-                          "required": ["topic", "sequence"],
+                          "required": [
+                            "topic",
+                            "sequence"
+                          ],
                           "additionalProperties": false
                         }
                       },
-                      "required": ["arkivKey"],
+                      "required": [
+                        "arkivKey"
+                      ],
                       "additionalProperties": false
                     }
                   },
@@ -4141,15 +4707,30 @@
                     },
                     "kind": {
                       "type": "string",
-                      "enum": ["free", "paid", "gift", "card"]
+                      "enum": [
+                        "free",
+                        "paid",
+                        "gift",
+                        "card"
+                      ]
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["pending-profile", "ready", "installed", "active"]
+                      "enum": [
+                        "pending-profile",
+                        "ready",
+                        "installed",
+                        "active"
+                      ]
                     },
                     "tier": {
                       "type": "string",
-                      "enum": ["orb", "document", "device", "none"]
+                      "enum": [
+                        "orb",
+                        "document",
+                        "device",
+                        "none"
+                      ]
                     },
                     "mbTotal": {
                       "type": "integer",
@@ -4171,7 +4752,11 @@
                       "properties": {
                         "startsOn": {
                           "type": "string",
-                          "enum": ["first-network", "installation", "unknown"]
+                          "enum": [
+                            "first-network",
+                            "installation",
+                            "unknown"
+                          ]
                         },
                         "activatedAt": {
                           "type": "integer",
@@ -4194,7 +4779,9 @@
                           "maximum": 9007199254740991
                         }
                       },
-                      "required": ["startsOn"],
+                      "required": [
+                        "startsOn"
+                      ],
                       "additionalProperties": false
                     },
                     "campaignReclaim": {
@@ -4202,7 +4789,13 @@
                       "properties": {
                         "state": {
                           "type": "string",
-                          "enum": ["scheduled", "pending", "refunded", "ineligible", "manual"]
+                          "enum": [
+                            "scheduled",
+                            "pending",
+                            "refunded",
+                            "ineligible",
+                            "manual"
+                          ]
                         },
                         "reclaimAfter": {
                           "type": "integer",
@@ -4214,7 +4807,10 @@
                           "maxLength": 128
                         }
                       },
-                      "required": ["state", "reclaimAfter"],
+                      "required": [
+                        "state",
+                        "reclaimAfter"
+                      ],
                       "additionalProperties": false
                     },
                     "event": {
@@ -4235,7 +4831,11 @@
                           "pattern": "^[A-Z]{2}$"
                         }
                       },
-                      "required": ["campaignId", "name", "destinationCountry"],
+                      "required": [
+                        "campaignId",
+                        "name",
+                        "destinationCountry"
+                      ],
                       "additionalProperties": false
                     },
                     "sealedLpa": {
@@ -4258,7 +4858,12 @@
                           "pattern": "^0x[0-9a-fA-F]*$"
                         }
                       },
-                      "required": ["v", "epk", "nonce", "ct"],
+                      "required": [
+                        "v",
+                        "epk",
+                        "nonce",
+                        "ct"
+                      ],
                       "additionalProperties": false
                     },
                     "claimTx": {
@@ -4287,7 +4892,12 @@
                               "maxLength": 64
                             }
                           },
-                          "required": ["success", "transaction", "network", "payer"],
+                          "required": [
+                            "success",
+                            "transaction",
+                            "network",
+                            "payer"
+                          ],
                           "additionalProperties": false
                         },
                         {
@@ -4314,7 +4924,11 @@
                               "maxLength": 64
                             }
                           },
-                          "required": ["success", "errorReason", "network"],
+                          "required": [
+                            "success",
+                            "errorReason",
+                            "network"
+                          ],
                           "additionalProperties": false
                         }
                       ]
@@ -4337,11 +4951,16 @@
                               "maximum": 9007199254740991
                             }
                           },
-                          "required": ["topic", "sequence"],
+                          "required": [
+                            "topic",
+                            "sequence"
+                          ],
                           "additionalProperties": false
                         }
                       },
-                      "required": ["arkivKey"],
+                      "required": [
+                        "arkivKey"
+                      ],
                       "additionalProperties": false
                     }
                   },
@@ -4378,7 +4997,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -4402,7 +5024,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -4426,7 +5051,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -4499,10 +5127,21 @@
                         "pattern": "^0x[0-9a-fA-F]{64}$"
                       }
                     },
-                    "required": ["nonce", "audience", "path", "exp", "signal"]
+                    "required": [
+                      "nonce",
+                      "audience",
+                      "path",
+                      "exp",
+                      "signal"
+                    ]
                   }
                 },
-                "required": ["giftId", "payer", "signature", "challenge"]
+                "required": [
+                  "giftId",
+                  "payer",
+                  "signature",
+                  "challenge"
+                ]
               }
             }
           }
@@ -4552,15 +5191,27 @@
                               "maximum": 9007199254740991
                             }
                           },
-                          "required": ["topic", "sequence"],
+                          "required": [
+                            "topic",
+                            "sequence"
+                          ],
                           "additionalProperties": false
                         }
                       },
-                      "required": ["arkivKey"],
+                      "required": [
+                        "arkivKey"
+                      ],
                       "additionalProperties": false
                     }
                   },
-                  "required": ["giftId", "refundedUsd6", "feeUsd6", "network", "tx", "receipt"],
+                  "required": [
+                    "giftId",
+                    "refundedUsd6",
+                    "feeUsd6",
+                    "network",
+                    "tx",
+                    "receipt"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -4584,7 +5235,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -4608,7 +5262,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -4632,7 +5289,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -4656,7 +5316,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -4680,7 +5343,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -4724,7 +5390,11 @@
                     },
                     "state": {
                       "type": "string",
-                      "enum": ["open", "claimed", "expired"]
+                      "enum": [
+                        "open",
+                        "claimed",
+                        "expired"
+                      ]
                     },
                     "claimBy": {
                       "type": "integer",
@@ -4732,7 +5402,12 @@
                       "maximum": 9007199254740991
                     }
                   },
-                  "required": ["serial", "mb", "state", "claimBy"],
+                  "required": [
+                    "serial",
+                    "mb",
+                    "state",
+                    "claimBy"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -4756,7 +5431,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -4821,14 +5499,24 @@
                         "pattern": "^0x[0-9a-fA-F]{64}$"
                       }
                     },
-                    "required": ["nonce", "audience", "path", "exp", "signal"]
+                    "required": [
+                      "nonce",
+                      "audience",
+                      "path",
+                      "exp",
+                      "signal"
+                    ]
                   },
                   "sessionPubKey": {
                     "type": "string",
                     "pattern": "^0x[0-9a-fA-F]{64}$"
                   }
                 },
-                "required": ["pin", "challenge", "sessionPubKey"]
+                "required": [
+                  "pin",
+                  "challenge",
+                  "sessionPubKey"
+                ]
               }
             }
           }
@@ -4846,15 +5534,30 @@
                     },
                     "kind": {
                       "type": "string",
-                      "enum": ["free", "paid", "gift", "card"]
+                      "enum": [
+                        "free",
+                        "paid",
+                        "gift",
+                        "card"
+                      ]
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["pending-profile", "ready", "installed", "active"]
+                      "enum": [
+                        "pending-profile",
+                        "ready",
+                        "installed",
+                        "active"
+                      ]
                     },
                     "tier": {
                       "type": "string",
-                      "enum": ["orb", "document", "device", "none"]
+                      "enum": [
+                        "orb",
+                        "document",
+                        "device",
+                        "none"
+                      ]
                     },
                     "mbTotal": {
                       "type": "integer",
@@ -4876,7 +5579,11 @@
                       "properties": {
                         "startsOn": {
                           "type": "string",
-                          "enum": ["first-network", "installation", "unknown"]
+                          "enum": [
+                            "first-network",
+                            "installation",
+                            "unknown"
+                          ]
                         },
                         "activatedAt": {
                           "type": "integer",
@@ -4899,7 +5606,9 @@
                           "maximum": 9007199254740991
                         }
                       },
-                      "required": ["startsOn"],
+                      "required": [
+                        "startsOn"
+                      ],
                       "additionalProperties": false
                     },
                     "campaignReclaim": {
@@ -4907,7 +5616,13 @@
                       "properties": {
                         "state": {
                           "type": "string",
-                          "enum": ["scheduled", "pending", "refunded", "ineligible", "manual"]
+                          "enum": [
+                            "scheduled",
+                            "pending",
+                            "refunded",
+                            "ineligible",
+                            "manual"
+                          ]
                         },
                         "reclaimAfter": {
                           "type": "integer",
@@ -4919,7 +5634,10 @@
                           "maxLength": 128
                         }
                       },
-                      "required": ["state", "reclaimAfter"],
+                      "required": [
+                        "state",
+                        "reclaimAfter"
+                      ],
                       "additionalProperties": false
                     },
                     "event": {
@@ -4940,7 +5658,11 @@
                           "pattern": "^[A-Z]{2}$"
                         }
                       },
-                      "required": ["campaignId", "name", "destinationCountry"],
+                      "required": [
+                        "campaignId",
+                        "name",
+                        "destinationCountry"
+                      ],
                       "additionalProperties": false
                     },
                     "sealedLpa": {
@@ -4963,7 +5685,12 @@
                           "pattern": "^0x[0-9a-fA-F]*$"
                         }
                       },
-                      "required": ["v", "epk", "nonce", "ct"],
+                      "required": [
+                        "v",
+                        "epk",
+                        "nonce",
+                        "ct"
+                      ],
                       "additionalProperties": false
                     },
                     "claimTx": {
@@ -4992,7 +5719,12 @@
                               "maxLength": 64
                             }
                           },
-                          "required": ["success", "transaction", "network", "payer"],
+                          "required": [
+                            "success",
+                            "transaction",
+                            "network",
+                            "payer"
+                          ],
                           "additionalProperties": false
                         },
                         {
@@ -5019,7 +5751,11 @@
                               "maxLength": 64
                             }
                           },
-                          "required": ["success", "errorReason", "network"],
+                          "required": [
+                            "success",
+                            "errorReason",
+                            "network"
+                          ],
                           "additionalProperties": false
                         }
                       ]
@@ -5042,11 +5778,16 @@
                               "maximum": 9007199254740991
                             }
                           },
-                          "required": ["topic", "sequence"],
+                          "required": [
+                            "topic",
+                            "sequence"
+                          ],
                           "additionalProperties": false
                         }
                       },
-                      "required": ["arkivKey"],
+                      "required": [
+                        "arkivKey"
+                      ],
                       "additionalProperties": false
                     }
                   },
@@ -5077,15 +5818,30 @@
                     },
                     "kind": {
                       "type": "string",
-                      "enum": ["free", "paid", "gift", "card"]
+                      "enum": [
+                        "free",
+                        "paid",
+                        "gift",
+                        "card"
+                      ]
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["pending-profile", "ready", "installed", "active"]
+                      "enum": [
+                        "pending-profile",
+                        "ready",
+                        "installed",
+                        "active"
+                      ]
                     },
                     "tier": {
                       "type": "string",
-                      "enum": ["orb", "document", "device", "none"]
+                      "enum": [
+                        "orb",
+                        "document",
+                        "device",
+                        "none"
+                      ]
                     },
                     "mbTotal": {
                       "type": "integer",
@@ -5107,7 +5863,11 @@
                       "properties": {
                         "startsOn": {
                           "type": "string",
-                          "enum": ["first-network", "installation", "unknown"]
+                          "enum": [
+                            "first-network",
+                            "installation",
+                            "unknown"
+                          ]
                         },
                         "activatedAt": {
                           "type": "integer",
@@ -5130,7 +5890,9 @@
                           "maximum": 9007199254740991
                         }
                       },
-                      "required": ["startsOn"],
+                      "required": [
+                        "startsOn"
+                      ],
                       "additionalProperties": false
                     },
                     "campaignReclaim": {
@@ -5138,7 +5900,13 @@
                       "properties": {
                         "state": {
                           "type": "string",
-                          "enum": ["scheduled", "pending", "refunded", "ineligible", "manual"]
+                          "enum": [
+                            "scheduled",
+                            "pending",
+                            "refunded",
+                            "ineligible",
+                            "manual"
+                          ]
                         },
                         "reclaimAfter": {
                           "type": "integer",
@@ -5150,7 +5918,10 @@
                           "maxLength": 128
                         }
                       },
-                      "required": ["state", "reclaimAfter"],
+                      "required": [
+                        "state",
+                        "reclaimAfter"
+                      ],
                       "additionalProperties": false
                     },
                     "event": {
@@ -5171,7 +5942,11 @@
                           "pattern": "^[A-Z]{2}$"
                         }
                       },
-                      "required": ["campaignId", "name", "destinationCountry"],
+                      "required": [
+                        "campaignId",
+                        "name",
+                        "destinationCountry"
+                      ],
                       "additionalProperties": false
                     },
                     "sealedLpa": {
@@ -5194,7 +5969,12 @@
                           "pattern": "^0x[0-9a-fA-F]*$"
                         }
                       },
-                      "required": ["v", "epk", "nonce", "ct"],
+                      "required": [
+                        "v",
+                        "epk",
+                        "nonce",
+                        "ct"
+                      ],
                       "additionalProperties": false
                     },
                     "claimTx": {
@@ -5223,7 +6003,12 @@
                               "maxLength": 64
                             }
                           },
-                          "required": ["success", "transaction", "network", "payer"],
+                          "required": [
+                            "success",
+                            "transaction",
+                            "network",
+                            "payer"
+                          ],
                           "additionalProperties": false
                         },
                         {
@@ -5250,7 +6035,11 @@
                               "maxLength": 64
                             }
                           },
-                          "required": ["success", "errorReason", "network"],
+                          "required": [
+                            "success",
+                            "errorReason",
+                            "network"
+                          ],
                           "additionalProperties": false
                         }
                       ]
@@ -5273,11 +6062,16 @@
                               "maximum": 9007199254740991
                             }
                           },
-                          "required": ["topic", "sequence"],
+                          "required": [
+                            "topic",
+                            "sequence"
+                          ],
                           "additionalProperties": false
                         }
                       },
-                      "required": ["arkivKey"],
+                      "required": [
+                        "arkivKey"
+                      ],
                       "additionalProperties": false
                     }
                   },
@@ -5314,7 +6108,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -5338,7 +6135,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -5362,7 +6162,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -5407,7 +6210,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -5431,7 +6237,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -5455,7 +6264,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -5491,15 +6303,30 @@
                     },
                     "kind": {
                       "type": "string",
-                      "enum": ["free", "paid", "gift", "card"]
+                      "enum": [
+                        "free",
+                        "paid",
+                        "gift",
+                        "card"
+                      ]
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["pending-profile", "ready", "installed", "active"]
+                      "enum": [
+                        "pending-profile",
+                        "ready",
+                        "installed",
+                        "active"
+                      ]
                     },
                     "tier": {
                       "type": "string",
-                      "enum": ["orb", "document", "device", "none"]
+                      "enum": [
+                        "orb",
+                        "document",
+                        "device",
+                        "none"
+                      ]
                     },
                     "campaignId": {
                       "type": "string",
@@ -5530,7 +6357,12 @@
                     },
                     "usageSource": {
                       "type": "string",
-                      "enum": ["none", "webhook", "poll", "simulated"]
+                      "enum": [
+                        "none",
+                        "webhook",
+                        "poll",
+                        "simulated"
+                      ]
                     },
                     "expiresAt": {
                       "type": "integer",
@@ -5542,7 +6374,11 @@
                       "properties": {
                         "startsOn": {
                           "type": "string",
-                          "enum": ["first-network", "installation", "unknown"]
+                          "enum": [
+                            "first-network",
+                            "installation",
+                            "unknown"
+                          ]
                         },
                         "activatedAt": {
                           "type": "integer",
@@ -5565,7 +6401,9 @@
                           "maximum": 9007199254740991
                         }
                       },
-                      "required": ["startsOn"],
+                      "required": [
+                        "startsOn"
+                      ],
                       "additionalProperties": false
                     },
                     "arkivKey": {
@@ -5614,9 +6452,29 @@
                               "pattern": "^0\\.0\\.[1-9]\\d{0,11}$"
                             }
                           ]
+                        },
+                        "signers": {
+                          "maxItems": 4,
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^0x[0-9a-fA-F]{40}$"
+                              },
+                              {
+                                "type": "string",
+                                "pattern": "^0\\.0\\.[1-9]\\d{0,11}$"
+                              }
+                            ]
+                          }
                         }
                       },
-                      "required": ["usd6", "network", "to"],
+                      "required": [
+                        "usd6",
+                        "network",
+                        "to"
+                      ],
                       "additionalProperties": false
                     },
                     "cancelledAt": {
@@ -5640,10 +6498,16 @@
                         },
                         "recovery": {
                           "type": "string",
-                          "enum": ["automatic", "manual"]
+                          "enum": [
+                            "automatic",
+                            "manual"
+                          ]
                         }
                       },
-                      "required": ["network", "usd6"],
+                      "required": [
+                        "network",
+                        "usd6"
+                      ],
                       "additionalProperties": false
                     },
                     "campaignReclaim": {
@@ -5651,7 +6515,13 @@
                       "properties": {
                         "state": {
                           "type": "string",
-                          "enum": ["scheduled", "pending", "refunded", "ineligible", "manual"]
+                          "enum": [
+                            "scheduled",
+                            "pending",
+                            "refunded",
+                            "ineligible",
+                            "manual"
+                          ]
                         },
                         "reclaimAfter": {
                           "type": "integer",
@@ -5663,7 +6533,10 @@
                           "maxLength": 128
                         }
                       },
-                      "required": ["state", "reclaimAfter"],
+                      "required": [
+                        "state",
+                        "reclaimAfter"
+                      ],
                       "additionalProperties": false
                     },
                     "event": {
@@ -5684,7 +6557,11 @@
                           "pattern": "^[A-Z]{2}$"
                         }
                       },
-                      "required": ["campaignId", "name", "destinationCountry"],
+                      "required": [
+                        "campaignId",
+                        "name",
+                        "destinationCountry"
+                      ],
                       "additionalProperties": false
                     }
                   },
@@ -5727,7 +6604,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -5823,7 +6703,10 @@
                                 "maximum": 9007199254740991
                               }
                             },
-                            "required": ["topic", "sequence"],
+                            "required": [
+                              "topic",
+                              "sequence"
+                            ],
                             "additionalProperties": false
                           },
                           "at": {
@@ -5832,12 +6715,18 @@
                             "maximum": 9007199254740991
                           }
                         },
-                        "required": ["v", "kind", "at"],
+                        "required": [
+                          "v",
+                          "kind",
+                          "at"
+                        ],
                         "additionalProperties": false
                       }
                     }
                   },
-                  "required": ["receipts"],
+                  "required": [
+                    "receipts"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -5872,7 +6761,9 @@
                     "pattern": "^0x[0-9a-fA-F]{64}$"
                   }
                 },
-                "required": ["sessionPubKey"],
+                "required": [
+                  "sessionPubKey"
+                ],
                 "additionalProperties": false
               }
             }
@@ -5893,7 +6784,9 @@
                           "const": "pending-profile"
                         }
                       },
-                      "required": ["status"],
+                      "required": [
+                        "status"
+                      ],
                       "additionalProperties": false
                     },
                     {
@@ -5927,11 +6820,20 @@
                               "pattern": "^0x[0-9a-fA-F]*$"
                             }
                           },
-                          "required": ["v", "epk", "nonce", "ct"],
+                          "required": [
+                            "v",
+                            "epk",
+                            "nonce",
+                            "ct"
+                          ],
                           "additionalProperties": false
                         }
                       },
-                      "required": ["status", "nonce", "sealedLpa"],
+                      "required": [
+                        "status",
+                        "nonce",
+                        "sealedLpa"
+                      ],
                       "additionalProperties": false
                     }
                   ]
@@ -5953,7 +6855,9 @@
                           "const": "pending-profile"
                         }
                       },
-                      "required": ["status"],
+                      "required": [
+                        "status"
+                      ],
                       "additionalProperties": false
                     },
                     {
@@ -5987,11 +6891,20 @@
                               "pattern": "^0x[0-9a-fA-F]*$"
                             }
                           },
-                          "required": ["v", "epk", "nonce", "ct"],
+                          "required": [
+                            "v",
+                            "epk",
+                            "nonce",
+                            "ct"
+                          ],
                           "additionalProperties": false
                         }
                       },
-                      "required": ["status", "nonce", "sealedLpa"],
+                      "required": [
+                        "status",
+                        "nonce",
+                        "sealedLpa"
+                      ],
                       "additionalProperties": false
                     }
                   ]
@@ -6017,7 +6930,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -6041,7 +6957,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -6088,7 +7007,10 @@
                       },
                       "network": {
                         "type": "string",
-                        "enum": ["hedera:testnet", "hedera:mainnet"]
+                        "enum": [
+                          "hedera:testnet",
+                          "hedera:mainnet"
+                        ]
                       },
                       "challenge": {
                         "type": "object",
@@ -6121,7 +7043,13 @@
                             "pattern": "^0x[0-9a-fA-F]{64}$"
                           }
                         },
-                        "required": ["nonce", "audience", "path", "exp", "signal"]
+                        "required": [
+                          "nonce",
+                          "audience",
+                          "path",
+                          "exp",
+                          "signal"
+                        ]
                       },
                       "issuedAt": {
                         "type": "integer",
@@ -6192,7 +7120,13 @@
                             "pattern": "^0x[0-9a-fA-F]{64}$"
                           }
                         },
-                        "required": ["nonce", "audience", "path", "exp", "signal"]
+                        "required": [
+                          "nonce",
+                          "audience",
+                          "path",
+                          "exp",
+                          "signal"
+                        ]
                       },
                       "issuedAt": {
                         "type": "integer",
@@ -6204,7 +7138,13 @@
                         "pattern": "^0x[0-9a-fA-F]*$"
                       }
                     },
-                    "required": ["entitlementKey", "payer", "challenge", "issuedAt", "signature"]
+                    "required": [
+                      "entitlementKey",
+                      "payer",
+                      "challenge",
+                      "issuedAt",
+                      "signature"
+                    ]
                   }
                 ]
               }
@@ -6240,10 +7180,16 @@
                         },
                         "recovery": {
                           "type": "string",
-                          "enum": ["automatic", "manual"]
+                          "enum": [
+                            "automatic",
+                            "manual"
+                          ]
                         }
                       },
-                      "required": ["network", "usd6"],
+                      "required": [
+                        "network",
+                        "usd6"
+                      ],
                       "additionalProperties": false
                     },
                     "receipt": {
@@ -6264,15 +7210,24 @@
                               "maximum": 9007199254740991
                             }
                           },
-                          "required": ["topic", "sequence"],
+                          "required": [
+                            "topic",
+                            "sequence"
+                          ],
                           "additionalProperties": false
                         }
                       },
-                      "required": ["arkivKey"],
+                      "required": [
+                        "arkivKey"
+                      ],
                       "additionalProperties": false
                     }
                   },
-                  "required": ["cancelledAt", "refund", "receipt"],
+                  "required": [
+                    "cancelledAt",
+                    "refund",
+                    "receipt"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -6306,10 +7261,16 @@
                         },
                         "recovery": {
                           "type": "string",
-                          "enum": ["automatic", "manual"]
+                          "enum": [
+                            "automatic",
+                            "manual"
+                          ]
                         }
                       },
-                      "required": ["network", "usd6"],
+                      "required": [
+                        "network",
+                        "usd6"
+                      ],
                       "additionalProperties": false
                     },
                     "receipt": {
@@ -6330,15 +7291,24 @@
                               "maximum": 9007199254740991
                             }
                           },
-                          "required": ["topic", "sequence"],
+                          "required": [
+                            "topic",
+                            "sequence"
+                          ],
                           "additionalProperties": false
                         }
                       },
-                      "required": ["arkivKey"],
+                      "required": [
+                        "arkivKey"
+                      ],
                       "additionalProperties": false
                     }
                   },
-                  "required": ["cancelledAt", "refund", "receipt"],
+                  "required": [
+                    "cancelledAt",
+                    "refund",
+                    "receipt"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -6362,7 +7332,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -6386,7 +7359,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -6410,7 +7386,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -6434,7 +7413,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -6458,7 +7440,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -6482,7 +7467,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -6537,7 +7525,11 @@
                             "const": 0
                           }
                         },
-                        "required": ["orb", "document", "device"]
+                        "required": [
+                          "orb",
+                          "document",
+                          "device"
+                        ]
                       },
                       "pricePerClaimUsd6": {
                         "type": "string",
@@ -6651,7 +7643,9 @@
                     ]
                   }
                 },
-                "required": ["campaign"]
+                "required": [
+                  "campaign"
+                ]
               }
             }
           }
@@ -6669,7 +7663,9 @@
                       "const": true
                     }
                   },
-                  "required": ["valid"],
+                  "required": [
+                    "valid"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -6693,7 +7689,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -6717,7 +7716,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -6782,7 +7784,11 @@
                             "const": 0
                           }
                         },
-                        "required": ["orb", "document", "device"]
+                        "required": [
+                          "orb",
+                          "document",
+                          "device"
+                        ]
                       },
                       "pricePerClaimUsd6": {
                         "type": "string",
@@ -6908,10 +7914,16 @@
                         "pattern": "^0x[0-9a-fA-F]*$"
                       }
                     },
-                    "required": ["issuedAt", "signature"]
+                    "required": [
+                      "issuedAt",
+                      "signature"
+                    ]
                   }
                 },
-                "required": ["campaign", "auth"]
+                "required": [
+                  "campaign",
+                  "auth"
+                ]
               }
             }
           }
@@ -6931,7 +7943,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["id", "auditKey"],
+                  "required": [
+                    "id",
+                    "auditKey"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -6955,7 +7970,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -6979,7 +7997,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -7003,7 +8024,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -7081,7 +8105,11 @@
                               "const": 0
                             }
                           },
-                          "required": ["orb", "document", "device"],
+                          "required": [
+                            "orb",
+                            "document",
+                            "device"
+                          ],
                           "additionalProperties": false
                         },
                         "pricePerClaimUsd6": {
@@ -7196,7 +8224,11 @@
                             },
                             "status": {
                               "type": "string",
-                              "enum": ["pending", "registered", "failed"]
+                              "enum": [
+                                "pending",
+                                "registered",
+                                "failed"
+                              ]
                             },
                             "txs": {
                               "maxItems": 16,
@@ -7206,19 +8238,30 @@
                                 "properties": {
                                   "step": {
                                     "type": "string",
-                                    "enum": ["resolver", "register", "grant"]
+                                    "enum": [
+                                      "resolver",
+                                      "register",
+                                      "grant"
+                                    ]
                                   },
                                   "hash": {
                                     "type": "string",
                                     "pattern": "^0x[0-9a-fA-F]{64}$"
                                   }
                                 },
-                                "required": ["step", "hash"],
+                                "required": [
+                                  "step",
+                                  "hash"
+                                ],
                                 "additionalProperties": false
                               }
                             }
                           },
-                          "required": ["name", "status", "txs"],
+                          "required": [
+                            "name",
+                            "status",
+                            "txs"
+                          ],
                           "additionalProperties": false
                         }
                       },
@@ -7298,7 +8341,12 @@
                           },
                           "tier": {
                             "type": "string",
-                            "enum": ["orb", "document", "device", "none"]
+                            "enum": [
+                              "orb",
+                              "document",
+                              "device",
+                              "none"
+                            ]
                           },
                           "mb": {
                             "type": "integer",
@@ -7316,7 +8364,14 @@
                             "type": "string"
                           }
                         },
-                        "required": ["at", "campaignClaimKey", "tier", "mb", "usd6", "status"],
+                        "required": [
+                          "at",
+                          "campaignClaimKey",
+                          "tier",
+                          "mb",
+                          "usd6",
+                          "status"
+                        ],
                         "additionalProperties": false
                       }
                     },
@@ -7340,10 +8395,20 @@
                           },
                           "tier": {
                             "type": "string",
-                            "enum": ["orb", "document", "device", "none"]
+                            "enum": [
+                              "orb",
+                              "document",
+                              "device",
+                              "none"
+                            ]
                           }
                         },
-                        "required": ["arkivKey", "remainingMb", "expiresAt", "tier"],
+                        "required": [
+                          "arkivKey",
+                          "remainingMb",
+                          "expiresAt",
+                          "tier"
+                        ],
                         "additionalProperties": false
                       }
                     },
@@ -7394,7 +8459,12 @@
                       "additionalProperties": false
                     }
                   },
-                  "required": ["campaign", "chain", "claims", "expiring"],
+                  "required": [
+                    "campaign",
+                    "chain",
+                    "claims",
+                    "expiring"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -7418,7 +8488,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -7557,7 +8630,11 @@
                               "maximum": 9007199254740991
                             }
                           },
-                          "required": ["orb", "document", "unknown"],
+                          "required": [
+                            "orb",
+                            "document",
+                            "unknown"
+                          ],
                           "additionalProperties": false
                         },
                         "mbDelivered": {
@@ -7669,7 +8746,11 @@
                             "maximum": 9007199254740991
                           }
                         },
-                        "required": ["day", "start", "claims"],
+                        "required": [
+                          "day",
+                          "start",
+                          "claims"
+                        ],
                         "additionalProperties": false
                       }
                     },
@@ -7689,7 +8770,10 @@
                             "maximum": 9007199254740991
                           }
                         },
-                        "required": ["at", "claims"],
+                        "required": [
+                          "at",
+                          "claims"
+                        ],
                         "additionalProperties": false
                       }
                     },
@@ -7800,7 +8884,13 @@
                           "maximum": 9007199254740991
                         }
                       },
-                      "required": ["pending", "ready", "installed", "active", "expired"],
+                      "required": [
+                        "pending",
+                        "ready",
+                        "installed",
+                        "active",
+                        "expired"
+                      ],
                       "additionalProperties": false
                     },
                     "notInstalled": {
@@ -7827,11 +8917,18 @@
                               },
                               "tier": {
                                 "type": "string",
-                                "enum": ["orb", "document", "unknown"]
+                                "enum": [
+                                  "orb",
+                                  "document",
+                                  "unknown"
+                                ]
                               },
                               "status": {
                                 "type": "string",
-                                "enum": ["pending-profile", "ready"]
+                                "enum": [
+                                  "pending-profile",
+                                  "ready"
+                                ]
                               },
                               "statusAsOf": {
                                 "type": "integer",
@@ -7868,7 +8965,11 @@
                           }
                         }
                       },
-                      "required": ["count", "usd6", "rows"],
+                      "required": [
+                        "count",
+                        "usd6",
+                        "rows"
+                      ],
                       "additionalProperties": false
                     },
                     "proof": {
@@ -7921,7 +9022,11 @@
                           },
                           "tier": {
                             "type": "string",
-                            "enum": ["orb", "document", "unknown"]
+                            "enum": [
+                              "orb",
+                              "document",
+                              "unknown"
+                            ]
                           },
                           "tx": {
                             "type": "string",
@@ -7931,7 +9036,11 @@
                             "type": "string"
                           }
                         },
-                        "required": ["at", "tier", "arkivKey"],
+                        "required": [
+                          "at",
+                          "tier",
+                          "arkivKey"
+                        ],
                         "additionalProperties": false
                       }
                     }
@@ -7977,7 +9086,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -8039,10 +9151,19 @@
                         "pattern": "^0x[0-9a-fA-F]*$"
                       }
                     },
-                    "required": ["sponsor", "nonce", "issuedAt", "signature"]
+                    "required": [
+                      "sponsor",
+                      "nonce",
+                      "issuedAt",
+                      "signature"
+                    ]
                   }
                 },
-                "required": ["count", "mb", "auth"]
+                "required": [
+                  "count",
+                  "mb",
+                  "auth"
+                ]
               }
             }
           }
@@ -8087,12 +9208,21 @@
                             "maximum": 1000000
                           }
                         },
-                        "required": ["serial", "pin", "mb"],
+                        "required": [
+                          "serial",
+                          "pin",
+                          "mb"
+                        ],
                         "additionalProperties": false
                       }
                     }
                   },
-                  "required": ["campaignId", "mb", "claimBy", "cards"],
+                  "required": [
+                    "campaignId",
+                    "mb",
+                    "claimBy",
+                    "cards"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -8116,7 +9246,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -8140,7 +9273,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -8164,7 +9300,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -8188,7 +9327,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -8212,7 +9354,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -8236,7 +9381,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -8316,7 +9464,13 @@
                     "pattern": "^0x[0-9a-fA-F]*$"
                   }
                 },
-                "required": ["entitlementKey", "owner", "policy", "issuedAt", "signature"]
+                "required": [
+                  "entitlementKey",
+                  "owner",
+                  "policy",
+                  "issuedAt",
+                  "signature"
+                ]
               }
             }
           }
@@ -8392,7 +9546,13 @@
                       "properties": {
                         "state": {
                           "type": "string",
-                          "enum": ["none", "pending", "armed", "denied", "expired"]
+                          "enum": [
+                            "none",
+                            "pending",
+                            "armed",
+                            "denied",
+                            "expired"
+                          ]
                         },
                         "passUntil": {
                           "type": "integer",
@@ -8424,11 +9584,18 @@
                           "type": "boolean"
                         }
                       },
-                      "required": ["state"],
+                      "required": [
+                        "state"
+                      ],
                       "additionalProperties": false
                     }
                   },
-                  "required": ["policy", "owner", "spentTodayUsd6", "updatedAt"],
+                  "required": [
+                    "policy",
+                    "owner",
+                    "spentTodayUsd6",
+                    "updatedAt"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -8452,7 +9619,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -8476,7 +9646,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -8570,7 +9743,13 @@
                       "properties": {
                         "state": {
                           "type": "string",
-                          "enum": ["none", "pending", "armed", "denied", "expired"]
+                          "enum": [
+                            "none",
+                            "pending",
+                            "armed",
+                            "denied",
+                            "expired"
+                          ]
                         },
                         "passUntil": {
                           "type": "integer",
@@ -8602,11 +9781,18 @@
                           "type": "boolean"
                         }
                       },
-                      "required": ["state"],
+                      "required": [
+                        "state"
+                      ],
                       "additionalProperties": false
                     }
                   },
-                  "required": ["policy", "owner", "spentTodayUsd6", "updatedAt"],
+                  "required": [
+                    "policy",
+                    "owner",
+                    "spentTodayUsd6",
+                    "updatedAt"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -8630,7 +9816,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -8684,7 +9873,12 @@
                       "maximum": 9007199254740991
                     }
                   },
-                  "required": ["verification_uri", "user_code", "expires_in", "interval"],
+                  "required": [
+                    "verification_uri",
+                    "user_code",
+                    "expires_in",
+                    "interval"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -8708,7 +9902,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -8732,7 +9929,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -8765,7 +9965,12 @@
                   "properties": {
                     "state": {
                       "type": "string",
-                      "enum": ["pending", "approved", "denied", "expired"]
+                      "enum": [
+                        "pending",
+                        "approved",
+                        "denied",
+                        "expired"
+                      ]
                     },
                     "reason": {
                       "type": "string",
@@ -8782,7 +9987,9 @@
                       "maximum": 9007199254740991
                     }
                   },
-                  "required": ["state"],
+                  "required": [
+                    "state"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -8806,7 +10013,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -8830,7 +10040,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -8879,7 +10092,11 @@
                             "additionalProperties": {}
                           }
                         },
-                        "required": ["x402Version", "scheme", "network"],
+                        "required": [
+                          "x402Version",
+                          "scheme",
+                          "network"
+                        ],
                         "additionalProperties": false
                       }
                     },
@@ -8906,7 +10123,9 @@
                       }
                     }
                   },
-                  "required": ["kinds"],
+                  "required": [
+                    "kinds"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -8953,7 +10172,11 @@
                             "maxLength": 80
                           }
                         },
-                        "required": ["url", "description", "mimeType"]
+                        "required": [
+                          "url",
+                          "description",
+                          "mimeType"
+                        ]
                       },
                       "accepted": {
                         "type": "object",
@@ -9048,7 +10271,10 @@
                                 ]
                               }
                             },
-                            "required": ["signature", "authorization"],
+                            "required": [
+                              "signature",
+                              "authorization"
+                            ],
                             "additionalProperties": false
                           },
                           {
@@ -9062,7 +10288,9 @@
                                 "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$"
                               }
                             },
-                            "required": ["transaction"],
+                            "required": [
+                              "transaction"
+                            ],
                             "additionalProperties": false
                           }
                         ]
@@ -9075,7 +10303,11 @@
                         "additionalProperties": {}
                       }
                     },
-                    "required": ["x402Version", "accepted", "payload"]
+                    "required": [
+                      "x402Version",
+                      "accepted",
+                      "payload"
+                    ]
                   },
                   "paymentRequirements": {
                     "type": "object",
@@ -9124,7 +10356,11 @@
                     ]
                   }
                 },
-                "required": ["x402Version", "paymentPayload", "paymentRequirements"]
+                "required": [
+                  "x402Version",
+                  "paymentPayload",
+                  "paymentRequirements"
+                ]
               }
             }
           }
@@ -9148,7 +10384,10 @@
                           "maxLength": 64
                         }
                       },
-                      "required": ["isValid", "payer"],
+                      "required": [
+                        "isValid",
+                        "payer"
+                      ],
                       "additionalProperties": false
                     },
                     {
@@ -9167,7 +10406,10 @@
                           "maxLength": 64
                         }
                       },
-                      "required": ["isValid", "invalidReason"],
+                      "required": [
+                        "isValid",
+                        "invalidReason"
+                      ],
                       "additionalProperties": false
                     }
                   ]
@@ -9193,7 +10435,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -9217,7 +10462,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -9264,7 +10512,11 @@
                             "maxLength": 80
                           }
                         },
-                        "required": ["url", "description", "mimeType"]
+                        "required": [
+                          "url",
+                          "description",
+                          "mimeType"
+                        ]
                       },
                       "accepted": {
                         "type": "object",
@@ -9359,7 +10611,10 @@
                                 ]
                               }
                             },
-                            "required": ["signature", "authorization"],
+                            "required": [
+                              "signature",
+                              "authorization"
+                            ],
                             "additionalProperties": false
                           },
                           {
@@ -9373,7 +10628,9 @@
                                 "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$"
                               }
                             },
-                            "required": ["transaction"],
+                            "required": [
+                              "transaction"
+                            ],
                             "additionalProperties": false
                           }
                         ]
@@ -9386,7 +10643,11 @@
                         "additionalProperties": {}
                       }
                     },
-                    "required": ["x402Version", "accepted", "payload"]
+                    "required": [
+                      "x402Version",
+                      "accepted",
+                      "payload"
+                    ]
                   },
                   "paymentRequirements": {
                     "type": "object",
@@ -9435,7 +10696,11 @@
                     ]
                   }
                 },
-                "required": ["x402Version", "paymentPayload", "paymentRequirements"]
+                "required": [
+                  "x402Version",
+                  "paymentPayload",
+                  "paymentRequirements"
+                ]
               }
             }
           }
@@ -9468,7 +10733,12 @@
                           "maxLength": 64
                         }
                       },
-                      "required": ["success", "transaction", "network", "payer"],
+                      "required": [
+                        "success",
+                        "transaction",
+                        "network",
+                        "payer"
+                      ],
                       "additionalProperties": false
                     },
                     {
@@ -9495,7 +10765,11 @@
                           "maxLength": 64
                         }
                       },
-                      "required": ["success", "errorReason", "network"],
+                      "required": [
+                        "success",
+                        "errorReason",
+                        "network"
+                      ],
                       "additionalProperties": false
                     }
                   ]
@@ -9521,7 +10795,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }
@@ -9545,7 +10822,10 @@
                       "type": "string"
                     }
                   },
-                  "required": ["error", "message"],
+                  "required": [
+                    "error",
+                    "message"
+                  ],
                   "additionalProperties": false
                 }
               }

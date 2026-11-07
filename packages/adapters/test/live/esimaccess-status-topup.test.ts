@@ -75,7 +75,13 @@ describe('eSIM Access documented status and confirmed top-ups', () => {
     }
     const elapsed = vendor({ expiredTime: new Date(depleted.clock.now() - 1000).toISOString() });
     await expect(elapsed.reseller.canTopUp(ICCID)).resolves.toBe(false);
-    for (const support of [1, 3]) {
+    // the TOPUP catalogue reports fixed-volume top-ups as 1 (seen live 2026-11-07) or 2; 3 is a day pass
+    for (const support of [1, 2]) {
+      const v = vendor();
+      v.packages[0]!.supportTopUpType = support;
+      await expect(v.reseller.canTopUp(ICCID)).resolves.toBe(true);
+    }
+    for (const support of [0, 3]) {
       const v = vendor();
       v.packages[0]!.supportTopUpType = support;
       await expect(v.reseller.canTopUp(ICCID)).resolves.toBe(false);

@@ -538,8 +538,15 @@ export class EsimAccessReseller implements Reseller {
       },
       packageList,
     );
-    // Type 3 is a day-pass extension requiring periodNum; this product sells a fixed MB amount.
-    return list.filter((p) => p.supportTopUpType === 2 && p.durationUnit === 'DAY' && p.volume > 0);
+    // The TOPUP catalogue reports fixed-volume top-ups as supportTopUpType 1 (the BASE catalogue says 2 for a
+    // base package that accepts them; seen live 2026-11-07: every India top-up is 1). Type 3 is a day-pass
+    // extension requiring periodNum; this product sells a fixed MB amount.
+    return list.filter(
+      (p) =>
+        (p.supportTopUpType === 1 || p.supportTopUpType === 2) &&
+        p.durationUnit === 'DAY' &&
+        p.volume > 0,
+    );
   }
 
   async canTopUp(iccid: string): Promise<boolean> {

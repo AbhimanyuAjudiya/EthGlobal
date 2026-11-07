@@ -493,6 +493,7 @@ function dataDropFor(
     throw new Error('DataDrop address unknown: set DATADROP_ADDRESS or deploy the contracts');
   return createDataDropClient({
     rpcUrl,
+    ...(env.RPC_FALLBACK_URL === undefined ? {} : { fallbackRpcUrl: env.RPC_FALLBACK_URL }),
     chainId,
     address: getAddress(address),
     attestorKey: env.ATTESTOR_PRIVATE_KEY as Hex,

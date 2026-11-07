@@ -4,12 +4,14 @@ import {
   createPublicClient,
   createWalletClient,
   defineChain,
+  fallback,
   getAddress,
   http,
   type Abi,
   type Address,
   type Chain,
   type PublicClient,
+  type Transport,
 } from 'viem';
 import { nonceManager, privateKeyToAccount } from 'viem/accounts';
 
@@ -24,13 +26,34 @@ export const DATADROP_ABI = DataDropAbiJson as Abi;
 
 export type ChainIdResolver = () => Promise<number>;
 
+/**
+ * `http()` to the first URL; with a second one, viem's fallback transport: a relay that errors or times out hands
+ * the request to the next (a revert still throws at once). Each relay is tried once per attempt so a dead primary
+ * costs one timeout, not two; `retryCount` then repeats the whole sequence.
+ */
+export function rpcTransport(
+  urls: readonly (string | undefined)[],
+  opts: { retryCount: number; timeout: number },
+): Transport {
+  const live = urls.filter((u): u is string => u !== undefined && u !== '');
+  const [primary, ...rest] = live;
+  if (primary === undefined) throw new Error('rpcTransport: no RPC URL');
+  if (rest.length === 0) return http(primary, opts);
+  return fallback(
+    live.map((u) => http(u, { retryCount: 0, timeout: opts.timeout })),
+    { retryCount: opts.retryCount },
+  );
+}
+
 /** Local mode never touches a node; live mode asks the configured RPC for its chain id. */
-export function createChainIdResolver(env: Pick<Env, 'MODE' | 'RPC_URL'>): ChainIdResolver {
+export function createChainIdResolver(
+  env: Pick<Env, 'MODE' | 'RPC_URL' | 'RPC_FALLBACK_URL'>,
+): ChainIdResolver {
   if (env.MODE === 'local') {
     return () => Promise.resolve(LOCAL_CHAIN_ID);
   }
   const client = createPublicClient({
-    transport: http(env.RPC_URL, { retryCount: 1, timeout: 5_000 }),
+    transport: rpcTransport([env.RPC_URL, env.RPC_FALLBACK_URL], { retryCount: 1, timeout: 5_000 }),
   });
   return () => client.getChainId();
 }
@@ -103,6 +126,8 @@ export class SerialQueue {
 
 export interface DataDropClientOptions {
   rpcUrl: string;
+  /** A second relay for the same chain (RPC_FALLBACK_URL), tried when `rpcUrl` errors or times out. */
+  fallbackRpcUrl?: string;
   chainId: number;
   address: Address;
   attestorKey: Hex;
@@ -123,11 +148,15 @@ function chainFor(chainId: number, rpcUrl: string): Chain {
 export const pollingIntervalFor = (chainId: number): number =>
   chainId === LOCAL_CHAIN_ID ? 250 : 2_000;
 
-export function createPublic(rpcUrl: string, chainId: number): PublicClient {
+export function createPublic(
+  rpcUrl: string,
+  chainId: number,
+  fallbackRpcUrl?: string,
+): PublicClient {
   return createPublicClient({
     chain: chainFor(chainId, rpcUrl),
     pollingInterval: pollingIntervalFor(chainId),
-    transport: http(rpcUrl, { retryCount: 1, timeout: 10_000 }),
+    transport: rpcTransport([rpcUrl, fallbackRpcUrl], { retryCount: 1, timeout: 10_000 }),
   });
 }
 
@@ -135,11 +164,11 @@ export function createPublic(rpcUrl: string, chainId: number): PublicClient {
 export function createDataDropClient(opts: DataDropClientOptions): DataDropClient {
   const chain = chainFor(opts.chainId, opts.rpcUrl);
   const account = privateKeyToAccount(opts.attestorKey, { nonceManager });
-  const publicClient = createPublic(opts.rpcUrl, opts.chainId);
+  const publicClient = createPublic(opts.rpcUrl, opts.chainId, opts.fallbackRpcUrl);
   const wallet = createWalletClient({
     chain,
     account,
-    transport: http(opts.rpcUrl, { retryCount: 0, timeout: 20_000 }),
+    transport: rpcTransport([opts.rpcUrl, opts.fallbackRpcUrl], { retryCount: 0, timeout: 20_000 }),
   });
   const address = getAddress(opts.address);
   const queue = new SerialQueue();

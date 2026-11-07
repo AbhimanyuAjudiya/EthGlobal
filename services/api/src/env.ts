@@ -164,6 +164,8 @@ export const envSchema = z
     /** Chain id of DataDrop; local mode is always Anvil (31337); live must name it (RT-A-09). */
     CHAIN: z.coerce.number().int().positive().optional(),
     RPC_URL: z.url().optional(),
+    /** A second relay for the same chain: a relay that errors or times out hands the request to it (viem fallback). */
+    RPC_FALLBACK_URL: z.url().optional(),
     ANVIL_RPC_URL: z.url().default('http://127.0.0.1:8545'),
     DATADROP_ADDRESS: evmAddressSchema.optional(),
     /** MockUSDC3009 on Anvil (else deploy/addresses.anvil.json). */

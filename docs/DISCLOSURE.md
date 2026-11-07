@@ -201,6 +201,8 @@ RT-C-08, RT-A-15 and RT-A-16 were verified or fixed that day; `security/redteam/
 idea, ratified the committee decision, directed the waves, and does every on-site, key-holding and vendor-facing action
 in `docs/ONSITE-RUNBOOK.md`. The AI never had network access to a vendor or testnet (`docs/ENVIRONMENT-CONSTRAINTS.md`).
 
+Addendum, 7 Nov 2026: the 6 Nov audit-and-repair release (`docs/AUDIT-REPAIR.md`; the commits from `7b253d9` to `1197171`, which carry no `Co-Authored-By` trailer) was produced with OpenAI Codex under the same human direction and review. Most in-window commits after it are co-authored by Claude Code (the live deploy, the wallet layer, HashPack payments, ENS campaign names, the sponsor console, the frontend rebuild, tests, fixtures, documentation, the live-ops fixes `65b9eba` and `4f9959c`, and the submission tooling); `git log v0-prekickoff..HEAD` is the complete dated record. The red-team findings are records under `security/redteam/findings/` (67 at submission), not GitHub issues.
+
 ## 5. Eligibility answers (DECISION §7.4; asked at kickoff, answered here and in the README by Fri 6 Nov 2026 06:00 IST)
 
 | Asked of | Question | Answer |

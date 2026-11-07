@@ -8,8 +8,7 @@ _Glassbox402 priced humans and agents differently; Recharge is the gate that pro
 good people want on day one._
 
 Built for ETHGlobal Mumbai 2026 (Continuity track; see [the disclosure](#continuity-disclosure)). Partner programs:
-**Hedera**, **World** and **Arkiv** (+ Swarm). **ENS** is integrated but not claimed. Video: **TBD by human
-(Design/Producer, Fri 6 Nov 23:30 IST)**; submissions close **Sat 7 Nov 2026 09:00 IST** (no late submissions) · Live: **https://app.recharge.ajudiya.com** (API `https://api.recharge.ajudiya.com`, testnet rails; since Fri 6 Nov 2026 02:50 IST).
+**Hedera**, **World** and **ENS** are the three partner prizes applied for; **Arkiv** (+ Swarm) is used and listed as a technology. Video: **uploaded with the ETHGlobal submission**; submissions close **Sat 7 Nov 2026 09:00 IST** (no late submissions) · Live: **https://app.recharge.ajudiya.com** (API `https://api.recharge.ajudiya.com`, testnet rails; since Fri 6 Nov 2026 02:50 IST).
 
 ## How it works
 

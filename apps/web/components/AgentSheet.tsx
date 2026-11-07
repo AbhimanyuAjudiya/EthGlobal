@@ -49,6 +49,10 @@ import { isUserRejection } from '../lib/wallet';
 
 /** Daily caps that buy at least one 1 GB step ($4.00): one, two or five top-ups a day. */
 const CAPS_USD = [4, 8, 20];
+/** Buy when data left is at or below this share of the plan; 100 keeps one bundle ahead (buys at once). */
+const THRESHOLD_PCT = [20, 50, 100];
+const thresholdMbFor = (mbTotal: number | undefined, pct: number): number =>
+  Math.max(1, Math.floor((mbTotal ?? PLAN_MB) * (pct / 100)));
 const USD6 = 1_000_000;
 
 function planEnded(me: MeResponse, now: number): boolean {
@@ -58,7 +62,7 @@ function planEnded(me: MeResponse, now: number): boolean {
 export function defaultPolicy(me: MeResponse | undefined): TopUpPolicyWire {
   return {
     maxUsd6PerDay: String(8 * USD6),
-    thresholdMb: Math.max(1, Math.floor((me?.mbTotal ?? PLAN_MB) * 0.2)),
+    thresholdMb: thresholdMbFor(me?.mbTotal, 20),
     // the one size the API sells; the agent skips a step it does not sell (`step-not-sold`)
     stepMb: PLAN_MB,
     paused: false,
@@ -433,6 +437,29 @@ export function AgentSheet() {
                 ...policy,
                 stepMb: sold.mb,
                 maxUsd6PerDay: String(Number(usd) * USD6),
+              };
+              if (view) void save(next);
+              else setPolicy(next);
+            }}
+          />
+          {/* 20 % · 50 % · 100 % of the plan: at 100 % the agent buys the next bundle as soon as the policy is saved */}
+          <ChoiceChips
+            label={t('agent.thresholdLegend')}
+            showLabel
+            data-testid="agent-threshold"
+            options={THRESHOLD_PCT.map((pct) => ({
+              value: String(pct),
+              label: `${pct} %`,
+              disabled: locked,
+            }))}
+            value={THRESHOLD_PCT.find(
+              (pct) => policy.thresholdMb === thresholdMbFor(me?.mbTotal, pct),
+            )?.toString()}
+            onChange={(pct) => {
+              const next = {
+                ...policy,
+                stepMb: sold.mb,
+                thresholdMb: thresholdMbFor(me?.mbTotal, Number(pct)),
               };
               if (view) void save(next);
               else setPolicy(next);

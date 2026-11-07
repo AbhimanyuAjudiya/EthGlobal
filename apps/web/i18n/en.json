@@ -323,6 +323,7 @@
   "agent.sentencePaused": "Your agent is paused. It buys nothing until you resume it.",
   "agent.capAria": "≤ {cap} / day",
   "agent.capLegend": "Daily cap · per day",
+  "agent.thresholdLegend": "Top up when data left is at or below",
   "agent.pause": "Pause",
   "agent.resume": "Resume",
   "agent.save": "Approve in your wallet to save",

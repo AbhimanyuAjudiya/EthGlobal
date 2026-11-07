@@ -323,6 +323,7 @@
   "agent.sentencePaused": "आपका एजेंट रुका हुआ है। दोबारा चालू करने तक यह कुछ नहीं खरीदेगा।",
   "agent.capAria": "≤ {cap} / दिन",
   "agent.capLegend": "दैनिक सीमा · प्रति दिन",
+  "agent.thresholdLegend": "बचा डेटा इतना या कम होने पर टॉप-अप",
   "agent.pause": "रोकें",
   "agent.resume": "फिर चालू करें",
   "agent.save": "सेव करने के लिए अपने वॉलेट में मंज़ूरी दें",
